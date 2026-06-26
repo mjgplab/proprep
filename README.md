@@ -27,13 +27,39 @@ bash install_proprep.sh
 
 The script creates a conda environment named `ProPrep`, installs the package
 from the `mjgplab` channel, and pip-installs `tmtools` (structure alignment).
+It pins and verifies the exact ProPrep version, so a partial conda solve can no
+longer silently leave you on an older release.
+
+## Run
+
+Activate the environment and launch ProPrep:
+
+```
+conda activate ProPrep
+proprep              # interactive command-line interface
+proprep-web          # browser-based UI (web shell)
+```
+
+To use the bundled Amber tools in the same shell:
+
+```
+source $CONDA_PREFIX/amber.sh
+```
 
 ## Update
 
-Rerun the script, or inside the environment:
+Rerun the installer — it now installs the pinned version and aborts if conda
+resolves anything different:
 
 ```
-conda update -n ProPrep -c mjgplab -c dacase -c salilab -c conda-forge proprep -y
+curl -fsSL https://raw.githubusercontent.com/mjgplab/proprep/main/install_proprep.sh | bash
+```
+
+It detects the existing `ProPrep` environment and offers to update or rebuild
+it. To update manually instead:
+
+```
+conda install -n ProPrep -c mjgplab -c dacase -c salilab -c conda-forge proprep -y
 conda run -n ProPrep pip install --upgrade tmtools
 ```
 

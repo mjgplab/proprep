@@ -20,8 +20,12 @@
 #   proprep
 # ============================================================
 
+# Version of ProPrep to install/verify. Bump this ONE line each release;
+# every install command and the post-install check below read from it.
+PROPREP_VERSION="1.10.0"
+
 show_help() {
-cat << 'HELPTEXT'
+cat << HELPTEXT
 ProPrep Installation Guide
 ===========================
 
@@ -60,7 +64,7 @@ Manual Install
 3. Create Environment and Install
 
        conda create --name ProPrep python=3.12 -y
-       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c conda-forge proprep -y
+       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c conda-forge proprep=${PROPREP_VERSION} -y
        conda run -n ProPrep pip install tmtools
 
 Usage
@@ -68,8 +72,12 @@ Usage
 Each time you want to use ProPrep:
 
     conda activate ProPrep
-    source $CONDA_PREFIX/amber.sh
+    source \$CONDA_PREFIX/amber.sh
     proprep
+
+For the browser-based UI (web shell), use:
+
+    proprep-web
 
 Troubleshooting
 ---------------
@@ -99,6 +107,15 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
 fi
 
 set -e
+
+# Old conda on macOS misreads the OS as 10.16 (the Big Sur version-compat
+# shim), so any dependency requiring __osx >=11.0 looks unsatisfiable and the
+# solve fails. Feed conda the TRUE product version so detection is correct.
+# Safe by construction: on a genuinely pre-11 macOS this passes the real low
+# value and the solve still (correctly) fails rather than forcing a bad env.
+if [[ "$(uname)" == "Darwin" && -z "$CONDA_OVERRIDE_OSX" ]]; then
+    export CONDA_OVERRIDE_OSX="$(sw_vers -productVersion)"
+fi
 
 ENV_NAME="ProPrep"
 PYTHON_VERSION="3.12"
@@ -153,16 +170,21 @@ if conda env list | grep -q "^${ENV_NAME} "; then
     if [[ "$install_choice" == "1" ]]; then
         echo ""
         echo "Updating ProPrep..."
-        conda update -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c conda-forge proprep -y
+        conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c conda-forge "proprep=${PROPREP_VERSION}" -y
         conda run -n "$ENV_NAME" pip install --upgrade tmtools
 
         echo ""
         echo "Verifying installation..."
-        if conda run -n "$ENV_NAME" proprep --version &> /dev/null; then
-            VERSION=$(conda run -n "$ENV_NAME" proprep --version 2>&1)
+        VERSION=$(conda run -n "$ENV_NAME" proprep --version 2>&1 || true)
+        if echo "$VERSION" | grep -qF "$PROPREP_VERSION"; then
             echo "  ProPrep updated successfully: $VERSION"
         else
-            echo "  ProPrep updated (version check skipped)."
+            echo ""
+            echo "  ERROR: expected ProPrep $PROPREP_VERSION but conda resolved:"
+            echo "    ${VERSION:-<no version reported>}"
+            echo "  An unmet dependency (or incorrect OS detection) likely forced"
+            echo "  conda to a different version. See the conflict messages above."
+            exit 1
         fi
 
         echo ""
@@ -174,13 +196,25 @@ if conda env list | grep -q "^${ENV_NAME} "; then
         echo ""
         echo "    conda activate $ENV_NAME"
         echo "    source \$CONDA_PREFIX/amber.sh"
-        echo "    proprep"
+        echo "    proprep              # interactive CLI"
+        echo "    proprep-web          # browser-based UI"
         echo ""
         echo "============================================================"
         exit 0
 
     elif [[ "$install_choice" == "2" ]]; then
+        # Capture the env path BEFORE removal so we can purge whatever conda
+        # leaves behind. `conda env remove` only deletes conda-tracked packages;
+        # pip-installed artifacts (e.g. a stale proprep .egg-info from an old
+        # `pip install`) survive in site-packages and then shadow the real
+        # version metadata on the next "fresh" install. Deleting the whole env
+        # directory clears them so the reinstall is genuinely clean.
+        ENV_PREFIX=$(conda env list | awk -v e="$ENV_NAME" '$1==e {print $NF}')
         conda env remove -n "$ENV_NAME" -y
+        if [ -n "$ENV_PREFIX" ] && [ -d "$ENV_PREFIX" ]; then
+            echo "Purging leftover files in $ENV_PREFIX ..."
+            rm -rf "$ENV_PREFIX"
+        fi
     else
         echo "Cancelled."
         exit 0
@@ -197,7 +231,7 @@ echo ""
 echo "Installing ProPrep and dependencies..."
 echo "(This may take several minutes)"
 echo ""
-conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c conda-forge proprep -y
+conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c conda-forge "proprep=${PROPREP_VERSION}" -y
 
 # Install PyPI-only dependencies
 echo ""
@@ -207,11 +241,19 @@ conda run -n "$ENV_NAME" pip install tmtools
 # Verify installation
 echo ""
 echo "Verifying installation..."
-if conda run -n "$ENV_NAME" proprep --version &> /dev/null; then
-    VERSION=$(conda run -n "$ENV_NAME" proprep --version 2>&1)
+VERSION=$(conda run -n "$ENV_NAME" proprep --version 2>&1 || true)
+if echo "$VERSION" | grep -qF "$PROPREP_VERSION"; then
     echo "  ProPrep installed successfully: $VERSION"
 else
-    echo "  ProPrep installed (version check skipped)."
+    echo ""
+    echo "  ERROR: expected ProPrep $PROPREP_VERSION but conda resolved:"
+    echo "    ${VERSION:-<no version reported>}"
+    echo "  An unmet dependency (or incorrect OS detection) likely forced"
+    echo "  conda to a different version. See the conflict messages above."
+    echo ""
+    echo "  On macOS, if conda misreports your OS version (e.g. 10.16), try:"
+    echo "    SYSTEM_VERSION_COMPAT=0 bash install_proprep.sh"
+    exit 1
 fi
 
 echo ""
@@ -223,7 +265,8 @@ echo "  To use ProPrep:"
 echo ""
 echo "    conda activate $ENV_NAME"
 echo "    source \$CONDA_PREFIX/amber.sh"
-echo "    proprep"
+echo "    proprep              # interactive CLI"
+echo "    proprep-web          # browser-based UI"
 echo ""
 if [ -z "$KEY_MODELLER" ]; then
     echo "  To configure MODELLER later:"
