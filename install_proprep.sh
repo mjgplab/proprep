@@ -141,7 +141,23 @@ echo "MODELLER requires a license key (free for academic use)."
 echo "Register at: https://salilab.org/modeller/registration.html"
 echo ""
 if [ -z "$KEY_MODELLER" ]; then
-    read -p "Enter your MODELLER license key (or press Enter to skip): " modeller_key
+    printf "Enter your MODELLER license key (or press Enter to skip): "
+    modeller_key=""
+    while IFS= read -r -s -n 1 char; do
+        # Empty char means Enter/newline was pressed -> done
+        [ -z "$char" ] && break
+        if [ "$char" = $'\177' ] || [ "$char" = $'\b' ]; then
+            # Backspace/Delete: drop last char and erase one star on screen
+            if [ -n "$modeller_key" ]; then
+                modeller_key="${modeller_key%?}"
+                printf '\b \b'
+            fi
+        else
+            modeller_key+="$char"
+            printf '*'
+        fi
+    done
+    echo ""
     if [ -n "$modeller_key" ]; then
         export KEY_MODELLER="$modeller_key"
     else
