@@ -22,7 +22,7 @@
 
 # Version of ProPrep to install/verify. Bump this ONE line each release;
 # every install command and the post-install check below read from it.
-PROPREP_VERSION="1.10.0"
+PROPREP_VERSION="1.11.0"
 
 show_help() {
 cat << HELPTEXT
@@ -64,7 +64,7 @@ Manual Install
 3. Create Environment and Install
 
        conda create --name ProPrep python=3.12 -y
-       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c conda-forge proprep=${PROPREP_VERSION} -y
+       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep=${PROPREP_VERSION} -y
        conda run -n ProPrep pip install tmtools
 
 Usage
@@ -186,7 +186,7 @@ if conda env list | grep -q "^${ENV_NAME} "; then
     if [[ "$install_choice" == "1" ]]; then
         echo ""
         echo "Updating ProPrep..."
-        conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c conda-forge "proprep=${PROPREP_VERSION}" -y
+        conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge "proprep=${PROPREP_VERSION}" -y
         conda run -n "$ENV_NAME" pip install --upgrade tmtools
 
         echo ""
@@ -247,7 +247,7 @@ echo ""
 echo "Installing ProPrep and dependencies..."
 echo "(This may take several minutes)"
 echo ""
-conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c conda-forge "proprep=${PROPREP_VERSION}" -y
+conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge "proprep=${PROPREP_VERSION}" -y
 
 # Install PyPI-only dependencies
 echo ""

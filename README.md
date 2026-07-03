@@ -59,7 +59,7 @@ It detects the existing `ProPrep` environment and offers to update or rebuild
 it. To update manually instead:
 
 ```
-conda install -n ProPrep -c mjgplab -c dacase -c salilab -c conda-forge proprep -y
+conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep -y
 conda run -n ProPrep pip install --upgrade tmtools
 ```
 
