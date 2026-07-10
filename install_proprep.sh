@@ -180,7 +180,17 @@ if conda env list | grep -q "^${ENV_NAME} "; then
     echo "  2. Full reinstall (remove and recreate environment)"
     echo "  3. Cancel"
     echo ""
-    read -p "Choose [1/2/3] (1): " install_choice
+    # Read the choice from the controlling terminal, not stdin. Under the
+    # documented `curl -fsSL ... | bash` one-liner, bash's stdin IS the piped
+    # script, so a plain `read` hits EOF and silently defaults to option 1
+    # (update-in-place) -- which skips the orphan-purge in option 2 and leaves
+    # a stale version shadow in place. Reading from /dev/tty lets the user
+    # actually choose. A truly headless run (no tty) still falls back to 1.
+    if [ -r /dev/tty ]; then
+        read -p "Choose [1/2/3] (1): " install_choice </dev/tty
+    else
+        read -p "Choose [1/2/3] (1): " install_choice
+    fi
     install_choice=${install_choice:-1}
 
     if [[ "$install_choice" == "1" ]]; then
@@ -188,6 +198,19 @@ if conda env list | grep -q "^${ENV_NAME} "; then
         echo "Updating ProPrep..."
         conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge "proprep=${PROPREP_VERSION}" -y
         conda run -n "$ENV_NAME" pip install --upgrade tmtools
+
+        # Purge any stale pip-installed proprep metadata that would shadow the
+        # conda version. A leftover proprep-*.egg-info (from an old
+        # `pip install`) is returned first by importlib.metadata, so
+        # `proprep --version` reports the ghost version and the assertion below
+        # fails even though conda installed the right package. `conda install`
+        # does not remove these; option 2 nukes the whole prefix, but the
+        # update path has to clear them surgically. Targets .egg-info only so
+        # conda's own proprep-<ver>.dist-info is never touched.
+        ENV_PREFIX=$(conda env list | awk -v e="$ENV_NAME" '$1==e {print $NF}')
+        if [ -n "$ENV_PREFIX" ] && [ -d "$ENV_PREFIX" ]; then
+            rm -rf "$ENV_PREFIX"/lib/python*/site-packages/proprep-*.egg-info
+        fi
 
         echo ""
         echo "Verifying installation..."
