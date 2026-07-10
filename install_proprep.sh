@@ -67,6 +67,13 @@ Manual Install
        conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep=${PROPREP_VERSION} -y
        conda run -n ProPrep pip install tmtools
 
+   AmberTools bundles an older proprep into the same site-packages, so
+   force-reinstall to make the standalone version win, then drop the stale
+   versioned egg-info that would otherwise shadow the reported version:
+
+       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep=${PROPREP_VERSION} --force-reinstall -y
+       find "\$(conda info --base)/envs/ProPrep"/lib/python*/site-packages -maxdepth 1 -name 'proprep-[0-9]*.egg-info' -exec rm -rf {} +
+
 Usage
 -----
 Each time you want to use ProPrep:
@@ -119,6 +126,28 @@ fi
 
 ENV_NAME="ProPrep"
 PYTHON_VERSION="3.12"
+
+# AmberTools (dacase::ambertools-dac) vendors an OLD proprep and installs it
+# into the SAME site-packages/proprep as this standalone package. Two conda
+# packages owning identical paths is a clobber: which file wins is
+# nondeterministic, and the vendored proprep-<old>.egg-info sorts ahead of our
+# proprep-<ver>.dist-info, so `proprep --version` reports the ghost version
+# even when conda resolved the right one. Force-reinstall proprep so OUR files
+# land last (the standalone package is authoritative regardless of what
+# AmberTools bundles), then delete the vendored versioned *.egg-info so the
+# version metadata is unambiguous. Called after every install/update path.
+pin_proprep() {
+    local env="$1"
+    echo ""
+    echo "Making standalone ProPrep authoritative over the AmberTools-bundled copy..."
+    conda install -n "$env" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge \
+        "proprep=${PROPREP_VERSION}" --force-reinstall -y
+    local prefix
+    prefix=$(conda env list | awk -v e="$env" '$1==e {print $NF}')
+    if [ -n "$prefix" ] && [ -d "$prefix" ]; then
+        rm -rf "$prefix"/lib/python*/site-packages/proprep-[0-9]*.egg-info
+    fi
+}
 
 echo "============================================================"
 echo "  ProPrep Installer"
@@ -198,19 +227,7 @@ if conda env list | grep -q "^${ENV_NAME} "; then
         echo "Updating ProPrep..."
         conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge "proprep=${PROPREP_VERSION}" -y
         conda run -n "$ENV_NAME" pip install --upgrade tmtools
-
-        # Purge any stale pip-installed proprep metadata that would shadow the
-        # conda version. A leftover proprep-*.egg-info (from an old
-        # `pip install`) is returned first by importlib.metadata, so
-        # `proprep --version` reports the ghost version and the assertion below
-        # fails even though conda installed the right package. `conda install`
-        # does not remove these; option 2 nukes the whole prefix, but the
-        # update path has to clear them surgically. Targets .egg-info only so
-        # conda's own proprep-<ver>.dist-info is never touched.
-        ENV_PREFIX=$(conda env list | awk -v e="$ENV_NAME" '$1==e {print $NF}')
-        if [ -n "$ENV_PREFIX" ] && [ -d "$ENV_PREFIX" ]; then
-            rm -rf "$ENV_PREFIX"/lib/python*/site-packages/proprep-*.egg-info
-        fi
+        pin_proprep "$ENV_NAME"
 
         echo ""
         echo "Verifying installation..."
@@ -276,6 +293,7 @@ conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c cond
 echo ""
 echo "Installing additional Python packages..."
 conda run -n "$ENV_NAME" pip install tmtools
+pin_proprep "$ENV_NAME"
 
 # Verify installation
 echo ""
