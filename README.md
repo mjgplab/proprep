@@ -63,6 +63,23 @@ conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-fo
 conda run -n ProPrep pip install --upgrade tmtools
 ```
 
+## Update inside an existing AmberTools environment
+
+If you installed AmberTools through conda (the `dacase::ambertools-dac`
+package) and want the current ProPrep in that same environment instead of a
+separate `ProPrep` env, use the in-place updater. AmberTools bundles an older
+ProPrep at the same location, so the helper installs the current package,
+forces it to take precedence, clears the stale metadata, and verifies:
+
+```
+curl -fsSL https://raw.githubusercontent.com/mjgplab/proprep/main/update_proprep_in_ambertools.sh | bash -s -- <env-name>
+```
+
+Replace `<env-name>` with the conda environment that holds your AmberTools
+(omit it to use the active environment or be prompted). The helper only runs
+against conda AmberTools; on a source build it stops rather than pulling in a
+second copy. If you later reinstall or update `ambertools-dac`, rerun it.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

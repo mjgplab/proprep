@@ -86,6 +86,20 @@ For the browser-based UI (web shell), use:
 
     proprep-web
 
+Update Inside an Existing AmberTools Environment
+------------------------------------------------
+If you installed AmberTools via conda (dacase::ambertools-dac) and want the
+current ProPrep in that SAME environment rather than a separate ProPrep env,
+use the in-place updater instead of this installer:
+
+    curl -fsSL https://raw.githubusercontent.com/mjgplab/proprep/main/update_proprep_in_ambertools.sh | bash -s -- <env-name>
+
+Replace <env-name> with the conda environment that holds your AmberTools (omit
+it to use the active environment or be prompted). It installs ProPrep into that
+env, makes it take precedence over the older copy AmberTools bundles, clears the
+stale metadata, and verifies. It only runs against conda AmberTools; on a
+source-built AmberTools it stops rather than pulling in a second copy.
+
 Troubleshooting
 ---------------
 
