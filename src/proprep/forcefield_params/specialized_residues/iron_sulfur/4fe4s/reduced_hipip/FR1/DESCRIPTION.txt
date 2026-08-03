@@ -1,0 +1,12 @@
+Cluster residue: FR1
+Cys ligand residues: C25, C26, C27, C28
+State: reduced_hipip
+Source guess: guess1
+State letter: L
+Atom types: L1-L4 (Fe), L5-L8 (bridging S), LA-LD (Cys SG)
+
+Per-Fe formal state (BS layer assignment from spin populations):
+  L1 (Fe1): mv        Rmin/2 = 1.3975, eps = 0.015390
+  L2 (Fe2): mv        Rmin/2 = 1.3975, eps = 0.015390
+  L3 (Fe3): mv        Rmin/2 = 1.3975, eps = 0.015390
+  L4 (Fe4): mv        Rmin/2 = 1.3975, eps = 0.015390

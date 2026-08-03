@@ -1,0 +1,4 @@
+resname,resnum,chemistry,state_name,prot_count,pka_corr,pKa_model
+AS4,3,DEPROT,STATE 0,0,0.0,4.0
+LYS,15,PROT,STATE 0,3,10.4,10.4
+TYR,10,PROT,STATE 0,1,9.6,9.6

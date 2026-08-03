@@ -1,0 +1,112 @@
+{
+  "description": "NADP cofactor pair: NAP (NADP⁺ oxidized) and NDP (NADPH reduced; 1,4-dihydronicotinamide, 4-pro-R hydride). NP2 (NADPH with mono-protonated 2'-phosphate) is deferred to a follow-up release.",
+  "cofactor_type": "NADP",
+  "methodology": "Fragment-typed force-field parameters for the NADP redox pair, oxidized NADP+ (NAP) and reduced NADPH (NDP, 1,4-dihydronicotinamide, 4-pro-R hydride); the mono-2'-phosphate-protonated NADPH (NP2) is deferred to a follow-up release. AMBER ff14SB/ff19SB-compatible. Both oxidation states of the nicotinamide are parameterized de novo, the oxidized aromatic nicotinamide-plus-carboxamide and the reduced 1,4-dihydronicotinamide-plus-carboxamide receiving separate fragment-scoped atom-type sets with their own Seminario-fit bonds and angles, each shared with the corresponding NAD residue so the two nucleotides do not collide. Walker NAD+ supplies only transferred proper-torsion values, not atom types or bonded constants. Adenine, both riboses, and the 2'-phosphate inherit established parameters, namely ff14SB nucleic-acid types for the nucleosides and Meagher polyphosphate for the pyrophosphate and 2'-phosphate. Partial charges are whole-molecule, two-stage restrained (Bayly) RESP fits to a gas-phase HF/6-31G(d) Merz-Kollman ESP at four RBRA reorientations on a B3LYP/6-31+G(d) PCM(water) geometry. Bonds and angles for both nicotinamide fragments are Seminario fits to the B3LYP/6-31+G(d)/PCM(water) QM Hessian (interior from capped-fragment Hessians, junctions from the whole residue), with a few phosphate terms forked from parm10/Meagher. Proper dihedrals are full multi-term GAFF2 potentials transferred by substitution plus the Walker torsions, and improper planarity terms are tLEaP-perceived AMBER terms (the sp3 C4 of the reduced ring carries none); neither dihedral class is QM-derived. Every frcmod is a delta-only file layered on parm10/gaff2.",
+  "references": [
+    "Fragment-typed cofactor force-field library, v1.0 (20 redox-active residues across the FMN, FAD, NADP, NAD, and biopterin families). See the 'methodology' field for the full derivation. Non-redox-active atoms use established AMBER parameters (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate).",
+    "Walker NAD+ contrib parameters (Walker, in AmberTools dat/contrib/NADH_and_NAD+/).",
+    "Meagher polyphosphate parameters (J. Comput. Chem. 24, 1016-1025, 2003).",
+    "ff14SB nucleic acid types from parm10 + bsc1 + OL3 dihedrals (leaprc.RNA.OL3)."
+  ],
+  "redox_states": {
+    "oxidized": {
+      "description": "Oxidized aromatic nicotinamide. Uses Walker NAD+ contrib types (no fragment-typed atoms).",
+      "formal_charge": -3,
+      "spin_states": {
+        "default": {
+          "description": "Oxidized aromatic nicotinamide. Uses Walker NAD+ contrib types (no fragment-typed atoms).",
+          "spin_multiplicity": 1,
+          "electronic_config": "NAP — Walker NAD+ types only (no fragment-typed atoms)",
+          "atom_types": [
+            "{ \"La\" \"N\" \"sp2\" }",
+            "{ \"Lb\" \"C\" \"sp2\" }",
+            "{ \"Lc\" \"C\" \"sp2\" }",
+            "{ \"Ld\" \"C\" \"sp2\" }",
+            "{ \"Le\" \"C\" \"sp2\" }",
+            "{ \"Lf\" \"C\" \"sp2\" }",
+            "{ \"Lg\" \"C\" \"sp2\" }",
+            "{ \"Lh\" \"O\" \"sp2\" }",
+            "{ \"Li\" \"N\" \"sp2\" }",
+            "{ \"Lj\" \"H\" \"sp2\" }",
+            "{ \"Lk\" \"H\" \"sp2\" }",
+            "{ \"Ll\" \"H\" \"sp2\" }",
+            "{ \"Lm\" \"H\" \"sp2\" }",
+            "{ \"Ln\" \"H\" \"sp2\" }",
+            "{ \"Lo\" \"H\" \"sp2\" }",
+            "{ \"OD\" \"O\" \"sp3\" }",
+            "{ \"O3\" \"O\" \"sp2\" }"
+          ],
+          "residue_name": "NAP",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_NAP_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_NAP_RESP.frcmod",
+                "lib": "Guberman_NAP_RESP.lib"
+              },
+              "is_default": true,
+              "name": "NADP⁺ oxidized",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein, adenine and ribose types); leaprc.RNA.OL3 is recommended (not required) to sharpen adenine dihedral accuracy. A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the Walker NAD+/NADH set (a published, purpose-fit nicotinamide torsion set from AmberTools), relabeled onto the custom types by atom role - one consistent treatment for both oxidation states.\n- Impropers: none. The nicotinamide ring needs no separate planarity terms (the Walker parameterization keeps the ring flat through its torsions).\n- Phosphate: NADP has both a pyrophosphate and an extra 2'-monophosphate. Pyrophosphate terminal oxygens use the O3 type and the bridge a custom OD type (as for NAD); the 2'-monophosphate terminals are the standard O2 type.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP); Meagher 2003 (polyphosphate O3 oxygen type); Walker (NAD+/NADH torsions, AmberTools)."
+            }
+          }
+        }
+      }
+    },
+    "reduced": {
+      "description": "Two-electron-reduced nicotinamide with 4-pro-R hydride. dih_4R fragment state.",
+      "formal_charge": -4,
+      "spin_states": {
+        "default": {
+          "description": "Two-electron-reduced nicotinamide with 4-pro-R hydride. dih_4R fragment state.",
+          "spin_multiplicity": 1,
+          "electronic_config": "NDP — uses 16 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Ka\" \"N\" \"sp2\" }",
+            "{ \"Kb\" \"C\" \"sp2\" }",
+            "{ \"Kc\" \"H\" \"sp2\" }",
+            "{ \"Kd\" \"C\" \"sp2\" }",
+            "{ \"Ke\" \"C\" \"sp3\" }",
+            "{ \"Kf\" \"H\" \"sp3\" }",
+            "{ \"Kg\" \"H\" \"sp3\" }",
+            "{ \"Kh\" \"C\" \"sp2\" }",
+            "{ \"Ki\" \"H\" \"sp2\" }",
+            "{ \"Kj\" \"C\" \"sp2\" }",
+            "{ \"Kk\" \"H\" \"sp2\" }",
+            "{ \"Kl\" \"C\" \"sp2\" }",
+            "{ \"Km\" \"O\" \"sp2\" }",
+            "{ \"Kn\" \"N\" \"sp2\" }",
+            "{ \"Ko\" \"H\" \"sp2\" }",
+            "{ \"Kp\" \"H\" \"sp2\" }",
+            "{ \"O3\" \"O\" \"sp2\" }",
+            "{ \"OD\" \"O\" \"sp3\" }"
+          ],
+          "residue_name": "NDP",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_NDP_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_NDP_RESP.frcmod",
+                "lib": "Guberman_NDP_RESP.lib"
+              },
+              "is_default": true,
+              "name": "NADPH (1,4-dihydronicotinamide, 4-pro-R hydride)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein, adenine and ribose types); leaprc.RNA.OL3 is recommended (not required) to sharpen adenine dihedral accuracy. A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the Walker NAD+/NADH set (a published, purpose-fit nicotinamide torsion set from AmberTools), relabeled onto the custom types by atom role - one consistent treatment for both oxidation states.\n- Impropers: none. The nicotinamide ring needs no separate planarity terms (the Walker parameterization keeps the ring flat through its torsions).\n- Phosphate: NADP has both a pyrophosphate and an extra 2'-monophosphate. Pyrophosphate terminal oxygens use the O3 type and the bridge a custom OD type (as for NAD); the 2'-monophosphate terminals are the standard O2 type.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP); Meagher 2003 (polyphosphate O3 oxygen type); Walker (NAD+/NADH torsions, AmberTools)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "prerequisites": {
+    "leaprc_groups": [],
+    "leaprc_groups_notes": "Lean (delta-only) frcmod: builds with only a standard AMBER protein FF (ff14SB->parm10 or ff19SB->parm19, which carry the nucleic-acid base/sugar params) plus addAtomTypes for the custom fragment types (emitted from atom_types) and the bundled O3 terminal-phosphate fork. leaprc.RNA.OL3 is RECOMMENDED (not required) for improved adenine dihedral accuracy. No gaff2, no meagher (the only meagher term needed, O3 vdW = O2, is folded into the frcmod)."
+  }
+}

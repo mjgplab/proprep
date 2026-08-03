@@ -1,0 +1,33 @@
+REMARK Averaged Fe4S4 parameters, HiPIP_ox [Fe4S4]^3+: BOND/ANGL = arithmetic mean across 6 BS guesses; CHARGES from MC + group-equivalence RESP (in .lib). State-distinct atom types FO/SO/GO.
+MASS
+FO 55.85                            Fe (state-specific, averaged across 4 Fe)
+SO 32.06         2.900              bridging sulfide (state-specific, averaged)
+GO 32.06         2.900              Cys SG (state-specific, averaged)
+
+BOND
+CT-GO   237.00   1.8100   avg over 24 (sd k=0.00)
+FO-SO    50.65   2.3937   avg over 72 (sd k=16.57)
+FO-GO   105.42   2.2606   avg over 24 (sd k=7.25)
+
+ANGL
+CT-GO-FO    56.67    100.76   avg over 24 (sd k=14.61)
+CX-CT-GO    50.00    108.60   avg over 24 (sd k=0.00)
+FO-SO-FO    36.80     81.52   avg over 72 (sd k=12.25)
+H1-CT-GO    50.00    109.50   avg over 24 (sd k=0.00)
+SO-FO-SO    47.62     97.69   avg over 72 (sd k=13.09)
+SO-FO-GO    37.68    119.43   avg over 72 (sd k=10.80)
+
+DIHE
+CT-GO-FO-SO    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+CX-CT-GO-FO    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FO-SO-FO-SO    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FO-SO-FO-GO    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FO-GO-CT-H1    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+
+IMPR
+
+NONB
+  FO        1.3917  0.0144807275  Composition-weighted Fe2+/Fe3+ TIP3P IOD (frac Fe3+ = 0.75; Li JCTC 2021/2020)
+  SO          2.0000  0.2500        bridging S (W. Cornell defaults)
+  GO          2.0000  0.2500        Cys SG (W. Cornell defaults)
+

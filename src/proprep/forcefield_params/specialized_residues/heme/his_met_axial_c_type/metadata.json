@@ -1,0 +1,819 @@
+{
+  "description": "His/Met-axial c-type heme of cytochrome c2 (Blastochloris/Rhodopseudomonas viridis), covering ferric (Fe\u00b3\u207a, low-spin S=1/2) and ferrous (Fe\u00b2\u207a, low-spin S=0) states. The heme is covalently anchored to the protein through two thioether linkages (CXXCH motif) and is six-coordinate with a His (NE2) and a Met (SD) axial pair. One AMBER residue (HMO ferric / HMR ferrous) carries the porphyrin macrocycle plus the sidechains of both thioether Cys, the axial His, and the axial Met; the protein backbone stubs and the two propionates splice in as separate residues with cross-residue bonds added by the transformer. Bonded parameters are state-specific Seminario fits on a QM Hessian; partial charges are CM5 (density-based) \u2014 see the per-set methodology (the i<N> panel) for why CM5 rather than RESP.",
+  "cofactor_type": "his_met_axial_c_type",
+  "references": [
+    "Guberman-Pfeffer, M. J. Force-field parameters for the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), ferric and ferrous. Macrocycle terms from Henriques 2013 (conste) with an FE\u2192FO/FR per-state fork; Fe-coordination-shell bonds and angles from Seminario on a B3LYP/[LANL2DZ+6-31G(d)] QM Hessian, state-specific; CM5 charges at B3LYP/[LANL2TZ(f)+6-31G(d)].",
+    "Henriques, J.; Costa, P. J.; Calhorda, M. J.; Machuqueiro, M. Charge parametrization of the redox-active cofactors and the constant-(pH,E) molecular dynamics framework. J. Phys. Chem. B 2013, 117 (1), 70-82. (conste macrocycle terms; multi-conformer charge protocol; Fe Mulliken-pin procedure for buried-metal RESP.)",
+    "Seminario, J. M. Calculation of intramolecular force fields from second-derivative tensors. Int. J. Quantum Chem. 1996, 60 (7), 1271-1277. (Hessian \u2192 bonded force constants.)",
+    "Marenich, A. V.; Jerome, S. V.; Cramer, C. J.; Truhlar, D. G. Charge Model 5: an extension of Hirshfeld population analysis for the accurate description of molecular interactions in gaseous and condensed phases. J. Chem. Theory Comput. 2012, 8 (2), 527-541. (CM5 charge model.)"
+  ],
+  "prerequisites": {
+    "leaprc_groups": [],
+    "leaprc_groups_notes": "Per-set prerequisites apply (see each forcefield set). The _constpH sets need leaprc.constph + leaprc.conste (the titratable PRN propionate lives in conste.lib, not constph.lib); the _FixedpH sets bundle static PRP/PRD with standard parm10 types and need only ff14SB/ff19SB - no leaprc.conste/constph.",
+    "bundled_residues": [
+      {
+        "residue_name": "CYO",
+        "description": "Thioether-Cys backbone stub (\u00d72 per heme), copied from conste.lib into each state's combined lib so leaprc.conste need not be sourced. ff14SB-standard atom types only."
+      },
+      {
+        "residue_name": "HIO",
+        "description": "Axial-His backbone stub, copied from conste.lib into each state's combined lib. ff14SB-standard atom types only."
+      },
+      {
+        "residue_name": "MEO",
+        "description": "Axial-Met backbone stub (N/H/CA/HA/C/O, net 0 e), specific to this cofactor and NOT present in conste.lib. ff14SB-standard atom types only."
+      },
+      {
+        "residue_name": "PRN",
+        "description": "Heme propionate (\u00d72), copied from conste.lib into each state's combined lib. Its protonated-carboxyl angles/impropers are folded into the bundled .frcmod (see leaprc_groups_notes), so frcmod.constph is not required. ProPrep may still treat PRN as titratable in constant-pH runs; the bundled definition matches the conste/constph PRN."
+      }
+    ],
+    "bundled_residues_notes": "Each state's .lib is a combined OFF carrying 5 units: HMO/HMR + CYO + HIO + MEO + PRN. State-independent stubs (CYO/HIO/MEO/PRN) are identical in both state libs; loading both re-defines them harmlessly. This mirrors the b-type heme set (proximal Cys inside the heme lib) and the bis-His c-type set (CYO/HIO/PRN inside the heme lib)."
+  },
+  "redox_states": {
+    "oxidized": {
+      "description": "Ferric (Fe\u00b3\u207a) heme \u2014 resting oxidized state. Low-spin doublet (S=1/2) as enforced by the strong His/Met axial field.",
+      "formal_charge": 1,
+      "spin_states": {
+        "low_spin": {
+          "description": "Low-spin Fe\u00b3\u207a, S=1/2 doublet (spin multiplicity 2) \u2014 the experimentally observed cyt c2 ground state, enforced by the strong His/Met axial field. This is the spin state used in all QM calculations (charge/mult line '1 2'). The HMO unit (Fe\u00b3\u207a + porphyrin\u00b2\u207b + axial/thioether sidechains, propionates excluded) sums to +1 e.",
+          "spin_multiplicity": 2,
+          "electronic_config": "d5 low-spin",
+          "atom_types": [
+            "{ \"FO\" \"Fe\" \"sp3\" }",
+            "{ \"NP\" \"N\" \"sp2\" }",
+            "{ \"NO\" \"N\" \"sp2\" }",
+            "{ \"Cp\" \"C\" \"sp2\" }",
+            "{ \"CD\" \"C\" \"sp2\" }"
+          ],
+          "residue_name": "HMO",
+          "ligand_residue_names": {
+            "thioether_cys": "CYO",
+            "axial_his": "HIO",
+            "axial_met": "MEO"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_HMO_CM5_constpH": {
+              "description": "Guberman-Pfeffer ferric His/Met-axial c-type heme (cyt c2, Blastochloris viridis), CM5 charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian (state-specific ferric); CM5 charges at B3LYP/[LANL2TZ(f)+6-31G(d)]; Yang/Capece 2013 BBA Fe LJ (1.20/0.05).",
+              "files": {
+                "frcmod": "Guberman_HMO_constpH.frcmod",
+                "lib": "Guberman_HMO_CM5_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 CM5",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): CM5 (Charge Model 5) - a density-based scheme read directly from the QM electron density, with no fitting. THIS IS THE RECOMMENDED/DEFAULT set. For a buried metal like this heme iron the usual RESP method (which fits charges to the molecule's OUTSIDE electrostatic field) is poorly determined - the outside field barely 'sees' the buried iron - so RESP must pin iron's charge to a separate (Mulliken) estimate, and that pin makes iron's charge change on reduction far too small (about -0.15 of an electron) while pushing the missing charge onto the porphyrin edge. CM5, read straight from the density, gives a clean, conformer-stable picture in which iron's charge changes by about -0.50 of an electron on reduction (the physically expected ~half electron). The trade-off is that CM5 reproduces the external electrostatic field slightly less well than RESP - acceptable for this redox-charge-difference application. The QM link-atom (cap) hydrogens used in the calculation are folded back into their parent atoms so the unit totals exactly its net charge.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_CM5_FixedpH": {
+              "description": "Guberman-Pfeffer ferric His/Met-axial c-type heme (cyt c2, Blastochloris viridis), CM5 charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian (state-specific ferric); CM5 charges at B3LYP/[LANL2TZ(f)+6-31G(d)]; Yang/Capece 2013 BBA Fe LJ (1.20/0.05).",
+              "files": {
+                "frcmod": "Guberman_HMO_FixedpH.frcmod",
+                "lib": "Guberman_HMO_CM5_FixedpH.lib"
+              },
+              "is_default": true,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 CM5",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): CM5 (Charge Model 5) - a density-based scheme read directly from the QM electron density, with no fitting. THIS IS THE RECOMMENDED/DEFAULT set. For a buried metal like this heme iron the usual RESP method (which fits charges to the molecule's OUTSIDE electrostatic field) is poorly determined - the outside field barely 'sees' the buried iron - so RESP must pin iron's charge to a separate (Mulliken) estimate, and that pin makes iron's charge change on reduction far too small (about -0.15 of an electron) while pushing the missing charge onto the porphyrin edge. CM5, read straight from the density, gives a clean, conformer-stable picture in which iron's charge changes by about -0.50 of an electron on reduction (the physically expected ~half electron). The trade-off is that CM5 reproduces the external electrostatic field slightly less well than RESP - acceptable for this redox-charge-difference application. The QM link-atom (cap) hydrogens used in the calculation are folded back into their parent atoms so the unit totals exactly its net charge.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_RESPmc_constpH": {
+              "description": "Guberman-Pfeffer ferric His/Met c-type heme (cyt c2), pooled multi-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMO_constpH.frcmod",
+                "lib": "Guberman_HMO_RESPmc_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 pooled multi-conformer RESP",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): pooled multi-conformer RESP (the Henriques 2013 protocol: several heme geometries x four orientations, fit together), with iron's charge pinned to its Mulliken value. This is the originally-derived RESP set, kept as one endpoint of a charge-model sensitivity study: here iron's charge changes by only about -0.15 of an electron on reduction (set by the Mulliken pin), versus about -0.50 for the default CM5 set. Pooling several conformers adds some numerical noise on the buried ring carbons; the single-conformer RESPsc set is the lower-noise counterpart. NOT the recommended production set - use CM5 unless you are specifically probing charge-model sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_RESPmc_FixedpH": {
+              "description": "Guberman-Pfeffer ferric His/Met c-type heme (cyt c2), pooled multi-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMO_FixedpH.frcmod",
+                "lib": "Guberman_HMO_RESPmc_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 pooled multi-conformer RESP",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): pooled multi-conformer RESP (the Henriques 2013 protocol: several heme geometries x four orientations, fit together), with iron's charge pinned to its Mulliken value. This is the originally-derived RESP set, kept as one endpoint of a charge-model sensitivity study: here iron's charge changes by only about -0.15 of an electron on reduction (set by the Mulliken pin), versus about -0.50 for the default CM5 set. Pooling several conformers adds some numerical noise on the buried ring carbons; the single-conformer RESPsc set is the lower-noise counterpart. NOT the recommended production set - use CM5 unless you are specifically probing charge-model sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_RESPsc_constpH": {
+              "description": "Guberman-Pfeffer ferric His/Met c-type heme (cyt c2), single-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMO_constpH.frcmod",
+                "lib": "Guberman_HMO_RESPsc_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 single-conformer RESP",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): single-conformer RESP (one reference geometry x four orientations), with iron Mulliken-pinned - the lower-noise version of the RESP fit (the pooled RESPmc set wanders more on the buried macrocycle, and this one sits closer to CM5 on some ring carbons). Like RESPmc, iron's reduction charge change is about -0.15 of an electron. Together RESPsc and RESPmc bracket the uncertainty of the RESP approach in the sensitivity study. NOT the recommended production set - use CM5 unless probing sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_RESPsc_FixedpH": {
+              "description": "Guberman-Pfeffer ferric His/Met c-type heme (cyt c2), single-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMO_FixedpH.frcmod",
+                "lib": "Guberman_HMO_RESPsc_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 single-conformer RESP",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): single-conformer RESP (one reference geometry x four orientations), with iron Mulliken-pinned - the lower-noise version of the RESP fit (the pooled RESPmc set wanders more on the buried macrocycle, and this one sits closer to CM5 on some ring carbons). Like RESPmc, iron's reduction charge change is about -0.15 of an electron. Together RESPsc and RESPmc bracket the uncertainty of the RESP approach in the sensitivity study. NOT the recommended production set - use CM5 unless probing sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_CM5_FeLocal_constpH": {
+              "description": "CM5 charges with the one-electron reduction \u0394q localized entirely on Fe in the reduced partner (Blumberger-style); the ferric state is identical to the standard CM5 set and exists only to anchor that reduced partner. Extreme endpoint of the charge-redistribution sensitivity study \u2014 not for production.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell; charges = our CM5 set with the one-electron redox \u0394q localized entirely on Fe (Blumberger-style all-on-Fe approximation applied to our charges). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMO_constpH.frcmod",
+                "lib": "Guberman_HMO_CM5_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 CM5, Fe-localized redox \u0394q",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): a deliberately extreme test case, NOT for production. The charges are the default CM5 charges, but the entire one-electron change on reduction is placed on iron alone (iron's charge changes by the full -1.0 of an electron, the rest of the molecule unchanged). In the oxidized state this set is identical to the CM5 set; the localization only distinguishes the reduced partner. It mimics the 'all charge change on the metal' approximation associated with the Blumberger group - applied here to our own CM5 charges rather than copying theirs. With CM5 (-0.50, distributed) and the two RESP sets (-0.15), it forms the far endpoint of a sensitivity axis spanning how the reducing electron's charge is distributed.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMO_CM5_FeLocal_FixedpH": {
+              "description": "CM5 charges with the one-electron reduction \u0394q localized entirely on Fe in the reduced partner (Blumberger-style); the ferric state is identical to the standard CM5 set and exists only to anchor that reduced partner. Extreme endpoint of the charge-redistribution sensitivity study \u2014 not for production.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell; charges = our CM5 set with the one-electron redox \u0394q localized entirely on Fe (Blumberger-style all-on-Fe approximation applied to our charges). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMO_FixedpH.frcmod",
+                "lib": "Guberman_HMO_CM5_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric His/Met-axial c-type heme (HMO; cyt c2) \u2014 CM5, Fe-localized redox \u0394q",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its oxidized (ferric, Fe3+, net +1), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FO here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): a deliberately extreme test case, NOT for production. The charges are the default CM5 charges, but the entire one-electron change on reduction is placed on iron alone (iron's charge changes by the full -1.0 of an electron, the rest of the molecule unchanged). In the oxidized state this set is identical to the CM5 set; the localization only distinguishes the reduced partner. It mimics the 'all charge change on the metal' approximation associated with the Blumberger group - applied here to our own CM5 charges rather than copying theirs. With CM5 (-0.50, distributed) and the two RESP sets (-0.15), it forms the far endpoint of a sensitivity axis spanning how the reducing electron's charge is distributed.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "reduced": {
+      "description": "Ferrous (Fe\u00b2\u207a) heme \u2014 one-electron reduced state. Low-spin closed-shell singlet (S=0) under the His/Met axial field.",
+      "formal_charge": 0,
+      "spin_states": {
+        "low_spin": {
+          "description": "Low-spin Fe\u00b2\u207a, S=0 closed-shell singlet (spin multiplicity 1) \u2014 the cyt c2 ground state under the strong His/Met axial field. This is the spin state used in all QM calculations (charge/mult line '0 1'). The HMR unit (Fe\u00b2\u207a + porphyrin\u00b2\u207b + axial/thioether sidechains, propionates excluded) sums to 0 e.",
+          "spin_multiplicity": 1,
+          "electronic_config": "d6 low-spin (closed-shell)",
+          "atom_types": [
+            "{ \"FR\" \"Fe\" \"sp3\" }",
+            "{ \"NP\" \"N\" \"sp2\" }",
+            "{ \"NO\" \"N\" \"sp2\" }",
+            "{ \"Cp\" \"C\" \"sp2\" }",
+            "{ \"CD\" \"C\" \"sp2\" }"
+          ],
+          "residue_name": "HMR",
+          "ligand_residue_names": {
+            "thioether_cys": "CYO",
+            "axial_his": "HIO",
+            "axial_met": "MEO"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_HMR_CM5_constpH": {
+              "description": "Guberman-Pfeffer ferrous His/Met-axial c-type heme (cyt c2, Blastochloris viridis), CM5 charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian (state-specific ferrous); CM5 charges at B3LYP/[LANL2TZ(f)+6-31G(d)]; Yang/Capece 2013 BBA Fe LJ (1.20/0.05).",
+              "files": {
+                "frcmod": "Guberman_HMR_constpH.frcmod",
+                "lib": "Guberman_HMR_CM5_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 CM5",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): CM5 (Charge Model 5) - a density-based scheme read directly from the QM electron density, with no fitting. THIS IS THE RECOMMENDED/DEFAULT set. For a buried metal like this heme iron the usual RESP method (which fits charges to the molecule's OUTSIDE electrostatic field) is poorly determined - the outside field barely 'sees' the buried iron - so RESP must pin iron's charge to a separate (Mulliken) estimate, and that pin makes iron's charge change on reduction far too small (about -0.15 of an electron) while pushing the missing charge onto the porphyrin edge. CM5, read straight from the density, gives a clean, conformer-stable picture in which iron's charge changes by about -0.50 of an electron on reduction (the physically expected ~half electron). The trade-off is that CM5 reproduces the external electrostatic field slightly less well than RESP - acceptable for this redox-charge-difference application. The QM link-atom (cap) hydrogens used in the calculation are folded back into their parent atoms so the unit totals exactly its net charge.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_CM5_FixedpH": {
+              "description": "Guberman-Pfeffer ferrous His/Met-axial c-type heme (cyt c2, Blastochloris viridis), CM5 charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian (state-specific ferrous); CM5 charges at B3LYP/[LANL2TZ(f)+6-31G(d)]; Yang/Capece 2013 BBA Fe LJ (1.20/0.05).",
+              "files": {
+                "frcmod": "Guberman_HMR_FixedpH.frcmod",
+                "lib": "Guberman_HMR_CM5_FixedpH.lib"
+              },
+              "is_default": true,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 CM5",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): CM5 (Charge Model 5) - a density-based scheme read directly from the QM electron density, with no fitting. THIS IS THE RECOMMENDED/DEFAULT set. For a buried metal like this heme iron the usual RESP method (which fits charges to the molecule's OUTSIDE electrostatic field) is poorly determined - the outside field barely 'sees' the buried iron - so RESP must pin iron's charge to a separate (Mulliken) estimate, and that pin makes iron's charge change on reduction far too small (about -0.15 of an electron) while pushing the missing charge onto the porphyrin edge. CM5, read straight from the density, gives a clean, conformer-stable picture in which iron's charge changes by about -0.50 of an electron on reduction (the physically expected ~half electron). The trade-off is that CM5 reproduces the external electrostatic field slightly less well than RESP - acceptable for this redox-charge-difference application. The QM link-atom (cap) hydrogens used in the calculation are folded back into their parent atoms so the unit totals exactly its net charge.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_RESPmc_constpH": {
+              "description": "Guberman-Pfeffer ferrous His/Met c-type heme (cyt c2), pooled multi-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMR_constpH.frcmod",
+                "lib": "Guberman_HMR_RESPmc_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 pooled multi-conformer RESP",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): pooled multi-conformer RESP (the Henriques 2013 protocol: several heme geometries x four orientations, fit together), with iron's charge pinned to its Mulliken value. This is the originally-derived RESP set, kept as one endpoint of a charge-model sensitivity study: here iron's charge changes by only about -0.15 of an electron on reduction (set by the Mulliken pin), versus about -0.50 for the default CM5 set. Pooling several conformers adds some numerical noise on the buried ring carbons; the single-conformer RESPsc set is the lower-noise counterpart. NOT the recommended production set - use CM5 unless you are specifically probing charge-model sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_RESPmc_FixedpH": {
+              "description": "Guberman-Pfeffer ferrous His/Met c-type heme (cyt c2), pooled multi-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMR_FixedpH.frcmod",
+                "lib": "Guberman_HMR_RESPmc_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 pooled multi-conformer RESP",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): pooled multi-conformer RESP (the Henriques 2013 protocol: several heme geometries x four orientations, fit together), with iron's charge pinned to its Mulliken value. This is the originally-derived RESP set, kept as one endpoint of a charge-model sensitivity study: here iron's charge changes by only about -0.15 of an electron on reduction (set by the Mulliken pin), versus about -0.50 for the default CM5 set. Pooling several conformers adds some numerical noise on the buried ring carbons; the single-conformer RESPsc set is the lower-noise counterpart. NOT the recommended production set - use CM5 unless you are specifically probing charge-model sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_RESPsc_constpH": {
+              "description": "Guberman-Pfeffer ferrous His/Met c-type heme (cyt c2), single-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMR_constpH.frcmod",
+                "lib": "Guberman_HMR_RESPsc_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 single-conformer RESP",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): single-conformer RESP (one reference geometry x four orientations), with iron Mulliken-pinned - the lower-noise version of the RESP fit (the pooled RESPmc set wanders more on the buried macrocycle, and this one sits closer to CM5 on some ring carbons). Like RESPmc, iron's reduction charge change is about -0.15 of an electron. Together RESPsc and RESPmc bracket the uncertainty of the RESP approach in the sensitivity study. NOT the recommended production set - use CM5 unless probing sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_RESPsc_FixedpH": {
+              "description": "Guberman-Pfeffer ferrous His/Met c-type heme (cyt c2), single-conformer RESP charges.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell (B3LYP/[LANL2DZ+6-31G(d)] QM Hessian); charges by multi-orientation RESP with the Fe Mulliken pin (Henriques 2013 protocol). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMR_FixedpH.frcmod",
+                "lib": "Guberman_HMR_RESPsc_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 single-conformer RESP",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): single-conformer RESP (one reference geometry x four orientations), with iron Mulliken-pinned - the lower-noise version of the RESP fit (the pooled RESPmc set wanders more on the buried macrocycle, and this one sits closer to CM5 on some ring carbons). Like RESPmc, iron's reduction charge change is about -0.15 of an electron. Together RESPsc and RESPmc bracket the uncertainty of the RESP approach in the sensitivity study. NOT the recommended production set - use CM5 unless probing sensitivity.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_CM5_FeLocal_constpH": {
+              "description": "CM5 charges with the one-electron reduction \u0394q localized entirely on Fe (Blumberger-style). Extreme endpoint of the charge-redistribution sensitivity study \u2014 not for production.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell; charges = our CM5 set with the one-electron redox \u0394q localized entirely on Fe (Blumberger-style all-on-Fe approximation applied to our charges). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMR_constpH.frcmod",
+                "lib": "Guberman_HMR_CM5_FeLocal_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 CM5, Fe-localized redox \u0394q",
+              "methodology": "This is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): a deliberately extreme test case, NOT for production. The charges are the default CM5 charges, but the entire one-electron change on reduction is placed on iron alone (iron's charge changes by the full -1.0 of an electron, the rest of the molecule unchanged). In the oxidized state this set is identical to the CM5 set; the localization only distinguishes the reduced partner. It mimics the 'all charge change on the metal' approximation associated with the Blumberger group - applied here to our own CM5 charges rather than copying theirs. With CM5 (-0.50, distributed) and the two RESP sets (-0.15), it forms the far endpoint of a sensitivity axis spanning how the reducing electron's charge is distributed.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Guberman_HMR_CM5_FeLocal_FixedpH": {
+              "description": "CM5 charges with the one-electron reduction \u0394q localized entirely on Fe (Blumberger-style). Extreme endpoint of the charge-redistribution sensitivity study \u2014 not for production.",
+              "version": "1.0",
+              "reference": "conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell; charges = our CM5 set with the one-electron redox \u0394q localized entirely on Fe (Blumberger-style all-on-Fe approximation applied to our charges). Bonded terms shared with the CM5 set.",
+              "files": {
+                "frcmod": "Guberman_HMR_FixedpH.frcmod",
+                "lib": "Guberman_HMR_CM5_FeLocal_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous His/Met-axial c-type heme (HMR; cyt c2) \u2014 CM5, Fe-localized redox \u0394q",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the His/Met-axial c-type heme of cytochrome c2 (Blastochloris viridis), in its reduced (ferrous, Fe2+, net 0), low-spin state - six-coordinate, with a histidine and a methionine bound to iron, and covalently anchored to the protein through the two thioether bonds of the CXXCH motif.\n\nBonded terms (shared by all four charge sets for this state; the four sets differ ONLY in their charges):\n- The porphyrin macrocycle bond/angle/torsion/planarity terms come from the published conste (Henriques 2013) heme model.\n- The iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is re-fit, separately for the ferric and ferrous states, by the Seminario method - reading the constants off the QM second-derivative matrix (the 'Hessian') of a B3LYP/[LANL2DZ+6-31G(d)] calculation.\n- The iron type is forked (FR here; FO ferric / FR ferrous) and the eight beta-pyrrole ring carbons use a custom Cp type (so the heme ring chemistry doesn't collide with nucleic-acid carbons that share the standard name); these let ferric and ferrous parameters coexist in one topology.\n- The methionine sulfur-iron twisting term is set to zero on purpose: a QM scan showed that rotation has a negligible barrier and is irrelevant to what this set is for (outer-sphere electrostatics and propionate pKa shifts), so no artificial torsion is imposed.\n- Self-contained: the backbone 'stub' residues for the two cysteines, the histidine, the methionine, and the two propionates are bundled in, so only a standard protein force field (ff14SB or ff19SB) need be loaded.\n\nCharges (this set): a deliberately extreme test case, NOT for production. The charges are the default CM5 charges, but the entire one-electron change on reduction is placed on iron alone (iron's charge changes by the full -1.0 of an electron, the rest of the molecule unchanged). In the oxidized state this set is identical to the CM5 set; the localization only distinguishes the reduced partner. It mimics the 'all charge change on the metal' approximation associated with the Blumberger group - applied here to our own CM5 charges rather than copying theirs. With CM5 (-0.50, distributed) and the two RESP sets (-0.15), it forms the far endpoint of a sensitivity axis spanning how the reducing electron's charge is distributed.\n\nReferences: Henriques 2013 (conste macrocycle; multi-conformer RESP); Seminario 1996 (Fe-shell constants from the QM Hessian); Marenich 2012 (CM5 charges); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "transformation_info": {
+    "transforms_from": [
+      "c-type heme in the input PDB (e.g. HEC) \u2014 covalently bound via the CXXCH thioether motif",
+      "The two thioether Cys of the CXXCH motif (SG covalently linked to the heme; become CYO backbone stubs)",
+      "The axial His of the CXXCH motif (NE2 within Fe-coordination distance; becomes the HIO backbone stub)",
+      "The distal axial Met (SD within Fe-coordination distance; becomes the MEO backbone stub)"
+    ],
+    "creates_bonds": [
+      "Two inter-residue thioether attachment bonds (HMO/HMR.CBC1 - CYO_1.CA, HMO/HMR.CBC2 - CYO_2.CA)",
+      "Inter-residue axial-His backbone bond (HMO/HMR.CBH - HIO.CA)",
+      "Inter-residue axial-Met backbone bond (HMO/HMR.CBM - MEO.CA)",
+      "Two inter-residue propionate attachment bonds (HMO/HMR.C2A - PRN_A.CA, HMO/HMR.C3D - PRN_D.CA)"
+    ],
+    "notes": "The heme macrocycle PLUS the sidechain atoms of both thioether Cys, the axial His imidazole, and the axial Met thioether are all carried in the single HMO/HMR residue; the six cross-residue bonds above splice that residue to the protein backbone stubs (CYO\u00d72, HIO, MEO) and to the two propionates (PRN\u00d72). The Fe-NE2(His) and Fe-SD(Met) axial coordination bonds are INTERNAL to HMO/HMR (already in the lib), not cross-residue. The cyt c2 splice residues CYO/HIO/MEO/PRN are state-independent backbone stubs, all bundled as extra units inside each state's combined lib (HMO/HMR + CYO + HIO + MEO + PRN) \u2014 the same single-lib-per-state packaging as the bis-His c-type set (CYO/HIO/PRN inside the heme lib) and the b-type heme set (proximal Cys inside the heme lib). The transformer does not need to source leaprc.conste or leaprc.constph for these. Net assembled charge: ferric HMO + 2 CYO + HIO + MEO + 2 PRN = -1 e; ferrous = -2 e (PRN is -1 each)."
+  },
+  "methodology": "His/Met-axial c-type heme of cytochrome c2. This cofactor ships FOUR charge sets that share one bonded model and differ only in how the atomic partial charges are assigned - see each set's own methodology (the i<N> panel) for the full plain-language, term-by-term derivation and the reasoning behind each charge scheme. In brief: the porphyrin bond/angle/torsion/improper terms come from the published conste (Henriques 2013) heme model; the iron coordination shell (Fe-N, Fe-S bonds and the angles at iron) is re-fit separately for the ferric and ferrous states by the Seminario method from a B3LYP/[LANL2DZ+6-31G(d)] quantum-mechanical Hessian; iron (FO ferric / FR ferrous) and the eight beta-pyrrole carbons (Cp) get custom atom types so the two redox states can coexist in one topology. The default charges are CM5 (density-based); pooled and single-conformer RESP and an all-charge-on-iron limiting case are also provided for charge-model sensitivity studies. Validation: assembled ferric / ferrous / mixed-redox builds resolve every parameter and give the expected net charges (-1 / -2 / -3 e)."
+}

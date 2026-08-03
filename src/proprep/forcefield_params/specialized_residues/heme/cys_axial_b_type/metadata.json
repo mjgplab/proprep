@@ -1,0 +1,276 @@
+{
+  "description": "Cys-axial b-type heme parameters covering ferric (Fe\u00b3\u207a) and ferrous (Fe\u00b2\u207a) states (cytochrome-P450-style heme with a single proximal thiolate ligand). Bonded parameters are derived from a QM Hessian of a small cluster optimized at a protein-context Cys backbone geometry. Heme + proximal Cys are split into two AMBER residues per state; the cross-residue Fe-S\u03b3 bond is added by the transformer. (2026 rebuild: macrocycle H names regularized for the loadpdb path; macrocycle carbons forked CC/Cp/CD/CY/VB -> Ma/Mb/Mc/Md/Me (oxidized) / Mp-Mt with Mu/Mv pyrrole N (reduced) so the two redox states use disjoint atom-type sets and are mixed-redox-dimer safe; proximal-Cys redox response refit onto Sgamma. Value-neutral typing \u2014 bonded/vdW unchanged.)",
+  "cofactor_type": "cys_axial_b_type",
+  "references": [
+    "Guberman-Pfeffer, M. J. Force field parameters for Cys-axial b-type hemes of the NOS oxygenase domain. Parameterization from PDB 2G6H substrate (L-Arg)-bound geometry; Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian; Shahrokh 2012 IC6 Cys-axial-specific dihedrals.",
+    "Yang, L.; Capece, L.; Marti, M. A.; Estrin, D. A. AMBER force field parameters for the heme b prosthetic group of cytochrome P450 enzymes. Data in Brief 2016, 5, 99-104.",
+    "Shahrokh, K.; Orendt, A.; Yost, G. S.; Cheatham, T. E. Quantum mechanically derived AMBER-compatible heme parameters for various states of the cytochrome P450 catalytic cycle. J. Comput. Chem. 2012, 33 (2), 119-133.",
+    "Capece, L.; Lewis-Ballester, A.; Yeh, S.-R.; Estrin, D. A.; Marti, M. A. Complete reaction mechanism of indoleamine 2,3-dioxygenase as revealed by QM/MM simulations. J. Phys. Chem. B 2012, 116 (4), 1401-1413."
+  ],
+  "prerequisites": {
+    "leaprc_groups": [
+      {
+        "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+        "satisfied_by": [
+          "leaprc.constph"
+        ]
+      },
+      {
+        "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+        "satisfied_by": [
+          "leaprc.conste"
+        ]
+      }
+    ]
+  },
+  "redox_states": {
+    "oxidized": {
+      "description": "Ferric (Fe\u00b3\u207a) heme \u2014 resting oxidized state. Sextet (S=5/2) high-spin in NOS substrate-bound geometry.",
+      "formal_charge": 0,
+      "spin_states": {
+        "high_spin": {
+          "description": "High-spin Fe\u00b3\u207a, S=5/2 sextet. Heme + Cys-thiolate sum to net 0e (Fe\u00b3\u207a + porph\u00b2\u207b + Cys\u207b).",
+          "spin_multiplicity": 6,
+          "electronic_config": "d5 high-spin",
+          "atom_types": [
+            "{ \"FO\" \"Fe\" \"sp3\" }",
+            "{ \"NP\" \"N\" \"sp2\" }",
+            "{ \"NO\" \"N\" \"sp2\" }",
+            "{ \"Ma\" \"C\" \"sp2\" }",
+            "{ \"Mb\" \"C\" \"sp2\" }",
+            "{ \"Mc\" \"C\" \"sp2\" }",
+            "{ \"Md\" \"C\" \"sp2\" }",
+            "{ \"Me\" \"C\" \"sp2\" }"
+          ],
+          "residue_name": "HTO",
+          "ligand_residue_names": {
+            "proximal_cys": "CTO"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_HTO_RESP_constpH": {
+              "description": "Guberman-Pfeffer ferric Cys-axial b-type heme + proximal Cys thiolate, parameterized for NOS oxygenase domain (rat nNOS Cys415).",
+              "version": "1.3",
+              "reference": "Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian on the 2G6H substrate-bound model; Shahrokh 2012 IC6 Cys-axial dihedrals; Yang/Capece 2013 BBA Fe LJ.",
+              "files": {
+                "frcmod": "Guberman_HTO_RESP_constpH.frcmod",
+                "lib": "Guberman_HTO_RESP_constpH.lib"
+              },
+              "is_default": true,
+              "name": "Ferric Cys-axial b-type heme + proximal Cys thiolate (HTO + CTO)",
+              "methodology": "This is the Cys-axial b-type heme of the nitric-oxide synthase (NOS) oxygenase domain - cytochrome-P450-style, with a single proximal cysteine-thiolate ligand on iron - in its oxidized (ferric, Fe3+, high-spin S=5/2) state. The heme plus its proximal cysteine sum to a net charge of 0.\n\n- Geometry: a small cluster (heme + the proximal cysteine, including the cysteine backbone) was optimized by DFT (B3LYP; LANL2DZ basis on iron, 6-31G(d) elsewhere) from the substrate-bound crystal structure (PDB 2G6H, rat nNOS with L-arginine bound), with the cysteine backbone angles frozen at the crystal values so the parameters reflect the real protein geometry rather than a gas-phase one.\n- Bond and angle stiffness: the iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is fit by the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian'); it is fit separately for the ferric and ferrous states. The rest of the porphyrin (macrocycle, vinyl, methyl groups) is taken from the published Yang (2016) heme-b parameters.\n- Torsions around iron: from the published Shahrokh (2012) P450 Cys-axial set (transferable to NOS without re-fitting). Planarity (improper) terms from Yang 2016.\n- Atomic charges: a two-stage RESP fit. The cysteine backbone atoms are pinned to their standard ff14SB cysteinate values so the residue splices cleanly into a protein; only the heme and the cysteine side chain are fit freely, with iron's charge constrained to its QM (Mulliken) value. Because the iron-sulfur bond is partly covalent, the heme and cysteine are allowed to carry fractional (non-integer) charges that sum to the correct whole number for the pair - capturing about half an electron of sulfur-to-iron donation (the sulfur ends up less negative, and iron less positive, than their textbook ionic values).\n- Custom atom types: the macrocycle carbons are given short custom type names (Ma-Me (ferric)), together with a forked iron type (FO), so the two redox states use entirely separate type sets and can coexist in one topology (e.g. a mixed-oxidation-state multi-heme protein) without overwriting each other. This relabeling is value-neutral - it changes no charges or van der Waals (atom-size) values.\n\nCaveat: the force constants are calibrated to the substrate-bound active site; for the empty (apo), NO-released, or six-coordinate (Fe-O2/NO/CO) states the iron-shell bonded model would need re-deriving. Iron's van der Waals parameters use the Yang/Capece (2013) values.\n\nReferences: Yang 2016 (heme-b macrocycle); Shahrokh 2012 (P450 Cys-axial torsions); Seminario 1996 (Fe-shell constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP).",
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              }
+            },
+            "Guberman_HTO_RESP_FixedpH": {
+              "description": "Guberman-Pfeffer ferric Cys-axial b-type heme + proximal Cys thiolate, parameterized for NOS oxygenase domain (rat nNOS Cys415).",
+              "version": "1.3",
+              "reference": "Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian on the 2G6H substrate-bound model; Shahrokh 2012 IC6 Cys-axial dihedrals; Yang/Capece 2013 BBA Fe LJ.",
+              "files": {
+                "frcmod": "Guberman_HTO_RESP_FixedpH.frcmod",
+                "lib": "Guberman_HTO_RESP_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled directly in the heme library and use standard parm10 atom types, so no constant-pH library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferric Cys-axial b-type heme + proximal Cys thiolate (HTO + CTO)",
+              "methodology": "This is the same ferric Cys-axial NOS heme parameter set as the constant-pH Guberman_HTO_RESP_constpH set - identical heme and proximal-Cys charges, bonded terms, and atom types - but with a 'fixed-pH' treatment of the two heme propionates. The default set represents each propionate with the titratable PRN residue, whose library lives in AMBER's constant-pH framework (leaprc.constph); loading it forces the whole protein onto the older parm10/ff10 backbone and loses ff14SB/ff19SB refinements. This fixed-pH set instead bundles two static propionate residues directly in the heme library: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn conformer). You pick each ring's protonation state independently at build time (A-ring and D-ring), and the system loads cleanly under a modern protein force field (ff14SB or ff19SB) with no constant-pH dependency.\n\n- Propionate charges are taken verbatim from parmed's titratable_residues PRN definition (state 0 -> PRD, state 1 -> PRP); the four inactive 'ghost' hydroxyl hydrogens of the constph PRN are dropped exactly, since they carry zero charge and zero van der Waals radius. PRD has 9 atoms (net -1), PRP has 10 (net 0).\n- All propionate atom types are standard parm10 (identical to ASP/GLU/ASH/GLH), so their bonded terms come from the base force field and no propionate-specific frcmod entries are needed. The frcmod is otherwise identical to the default set's.\n- The heme (HTO) and proximal Cys (CTO) units, their charges, bonded terms, custom atom types, and the cross-residue Fe-S and propionate attachment bonds are unchanged from the default set.\n\nNet charge (heme + Cys + A-ring + D-ring) for ferric (Fe3+, S=5/2): -2 / -1 / 0 for (PRD,PRD) / one-protonated / (PRP,PRP).\n\nUse this set when you are NOT running constant-pH MD on the propionates and want the protein to keep ff14SB/ff19SB refinements. For constant-pH MD on the propionates, use the constant-pH Guberman_HTO_RESP_constpH set instead."
+            }
+          }
+        }
+      }
+    },
+    "reduced": {
+      "description": "Ferrous (Fe\u00b2\u207a) heme \u2014 one-electron reduced state. Quintet (S=2) high-spin in NOS substrate-bound geometry.",
+      "formal_charge": -1,
+      "spin_states": {
+        "high_spin": {
+          "description": "High-spin Fe\u00b2\u207a, S=2 quintet. Heme + Cys-thiolate sum to net -1e (Fe\u00b2\u207a + porph\u00b2\u207b + Cys\u207b). Tleap emits one expected 'unit charge -1.0 is not zero' warning.",
+          "spin_multiplicity": 5,
+          "electronic_config": "d6 high-spin",
+          "atom_types": [
+            "{ \"FR\" \"Fe\" \"sp3\" }",
+            "{ \"Mu\" \"N\" \"sp2\" }",
+            "{ \"Mv\" \"N\" \"sp2\" }",
+            "{ \"Mp\" \"C\" \"sp2\" }",
+            "{ \"Mq\" \"C\" \"sp2\" }",
+            "{ \"Mr\" \"C\" \"sp2\" }",
+            "{ \"Ms\" \"C\" \"sp2\" }",
+            "{ \"Mt\" \"C\" \"sp2\" }"
+          ],
+          "residue_name": "HTR",
+          "ligand_residue_names": {
+            "proximal_cys": "CTR"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_HTR_RESP_constpH": {
+              "description": "Guberman-Pfeffer ferrous Cys-axial b-type heme + proximal Cys thiolate, parameterized for NOS oxygenase domain (rat nNOS Cys415).",
+              "version": "1.3",
+              "reference": "Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian on the 2G6H substrate-bound ferrous model; Shahrokh 2012 IC6 Cys-axial dihedrals; Yang/Capece 2013 BBA Fe LJ.",
+              "files": {
+                "frcmod": "Guberman_HTR_RESP_constpH.frcmod",
+                "lib": "Guberman_HTR_RESP_constpH.lib"
+              },
+              "is_default": true,
+              "name": "Ferrous Cys-axial b-type heme + proximal Cys thiolate (HTR + CTR)",
+              "methodology": "This is the Cys-axial b-type heme of the nitric-oxide synthase (NOS) oxygenase domain - cytochrome-P450-style, with a single proximal cysteine-thiolate ligand on iron - in its reduced (ferrous, Fe2+, high-spin S=2) state. The heme plus its proximal cysteine sum to a net charge of -1.\n\n- Geometry: a small cluster (heme + the proximal cysteine, including the cysteine backbone) was optimized by DFT (B3LYP; LANL2DZ basis on iron, 6-31G(d) elsewhere) from the substrate-bound crystal structure (PDB 2G6H, rat nNOS with L-arginine bound), with the cysteine backbone angles frozen at the crystal values so the parameters reflect the real protein geometry rather than a gas-phase one.\n- Bond and angle stiffness: the iron coordination shell (the Fe-N and Fe-S bonds and the angles around iron) is fit by the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian'); it is fit separately for the ferric and ferrous states. The rest of the porphyrin (macrocycle, vinyl, methyl groups) is taken from the published Yang (2016) heme-b parameters.\n- Torsions around iron: from the published Shahrokh (2012) P450 Cys-axial set (transferable to NOS without re-fitting). Planarity (improper) terms from Yang 2016.\n- Atomic charges: a two-stage RESP fit. The cysteine backbone atoms are pinned to their standard ff14SB cysteinate values so the residue splices cleanly into a protein; only the heme and the cysteine side chain are fit freely, with iron's charge constrained to its QM (Mulliken) value. Because the iron-sulfur bond is partly covalent, the heme and cysteine are allowed to carry fractional (non-integer) charges that sum to the correct whole number for the pair - capturing about half an electron of sulfur-to-iron donation (the sulfur ends up less negative, and iron less positive, than their textbook ionic values).\n- Custom atom types: the macrocycle carbons are given short custom type names (Mp-Mt with Mu/Mv pyrrole nitrogens (ferrous)), together with a forked iron type (FR), so the two redox states use entirely separate type sets and can coexist in one topology (e.g. a mixed-oxidation-state multi-heme protein) without overwriting each other. This relabeling is value-neutral - it changes no charges or van der Waals (atom-size) values.\n\nCaveat: the force constants are calibrated to the substrate-bound active site; for the empty (apo), NO-released, or six-coordinate (Fe-O2/NO/CO) states the iron-shell bonded model would need re-deriving. Iron's van der Waals parameters use the Yang/Capece (2013) values.\n\nReferences: Yang 2016 (heme-b macrocycle); Shahrokh 2012 (P450 Cys-axial torsions); Seminario 1996 (Fe-shell constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP).",
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              }
+            },
+            "Guberman_HTR_RESP_FixedpH": {
+              "description": "Guberman-Pfeffer ferrous Cys-axial b-type heme + proximal Cys thiolate, parameterized for NOS oxygenase domain (rat nNOS Cys415).",
+              "version": "1.3",
+              "reference": "Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian on the 2G6H substrate-bound ferrous model; Shahrokh 2012 IC6 Cys-axial dihedrals; Yang/Capece 2013 BBA Fe LJ.",
+              "files": {
+                "frcmod": "Guberman_HTR_RESP_FixedpH.frcmod",
+                "lib": "Guberman_HTR_RESP_FixedpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled directly in the heme library and use standard parm10 atom types, so no constant-pH library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Ferrous Cys-axial b-type heme + proximal Cys thiolate (HTR + CTR)",
+              "methodology": "This is the same ferrous Cys-axial NOS heme parameter set as the constant-pH Guberman_HTR_RESP_constpH set - identical heme and proximal-Cys charges, bonded terms, and atom types - but with a 'fixed-pH' treatment of the two heme propionates. The default set represents each propionate with the titratable PRN residue, whose library lives in AMBER's constant-pH framework (leaprc.constph); loading it forces the whole protein onto the older parm10/ff10 backbone and loses ff14SB/ff19SB refinements. This fixed-pH set instead bundles two static propionate residues directly in the heme library: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn conformer). You pick each ring's protonation state independently at build time (A-ring and D-ring), and the system loads cleanly under a modern protein force field (ff14SB or ff19SB) with no constant-pH dependency.\n\n- Propionate charges are taken verbatim from parmed's titratable_residues PRN definition (state 0 -> PRD, state 1 -> PRP); the four inactive 'ghost' hydroxyl hydrogens of the constph PRN are dropped exactly, since they carry zero charge and zero van der Waals radius. PRD has 9 atoms (net -1), PRP has 10 (net 0).\n- All propionate atom types are standard parm10 (identical to ASP/GLU/ASH/GLH), so their bonded terms come from the base force field and no propionate-specific frcmod entries are needed. The frcmod is otherwise identical to the default set's.\n- The heme (HTR) and proximal Cys (CTR) units, their charges, bonded terms, custom atom types, and the cross-residue Fe-S and propionate attachment bonds are unchanged from the default set.\n\nNet charge (heme + Cys + A-ring + D-ring) for ferrous (Fe2+, S=2): -3 / -2 / -1 for (PRD,PRD) / one-protonated / (PRP,PRP).\n\nUse this set when you are NOT running constant-pH MD on the propionates and want the protein to keep ff14SB/ff19SB refinements. For constant-pH MD on the propionates, use the constant-pH Guberman_HTR_RESP_constpH set instead."
+            }
+          }
+        }
+      }
+    }
+  },
+  "transformation_info": {
+    "transforms_from": [
+      "HEM residue in the input PDB (b-type heme; standard PDB ligand code)",
+      "Single CYS residue whose SG is within 2.5 \u00c5 of the heme Fe (the proximal Cys; e.g., Cys415 in rat nNOS)"
+    ],
+    "creates_bonds": [
+      "Inter-residue Fe-S\u03b3 coordination bond (HTO/HTR.FE - CTO/CTR.SG)",
+      "Two inter-residue propionate attachment bonds at C2A and C3D (HTO/HTR.C2A - PRN_A.CA, HTO/HTR.C3D - PRN_D.CA). The bare \u03b2-carbons C2A and C3D are sp2 CB atoms in the lib \u2014 no methyl-cap CT carbons."
+    ],
+    "notes": "Both HEM and the proximal CYS are renamed by the transformer (HEM->HTO/HTR, CYS->CTO/CTR). The heme's two propionate side chains are extracted as PRN residues (constant-pH library, leaprc.constph) and re-attached to the macrocycle at C2A and C3D \u2014 DIFFERENT from the legacy NOS parameterization which used methyl-cap CAA/CAD attachment points. Cys-axial dihedrals (X-Fe-SH-X, CC-NP-FE-SH, CD-NO-FE-SH, CC-NP-FE-NP, CD-NO-FE-NO) are taken verbatim from Shahrokh 2012 IC6 (published P450 Cys-axial values, valid for NOS without re-fitting); the macrocycle bonded terms are from Yang 2016 HEB; only the state-specific Fe-shell bonds and angles are re-fit per redox state."
+  },
+  "methodology": "Cluster model: small model truncates the heme + proximal Cys (full Cys including N/H/CA/HA/CB/HB2/HB3/SG/C/O backbone) for Seminario bonded-parameter input. The QM model intentionally excludes heme propionate atoms (CAA/CBA/CGA/O1A/O2A on pyrrole A and CAD/CBD/CGD/O1D/O2D on pyrrole D) and replaces them with H atoms on the pyrrole \u03b2-carbons C2A and C3D during ESP/RESP. Cap-Hs constrained to charge zero in the RESP fit and dropped from the final lib, leaving C2A and C3D as bare sp2 CB atoms ready for cross-residue bonds to PRN.\n\nDFT method: B3LYP / LANL2DZ (Fe) + 6-31G(d) (light atoms). Modredundant-frozen Cys phi and psi during geometry optimization at the rat nNOS\u00b7CaM-bound crystal values, preventing the capped Cys dipeptide from relaxing to a gas-phase Ramachandran-favored geometry that doesn't reflect the protein context.\n\nBonded parameters from Seminario on the diagonal blocks of the Cartesian Hessian. Per-state ferric/ferrous parameters re-fit for: Fe-NP, Fe-NO, Fe-SH bonds; NP-Fe-NO (cis), NP-Fe-NP (trans), NO-Fe-NO (trans), NP-Fe-SH, NO-Fe-SH, Fe-SH-C\u03b2, Fe-NP-C\u03b1, Fe-NO-C\u03b1 angles. All other bonded terms (macrocycle backbone, vinyl, methyl, propionate junctions) inherited verbatim from Yang 2016 HEB; Cys-axial-specific dihedrals inherited verbatim from Shahrokh 2012 IC6.\n\nRESP charges: 2-stage Bayly-Cieplak-Cornell-Kollman procedure. Stage 1 constraints: ff14SB CYM backbone charges fixed (N, H, CA, HA, C, O \u2014 so the production CYM backbone splices into the protein at canonical values); Fe Mulliken constrained per state (+0.7324 ferric, +0.5258 ferrous). Stage 1 free fit: Cys CB/HB2/HB3/SG, heme heavy atoms + 28 H. Stage 2 equivalences: methyl-H trios averaged, methylene-H pairs averaged.\n\nFe-S covalency captured: residue-level integer-charge requirement intentionally relaxed (heme alone = +0.326 ferric / -0.406 ferrous; Cys alone = -0.326 ferric / -0.594 ferrous), so the complex sums to the integer formal charge (0 ferric / -1 ferrous) but each residue carries fractional charge representing ~0.5 e of S\u2192Fe donation. RESP picks up that the Cys-SG charge is less negative than canonical CYM thiolate (-0.88 e in ff14SB), and the Fe charge is correspondingly less positive than the formal +3 / +2.\n\nValidation: tleap build of isolated combine{HTO CTO} + explicit Fe-S\u03b3 bond reports 'Unit is OK' with all parameters resolved; ferrous reports the one expected unit-charge warning. Mixed-state combine{HTO CTO HTR CTR} also clean (FO/FR atom-type fork prevents cross-state clobbering)."
+}

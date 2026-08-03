@@ -1,0 +1,163 @@
+{
+  "name": "York Lab Equilibration Tutorial",
+  "description": "Faithful reproduction of the Rutgers/York Lab AMBER equilibration tutorial: a 14-step minimize -> staged NPT -> heat -> graduated solute restraint-release protocol for globular proteins in explicit solvent. Restraintmask ion names adjusted to match ProPrep's Na+/Cl- tleap output.",
+  "version": "1.0",
+  "author": "York Lab - E. McCarthy, S. Ekesan, D. M. York (Rutgers AMBER tutorial)",
+  "category": "protein",
+  "steps": [
+    {
+      "id": "000_min",
+      "name": "Initial Energy Minimization", 
+      "type": "minimization",
+      "template": "builtin/york_lab_tutorial/00_initial_minimization.mdin",
+      "description": "Initial energy minimization of the solvent. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": [],
+      "input_coord": "inpcrd",
+      "output_coord": "000_min.rst"
+    },
+    {
+      "id": "001_npt",
+      "name": "Initial NPT Equilibration",
+      "type": "equilibration", 
+      "template": "builtin/york_lab_tutorial/01_npt_equilibration_1.mdin",
+      "description": "Initial equilibration after minimization in the isothermal-isobaric ensemble. Hold temperature at 300K and pressure at 1 atm for 5 ps. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2. This effectively freezes the positions of the solute atoms.",
+      "parameter_overrides": {},
+      "dependencies": ["000_min"],
+      "input_coord": "000_min.rst",
+      "output_coord": "001_npt.rst"
+    },
+    {
+      "id": "002_npt",
+      "name": "Second NPT Equilibration",
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/02_npt_equilibration_2.mdin", 
+      "description": "Additional equilibration in the isothermal-isobaric ensemble. Hold temperature at 300K and pressure at 1 atm for 5 ps. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2. This is the same as the prior step except now there are velocities to read. They are broken up because as the density equilibrates, the box dimensions will change. Large fluctuations in box size in a single simulation can cause memory related errors, so breaking up the simulations leads to smaller fluctuations for the given run and avoids crashes.",
+      "parameter_overrides": {},
+      "dependencies": ["001_npt"],
+      "input_coord": "001_npt.rst",
+      "output_coord": "002_npt.rst"
+    },
+    {
+      "id": "003_npt",
+      "name": "Extended NPT Equilibration",
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/03_npt_equilibration_3.mdin",
+      "description": "Additional equilibration in the isothermal-isobaric ensemble. Hold temperature at 300K and pressure at 1 atm for 190 ps. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2. Density fluctuations are expected to be smaller after the two prior steps, so this step is performed for 190 ps continuously to total 200 ps in the NPT ensemble.",
+      "parameter_overrides": {},
+      "dependencies": ["002_npt"],
+      "input_coord": "002_npt.rst", 
+      "output_coord": "003_npt.rst"
+    },
+    {
+      "id": "01_min_solv",
+      "name": "Solvent Minimization",
+      "type": "minimization",
+      "template": "builtin/york_lab_tutorial/04_solvent_minimization.mdin",
+      "description": "Solvent energy minimization. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["003_npt"],
+      "input_coord": "003_npt.rst",
+      "output_coord": "01_min_solv.rst"
+    },
+    {
+      "id": "02_heat",
+      "name": "Initial Heating",
+      "type": "heating",
+      "template": "builtin/york_lab_tutorial/05_initial_heating.mdin",
+      "description": "Initial heating after solvent minimization at constant volume. Increase the temperature from 0 to 300 K over 600ps, then hold at constant temperature for 1 ns. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["01_min_solv"],
+      "input_coord": "01_min_solv.rst",
+      "output_coord": "02_heat.rst"
+    },
+    {
+      "id": "03_equil_npt_solvent",
+      "name": "NPT Solvent Equilibration", 
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/06_solvent_equilibration.mdin",
+      "description": "Solvent equilibration in the isothermal-isobaric (NPT) ensemble. Hold the temperature at 300 K and pressure at 1 atm for 5 ns. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["02_heat"],
+      "input_coord": "02_heat.rst",
+      "output_coord": "03_equil_npt_solvent.rst"
+    },
+    {
+      "id": "04_min_solute",
+      "name": "Solute Minimization",
+      "type": "minimization", 
+      "template": "builtin/york_lab_tutorial/07_solute_minimization.mdin",
+      "description": "Solute energy minimization. Restraints on the solute are released to relax the solute and solvent with respect to each other and alleviate potential clashes present from the crystal. This will not dramatically impact the solute structure.",
+      "parameter_overrides": {},
+      "dependencies": ["03_equil_npt_solvent"],
+      "input_coord": "03_equil_npt_solvent.rst",
+      "output_coord": "04_min_solute.rst"
+    },
+    {
+      "id": "05_heat_solute_rwt25",
+      "name": "Solute Heating (25 kcal)",
+      "type": "heating",
+      "template": "builtin/york_lab_tutorial/08_solute_heating_25kcal.mdin",
+      "description": "Solute equilibration heating stage. Increase the temperature from 0 to 300 K over 600 ps, then hold at constant temperature for 1 ns. Solute atoms are positionally restrained with weights of 25 kcal/mol*Å^2. The restraints are released gradually over ensuing stages of dynamics. Changing restraints effectively changes the force field. If the energy associated with a restraint is high and it is suddenly removed, the bonds to the associated atom could be broken as the atom position changes dramatically in a step of dynamics.",
+      "parameter_overrides": {},
+      "dependencies": ["04_min_solute"],
+      "input_coord": "04_min_solute.rst",
+      "output_coord": "05_heat_solute_rwt25.rst"
+    },
+    {
+      "id": "06_equil_solute_rwt25",
+      "name": "Equilibration (25 kcal)",
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/09_equilibration_25kcal.mdin",
+      "description": "Solute equilibration in the isothermal-isobaric (NPT) ensemble at 300 K and 1 atm for 500 ps. Solute atoms are positionally restrained with weights of 25 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["05_heat_solute_rwt25"], 
+      "input_coord": "05_heat_solute_rwt25.rst",
+      "output_coord": "06_equil_solute_rwt25.rst"
+    },
+    {
+      "id": "07_equil_solute_rwt10",
+      "name": "Equilibration (10 kcal)",
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/10_equilibration_10kcal.mdin",
+      "description": "Solute equilibration in the isothermal-isobaric (NPT) ensemble at 300 K and 1 atm for 500 ps. Solute atoms are positionally restrained with weights of 10 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["06_equil_solute_rwt25"],
+      "input_coord": "06_equil_solute_rwt25.rst",
+      "output_coord": "07_equil_solute_rwt10.rst"
+    },
+    {
+      "id": "08_equil_solute_rwt5",
+      "name": "Equilibration (5 kcal)",
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/11_equilibration_5kcal.mdin",
+      "description": "Solute equilibration in the isothermal-isobaric (NPT) ensemble at 300 K and 1 atm for 500 ps. Solute atoms are positionally restrained with weights of 5 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["07_equil_solute_rwt10"],
+      "input_coord": "07_equil_solute_rwt10.rst", 
+      "output_coord": "08_equil_solute_rwt5.rst"
+    },
+    {
+      "id": "09_equil_solute_rwt2",
+      "name": "Equilibration (2 kcal)",
+      "type": "equilibration",
+      "template": "builtin/york_lab_tutorial/12_equilibration_2kcal.mdin",
+      "description": "Solute equilibration in the isothermal-isobaric (NPT) ensemble at 300 K and 1 atm for 500 ps. Solute atoms are positionally restrained with weights of 2 kcal/mol*Å^2.",
+      "parameter_overrides": {},
+      "dependencies": ["08_equil_solute_rwt5"],
+      "input_coord": "08_equil_solute_rwt5.rst",
+      "output_coord": "09_equil_solute_rwt2.rst"
+    },
+    {
+      "id": "11_production",
+      "name": "Production MD (100 ns)",
+      "type": "production", 
+      "template": "builtin/york_lab_tutorial/13_production.mdin",
+      "description": "Production Stage. Hold at 300K and 1 atm for 100 ns.",
+      "parameter_overrides": {},
+      "dependencies": ["09_equil_solute_rwt2"],
+      "input_coord": "09_equil_solute_rwt2.rst",
+      "output_coord": "11_production.rst"
+    }
+  ]
+}

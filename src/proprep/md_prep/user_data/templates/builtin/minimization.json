@@ -1,0 +1,17 @@
+{
+  "name": "Energy Minimization",
+  "description": "Standard energy minimization",
+  "simulation_type": "minimization",
+  "config": {
+    "imin": 1,
+    "ntx": 1,
+    "maxcyc": 10000,
+    "ncyc": 1000,
+    "ntmin": 1,
+    "dx0": 0.01,
+    "drms": 0.0001,
+    "ntpr": 100,
+    "ntwr": 500,
+    "cut": 10.0
+  }
+}

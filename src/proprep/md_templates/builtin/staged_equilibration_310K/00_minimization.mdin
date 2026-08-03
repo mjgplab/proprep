@@ -1,0 +1,30 @@
+! TEMPLATE: Staged Minimization
+! DESCRIPTION: SD+CG minimization with heavy-atom solute restrained at 50 kcal/mol·Å². Relaxes solvent, hydrogens, and mobile ions around a held solute. Run on CPU (pmemd.MPI).
+! TYPE: minimization
+! PRIORITY: 1
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Staged equilibration at physiological temperature (310 K) for solvated metalloprotein/cofactor systems. Basic skeleton + heavy-atom restraint mask and graduated restraint release.
+
+Initial energy minimization with the solute heavy atoms positionally restrained at 50 kcal/mol*Å^2. Steepest-descent then conjugate-gradient (ntmin=1) is robust against the bad contacts of a fresh, artifact-laden build. The heavy-atom mask protects structural metals, cofactors, and modeled loops from drifting while solvent/H/ions relax around them. Engine: CPU (pmemd.MPI).
+
+&cntrl
+! Run Control
+  imin = 1,			! Energy minimization (0=MD, 1=minimization)
+  ntmin = 1,			! 1 = steepest descent for ncyc steps, then conjugate gradient
+  ncyc = 1000,			! SD steps before switching to CG (robust vs bad contacts)
+  maxcyc = 5000,		! Maximum minimization cycles
+
+! Input_Output Control
+  ntx = 1,			! Read coordinates, but not velocities
+  ntpr = 50,			! Every ntpr steps, print human-readable energy info
+  ntwx = 0,			! Every ntwx steps, print coordinates to mdcrd file
+
+! Restraints
+  ntr = 1,				! Enable positional restraints (see restraintmask below)
+  restraint_wt = 50.0,			! Restraint force constant (kcal/mol-A2)
+  restraintmask = '!@H= & !:WAT,Na+,Cl-,K+,MG', ! Heavy-atom solute restraint (frees water + mobile ions)
+
+! Miscellaneous
+  cut = 10.0,			! Nonbonded interaction cutoff (Angstroms) -- held constant across the whole protocol
+/

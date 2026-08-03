@@ -1,0 +1,228 @@
+Lean FAD frcmod (flavin/fad/oxidized). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c); phosphate forks (O3<-O2 / OD bridge) from source. Dihedrals = GAFF2-by-substitution, full multi-term. Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Aa     14.010    0.530   [frag]
+Ab     12.010    0.616   [frag]
+Ac     16.000    0.434   [frag]
+Ad     14.010    0.530   [frag]
+Ae      1.008    0.161   [frag]
+Af     12.010    0.616   [frag]
+Ag     16.000    0.434   [frag]
+Ah     12.010    0.360   [frag]
+Ai     14.010    0.530   [frag]
+Ak     12.010    0.360   [frag]
+Al     12.010    0.360   [frag]
+Am      1.008    0.135   [frag]
+An     12.010    0.360   [frag]
+Ao     12.010    0.878   [frag]
+Ap      1.008    0.135   [frag]
+Aq     12.010    0.360   [frag]
+Ar     12.010    0.878   [frag]
+As      1.008    0.135   [frag]
+At     12.010    0.360   [frag]
+Au      1.008    0.135   [frag]
+Av     12.010    0.360   [frag]
+Aw     14.010    0.530   [frag]
+Ax     12.010    0.360   [frag]
+OD     16.000    0.465   [fork-diphosphate-bridge]
+O3 16.00              O3 terminal-phosphate fork (mass = O2); Meagher 2003, JCC 24:1016
+
+BOND
+Aa-Ab    302.84     1.3650   Seminario method [frag]
+Aa-Ax    432.06     1.3223   Seminario method [frag]
+Ab-Ac    650.93     1.2346   Seminario method [frag]
+Ab-Ad    250.09     1.4110   Seminario method [frag]
+Ad-Ae    490.75     1.0163   Seminario method [frag]
+Ad-Af    348.18     1.3748   Seminario method [frag]
+Af-Ag    709.84     1.2283   Seminario method [frag]
+Af-Ah    213.84     1.4903   Seminario method [frag]
+Ah-Ai    482.53     1.3064   Seminario method [frag]
+Ah-Ax    253.93     1.4537   Seminario method [frag]
+Ai-Ak    340.34     1.3598   Seminario method [frag]
+Ak-Al    347.30     1.4151   Seminario method [frag]
+Ak-Av    293.74     1.4242   Seminario method [frag]
+Al-Am    384.23     1.0863   Seminario method [frag]
+Al-An    425.14     1.3815   Seminario method [frag]
+An-Ao    238.96     1.5085   Seminario method [frag]
+An-Aq    300.72     1.4316   Seminario method [frag]
+Ao-Ap    358.20     1.0936   Seminario method [frag]
+Aq-Ar    238.97     1.5064   Seminario method [frag]
+Aq-At    394.85     1.3924   Seminario method [frag]
+Ar-As    346.28     1.0973   Seminario method [frag]
+At-Au    391.01     1.0828   Seminario method [frag]
+At-Av    351.08     1.4056   Seminario method [frag]
+Av-Aw    310.15     1.3866   Seminario method [frag]
+Aw-Ax    328.22     1.3741   Seminario method [frag]
+Aw-c3    188.140     1.4788   [junction] seminario-0c (n=1)   xcof-mean
+O3-P     525.00     1.4800   [fork O3<-O2 = parm10 O2-P]
+OD-P     167.151     1.6563   [junction] seminario-0c (n=2)   xcof-mean
+OS-c3    228.325     1.4278   [junction] seminario-0c (n=1)   xcof-mean
+
+ANGLE
+Aa-Ab-Ac    106.164    123.217   Seminario method [frag]
+Aa-Ab-Ad    162.713    118.802   Seminario method [frag]
+Aa-Ax-Ah    161.021    124.611   Seminario method [frag]
+Aa-Ax-Aw    162.073    119.290   Seminario method [frag]
+Ab-Aa-Ax    135.109    119.408   Seminario method [frag]
+Ab-Ad-Ae     68.549    116.111   Seminario method [frag]
+Ab-Ad-Af    215.650    126.829   Seminario method [frag]
+Ac-Ab-Ad    120.731    117.980   Seminario method [frag]
+Ad-Af-Ag    132.877    122.311   Seminario method [frag]
+Ad-Af-Ah    190.321    113.212   Seminario method [frag]
+Ae-Ad-Af     70.397    117.060   Seminario method [frag]
+Af-Ah-Ai    144.289    118.488   Seminario method [frag]
+Af-Ah-Ax    179.914    117.138   Seminario method [frag]
+Ag-Af-Ah    118.479    124.477   Seminario method [frag]
+Ah-Ai-Ak    135.521    118.439   Seminario method [frag]
+Ah-Ax-Aw    204.494    116.100   Seminario method [frag]
+Ai-Ah-Ax    158.443    124.374   Seminario method [frag]
+Ai-Ak-Al    152.489    119.064   Seminario method [frag]
+Ai-Ak-Av    152.869    121.594   Seminario method [frag]
+Ak-Al-Am     64.083    117.194   Seminario method [frag]
+Ak-Al-An    175.994    121.855   Seminario method [frag]
+Ak-Av-At    171.867    118.831   Seminario method [frag]
+Ak-Av-Aw    172.555    118.559   Seminario method [frag]
+Al-Ak-Av    166.614    119.342   Seminario method [frag]
+Al-An-Ao    148.012    120.726   Seminario method [frag]
+Al-An-Aq    195.106    118.478   Seminario method [frag]
+Am-Al-An     65.586    120.951   Seminario method [frag]
+An-Ao-Ap     63.384    110.859   Seminario method [frag]
+An-Aq-Ar    155.832    120.142   Seminario method [frag]
+An-Aq-At    197.408    120.423   Seminario method [frag]
+Ao-An-Aq    153.216    120.796   Seminario method [frag]
+Ap-Ao-Ap     44.130    108.021   Seminario method [frag]
+Aq-Ar-As     69.603    111.079   Seminario method [frag]
+Aq-At-Au     65.248    118.573   Seminario method [frag]
+Aq-At-Av    183.933    121.072   Seminario method [frag]
+Ar-Aq-At    151.835    119.436   Seminario method [frag]
+As-Ar-As     33.960    106.680   Seminario method [frag]
+At-Av-Aw    177.968    122.610   Seminario method [frag]
+Au-At-Av     64.153    120.354   Seminario method [frag]
+Av-Aw-Ax    191.298    120.933   Seminario method [frag]
+Av-Aw-c3    158.010    120.7450   [junction] seminario-0c (n=1)   xcof-mean
+Aw-c3-c3    135.370    112.9000   [junction] seminario-0c (n=1)   xcof-mean
+Aw-c3-h1     72.570    107.5700   [junction] seminario-0c (n=2)   xcof-mean
+Ax-Aw-c3    168.195    118.5100   [junction] seminario-0c (n=1)   xcof-mean
+O3-P -O3    140.000    119.900   [fork O3<-O2 = parm10 O2-P-O2]
+O3-P -OD    101.291    109.1667   [junction] seminario-0c (n=4)   xcof-mean
+O3-P -OS    100.000    108.230   [fork O3<-O2 = parm10 O2-P-OS]
+OD-P -OS     94.333     99.1767   [junction] seminario-0c (n=2)   xcof-mean
+OS-c3-c3    136.420    106.9890   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-h1     68.429    110.2730   [junction] seminario-0c (n=2)   xcof-mean
+P -OD-P     104.454    132.6867   [junction] seminario-0c (n=1)   xcof-mean
+P -OS-c3    117.200    119.6680   [junction] seminario-0c (n=1)   xcof-mean
+
+DIHE
+Ax-Aa-Ab-Ac  1     4.00000   180.000    2.000   [gaff2-sub] full <- cd-nc-c-o
+Ax-Aa-Ab-Ad  1     4.00000   180.000    2.000   [gaff2-sub] full <- cd-nc-c-ns
+Ab-Aa-Ax-Aw  1     4.75000   180.000    2.000   [gaff2-sub] full <- c-nc-cd-na
+Ab-Aa-Ax-Ah  1     4.75000   180.000    2.000   [gaff2-sub] full <- c-nc-cd-cd
+Aa-Ab-Ad-Ae  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Aa-Ab-Ad-Af  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ac-Ab-Ad-Ae  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Ac-Ab-Ad-Ae  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Ac-Ab-Ad-Af  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ab-Ad-Af-Ag  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ab-Ad-Af-Ah  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ae-Ad-Af-Ag  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Ae-Ad-Af-Ag  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Ae-Ad-Af-Ah  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ad-Af-Ah-Ai  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-nc
+Ad-Af-Ah-Ax  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-cd
+Ag-Af-Ah-Ai  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-nc
+Ag-Af-Ah-Ax  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-cd
+Ax-Ah-Ai-Ak  1     4.75000   180.000    2.000   [gaff2-sub] full <- cd-cd-nc-ca
+Af-Ah-Ai-Ak  1     4.75000   180.000    2.000   [gaff2-sub] full <- c-cd-nc-ca
+Ai-Ah-Ax-Aa  1     4.00000   180.000    2.000   [gaff2-sub] full <- nc-cd-cd-nc
+Ai-Ah-Ax-Aw  1     4.00000   180.000    2.000   [gaff2-sub] full <- nc-cd-cd-na
+Af-Ah-Ax-Aa  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cd-nc
+Af-Ah-Ax-Aw  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cd-na
+Ah-Ai-Ak-Av  1     4.80000   180.000    2.000   [gaff2-sub] full <- cd-nc-ca-ca
+Ah-Ai-Ak-Al  1     4.80000   180.000    2.000   [gaff2-sub] full <- cd-nc-ca-ca
+Ai-Ak-Al-An  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-ca
+Ai-Ak-Al-Am  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-ha
+Av-Ak-Al-An  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Av-Ak-Al-Am  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Ai-Ak-Av-Aw  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-na
+Ai-Ak-Av-At  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-ca
+Al-Ak-Av-Aw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Al-Ak-Av-At  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Ak-Al-An-Ao  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Ak-Al-An-Aq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Am-Al-An-Ao  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-c3
+Am-Al-An-Aq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Al-An-Ao-Ap  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Aq-An-Ao-Ap  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Al-An-Aq-Ar  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Al-An-Aq-At  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Ao-An-Aq-Ar  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-c3
+Ao-An-Aq-At  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+An-Aq-Ar-As  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+At-Aq-Ar-As  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+An-Aq-At-Av  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+An-Aq-At-Au  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Ar-Aq-At-Av  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Ar-Aq-At-Au  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ha
+Au-At-Av-Ak  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Au-At-Av-Aw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-na
+Aq-At-Av-Ak  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Aq-At-Av-Aw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Ak-Av-Aw-Ax  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cd
+At-Av-Aw-Ax  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cd
+Av-Aw-Ax-Aa  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cd-nc
+Av-Aw-Ax-Ah  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cd-cd
+Ak-Av-Aw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+At-Av-Aw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Av-Aw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-c3
+Av-Aw-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-h1
+Ax-Aw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- cd-na-c3-c3
+Ax-Aw-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- cd-na-c3-h1
+c3-Aw-Ax-Aa  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cd-nc
+c3-Aw-Ax-Ah  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cd-cd
+P -OD-P -OS  1     0.89700     0.000    1.000   [fork OD<-OS / O3<-O2: Meagher+parm10 torsion]
+P -OS-c3-c3  1     0.38300     0.000   -3.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-c3  1     3.95000   180.000    1.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-h1  1     0.21700     0.000    3.000   [base-FF sub] full <- h1-c3-os-p5
+X -P -OD-X   3     0.75000     0.000    3.000   [fork OD<-OS / O3<-O2: Meagher+parm10 torsion]
+
+IMPROPER
+Aa-Ad-Ab-Ac        10.5          180.0         2.0   [root: tleap-perceived]
+Ah-Ad-Af-Ag        10.5          180.0         2.0   [root: tleap-perceived]
+Af-Ax-Ah-Ai         1.1          180.0         2.0   [root: tleap-perceived]
+Al-Av-Ak-Ai         1.1          180.0         2.0   [root: tleap-perceived]
+Ao-Al-An-Aq         1.1          180.0         2.0   [root: tleap-perceived]
+Ar-An-Aq-At         1.1          180.0         2.0   [root: tleap-perceived]
+Ak-At-Av-Aw         1.1          180.0         2.0   [root: tleap-perceived]
+c3-Av-Aw-Ax         1.1          180.0         2.0   [root: tleap-perceived]
+Ah-Aw-Ax-Aa         1.1          180.0         2.0   [root: tleap-perceived]
+Ab-Af-Ad-Ae         1.1          180.0         2.0   [root: tleap-perceived]
+Ak-An-Al-Am         1.1          180.0         2.0   [root: tleap-perceived]
+Aq-Av-At-Au         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Aa      1.8993    0.0941   [LJ from nc]
+  Ab      1.8606    0.0988   [LJ from c]
+  Ac      1.7107    0.1463   [LJ from o]
+  Ad      1.8352    0.1174   [LJ from ns]
+  Ae      0.6210    0.0100   [LJ from hn]
+  Af      1.8606    0.0988   [LJ from c]
+  Ag      1.7107    0.1463   [LJ from o]
+  Ah      1.8606    0.0988   [LJ from cd]
+  Ai      1.8993    0.0941   [LJ from nc]
+  Ak      1.8606    0.0988   [LJ from ca]
+  Al      1.8606    0.0988   [LJ from ca]
+  Am      1.4735    0.0161   [LJ from ha]
+  An      1.8606    0.0988   [LJ from ca]
+  Ao      1.9069    0.1078   [LJ from c3]
+  Ap      1.4593    0.0208   [LJ from hc]
+  Aq      1.8606    0.0988   [LJ from ca]
+  Ar      1.9069    0.1078   [LJ from c3]
+  As      1.4593    0.0208   [LJ from hc]
+  At      1.8606    0.0988   [LJ from ca]
+  Au      1.4735    0.0161   [LJ from ha]
+  Av      1.8606    0.0988   [LJ from ca]
+  Aw      1.7992    0.2042   [LJ from na]
+  Ax      1.8606    0.0988   [LJ from cd]
+  OD      1.6837    0.1700   [LJ from OS]
+  O3          1.6612   0.2100   O3 LJ = O2 (OPLS by-analogy); Meagher 2003, JCC 24:1016
+

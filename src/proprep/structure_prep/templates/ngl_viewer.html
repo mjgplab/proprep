@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProPrep Interactive Structure Viewer</title>
+
+    <!-- NGL Viewer from CDN -->
+    <script src="https://cdn.jsdelivr.net/gh/arose/ngl@latest/dist/ngl.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+
+        #header {
+            background-color: #2d2d2d;
+            padding: 15px 20px;
+            border-bottom: 2px solid #0078d4;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #header h1 { font-size: 20px; color: #0078d4; margin: 0; }
+        #header .info { font-size: 14px; color: #888; }
+
+        #container { display: flex; height: calc(100vh - 60px); }
+        #viewport { flex: 1; position: relative; }
+
+        #sidebar {
+            width: 370px;
+            background-color: #252526;
+            border-left: 1px solid #3e3e42;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        /* Scrollbar */
+        #sidebar::-webkit-scrollbar { width: 8px; }
+        #sidebar::-webkit-scrollbar-track { background: #1e1e1e; }
+        #sidebar::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 4px; }
+        #sidebar::-webkit-scrollbar-thumb:hover { background: #505050; }
+
+        /* Loading spinner */
+        #loading {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center; font-size: 16px; color: #0078d4;
+        }
+        .spinner {
+            border: 3px solid #3e3e42; border-top: 3px solid #0078d4;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 0 auto 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .hidden { display: none; }
+
+        /* ── Section headers ── */
+        .section {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        .section:last-child { border-bottom: none; }
+        .section-header {
+            font-size: 13px; color: #0078d4; text-transform: uppercase;
+            letter-spacing: 0.5px; margin-bottom: 10px; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+            user-select: none;
+        }
+        .section-header .collapse-icon {
+            font-size: 10px; transition: transform 0.2s;
+            display: inline-block;
+        }
+        .section-header .collapse-icon.collapsed { transform: rotate(-90deg); }
+
+        /* ── Structure panels ── */
+        .structure-panel {
+            background: #2d2d2d; border-radius: 4px;
+            padding: 10px; margin-bottom: 10px;
+        }
+        .structure-header {
+            display: flex; align-items: center;
+            font-weight: 600; font-size: 13px;
+            margin-bottom: 8px; cursor: pointer;
+            user-select: none;
+        }
+        .color-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            margin-right: 8px; display: inline-block; flex-shrink: 0;
+        }
+        .structure-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .struct-collapse-icon {
+            font-size: 10px; margin-left: 6px;
+            transition: transform 0.2s; display: inline-block;
+        }
+        .struct-collapse-icon.collapsed { transform: rotate(-90deg); }
+
+        /* ── Representation rows ── */
+        .rep-list { max-height: 500px; overflow-y: auto; }
+        .rep-row {
+            background: #353535; padding: 6px 8px;
+            margin-bottom: 4px; border-radius: 3px;
+            border-left: 3px solid #0078d4;
+        }
+        .rep-row.annotation { border-left-color: #ff8c00; }
+        .rep-row-top {
+            display: flex; align-items: center; gap: 4px;
+            margin-bottom: 4px;
+        }
+        .rep-label-input {
+            flex: 1; background: transparent;
+            border: 1px solid transparent; color: #e0e0e0;
+            font-size: 12px; padding: 2px 4px; border-radius: 2px;
+            min-width: 0;
+        }
+        .rep-label-input:hover { border-color: #505050; }
+        .rep-label-input:focus { border-color: #0078d4; outline: none; background: #2d2d2d; }
+
+        .rep-row-bottom {
+            display: flex; align-items: center; gap: 4px;
+        }
+        .rep-selection-input {
+            flex: 1; min-width: 60px; background: #2d2d2d;
+            border: 1px solid #505050; color: #e0e0e0;
+            font-size: 11px; padding: 3px 6px; border-radius: 2px;
+            font-family: "SF Mono", "Menlo", "Consolas", monospace;
+        }
+        .rep-selection-input:focus { border-color: #0078d4; outline: none; }
+        .rep-selection-input.error { border-color: #ff4444; }
+
+        .rep-style-select, .rep-color-select {
+            background: #3e3e42; color: #e0e0e0;
+            border: 1px solid #505050; font-size: 11px;
+            padding: 2px 4px; border-radius: 2px;
+            max-width: 90px;
+        }
+        .rep-color-picker {
+            width: 24px; height: 22px; border: 1px solid #505050;
+            border-radius: 2px; cursor: pointer; padding: 0;
+            background: none; flex-shrink: 0;
+        }
+
+        /* ── Opacity slider ── */
+        .rep-row-opacity {
+            display: flex; align-items: center; gap: 6px; margin-top: 3px;
+        }
+        .rep-opacity-label {
+            font-size: 10px; color: #888; flex-shrink: 0;
+        }
+        .rep-opacity-slider {
+            flex: 1; min-width: 40px; height: 14px; margin: 0;
+            accent-color: #0078d4; cursor: pointer;
+        }
+        .rep-opacity-value {
+            font-size: 10px; color: #888; width: 32px; text-align: right;
+            flex-shrink: 0;
+            font-family: "SF Mono", "Menlo", "Consolas", monospace;
+        }
+
+        /* ── Icon buttons ── */
+        .icon-btn {
+            background: none; border: none; color: #666;
+            cursor: pointer; font-size: 14px; padding: 2px 4px;
+            width: auto; margin: 0; line-height: 1;
+            flex-shrink: 0;
+        }
+        .icon-btn:hover { color: #e0e0e0; background: none; }
+        .icon-btn.active { color: #0078d4; }
+        .icon-btn.eye-hidden { color: #444; }
+        .icon-btn.remove-btn:hover { color: #ff4444; background: none; }
+
+        /* ── Add representation ── */
+        .add-rep-btn {
+            background: transparent; border: 1px dashed #505050;
+            color: #888; font-size: 11px; padding: 5px;
+            margin-top: 6px; border-radius: 3px; cursor: pointer;
+            width: 100%;
+        }
+        .add-rep-btn:hover { border-color: #0078d4; color: #0078d4; background: transparent; }
+
+        .add-rep-form {
+            background: #2d2d2d; padding: 8px;
+            border-radius: 4px; margin-top: 6px;
+        }
+        .add-rep-fields { display: flex; flex-direction: column; gap: 5px; }
+        .add-rep-row { display: flex; gap: 4px; align-items: center; }
+        .add-rep-input {
+            flex: 1; background: #353535; border: 1px solid #505050;
+            color: #e0e0e0; font-size: 11px; padding: 4px 6px;
+            border-radius: 2px; font-family: "SF Mono", "Menlo", "Consolas", monospace;
+        }
+        .add-rep-input:focus { border-color: #0078d4; outline: none; }
+        .add-rep-label-input {
+            flex: 1; background: #353535; border: 1px solid #505050;
+            color: #e0e0e0; font-size: 11px; padding: 4px 6px;
+            border-radius: 2px;
+        }
+        .add-rep-label-input:focus { border-color: #0078d4; outline: none; }
+
+        .add-rep-actions { display: flex; gap: 4px; margin-top: 4px; }
+        .add-btn, .cancel-btn {
+            flex: 1; padding: 5px; font-size: 11px; border: none;
+            border-radius: 3px; cursor: pointer;
+        }
+        .add-btn { background: #0078d4; color: white; }
+        .add-btn:hover { background: #005a9e; }
+        .cancel-btn { background: #3e3e42; color: #e0e0e0; }
+        .cancel-btn:hover { background: #505050; }
+
+        /* ── Selection help ── */
+        .selection-help-toggle {
+            font-size: 11px; color: #888; cursor: pointer;
+            margin-bottom: 8px; user-select: none;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .selection-help-toggle:hover { color: #0078d4; }
+        .selection-help-toggle .help-icon {
+            display: inline-block; width: 14px; height: 14px;
+            border: 1px solid #888; border-radius: 50%;
+            text-align: center; line-height: 14px; font-size: 10px;
+            font-weight: 600; flex-shrink: 0;
+        }
+        .selection-help-toggle:hover .help-icon { border-color: #0078d4; }
+        .selection-help {
+            background: #2a2d32; border: 1px solid #3e3e42;
+            border-radius: 4px; padding: 10px; margin-bottom: 10px;
+            font-size: 11px; line-height: 1.6;
+        }
+        .selection-help table { width: 100%; border-collapse: collapse; }
+        .selection-help td {
+            padding: 2px 0; vertical-align: top;
+        }
+        .selection-help td:first-child {
+            font-family: "SF Mono", "Menlo", "Consolas", monospace;
+            color: #0078d4; white-space: nowrap; padding-right: 10px;
+            width: 1%;
+        }
+        .selection-help td:last-child { color: #aaa; }
+        .selection-help .help-divider {
+            border: none; border-top: 1px solid #3e3e42;
+            margin: 4px 0;
+        }
+
+        /* ── Measurement section ── */
+        .measurement-modes { display: flex; gap: 6px; margin-bottom: 10px; }
+        .mode-btn {
+            flex: 1; padding: 7px; font-size: 12px;
+            background: #3e3e42; border: 1px solid #505050;
+            color: #e0e0e0; border-radius: 3px; cursor: pointer;
+        }
+        .mode-btn:hover { background: #505050; }
+        .mode-btn.active { background: #0078d4; border-color: #0078d4; color: white; }
+
+        .measurement-status {
+            background: #2d2d2d; padding: 8px; border-radius: 4px;
+            margin-bottom: 8px; font-size: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .cancel-pick-btn {
+            padding: 3px 8px; font-size: 11px;
+            background: #3e3e42; border: 1px solid #505050;
+            color: #e0e0e0; border-radius: 3px; cursor: pointer;
+            width: auto;
+        }
+        .cancel-pick-btn:hover { background: #505050; }
+
+        .picked-atom { font-size: 11px; color: #aaa; padding: 2px 0; }
+        .picked-atom-list { margin-bottom: 6px; }
+
+        .measurement-item {
+            background: #2d2d2d; padding: 8px; margin-bottom: 4px;
+            border-radius: 3px; font-size: 11px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .measurement-item.distance { border-left: 3px solid #00cc66; }
+        .measurement-item.angle { border-left: 3px solid #ff8c00; }
+        .measurement-item.dihedral { border-left: 3px solid #a78bfa; }
+        .measurement-info { flex: 1; overflow: hidden; }
+        .measurement-value { font-weight: 600; }
+        .measurement-atoms { color: #888; font-size: 10px; margin-top: 2px; }
+
+        .dim-text { color: #555; font-size: 12px; font-style: italic; }
+
+        /* ── View control buttons ── */
+        .view-btn {
+            padding: 7px 14px; font-size: 12px;
+            background-color: #0078d4; color: white;
+            border: none; border-radius: 4px; cursor: pointer;
+            width: 100%; margin-top: 6px;
+        }
+        .view-btn:hover { background-color: #005a9e; }
+        .view-btn:active { background-color: #004578; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>ProPrep Interactive Structure Viewer</h1>
+        <div class="info" id="structure-info">Loading...</div>
+    </div>
+
+    <div id="container">
+        <div id="viewport">
+            <div id="loading">
+                <div class="spinner"></div>
+                <div>Loading structures...</div>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <!-- Section 1: Representations -->
+            <div class="section" id="rep-section">
+                <div class="section-header" onclick="toggleSectionCollapse('rep')">
+                    <span class="collapse-icon" id="rep-collapse-icon">&#9660;</span>
+                    Representations
+                </div>
+                <div class="selection-help-toggle" onclick="toggleSelectionHelp()">
+                    <span class="help-icon">?</span> Selection Syntax
+                </div>
+                <div id="selection-help" class="selection-help hidden">
+                    <table>
+                        <tr><td>protein</td><td>All protein residues</td></tr>
+                        <tr><td>hetero</td><td>Non-protein (ligands, modified res.)</td></tr>
+                        <tr><td>water</td><td>Water molecules</td></tr>
+                        <tr><td>ion</td><td>Ions and metals</td></tr>
+                        <tr><td colspan="2"><hr class="help-divider"></td></tr>
+                        <tr><td>:A</td><td>Chain A</td></tr>
+                        <tr><td>:A and 1-50</td><td>Chain A, residues 1&ndash;50</td></tr>
+                        <tr><td>150 or 151</td><td>Residues 150 and 151</td></tr>
+                        <tr><td>:A and 150.CA</td><td>Specific atom (C-alpha)</td></tr>
+                        <tr><td colspan="2"><hr class="help-divider"></td></tr>
+                        <tr><td>backbone</td><td>Backbone atoms (N, CA, C, O)</td></tr>
+                        <tr><td>sidechain</td><td>Sidechain atoms</td></tr>
+                        <tr><td>not water</td><td>Everything except water</td></tr>
+                        <tr><td colspan="2"><hr class="help-divider"></td></tr>
+                        <tr><td>protein or hetero</td><td>Combine with <b>or</b></td></tr>
+                        <tr><td>protein and :A</td><td>Intersect with <b>and</b></td></tr>
+                        <tr><td>not (:A or :B)</td><td>Negate with <b>not</b>, group with <b>( )</b></td></tr>
+                    </table>
+                </div>
+                <div id="rep-content">
+                    <!-- Per-structure panels generated by JS -->
+                </div>
+            </div>
+
+            <!-- Section 2: Measurements -->
+            <div class="section" id="measurement-section">
+                <div class="section-header" onclick="toggleSectionCollapse('measurement')">
+                    <span class="collapse-icon" id="measurement-collapse-icon">&#9660;</span>
+                    Measurements
+                </div>
+                <div id="measurement-content">
+                    <div class="measurement-modes">
+                        <button id="distance-mode-btn" class="mode-btn" onclick="toggleMeasurementMode('distance')">
+                            &#8596; Distance
+                        </button>
+                        <button id="angle-mode-btn" class="mode-btn" onclick="toggleMeasurementMode('angle')">
+                            &#8736; Angle
+                        </button>
+                        <button id="dihedral-mode-btn" class="mode-btn" onclick="toggleMeasurementMode('dihedral')">
+                            &#8738; Dihedral
+                        </button>
+                    </div>
+                    <div id="measurement-status" class="measurement-status hidden">
+                        <span id="measurement-status-text"></span>
+                        <button class="cancel-pick-btn" onclick="cancelMeasurement()">Cancel</button>
+                    </div>
+                    <div id="picked-atoms-display" class="picked-atom-list hidden"></div>
+                    <div id="measurement-list"></div>
+                    <div id="no-measurements" class="dim-text">No measurements yet</div>
+                </div>
+            </div>
+
+            <!-- Section 3: View Controls -->
+            <div class="section">
+                <div class="section-header">View Controls</div>
+                <button class="view-btn" onclick="centerView()">Center View</button>
+                <button class="view-btn" onclick="resetView()">Reset View</button>
+                <button class="view-btn" onclick="toggleFullscreen()">Toggle Fullscreen</button>
+                <button class="view-btn" onclick="captureScreenshot()">Save Screenshot</button>
+                <button id="background-btn" class="view-btn" onclick="cycleBackground()">Background: Dark</button>
+                <button id="camera-btn" class="view-btn" onclick="toggleCameraType()">Camera: Orthographic</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================
+        // Global State
+        // ====================================================================
+        let stage;
+        let config = {};
+        let components = [];            // NGL StructureComponent per structure index
+        let repState = {};              // repState[structIdx][repId] = {nglRepr, config}
+        let repIdCounter = 0;           // for generating unique IDs on user-added reps
+        let initialConfig = null;       // saved for reset
+        let lastSeenVersion = 0;        // server config version we've already applied
+        let shapeComponents = {};       // shapeComponents[label] = NGL component (Shape API)
+
+        // Measurement state
+        // How many atoms each mode needs, what to call it, the NGL
+        // representation colour and the list icon. Holding these in one table
+        // keeps the count in a single place: it used to be written inline as
+        // "distance ? 2 : 3" in three separate spots, which silently returns
+        // the wrong count as soon as a third mode exists.
+        const MEASUREMENT_MODES = {
+            distance: { atoms: 2, name: 'Distance', color: '#00cc66', icon: '&#8596; ' },
+            angle:    { atoms: 3, name: 'Angle',    color: '#ff8c00', icon: '&#8736; ' },
+            dihedral: { atoms: 4, name: 'Dihedral', color: '#a78bfa', icon: '&#8738; ' }
+        };
+
+        // Radius of the yellow sphere marking an atom picked for a
+        // measurement, in Angstroms, fixed rather than scaled off the van der
+        // Waals radius. A vdW-proportional marker was both too big and
+        // inconsistent: at 0.4x it put a 0.68 A sphere on a carbon, and a C-C
+        // bond is only 1.54 A, so markers on bonded atoms nearly touched and
+        // buried their neighbours. Scaling also meant picking an H gave a dot
+        // and picking Fe gave a boulder, when both should read the same way --
+        // the marker says "this atom is selected", not how big the atom is.
+        // 0.45 A clears a ball+stick ball while leaving daylight around it.
+        const PICK_MARKER_RADIUS = 0.45;
+
+        let measurementMode = null;     // null | a key of MEASUREMENT_MODES
+        let pickedAtoms = [];           // atoms picked so far in current measurement
+        let measurements = [];          // completed measurements
+        let measurementIdCounter = 0;
+
+        // ====================================================================
+        // Style / Color option definitions
+        // ====================================================================
+        const STYLES = [
+            ['cartoon', 'Cartoon'],
+            ['ball+stick', 'Ball+Stick'],
+            ['licorice', 'Licorice'],
+            ['spacefill', 'Spacefill'],
+            ['halo', 'Halo'],
+            ['bond', 'Bond'],
+            ['surface', 'Surface'],
+            ['ribbon', 'Ribbon'],
+            ['tube', 'Tube'],
+            ['line', 'Line'],
+            ['backbone', 'Backbone'],
+            ['rope', 'Rope'],
+            ['trace', 'Trace'],
+        ];
+
+        const NAMED_COLORS = [
+            ['element', 'Element'],
+            ['residueindex', 'Rainbow (N\u2192C)'],
+            ['chainid', 'Chain ID'],
+            ['sstruc', 'Sec. Structure'],
+            ['bfactor', 'B-factor'],
+            ['hydrophobicity', 'Hydrophobicity'],
+        ];
+
+        const SOLID_COLORS = [
+            ['#ff0000', 'Red'],
+            ['#0000ff', 'Blue'],
+            ['#00cc66', 'Green'],
+            ['#ffff00', 'Yellow'],
+            ['#ff8c00', 'Orange'],
+            ['#00cccc', 'Cyan'],
+            ['#ff00ff', 'Magenta'],
+            ['#ffffff', 'White'],
+            ['#0078d4', 'Steel Blue'],
+            ['#9b59b6', 'Purple'],
+            ['#888888', 'Gray'],
+        ];
+
+        const ALL_COLOR_VALUES = [...NAMED_COLORS, ...SOLID_COLORS].map(c => c[0]);
+
+        // ====================================================================
+        // Initialization
+        // ====================================================================
+        function initStage() {
+            stage = new NGL.Stage("viewport", {
+                backgroundColor: "#1e1e1e",
+                quality: "high",
+                sampleLevel: 2,
+                ambientIntensity: 0.3,
+                lightIntensity: 1.0,
+                // NGL defaults to a perspective camera (40 degree FOV).
+                // Orthographic is the better default here: with no
+                // foreshortening, two bonds of equal length measure equal on
+                // screen wherever they sit in the box, so a coordination
+                // geometry reads truly and a figure can be compared against
+                // another. It also matches what VMD shows by default, which
+                // is the reference point for most of this work.
+                cameraType: "orthographic"
+            });
+            window.addEventListener("resize", function () {
+                stage.handleResize();
+            }, false);
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('/config');
+                config = await response.json();
+                lastSeenVersion = config._config_version || 0;
+                initialConfig = JSON.parse(JSON.stringify(config));
+            } catch (error) {
+                console.error('Error loading config:', error);
+                config = { structures: [], focused_mode: false };
+                initialConfig = JSON.parse(JSON.stringify(config));
+            }
+        }
+
+        // Live update: poll the server for config-version bumps. When the
+        // server's config has been replaced (e.g. the alt-loc picker moved
+        // to the next residue), re-fetch /config and rebuild representations
+        // on the existing stage without reloading the page or PDB files.
+        async function pollVersion() {
+            try {
+                const r = await fetch('/version', { cache: 'no-store' });
+                if (!r.ok) return;
+                const v = (await r.json()).version || 0;
+                if (v !== lastSeenVersion) {
+                    lastSeenVersion = v;
+                    const cfgResp = await fetch('/config', { cache: 'no-store' });
+                    const newConfig = await cfgResp.json();
+                    applyNewConfig(newConfig);
+                }
+            } catch (e) {
+                // Server may have shut down; let the next tick try again.
+            }
+        }
+
+        function applyNewConfig(newConfig) {
+            // Wipe representations created from the *previous* config but
+            // leave the loaded structure components in place — they came
+            // from /structure/N and aren't expected to change mid-session.
+            for (const structIdx in repState) {
+                for (const repId in repState[structIdx]) {
+                    try {
+                        components[structIdx].removeRepresentation(
+                            repState[structIdx][repId].nglRepr
+                        );
+                    } catch (e) { /* ok */ }
+                }
+                repState[structIdx] = {};
+            }
+
+            config = newConfig;
+
+            // Recreate reps for each structure that we've already loaded.
+            for (const structInfo of (config.structures || [])) {
+                const idx = structInfo.index;
+                if (!components[idx]) continue;
+                repState[idx] = {};
+                for (const repConfig of (structInfo.representations || [])) {
+                    createNglRep(idx, repConfig);
+                }
+                refreshRepList(idx);
+            }
+
+            applyShapesFromConfig(config);
+
+            if (config.focused_mode) {
+                centerOnAnnotations();
+            }
+
+            // Refresh the "N structure(s) | M representation(s)" status line.
+            let nReps = 0;
+            for (const s of (config.structures || [])) {
+                nReps += (s.representations || []).length;
+            }
+            const info = document.getElementById('structure-info');
+            if (info) {
+                const n = config.structures ? config.structures.length : 0;
+                info.textContent = n + ' structure(s) | ' + nReps + ' representation(s)';
+            }
+        }
+
+        async function loadStructures() {
+            if (!config.structures || config.structures.length === 0) {
+                document.getElementById('rep-content').innerHTML =
+                    '<div class="dim-text">No structures loaded</div>';
+                return;
+            }
+
+            for (const structInfo of config.structures) {
+                const idx = structInfo.index;
+                try {
+                    const component = await stage.loadFile(`/structure/${idx}`, {
+                        ext: "pdb", firstModelOnly: true
+                    });
+                    components[idx] = component;
+                    repState[idx] = {};
+
+                    // Create NGL representations from config
+                    for (const repConfig of structInfo.representations) {
+                        createNglRep(idx, repConfig);
+                    }
+
+                    // Render sidebar panel
+                    renderStructurePanel(idx, structInfo.name);
+                } catch (error) {
+                    console.error(`Error loading structure ${idx}:`, error);
+                }
+            }
+
+            // Auto-center
+            if (config.focused_mode) {
+                centerOnAnnotations();
+            } else {
+                stage.autoView();
+            }
+        }
+
+        function setupPickingHandler() {
+            stage.signals.clicked.add(function (pickingProxy) {
+                if (!measurementMode) return;
+                if (!pickingProxy) return;
+
+                const atom = pickingProxy.atom || pickingProxy.closestBondAtom;
+                if (!atom) return;
+
+                const atomInfo = {
+                    index: atom.index,
+                    atomname: atom.atomname,
+                    resname: atom.resname,
+                    resno: atom.resno,
+                    chainname: atom.chainname,
+                    x: atom.x, y: atom.y, z: atom.z,
+                    component: pickingProxy.component,
+                    label: atom.resname + atom.resno + '.' + atom.atomname +
+                           (atom.chainname ? ' (' + atom.chainname + ')' : ''),
+                    markerRepr: null
+                };
+
+                pickedAtoms.push(atomInfo);
+
+                // Temporary pick marker
+                try {
+                    atomInfo.markerRepr = atomInfo.component.addRepresentation('spacefill', {
+                        sele: '@' + atomInfo.index,
+                        color: '#ffff00',
+                        radiusType: 'size',
+                        radiusSize: PICK_MARKER_RADIUS,
+                        radiusScale: 1.0,
+                        opacity: 0.7
+                    });
+                } catch (e) { /* ignore marker failures */ }
+
+                updatePickDisplay();
+
+                if (pickedAtoms.length >= MEASUREMENT_MODES[measurementMode].atoms) {
+                    createMeasurement();
+                }
+            });
+        }
+
+        async function init() {
+            initStage();
+            await loadConfig();
+            await loadStructures();
+            applyShapesFromConfig(config);
+            setupPickingHandler();
+
+            document.getElementById('loading').classList.add('hidden');
+
+            const nStructures = config.structures ? config.structures.length : 0;
+            let nReps = 0;
+            if (config.structures) {
+                for (const s of config.structures) {
+                    nReps += (s.representations || []).length;
+                }
+            }
+            document.getElementById('structure-info').textContent =
+                nStructures + ' structure(s) | ' + nReps + ' representation(s)';
+
+            // Start polling for live updates pushed from Python.
+            setInterval(pollVersion, 1500);
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+
+        // ====================================================================
+        // Representation Management — Core
+        // ====================================================================
+        // ====================================================================
+        // Shape primitives (centroid spheres etc., not tied to a structure)
+        // ====================================================================
+        function hexToRgbArray(hex) {
+            const h = (hex || '#ffaa00').replace('#', '');
+            const v = h.length === 3
+                ? h[0]+h[0]+h[1]+h[1]+h[2]+h[2]
+                : h.padEnd(6, '0');
+            return [
+                parseInt(v.substring(0, 2), 16) / 255,
+                parseInt(v.substring(2, 4), 16) / 255,
+                parseInt(v.substring(4, 6), 16) / 255,
+            ];
+        }
+
+        function createShapeComponent(shapeData) {
+            // Build a stand-alone NGL component from a shape primitive.
+            // Used for marking geometric features that aren't atoms in
+            // the loaded PDB (e.g. the centroid of a redox site).
+            try {
+                const shape = new NGL.Shape(shapeData.label || 'shape', { disableImpostor: false });
+                if (shapeData.type === 'sphere') {
+                    shape.addSphere(
+                        shapeData.coords,
+                        hexToRgbArray(shapeData.color),
+                        shapeData.radius,
+                        shapeData.label || ''
+                    );
+                } else {
+                    return null;
+                }
+                const comp = stage.addComponentFromObject(shape);
+                comp.addRepresentation('buffer', { opacity: shapeData.opacity });
+                return comp;
+            } catch (e) {
+                console.warn('Failed to create shape:', shapeData, e);
+                return null;
+            }
+        }
+
+        function clearAllShapes() {
+            for (const label in shapeComponents) {
+                try { stage.removeComponent(shapeComponents[label]); } catch (e) { /* ok */ }
+            }
+            shapeComponents = {};
+        }
+
+        function applyShapesFromConfig(cfg) {
+            clearAllShapes();
+            for (const shapeData of (cfg.shapes || [])) {
+                const comp = createShapeComponent(shapeData);
+                if (comp) shapeComponents[shapeData.label] = comp;
+            }
+        }
+
+        // Translate a logical repConfig into the (style, params) pair that
+        // ``component.addRepresentation`` actually wants. Used by both the
+        // initial-create and the user-edit-recreate paths so they agree on
+        // halo/bond/scale/opacity handling.
+        function buildRepParams(repConfig) {
+            let nglStyle = repConfig.style;
+
+            if (nglStyle === 'bond') {
+                // Bond rep: NGL's 'distance' representation with caller-
+                // supplied atom-pair selections. Used to draw the bonds
+                // defined in a redox site (which aren't in the PDB CONECT
+                // record). Labels off by default because 6 bond labels on
+                // a heme are visually busy; user can flip via the label
+                // checkbox in the rep manager if desired.
+                const pairs = repConfig.atom_pairs || [];
+                return {
+                    style: 'distance',
+                    params: {
+                        atomPair: pairs,
+                        color: repConfig.color || '#ffff00',
+                        labelUnit: 'angstrom',
+                        labelSize: repConfig.label_size !== undefined ? repConfig.label_size : 1.0,
+                        labelVisible: repConfig.show_labels === true,
+                    },
+                };
+            }
+
+            const params = { sele: repConfig.selection, color: repConfig.color };
+            if (nglStyle === 'ball+stick') params.scale = 0.5;
+            if (nglStyle === 'spacefill' && repConfig.selection === 'ion') params.scale = 0.8;
+            if (nglStyle === 'halo') {
+                // Halo: translucent spacefill sized close to ball+stick
+                // atom radii so it reads as a glow around the underlying
+                // ball, not as a full vdW sphere obscuring its neighbours.
+                nglStyle = 'spacefill';
+                params.scale = 0.3;
+                params.opacity = 0.5;
+            }
+            // Caller-supplied overrides win over style defaults.
+            if (repConfig.scale !== undefined) params.scale = repConfig.scale;
+            if (repConfig.opacity !== undefined) {
+                params.opacity = repConfig.opacity;
+                if (repConfig.opacity < 1) {
+                    // A translucent representation still writes to the depth
+                    // buffer by default, so it occludes whatever is drawn
+                    // behind it even though you can see the background
+                    // through it. That defeats the usual reason for turning
+                    // a protein translucent — looking at a metal site or
+                    // ligand buried inside it. Dropping depthWrite lets the
+                    // interior show through. Left alone for the halo default
+                    // set above, which is a thin shell around atoms rather
+                    // than something you look through.
+                    params.depthWrite = false;
+                }
+            }
+            return { style: nglStyle, params: params };
+        }
+
+        // What the slider should read for a rep that has no explicit opacity:
+        // mirrors the per-style defaults applied in buildRepParams so the UI
+        // doesn't claim a halo is solid when it renders translucent.
+        function effectiveOpacity(repConfig) {
+            if (repConfig.opacity !== undefined) return repConfig.opacity;
+            if (repConfig.style === 'halo') return 0.5;
+            return 1.0;
+        }
+
+        function createNglRep(structIdx, repConfig) {
+            const component = components[structIdx];
+            if (!component) return;
+
+            const { style, params } = buildRepParams(repConfig);
+
+            try {
+                const nglRepr = component.addRepresentation(style, params);
+                nglRepr.setVisibility(repConfig.visible);
+
+                repState[structIdx][repConfig.id] = {
+                    nglRepr: nglRepr,
+                    config: { ...repConfig }
+                };
+            } catch (e) {
+                console.warn('Failed to create representation:', repConfig, e);
+            }
+        }
+
+        function recreateNglRep(structIdx, repId) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return false;
+
+            const component = components[structIdx];
+            const rc = entry.config;
+
+            const { style, params } = buildRepParams(rc);
+
+            try {
+                component.removeRepresentation(entry.nglRepr);
+            } catch (e) { /* ok if already removed */ }
+
+            try {
+                const nglRepr = component.addRepresentation(style, params);
+                nglRepr.setVisibility(rc.visible);
+                entry.nglRepr = nglRepr;
+                return true;
+            } catch (e) {
+                console.warn('Invalid representation params:', rc, e);
+                // Re-add old style as fallback
+                try {
+                    const nglRepr = component.addRepresentation(style, {
+                        sele: 'none', color: rc.color
+                    });
+                    nglRepr.setVisibility(false);
+                    entry.nglRepr = nglRepr;
+                } catch (e2) { /* give up */ }
+                return false;
+            }
+        }
+
+        // ====================================================================
+        // Representation Management — UI Actions
+        // ====================================================================
+        function updateRepSelection(structIdx, repId, newSelection) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+            const oldSelection = entry.config.selection;
+            entry.config.selection = newSelection;
+            if (!recreateNglRep(structIdx, repId)) {
+                // Revert on failure
+                entry.config.selection = oldSelection;
+                recreateNglRep(structIdx, repId);
+                const input = document.getElementById('sel-' + structIdx + '-' + repId);
+                if (input) {
+                    input.value = oldSelection;
+                    input.classList.add('error');
+                    setTimeout(() => input.classList.remove('error'), 2000);
+                }
+            }
+        }
+
+        function updateRepStyle(structIdx, repId, newStyle) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+            entry.config.style = newStyle;
+            recreateNglRep(structIdx, repId);
+        }
+
+        function updateRepColor(structIdx, repId, newColor) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+            entry.config.color = newColor;
+            recreateNglRep(structIdx, repId);
+            // Sync the color picker if it exists
+            const picker = document.getElementById('cpick-' + structIdx + '-' + repId);
+            if (picker && newColor.startsWith('#')) picker.value = newColor;
+            // Sync the dropdown
+            const select = document.getElementById('csel-' + structIdx + '-' + repId);
+            if (select) {
+                // Check if the value exists in the dropdown
+                const exists = Array.from(select.options).some(o => o.value === newColor);
+                if (exists) {
+                    select.value = newColor;
+                } else {
+                    // Add custom option
+                    const opt = document.createElement('option');
+                    opt.value = newColor;
+                    opt.textContent = 'Custom';
+                    opt.selected = true;
+                    select.appendChild(opt);
+                }
+            }
+            updateColorPickerVisibility(structIdx, repId);
+        }
+
+        function updateRepColorFromPicker(structIdx, repId, hexColor) {
+            updateRepColor(structIdx, repId, hexColor);
+        }
+
+        // Opacity is applied by rebuilding the representation, not by
+        // pushing a live parameter to the existing one.
+        //
+        // NGL declares opacity as a shader uniform, but a buffer only
+        // renders blended when its *material* carries transparent=true —
+        // and that flag is recomputed solely when 'forceTransparent'
+        // changes, which is a Buffer-level parameter that
+        // Representation.setParameters drops on the floor (it forwards only
+        // keys present in Representation.parameters). So
+        // nglRepr.setParameters({opacity}) updates the uniform, leaves the
+        // material opaque, and silently changes nothing on screen. Reaching
+        // past the representation into repr.bufferList would work but binds
+        // us to NGL internals, and this page loads NGL from @latest on a
+        // CDN — that contract can move without warning.
+        //
+        // Hence: 'oninput' (every slider tick) only moves the readout, and
+        // 'onchange' (once, on release) rebuilds. addRepresentation with an
+        // opacity param builds a correctly transparent material from the
+        // start, which is the path we already trust for halos.
+        function updateRepOpacity(structIdx, repId, pct, commit) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+
+            const opacity = Math.max(0, Math.min(100, parseFloat(pct))) / 100;
+
+            const out = document.getElementById('opac-val-' + structIdx + '-' + repId);
+            if (out) out.textContent = Math.round(opacity * 100) + '%';
+
+            if (!commit) return;
+            if (entry.config.opacity === opacity) return;
+
+            entry.config.opacity = opacity;
+            recreateNglRep(structIdx, repId);
+        }
+
+        function toggleRepVisibility(structIdx, repId) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+            entry.config.visible = !entry.config.visible;
+            entry.nglRepr.setVisibility(entry.config.visible);
+            const btn = document.getElementById('eye-' + structIdx + '-' + repId);
+            if (btn) {
+                btn.textContent = entry.config.visible ? '\u{1F441}' : '\u2014';
+                btn.classList.toggle('active', entry.config.visible);
+                btn.classList.toggle('eye-hidden', !entry.config.visible);
+            }
+        }
+
+        function removeRep(structIdx, repId) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+            try {
+                components[structIdx].removeRepresentation(entry.nglRepr);
+            } catch (e) { /* ok */ }
+            delete repState[structIdx][repId];
+            const row = document.getElementById('rep-row-' + structIdx + '-' + repId);
+            if (row) row.remove();
+        }
+
+        function updateRepLabel(structIdx, repId, newLabel) {
+            const entry = repState[structIdx][repId];
+            if (entry) entry.config.label = newLabel;
+        }
+
+        function updateColorPickerVisibility(structIdx, repId) {
+            const entry = repState[structIdx][repId];
+            if (!entry) return;
+            const picker = document.getElementById('cpick-' + structIdx + '-' + repId);
+            if (picker) {
+                const isHex = entry.config.color.startsWith('#');
+                picker.style.display = isHex ? 'inline-block' : 'none';
+            }
+        }
+
+        // ====================================================================
+        // Representation Management — Rendering
+        // ====================================================================
+        function renderStructurePanel(structIdx, structName) {
+            const container = document.getElementById('rep-content');
+            const panel = document.createElement('div');
+            panel.className = 'structure-panel';
+            panel.id = 'struct-panel-' + structIdx;
+
+            const structureColors = ['#0078d4', '#ff8c00', '#00a86b', '#9b59b6', '#e74c3c', '#f39c12'];
+            const dotColor = config.structures.length > 1
+                ? structureColors[structIdx % structureColors.length] : '#0078d4';
+
+            panel.innerHTML =
+                '<div class="structure-header" onclick="toggleStructPanel(' + structIdx + ')">' +
+                    '<span class="color-dot" style="background:' + dotColor + '"></span>' +
+                    '<span class="structure-name">' + escHtml(structName) + '</span>' +
+                    '<span class="struct-collapse-icon" id="struct-icon-' + structIdx + '">&#9660;</span>' +
+                '</div>' +
+                '<div id="struct-body-' + structIdx + '">' +
+                    '<div class="rep-list" id="rep-list-' + structIdx + '"></div>' +
+                    '<button class="add-rep-btn" onclick="showAddRepForm(' + structIdx + ')">+ Add Representation</button>' +
+                    '<div id="add-rep-form-' + structIdx + '" class="add-rep-form hidden"></div>' +
+                '</div>';
+            container.appendChild(panel);
+
+            refreshRepList(structIdx);
+        }
+
+        function refreshRepList(structIdx) {
+            const list = document.getElementById('rep-list-' + structIdx);
+            if (!list) return;
+            list.innerHTML = '';
+            const reps = repState[structIdx] || {};
+            for (const repId of Object.keys(reps)) {
+                list.appendChild(buildRepRow(structIdx, repId));
+            }
+        }
+
+        function buildRepRow(structIdx, repId) {
+            const entry = repState[structIdx][repId];
+            const rc = entry.config;
+            const isAnnotation = repId.startsWith('ann_');
+            const isHexColor = rc.color.startsWith('#');
+
+            const row = document.createElement('div');
+            row.className = 'rep-row' + (isAnnotation ? ' annotation' : '');
+            row.id = 'rep-row-' + structIdx + '-' + repId;
+
+            // Top row: label + visibility + remove
+            const top = document.createElement('div');
+            top.className = 'rep-row-top';
+            top.innerHTML =
+                '<input type="text" class="rep-label-input" value="' + escAttr(rc.label) + '" ' +
+                    'onchange="updateRepLabel(' + structIdx + ',\'' + repId + '\',this.value)" ' +
+                    'title="Representation label">' +
+                '<button class="icon-btn ' + (rc.visible ? 'active' : 'eye-hidden') + '" ' +
+                    'id="eye-' + structIdx + '-' + repId + '" ' +
+                    'onclick="toggleRepVisibility(' + structIdx + ',\'' + repId + '\')" ' +
+                    'title="Toggle visibility">' +
+                    (rc.visible ? '\u{1F441}' : '\u2014') + '</button>' +
+                '<button class="icon-btn remove-btn" ' +
+                    'onclick="removeRep(' + structIdx + ',\'' + repId + '\')" ' +
+                    'title="Remove representation">&times;</button>';
+
+            // Bottom row: selection + style + color
+            const bottom = document.createElement('div');
+            bottom.className = 'rep-row-bottom';
+            bottom.innerHTML =
+                '<input type="text" class="rep-selection-input" ' +
+                    'id="sel-' + structIdx + '-' + repId + '" ' +
+                    'value="' + escAttr(rc.selection) + '" ' +
+                    'onchange="updateRepSelection(' + structIdx + ',\'' + repId + '\',this.value)" ' +
+                    'title="NGL selection (e.g. protein, :A and 1-50, hetero)" ' +
+                    'placeholder="NGL selection...">' +
+                '<select class="rep-style-select" ' +
+                    'onchange="updateRepStyle(' + structIdx + ',\'' + repId + '\',this.value)">' +
+                    buildStyleOptions(rc.style) +
+                '</select>' +
+                '<select class="rep-color-select" ' +
+                    'id="csel-' + structIdx + '-' + repId + '" ' +
+                    'onchange="updateRepColor(' + structIdx + ',\'' + repId + '\',this.value)">' +
+                    buildColorOptions(rc.color) +
+                '</select>' +
+                '<input type="color" class="rep-color-picker" ' +
+                    'id="cpick-' + structIdx + '-' + repId + '" ' +
+                    'value="' + (isHexColor ? rc.color : '#ffffff') + '" ' +
+                    'onchange="updateRepColorFromPicker(' + structIdx + ',\'' + repId + '\',this.value)" ' +
+                    'title="Custom color" ' +
+                    'style="display:' + (isHexColor ? 'inline-block' : 'none') + '">';
+
+            // Opacity row: 0 % = invisible, 100 % = solid.
+            const opacityPct = Math.round(effectiveOpacity(rc) * 100);
+            const opac = document.createElement('div');
+            opac.className = 'rep-row-opacity';
+            opac.innerHTML =
+                '<span class="rep-opacity-label">Opacity</span>' +
+                '<input type="range" class="rep-opacity-slider" min="0" max="100" step="1" ' +
+                    'id="opac-' + structIdx + '-' + repId + '" ' +
+                    'value="' + opacityPct + '" ' +
+                    'oninput="updateRepOpacity(' + structIdx + ',\'' + repId + '\',this.value,false)" ' +
+                    'onchange="updateRepOpacity(' + structIdx + ',\'' + repId + '\',this.value,true)" ' +
+                    'title="Representation opacity (100% = solid)">' +
+                '<span class="rep-opacity-value" ' +
+                    'id="opac-val-' + structIdx + '-' + repId + '">' +
+                    opacityPct + '%</span>';
+
+            row.appendChild(top);
+            row.appendChild(bottom);
+            row.appendChild(opac);
+            return row;
+        }
+
+        function buildStyleOptions(currentStyle) {
+            return STYLES.map(function (s) {
+                return '<option value="' + s[0] + '"' +
+                    (s[0] === currentStyle ? ' selected' : '') + '>' +
+                    s[1] + '</option>';
+            }).join('');
+        }
+
+        function buildColorOptions(currentColor) {
+            let html = '<optgroup label="Schemes">';
+            for (const c of NAMED_COLORS) {
+                html += '<option value="' + c[0] + '"' +
+                    (c[0] === currentColor ? ' selected' : '') + '>' +
+                    c[1] + '</option>';
+            }
+            html += '</optgroup><optgroup label="Solid">';
+            for (const c of SOLID_COLORS) {
+                html += '<option value="' + c[0] + '"' +
+                    (c[0] === currentColor ? ' selected' : '') + '>' +
+                    c[1] + '</option>';
+            }
+            html += '</optgroup>';
+
+            // If current color is a hex not in presets, add Custom entry
+            if (currentColor.startsWith('#') && !ALL_COLOR_VALUES.includes(currentColor)) {
+                html += '<option value="' + currentColor + '" selected>Custom (' + currentColor + ')</option>';
+            }
+
+            return html;
+        }
+
+        // ====================================================================
+        // Add Representation Form
+        // ====================================================================
+        function showAddRepForm(structIdx) {
+            const form = document.getElementById('add-rep-form-' + structIdx);
+            if (form.classList.contains('hidden')) {
+                form.classList.remove('hidden');
+                form.innerHTML =
+                    '<div class="add-rep-fields">' +
+                        '<input type="text" class="add-rep-label-input" ' +
+                            'id="new-label-' + structIdx + '" placeholder="Label" value="Custom">' +
+                        '<input type="text" class="add-rep-input" ' +
+                            'id="new-sel-' + structIdx + '" placeholder="NGL selection (e.g. :A and 1-50)">' +
+                        '<div class="add-rep-row">' +
+                            '<select class="rep-style-select" id="new-style-' + structIdx + '">' +
+                                buildStyleOptions('ball+stick') +
+                            '</select>' +
+                            '<select class="rep-color-select" id="new-color-' + structIdx + '">' +
+                                buildColorOptions('element') +
+                            '</select>' +
+                        '</div>' +
+                        '<div class="rep-row-opacity">' +
+                            '<span class="rep-opacity-label">Opacity</span>' +
+                            '<input type="range" class="rep-opacity-slider" ' +
+                                'min="0" max="100" step="1" value="100" ' +
+                                'id="new-opacity-' + structIdx + '" ' +
+                                'oninput="document.getElementById(\'new-opacity-val-' + structIdx + '\')' +
+                                    '.textContent = this.value + \'%\'">' +
+                            '<span class="rep-opacity-value" ' +
+                                'id="new-opacity-val-' + structIdx + '">100%</span>' +
+                        '</div>' +
+                        '<div class="add-rep-actions">' +
+                            '<button class="add-btn" onclick="addNewRep(' + structIdx + ')">Add</button>' +
+                            '<button class="cancel-btn" onclick="hideAddRepForm(' + structIdx + ')">Cancel</button>' +
+                        '</div>' +
+                    '</div>';
+                // Focus the selection input
+                document.getElementById('new-sel-' + structIdx).focus();
+            } else {
+                hideAddRepForm(structIdx);
+            }
+        }
+
+        function hideAddRepForm(structIdx) {
+            const form = document.getElementById('add-rep-form-' + structIdx);
+            form.classList.add('hidden');
+            form.innerHTML = '';
+        }
+
+        function addNewRep(structIdx) {
+            const label = document.getElementById('new-label-' + structIdx).value || 'Custom';
+            const selection = document.getElementById('new-sel-' + structIdx).value;
+            const style = document.getElementById('new-style-' + structIdx).value;
+            const color = document.getElementById('new-color-' + structIdx).value;
+            const opacityEl = document.getElementById('new-opacity-' + structIdx);
+            const opacity = opacityEl ? parseFloat(opacityEl.value) / 100 : 1.0;
+
+            if (!selection.trim()) {
+                document.getElementById('new-sel-' + structIdx).classList.add('error');
+                setTimeout(function () {
+                    document.getElementById('new-sel-' + structIdx).classList.remove('error');
+                }, 2000);
+                return;
+            }
+
+            const repId = 'user_' + (++repIdCounter);
+            const repConfig = {
+                id: repId,
+                label: label,
+                selection: selection,
+                style: style,
+                color: color,
+                visible: true,
+            };
+            // Only pin opacity if the user actually moved the slider —
+            // otherwise leave it unset so style defaults (halo) still apply.
+            if (opacity < 1.0) repConfig.opacity = opacity;
+
+            createNglRep(structIdx, repConfig);
+
+            // Add row to DOM
+            const list = document.getElementById('rep-list-' + structIdx);
+            if (list && repState[structIdx][repId]) {
+                list.appendChild(buildRepRow(structIdx, repId));
+            }
+
+            hideAddRepForm(structIdx);
+        }
+
+        // ====================================================================
+        // Measurement Manager
+        // ====================================================================
+        function toggleMeasurementMode(mode) {
+            if (measurementMode === mode) {
+                cancelMeasurement();
+                return;
+            }
+
+            // Cancel any in-progress measurement
+            removePickMarkers();
+            pickedAtoms = [];
+
+            measurementMode = mode;
+
+            for (const key of Object.keys(MEASUREMENT_MODES)) {
+                document.getElementById(key + '-mode-btn')
+                    .classList.toggle('active', key === mode);
+            }
+
+            const statusEl = document.getElementById('measurement-status');
+            statusEl.classList.remove('hidden');
+
+            document.getElementById('picked-atoms-display').classList.remove('hidden');
+            document.getElementById('picked-atoms-display').innerHTML = '';
+
+            updatePickDisplay();
+        }
+
+        function cancelMeasurement() {
+            removePickMarkers();
+            measurementMode = null;
+            pickedAtoms = [];
+
+            clearModeButtons();
+            document.getElementById('measurement-status').classList.add('hidden');
+            document.getElementById('picked-atoms-display').classList.add('hidden');
+        }
+
+        function clearModeButtons() {
+            for (const key of Object.keys(MEASUREMENT_MODES)) {
+                document.getElementById(key + '-mode-btn').classList.remove('active');
+            }
+        }
+
+        function removePickMarkers() {
+            for (const atom of pickedAtoms) {
+                if (atom.markerRepr && atom.component) {
+                    try {
+                        atom.component.removeRepresentation(atom.markerRepr);
+                    } catch (e) { /* ok */ }
+                }
+            }
+        }
+
+        function updatePickDisplay() {
+            const spec = MEASUREMENT_MODES[measurementMode];
+            if (!spec) return;
+
+            const statusText = document.getElementById('measurement-status-text');
+            statusText.textContent = spec.name + ': click atom ' +
+                (pickedAtoms.length + 1) + ' of ' + spec.atoms;
+
+            const display = document.getElementById('picked-atoms-display');
+            let html = '';
+            for (let i = 0; i < pickedAtoms.length; i++) {
+                html += '<div class="picked-atom">Atom ' + (i + 1) + ': ' +
+                    escHtml(pickedAtoms[i].label) + '</div>';
+            }
+            display.innerHTML = html;
+        }
+
+        // Signed torsion about the a2->a3 axis, IUPAC convention: sight from
+        // a2 towards a3 and measure how far a4 is rotated away from a1,
+        // positive clockwise, reported in (-180, 180].
+        //
+        // Uses atan2 of the two plane normals rather than acos of their dot
+        // product. acos discards the sign, so gauche+ (+60) and gauche-
+        // (-60) -- genuinely different conformers -- would both read 60. It
+        // is also ill-conditioned near 0 and 180, exactly the eclipsed and
+        // anti geometries worth reading precisely, because the normals go
+        // nearly parallel there and small coordinate errors swing the result.
+        function dihedralAngle(a1, a2, a3, a4) {
+            const sub = (p, q) => [p.x - q.x, p.y - q.y, p.z - q.z];
+            const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+            const cross = (u, v) => [
+                u[1] * v[2] - u[2] * v[1],
+                u[2] * v[0] - u[0] * v[2],
+                u[0] * v[1] - u[1] * v[0]
+            ];
+
+            const b1 = sub(a2, a1), b2 = sub(a3, a2), b3 = sub(a4, a3);
+            const n1 = cross(b1, b2), n2 = cross(b2, b3);
+
+            const b2mag = Math.sqrt(dot(b2, b2));
+            if (b2mag === 0) return 0;   // a2 and a3 coincide: no axis to measure about
+            const axis = [b2[0] / b2mag, b2[1] / b2mag, b2[2] / b2mag];
+
+            return Math.atan2(dot(cross(n1, n2), axis), dot(n1, n2)) * 180 / Math.PI;
+        }
+
+        function createMeasurement() {
+            // Check all atoms are from the same component
+            const firstComp = pickedAtoms[0].component;
+            for (let i = 1; i < pickedAtoms.length; i++) {
+                if (pickedAtoms[i].component !== firstComp) {
+                    removePickMarkers();
+                    pickedAtoms = [];
+                    updatePickDisplay();
+                    const statusText = document.getElementById('measurement-status-text');
+                    statusText.textContent = 'Error: atoms must be in the same structure. Try again.';
+                    setTimeout(function () { updatePickDisplay(); }, 2500);
+                    return;
+                }
+            }
+
+            const id = ++measurementIdCounter;
+            const component = firstComp;
+            let repr = null;
+            let value = '';
+            let atomLabels = pickedAtoms.map(a => a.label);
+
+            if (measurementMode === 'distance') {
+                const a1 = pickedAtoms[0], a2 = pickedAtoms[1];
+                try {
+                    repr = component.addRepresentation('distance', {
+                        atomPair: [['@' + a1.index, '@' + a2.index]],
+                        labelUnit: 'angstrom',
+                        labelSize: 1.5,
+                        color: MEASUREMENT_MODES.distance.color
+                    });
+                } catch (e) {
+                    console.warn('Failed to create distance representation:', e);
+                }
+                const dx = a1.x - a2.x, dy = a1.y - a2.y, dz = a1.z - a2.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz).toFixed(2);
+                value = dist + ' \u00C5';
+
+                measurements.push({
+                    id: id, type: 'distance', atoms: [a1, a2],
+                    repr: repr, component: component,
+                    value: value, atomLabels: atomLabels
+                });
+            } else if (measurementMode === 'angle') {
+                const a1 = pickedAtoms[0], a2 = pickedAtoms[1], a3 = pickedAtoms[2];
+                try {
+                    repr = component.addRepresentation('angle', {
+                        atomTriple: [[a1.index, a2.index, a3.index]],
+                        labelSize: 1.5,
+                        color: MEASUREMENT_MODES.angle.color
+                    });
+                } catch (e) {
+                    console.warn('Failed to create angle representation:', e);
+                }
+                const v1 = [a1.x - a2.x, a1.y - a2.y, a1.z - a2.z];
+                const v2 = [a3.x - a2.x, a3.y - a2.y, a3.z - a2.z];
+                const dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+                const mag1 = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
+                const mag2 = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2]);
+                const angle = (Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * 180 / Math.PI).toFixed(1);
+                value = angle + '\u00B0';
+
+                measurements.push({
+                    id: id, type: 'angle', atoms: [a1, a2, a3],
+                    repr: repr, component: component,
+                    value: value, atomLabels: atomLabels
+                });
+            } else {
+                const a1 = pickedAtoms[0], a2 = pickedAtoms[1],
+                      a3 = pickedAtoms[2], a4 = pickedAtoms[3];
+                try {
+                    repr = component.addRepresentation('dihedral', {
+                        atomQuad: [[a1.index, a2.index, a3.index, a4.index]],
+                        labelSize: 1.5,
+                        color: MEASUREMENT_MODES.dihedral.color
+                    });
+                } catch (e) {
+                    console.warn('Failed to create dihedral representation:', e);
+                }
+                value = dihedralAngle(a1, a2, a3, a4).toFixed(1) + '°';
+
+                measurements.push({
+                    id: id, type: 'dihedral', atoms: [a1, a2, a3, a4],
+                    repr: repr, component: component,
+                    value: value, atomLabels: atomLabels
+                });
+            }
+
+            // Clean up pick state
+            removePickMarkers();
+            pickedAtoms = [];
+            measurementMode = null;
+
+            clearModeButtons();
+            document.getElementById('measurement-status').classList.add('hidden');
+            document.getElementById('picked-atoms-display').classList.add('hidden');
+
+            renderMeasurementList();
+        }
+
+        function renderMeasurementList() {
+            const list = document.getElementById('measurement-list');
+            const noMsg = document.getElementById('no-measurements');
+
+            if (measurements.length === 0) {
+                list.innerHTML = '';
+                noMsg.classList.remove('hidden');
+                return;
+            }
+
+            noMsg.classList.add('hidden');
+            list.innerHTML = '';
+
+            for (const m of measurements) {
+                const item = document.createElement('div');
+                item.className = 'measurement-item ' + m.type;
+                item.innerHTML =
+                    '<div class="measurement-info">' +
+                        '<div class="measurement-value">' +
+                            (MEASUREMENT_MODES[m.type] || {}).icon +
+                            escHtml(m.value) +
+                        '</div>' +
+                        '<div class="measurement-atoms">' +
+                            escHtml(m.atomLabels.join(' \u2014 ')) +
+                        '</div>' +
+                    '</div>' +
+                    '<button class="icon-btn remove-btn" onclick="removeMeasurement(' + m.id + ')" ' +
+                        'title="Remove">&times;</button>';
+                list.appendChild(item);
+            }
+        }
+
+        function removeMeasurement(id) {
+            const idx = measurements.findIndex(m => m.id === id);
+            if (idx === -1) return;
+
+            const m = measurements[idx];
+            if (m.repr && m.component) {
+                try {
+                    m.component.removeRepresentation(m.repr);
+                } catch (e) { /* ok */ }
+            }
+            measurements.splice(idx, 1);
+            renderMeasurementList();
+        }
+
+        // ====================================================================
+        // View Controls
+        // ====================================================================
+        function centerView() {
+            if (config.focused_mode) {
+                centerOnAnnotations();
+            } else {
+                stage.autoView();
+            }
+        }
+
+        function centerOnAnnotations() {
+            // Find first visible annotation representation
+            for (const structIdx in repState) {
+                for (const repId in repState[structIdx]) {
+                    if (repId.startsWith('ann_')) {
+                        const entry = repState[structIdx][repId];
+                        if (entry.config.visible && entry.config.selection) {
+                            try {
+                                components[structIdx].autoView(entry.config.selection);
+                                return;
+                            } catch (e) { /* try next */ }
+                        }
+                    }
+                }
+            }
+            // Fallback
+            stage.autoView();
+        }
+
+        function resetView() {
+            // Remove all current representations and measurements
+            for (const structIdx in repState) {
+                for (const repId in repState[structIdx]) {
+                    try {
+                        components[structIdx].removeRepresentation(
+                            repState[structIdx][repId].nglRepr
+                        );
+                    } catch (e) { /* ok */ }
+                }
+                repState[structIdx] = {};
+            }
+
+            // Remove all measurements
+            for (const m of measurements) {
+                if (m.repr && m.component) {
+                    try { m.component.removeRepresentation(m.repr); } catch (e) { /* ok */ }
+                }
+            }
+            measurements = [];
+            measurementIdCounter = 0;
+            renderMeasurementList();
+            cancelMeasurement();
+
+            // Recreate from initial config
+            config = JSON.parse(JSON.stringify(initialConfig));
+            for (const structInfo of config.structures) {
+                const idx = structInfo.index;
+                if (!components[idx]) continue;
+                repState[idx] = {};
+                for (const repConfig of structInfo.representations) {
+                    createNglRep(idx, repConfig);
+                }
+            }
+
+            // Rebuild sidebar rep lists
+            for (const structInfo of config.structures) {
+                refreshRepList(structInfo.index);
+            }
+
+            // Reset view
+            if (config.focused_mode) {
+                centerOnAnnotations();
+            } else {
+                stage.autoView();
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function captureScreenshot() {
+            stage.makeImage({
+                factor: 2, antialias: true,
+                trim: false, transparent: false
+            }).then(function (blob) {
+                NGL.download(blob, "proprep-structure.png");
+            });
+        }
+
+        // Cycle the stage background: dark (default) → white (manuscript
+        // figures) → black. NGL applies the color live via setParameters,
+        // so no reload is needed; the button label tracks the current state.
+        var BACKGROUNDS = [
+            { color: "#1e1e1e", label: "Dark" },
+            { color: "#ffffff", label: "White" },
+            { color: "#000000", label: "Black" }
+        ];
+        var backgroundIndex = 0;
+        function cycleBackground() {
+            backgroundIndex = (backgroundIndex + 1) % BACKGROUNDS.length;
+            var bg = BACKGROUNDS[backgroundIndex];
+            stage.setParameters({ backgroundColor: bg.color });
+            var btn = document.getElementById("background-btn");
+            if (btn) { btn.textContent = "Background: " + bg.label; }
+        }
+
+        // Swap between the orthographic default and a perspective camera.
+        // Both cameras are built once at stage init, and NGL's setCamera
+        // copies position/up across and re-derives the zoom, so the switch
+        // holds the current view rather than jumping. Perspective is worth
+        // keeping reachable for depth cues when looking down a channel or
+        // into a pocket.
+        var CAMERA_TYPES = [
+            { type: "orthographic", label: "Orthographic" },
+            { type: "perspective", label: "Perspective" }
+        ];
+        var cameraIndex = 0;
+        function toggleCameraType() {
+            cameraIndex = (cameraIndex + 1) % CAMERA_TYPES.length;
+            var cam = CAMERA_TYPES[cameraIndex];
+            stage.setParameters({ cameraType: cam.type });
+            var btn = document.getElementById("camera-btn");
+            if (btn) { btn.textContent = "Camera: " + cam.label; }
+        }
+
+        // ====================================================================
+        // Collapsible Sections
+        // ====================================================================
+        function toggleSectionCollapse(sectionId) {
+            const content = document.getElementById(sectionId + '-content');
+            const icon = document.getElementById(sectionId + '-collapse-icon');
+            if (content.style.display === 'none') {
+                content.style.display = '';
+                icon.classList.remove('collapsed');
+            } else {
+                content.style.display = 'none';
+                icon.classList.add('collapsed');
+            }
+        }
+
+        function toggleStructPanel(structIdx) {
+            const body = document.getElementById('struct-body-' + structIdx);
+            const icon = document.getElementById('struct-icon-' + structIdx);
+            if (body.style.display === 'none') {
+                body.style.display = '';
+                icon.classList.remove('collapsed');
+            } else {
+                body.style.display = 'none';
+                icon.classList.add('collapsed');
+            }
+        }
+
+        // ====================================================================
+        // Selection Help
+        // ====================================================================
+        function toggleSelectionHelp() {
+            const el = document.getElementById('selection-help');
+            el.classList.toggle('hidden');
+        }
+
+        // ====================================================================
+        // Utilities
+        // ====================================================================
+        function escHtml(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        function escAttr(str) {
+            return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#39;').replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;');
+        }
+    </script>
+</body>
+</html>

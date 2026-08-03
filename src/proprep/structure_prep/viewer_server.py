@@ -1,0 +1,366 @@
+"""
+Interactive Structure Viewer - HTTP Server
+
+Simple HTTP server to serve the NGL viewer and structure files.
+Uses Python's built-in http.server for minimal dependencies.
+
+Author: ProPrep Development Team
+Date: 2025-11-14
+"""
+
+import os
+import json
+import logging
+import socket
+import threading
+import webbrowser
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
+    """Custom HTTP request handler for the structure viewer."""
+
+    # Class variables set by ViewerServer.
+    # config_version monotonically increments each time the server's config
+    # is replaced, so the browser can poll /version cheaply and only re-fetch
+    # /config when something actually changed.
+    config = {}
+    config_version = 0
+    template_path = ""
+    structure_files = []
+
+    def do_GET(self):
+        """Handle GET requests."""
+        if self.path == "/" or self.path == "/viewer":
+            # Serve the HTML viewer template
+            self.serve_html()
+        elif self.path == "/config":
+            # Serve the viewer configuration JSON
+            self.serve_config()
+        elif self.path == "/version":
+            # Cheap poll endpoint: returns current config version
+            self.serve_version()
+        elif self.path.startswith("/structure/"):
+            # Serve PDB structure files
+            self.serve_structure()
+        elif self.path == "/favicon.ico":
+            # Silently ignore favicon requests (browsers always request this)
+            self.send_response(204)  # No Content
+            self.end_headers()
+        else:
+            # Default handler for other files
+            super().do_GET()
+
+    def serve_html(self):
+        """Serve the NGL viewer HTML template."""
+        try:
+            with open(self.template_path, 'r') as f:
+                content = f.read()
+
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', len(content.encode('utf-8')))
+            self.end_headers()
+            self.wfile.write(content.encode('utf-8'))
+
+        except FileNotFoundError:
+            self.send_error(404, f"Template not found: {self.template_path}")
+        except Exception as e:
+            logger.error(f"Error serving HTML: {e}")
+            self.send_error(500, f"Internal server error: {e}")
+
+    def serve_config(self):
+        """Serve the viewer configuration as JSON."""
+        try:
+            payload = dict(self.config)
+            payload["_config_version"] = self.config_version
+            config_json = json.dumps(payload, indent=2)
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', len(config_json.encode('utf-8')))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(config_json.encode('utf-8'))
+
+        except Exception as e:
+            logger.error(f"Error serving config: {e}")
+            self.send_error(500, f"Internal server error: {e}")
+
+    def serve_version(self):
+        """Tiny endpoint for the browser's poll loop."""
+        try:
+            body = json.dumps({"version": self.config_version}).encode("utf-8")
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', len(body))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            logger.error(f"Error serving version: {e}")
+            self.send_error(500, f"Internal server error: {e}")
+
+    def serve_structure(self):
+        """Serve a PDB structure file."""
+        try:
+            # Extract structure index from path: /structure/0 -> index 0
+            path_parts = self.path.split('/')
+            index = int(path_parts[2])
+
+            if index < 0 or index >= len(self.structure_files):
+                self.send_error(404, f"Structure index {index} not found")
+                return
+
+            structure_file = self.structure_files[index]
+
+            if not os.path.exists(structure_file):
+                self.send_error(404, f"Structure file not found: {structure_file}")
+                return
+
+            with open(structure_file, 'r') as f:
+                content = f.read()
+
+            self.send_response(200)
+            self.send_header('Content-type', 'chemical/x-pdb; charset=utf-8')
+            self.send_header('Content-Disposition', f'inline; filename="{os.path.basename(structure_file)}"')
+            self.send_header('Content-Length', len(content.encode('utf-8')))
+            # The URL /structure/<index> is stable, but the file behind an index
+            # is rewritten in place (e.g. orientation overwrites *_oriented.pdb)
+            # or rebound to a new path on a server relaunch. Without no-store the
+            # browser serves the previously-cached body, so NGL re-renders the
+            # OLD coordinates while no-store overlays (axis markers from /config)
+            # update — the structure looks unchanged. Match /config and /version.
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Pragma', 'no-cache')
+            self.end_headers()
+            self.wfile.write(content.encode('utf-8'))
+
+        except ValueError:
+            self.send_error(400, "Invalid structure index")
+        except Exception as e:
+            logger.error(f"Error serving structure: {e}")
+            self.send_error(500, f"Internal server error: {e}")
+
+    def log_message(self, format, *args):
+        """Override to suppress routine HTTP request logging."""
+        # Suppress routine GET request logs to avoid cluttering console
+        # Errors are still logged via send_error() which uses logger.error()
+        pass
+
+    def handle_one_request(self):
+        """Override to catch BrokenPipeError from closed browser connections."""
+        try:
+            super().handle_one_request()
+        except BrokenPipeError:
+            # Browser closed connection before we could respond (e.g., favicon request)
+            # This is normal behavior - just ignore it
+            pass
+        except ConnectionResetError:
+            # Connection reset by browser - also normal
+            pass
+
+
+class ViewerServer:
+    """
+    HTTP server for the Interactive Structure Viewer.
+
+    Serves the NGL viewer HTML template and provides endpoints for:
+    - /viewer - Main viewer page
+    - /config - Configuration JSON
+    - /structure/{index} - PDB structure files
+    """
+
+    def __init__(self, config: Dict, structure_files: List[str], port: int = 8765):
+        """
+        Initialize the viewer server.
+
+        Args:
+            config: Viewer configuration dict
+            structure_files: List of PDB file paths
+            port: Port to run server on (default: 8765)
+        """
+        self.config = config
+        self.structure_files = structure_files
+        self.port = port
+        self.server = None
+        self.thread = None
+        self.template_path = self._get_template_path()
+        self._config_lock = threading.Lock()
+
+        # Set class variables for the request handler
+        ViewerHTTPRequestHandler.config = self.config
+        ViewerHTTPRequestHandler.config_version = 1
+        ViewerHTTPRequestHandler.structure_files = self.structure_files
+        ViewerHTTPRequestHandler.template_path = self.template_path
+
+    def update_config(self, new_config: Dict) -> int:
+        """Replace the served config and bump the version counter.
+
+        The browser polls ``/version`` and re-fetches ``/config`` whenever the
+        version changes, so this is how a long-running viewer is told to
+        re-render with new annotations / focus / representations.
+
+        Returns the new version number.
+        """
+        with self._config_lock:
+            self.config = new_config
+            ViewerHTTPRequestHandler.config = new_config
+            ViewerHTTPRequestHandler.config_version += 1
+            return ViewerHTTPRequestHandler.config_version
+
+    def _get_template_path(self) -> str:
+        """Get the path to the ngl_viewer.html template."""
+        from proprep.utils.paths import get_package_dir
+        template_path = get_package_dir() / "structure_prep" / "templates" / "ngl_viewer.html"
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Viewer template not found: {template_path}")
+
+        return str(template_path)
+
+    def find_available_port(self, start_port: int = 8765, max_attempts: int = 10) -> int:
+        """
+        Find an available port starting from start_port.
+
+        Args:
+            start_port: Port to start searching from
+            max_attempts: Maximum number of ports to try
+
+        Returns:
+            Available port number
+
+        Raises:
+            RuntimeError: If no available port found
+        """
+        for port in range(start_port, start_port + max_attempts):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.bind(('localhost', port))
+                sock.close()
+                return port
+            except OSError:
+                continue
+
+        raise RuntimeError(f"Could not find available port in range {start_port}-{start_port + max_attempts - 1}")
+
+    def start(self, open_browser: bool = True) -> bool:
+        """
+        Start the HTTP server in a background thread.
+
+        Args:
+            open_browser: Whether to automatically open the browser. The
+                ``PROPREP_WEB_SHELL`` env var overrides this to False — in
+                that mode the parent web shell hosts the viewer in an
+                iframe and we must not pop a separate tab.
+
+        Returns:
+            True if server started successfully
+        """
+        try:
+            # Find available port if the default is in use
+            try:
+                self.server = HTTPServer(('localhost', self.port), ViewerHTTPRequestHandler)
+            except OSError:
+                logger.debug(f"Port {self.port} in use, finding alternative...")
+                self.port = self.find_available_port(self.port)
+                self.server = HTTPServer(('localhost', self.port), ViewerHTTPRequestHandler)
+
+            # Start server in background thread
+            self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+            self.thread.start()
+
+            logger.debug(f"Viewer server started on http://localhost:{self.port}")
+
+            in_web_shell = bool(os.environ.get("PROPREP_WEB_SHELL"))
+            if open_browser and not in_web_shell:
+                url = f"http://localhost:{self.port}/viewer"
+                webbrowser.open(url)
+                logger.debug(f"Opened browser at {url}")
+
+            if in_web_shell:
+                # Tell the parent uvicorn process which port we're on so it
+                # can reverse-proxy /viewer/* to us and source the iframe.
+                self._announce_to_web_shell()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to start viewer server: {e}")
+            return False
+
+    def _announce_to_web_shell(self) -> None:
+        """Best-effort POST {port:N} to the parent web shell.
+
+        Quietly tolerated on failure — the viewer still works via the
+        direct URL even if the parent never hears about it. The shell does
+        get an audible info log either way so a missing announcement is
+        diagnosable.
+        """
+        shell_url = os.environ.get("PROPREP_WEB_SHELL_URL")
+        if not shell_url:
+            logger.info(
+                "PROPREP_WEB_SHELL is set but PROPREP_WEB_SHELL_URL is empty; "
+                "viewer running on http://localhost:%d/viewer (no parent to notify)",
+                self.port,
+            )
+            return
+
+        # Wait briefly for our own listen socket to accept before we tell
+        # anyone about it. ``HTTPServer.__init__`` binds the socket but the
+        # ``serve_forever`` thread may not have entered ``accept()`` yet —
+        # without this guard the parent can hit a tiny window of 502s on
+        # the first /version poll right after a relaunch.
+        if not self._wait_until_accepting(timeout=1.0):
+            logger.warning("Viewer port %d not accepting after 1.0s; announcing anyway", self.port)
+
+        endpoint = shell_url.rstrip("/") + "/internal/viewer-announce"
+        body = json.dumps({"port": self.port}).encode("utf-8")
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                endpoint,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=2.0).read()
+            logger.debug("Announced viewer (port %d) to web shell at %s", self.port, shell_url)
+        except Exception as exc:
+            logger.warning(
+                "Could not announce viewer port %d to web shell at %s: %s",
+                self.port, shell_url, exc,
+            )
+
+    def _wait_until_accepting(self, timeout: float = 1.0) -> bool:
+        """Probe localhost:self.port until a TCP connect succeeds, or timeout."""
+        import time
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", self.port), timeout=0.2):
+                    return True
+            except OSError:
+                time.sleep(0.02)
+        return False
+
+    def stop(self):
+        """Stop the HTTP server."""
+        if self.server:
+            logger.debug("Stopping viewer server")
+            self.server.shutdown()
+            self.server.server_close()
+            self.server = None
+            logger.debug("Viewer server stopped")
+
+    def is_running(self) -> bool:
+        """Check if server is running."""
+        return self.server is not None and self.thread is not None and self.thread.is_alive()
+
+    def get_url(self) -> str:
+        """Get the viewer URL."""
+        return f"http://localhost:{self.port}/viewer"

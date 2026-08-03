@@ -1,0 +1,782 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-28T16:17:17",
+  "set_count": 51,
+  "detailed": false,
+  "set_ids": [
+    "flavin/fad:hydroquinone_anionic:default:Guberman_FAH_RESP",
+    "flavin/fad:hydroquinone_neutral:default:Guberman_FAQ_RESP",
+    "flavin/fad:oxidized:default:Guberman_FAD_RESP",
+    "flavin/fad:semiquinone_anionic:default:Guberman_FAR_RESP",
+    "flavin/fad:semiquinone_neutral:default:Guberman_FAS_RESP",
+    "flavin/fmn:hydroquinone_anionic:default:Guberman_FMH_RESP",
+    "flavin/fmn:hydroquinone_neutral:default:Guberman_FMQ_RESP",
+    "flavin/fmn:oxidized:default:Guberman_FMN_RESP",
+    "flavin/fmn:semiquinone_anionic:default:Guberman_FMR_RESP",
+    "flavin/fmn:semiquinone_neutral:default:Guberman_FMS_RESP",
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP",
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP",
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP",
+    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc",
+    "iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP",
+    "iron_sulfur/4fe4s:oxidized:FO1:Guberman_FO1_RESP",
+    "iron_sulfur/4fe4s:oxidized:FO2:Guberman_FO2_RESP",
+    "iron_sulfur/4fe4s:oxidized:FO3:Guberman_FO3_RESP",
+    "iron_sulfur/4fe4s:oxidized:FO4:Guberman_FO4_RESP",
+    "iron_sulfur/4fe4s:oxidized:FO5:Guberman_FO5_RESP",
+    "iron_sulfur/4fe4s:oxidized:FO6:Guberman_FO6_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD0:Guberman_FD0_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD1:Guberman_FD1_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD2:Guberman_FD2_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD3:Guberman_FD3_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD4:Guberman_FD4_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD5:Guberman_FD5_RESP",
+    "iron_sulfur/4fe4s:reduced_fd:FD6:Guberman_FD6_RESP",
+    "iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP",
+    "iron_sulfur/4fe4s:reduced_hipip:FR1:Guberman_FR1_RESP",
+    "iron_sulfur/4fe4s:reduced_hipip:FR2:Guberman_FR2_RESP",
+    "iron_sulfur/4fe4s:reduced_hipip:FR3:Guberman_FR3_RESP",
+    "nicotinamide/nad:oxidized:default:Guberman_NAD_RESP",
+    "nicotinamide/nad:reduced:default:Guberman_NDH_RESP",
+    "nicotinamide/nadp:oxidized:default:Guberman_NAP_RESP",
+    "nicotinamide/nadp:reduced:default:Guberman_NDP_RESP",
+    "pterin/biopterin:78_dihydro:default:Guberman_H2B_RESP",
+    "pterin/biopterin:cation_radical:default:Guberman_H4C_RESP",
+    "pterin/biopterin:fully_oxidized:default:Guberman_BIO_RESP",
+    "pterin/biopterin:n5_radical:default:Guberman_H3R_RESP",
+    "pterin/biopterin:quinonoid_dihydro:default:Guberman_H2Q_RESP",
+    "pterin/biopterin:tetrahydro:default:Guberman_H4B_RESP",
+    "zinc/cys4:single_state:default:Guberman_ZNC_RESP"
+  ],
+  "parse_errors": [],
+  "conflicts": {
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CD",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "Cp",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "HO",
+        "N",
+        "NA",
+        "NB",
+        "NO",
+        "NP",
+        "O",
+        "OH",
+        "S"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "MASS": 1
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    }
+  }
+}

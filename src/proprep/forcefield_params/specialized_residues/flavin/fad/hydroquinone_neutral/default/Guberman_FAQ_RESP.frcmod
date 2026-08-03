@@ -1,0 +1,248 @@
+Lean FAQ frcmod (flavin/fad/hydroquinone_neutral). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c); phosphate forks (O3<-O2 / OD bridge) from source. Dihedrals = GAFF2-by-substitution, full multi-term. Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Ja     14.010    0.530   [frag]
+Jb     12.010    0.616   [frag]
+Jc     16.000    0.434   [frag]
+Jd     14.010    0.530   [frag]
+Je      1.008    0.161   [frag]
+Jf     12.010    0.616   [frag]
+Jg     16.000    0.434   [frag]
+Jh     12.010    0.360   [frag]
+Ji     14.010    0.530   [frag]
+Jj      1.008    0.161   [frag]
+Jk     12.010    0.360   [frag]
+Jl     12.010    0.360   [frag]
+Jm      1.008    0.135   [frag]
+Jn     12.010    0.360   [frag]
+Jo     12.010    0.878   [frag]
+Jp      1.008    0.135   [frag]
+Jq     12.010    0.360   [frag]
+Jr     12.010    0.878   [frag]
+Js      1.008    0.135   [frag]
+Jt     12.010    0.360   [frag]
+Ju      1.008    0.135   [frag]
+Jv     12.010    0.360   [frag]
+Jw     14.010    0.530   [frag]
+Jx     12.010    0.360   [frag]
+Jy      1.008    0.161   [frag]
+OD     16.000    0.465   [fork-diphosphate-bridge]
+O3 16.00              O3 terminal-phosphate fork (mass = O2); Meagher 2003, JCC 24:1016
+
+BOND
+Ja-Jb    303.02     1.3856   Seminario method [frag]
+Ja-Jx    348.25     1.3815   Seminario method [frag]
+Ja-Jy    503.31     1.0126   Seminario method [frag]
+Jb-Jc    670.37     1.2318   Seminario method [frag]
+Jb-Jd    324.92     1.3740   Seminario method [frag]
+Jd-Je    497.49     1.0150   Seminario method [frag]
+Jd-Jf    276.53     1.4082   Seminario method [frag]
+Jf-Jg    623.13     1.2443   Seminario method [frag]
+Jf-Jh    294.35     1.4245   Seminario method [frag]
+Jh-Ji    309.58     1.4180   Seminario method [frag]
+Jh-Jx    418.98     1.3753   Seminario method [frag]
+Ji-Jj    484.45     1.0157   Seminario method [frag]
+Ji-Jk    288.85     1.4124   Seminario method [frag]
+Jk-Jl    383.41     1.3942   Seminario method [frag]
+Jk-Jv    334.90     1.4077   Seminario method [frag]
+Jl-Jm    374.27     1.0882   Seminario method [frag]
+Jl-Jn    367.18     1.4042   Seminario method [frag]
+Jn-Jo    236.13     1.5113   Seminario method [frag]
+Jn-Jq    345.25     1.4071   Seminario method [frag]
+Jo-Jp    354.53     1.0944   Seminario method [frag]
+Jq-Jr    235.64     1.5118   Seminario method [frag]
+Jq-Jt    360.39     1.4062   Seminario method [frag]
+Jr-Js    342.28     1.0982   Seminario method [frag]
+Jt-Ju    382.73     1.0850   Seminario method [frag]
+Jt-Jv    385.20     1.3944   Seminario method [frag]
+Jv-Jw    251.25     1.4346   Seminario method [frag]
+Jw-Jx    344.14     1.3738   Seminario method [frag]
+Jw-c3    215.410     1.4691   [junction] seminario-0c (n=1)   xcof-mean
+O3-P     525.00     1.4800   [fork O3<-O2 = parm10 O2-P]
+OD-P     167.151     1.6563   [junction] seminario-0c (n=2)   xcof-mean
+OS-c3    228.325     1.4278   [junction] seminario-0c (n=1)   xcof-mean
+
+ANGLE
+Ja-Jb-Jc    120.803    122.142   Seminario method [frag]
+Ja-Jb-Jd    209.341    113.997   Seminario method [frag]
+Ja-Jx-Jh    171.204    119.552   Seminario method [frag]
+Ja-Jx-Jw    193.313    119.917   Seminario method [frag]
+Jb-Ja-Jx    207.964    124.045   Seminario method [frag]
+Jb-Ja-Jy     70.762    114.927   Seminario method [frag]
+Jb-Jd-Je     71.248    116.418   Seminario method [frag]
+Jb-Jd-Jf    214.023    126.836   Seminario method [frag]
+Jc-Jb-Jd    120.109    123.859   Seminario method [frag]
+Jd-Jf-Jg    132.059    120.127   Seminario method [frag]
+Jd-Jf-Jh    178.870    114.782   Seminario method [frag]
+Je-Jd-Jf     71.689    116.735   Seminario method [frag]
+Jf-Jh-Ji    150.402    120.219   Seminario method [frag]
+Jf-Jh-Jx    148.499    120.762   Seminario method [frag]
+Jg-Jf-Jh    115.667    125.074   Seminario method [frag]
+Jh-Ji-Jj     65.533    112.209   Seminario method [frag]
+Jh-Ji-Jk    142.156    115.220   Seminario method [frag]
+Jh-Jx-Jw    162.990    120.530   Seminario method [frag]
+Ji-Jh-Jx    149.627    118.922   Seminario method [frag]
+Ji-Jk-Jl    172.735    122.469   Seminario method [frag]
+Ji-Jk-Jv    170.213    118.378   Seminario method [frag]
+Jj-Ji-Jk     64.377    115.070   Seminario method [frag]
+Jk-Jl-Jm     68.090    118.638   Seminario method [frag]
+Jk-Jl-Jn    199.297    121.888   Seminario method [frag]
+Jk-Jv-Jt    199.747    119.294   Seminario method [frag]
+Jk-Jv-Jw    178.156    118.369   Seminario method [frag]
+Jl-Jk-Jv    198.264    119.115   Seminario method [frag]
+Jl-Jn-Jo    151.203    119.858   Seminario method [frag]
+Jl-Jn-Jq    196.089    118.991   Seminario method [frag]
+Jm-Jl-Jn     67.213    119.467   Seminario method [frag]
+Jn-Jo-Jp     65.346    111.172   Seminario method [frag]
+Jn-Jq-Jr    152.158    121.265   Seminario method [frag]
+Jn-Jq-Jt    196.760    118.947   Seminario method [frag]
+Jo-Jn-Jq    152.183    121.151   Seminario method [frag]
+Jp-Jo-Jp     40.197    107.803   Seminario method [frag]
+Jq-Jr-Js     70.587    111.711   Seminario method [frag]
+Jq-Jt-Ju     67.108    118.447   Seminario method [frag]
+Jq-Jt-Jv    200.743    121.734   Seminario method [frag]
+Jr-Jq-Jt    151.699    119.787   Seminario method [frag]
+Js-Jr-Js     38.718    106.649   Seminario method [frag]
+Jt-Jv-Jw    182.280    122.337   Seminario method [frag]
+Ju-Jt-Jv     67.607    119.818   Seminario method [frag]
+Jv-Jw-Jx    171.247    116.291   Seminario method [frag]
+Jv-Jw-c3    151.190    120.8750   [junction] seminario-0c (n=1)   xcof-mean
+Jw-c3-c3    111.835    115.4800   [junction] seminario-0c (n=1)   xcof-mean
+Jw-c3-h1     71.670    107.9050   [junction] seminario-0c (n=2)   xcof-mean
+Jx-Ja-Jy     70.445    120.818   Seminario method [frag]
+Jx-Jw-c3    157.220    121.4300   [junction] seminario-0c (n=1)   xcof-mean
+O3-P -O3    140.000    119.900   [fork O3<-O2 = parm10 O2-P-O2]
+O3-P -OD    101.291    109.1667   [junction] seminario-0c (n=4)   xcof-mean
+O3-P -OS    100.000    108.230   [fork O3<-O2 = parm10 O2-P-OS]
+OD-P -OS     94.333     99.1767   [junction] seminario-0c (n=2)   xcof-mean
+OS-c3-c3    136.420    106.9890   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-h1     68.429    110.2730   [junction] seminario-0c (n=2)   xcof-mean
+P -OD-P     104.454    132.6867   [junction] seminario-0c (n=1)   xcof-mean
+P -OS-c3    117.200    119.6680   [junction] seminario-0c (n=1)   xcof-mean
+
+DIHE
+Jy-Ja-Jb-Jc  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Jy-Ja-Jb-Jc  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Jy-Ja-Jb-Jd  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Jx-Ja-Jb-Jc  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Jx-Ja-Jb-Jd  1     2.50000   180.000    2.000   [gaff2-sub] full <- n-c-n-cd
+Jy-Ja-Jx-Jw  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Jy-Ja-Jx-Jh  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Jb-Ja-Jx-Jw  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Jb-Ja-Jx-Jh  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Ja-Jb-Jd-Je  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ja-Jb-Jd-Jf  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Jc-Jb-Jd-Je  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Jc-Jb-Jd-Je  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Jc-Jb-Jd-Jf  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Jb-Jd-Jf-Jg  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Jb-Jd-Jf-Jh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Je-Jd-Jf-Jg  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Je-Jd-Jf-Jg  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Je-Jd-Jf-Jh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Jd-Jf-Jh-Ji  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cc-na
+Jd-Jf-Jh-Jx  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cc-cd
+Jg-Jf-Jh-Ji  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cc-na
+Jg-Jf-Jh-Jx  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cc-cd
+Jx-Jh-Ji-Jj  1     1.70000   180.000    2.000   [gaff2-sub] full <- cd-cc-na-hn
+Jx-Jh-Ji-Jk  1     1.70000   180.000    2.000   [gaff2-sub] full <- cd-cc-na-ca
+Jf-Jh-Ji-Jj  1     1.70000   180.000    2.000   [gaff2-sub] full <- c-cc-na-hn
+Jf-Jh-Ji-Jk  1     1.70000   180.000    2.000   [gaff2-sub] full <- c-cc-na-ca
+Ji-Jh-Jx-Ja  1     4.00000   180.000    2.000   [gaff2-sub] full <- na-cc-cd-ns
+Ji-Jh-Jx-Jw  1     4.00000   180.000    2.000   [gaff2-sub] full <- na-cc-cd-na
+Jf-Jh-Jx-Ja  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cc-cd-ns
+Jf-Jh-Jx-Jw  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cc-cd-na
+Jj-Ji-Jk-Jv  1     0.30000   180.000    2.000   [gaff2-sub] full <- hn-na-ca-ca
+Jj-Ji-Jk-Jl  1     0.30000   180.000    2.000   [gaff2-sub] full <- hn-na-ca-ca
+Jh-Ji-Jk-Jv  1     0.60300   180.000    2.000   [gaff2-sub] full <- cc-na-ca-ca
+Jh-Ji-Jk-Jl  1     0.60300   180.000    2.000   [gaff2-sub] full <- cc-na-ca-ca
+Ji-Jk-Jl-Jn  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ca
+Ji-Jk-Jl-Jm  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ha
+Jv-Jk-Jl-Jn  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Jv-Jk-Jl-Jm  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Ji-Jk-Jv-Jw  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-na
+Ji-Jk-Jv-Jt  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ca
+Jl-Jk-Jv-Jw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Jl-Jk-Jv-Jt  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Jk-Jl-Jn-Jo  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Jk-Jl-Jn-Jq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Jm-Jl-Jn-Jo  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-c3
+Jm-Jl-Jn-Jq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Jl-Jn-Jo-Jp  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Jq-Jn-Jo-Jp  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Jl-Jn-Jq-Jr  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Jl-Jn-Jq-Jt  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Jo-Jn-Jq-Jr  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-c3
+Jo-Jn-Jq-Jt  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Jn-Jq-Jr-Js  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Jt-Jq-Jr-Js  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Jn-Jq-Jt-Jv  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Jn-Jq-Jt-Ju  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Jr-Jq-Jt-Jv  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Jr-Jq-Jt-Ju  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ha
+Ju-Jt-Jv-Jk  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Ju-Jt-Jv-Jw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-na
+Jq-Jt-Jv-Jk  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Jq-Jt-Jv-Jw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Jk-Jv-Jw-Jx  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cd
+Jt-Jv-Jw-Jx  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cd
+Jv-Jw-Jx-Ja  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cd-ns
+Jv-Jw-Jx-Jh  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cd-cc
+Jk-Jv-Jw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Jt-Jv-Jw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Jv-Jw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-c3
+Jv-Jw-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-h1
+Jx-Jw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- cd-na-c3-c3
+Jx-Jw-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- cd-na-c3-h1
+c3-Jw-Jx-Ja  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cd-ns
+c3-Jw-Jx-Jh  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cd-cc
+P -OS-c3-h1  1     0.21700     0.000    3.000   [base-FF sub] full <- h1-c3-os-p5
+P -OD-P -OS  1     0.89700     0.000    1.000   [fork OD<-OS / O3<-O2: Meagher+parm10 torsion]
+P -OS-c3-c3  1     0.38300     0.000   -3.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-c3  1     3.95000   180.000    1.000   [base-FF sub] full <- c3-c3-os-p5
+X -P -OD-X   3     0.75000     0.000    3.000   [fork OD<-OS / O3<-O2: Meagher+parm10 torsion]
+
+IMPROPER
+Ja-Jd-Jb-Jc        10.5          180.0         2.0   [root: tleap-perceived]
+Jh-Jd-Jf-Jg        10.5          180.0         2.0   [root: tleap-perceived]
+Jf-Jx-Jh-Ji         1.1          180.0         2.0   [root: tleap-perceived]
+Jl-Jv-Jk-Ji         1.1          180.0         2.0   [root: tleap-perceived]
+Jo-Jl-Jn-Jq         1.1          180.0         2.0   [root: tleap-perceived]
+Jr-Jn-Jq-Jt         1.1          180.0         2.0   [root: tleap-perceived]
+Jk-Jt-Jv-Jw         1.1          180.0         2.0   [root: tleap-perceived]
+c3-Jv-Jw-Jx         1.1          180.0         2.0   [root: tleap-perceived]
+Jh-Jw-Jx-Ja         1.1          180.0         2.0   [root: tleap-perceived]
+Jb-Jx-Ja-Jy         1.1          180.0         2.0   [root: tleap-perceived]
+Jb-Jf-Jd-Je         1.1          180.0         2.0   [root: tleap-perceived]
+Jk-Jn-Jl-Jm         1.1          180.0         2.0   [root: tleap-perceived]
+Jq-Jv-Jt-Ju         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Ja      1.8352    0.1174   [LJ from ns]
+  Jb      1.8606    0.0988   [LJ from c]
+  Jc      1.7107    0.1463   [LJ from o]
+  Jd      1.8352    0.1174   [LJ from ns]
+  Je      0.6210    0.0100   [LJ from hn]
+  Jf      1.8606    0.0988   [LJ from c]
+  Jg      1.7107    0.1463   [LJ from o]
+  Jh      1.8606    0.0988   [LJ from cc]
+  Ji      1.7992    0.2042   [LJ from na]
+  Jj      0.6210    0.0100   [LJ from hn]
+  Jk      1.8606    0.0988   [LJ from ca]
+  Jl      1.8606    0.0988   [LJ from ca]
+  Jm      1.4735    0.0161   [LJ from ha]
+  Jn      1.8606    0.0988   [LJ from ca]
+  Jo      1.9069    0.1078   [LJ from c3]
+  Jp      1.4593    0.0208   [LJ from hc]
+  Jq      1.8606    0.0988   [LJ from ca]
+  Jr      1.9069    0.1078   [LJ from c3]
+  Js      1.4593    0.0208   [LJ from hc]
+  Jt      1.8606    0.0988   [LJ from ca]
+  Ju      1.4735    0.0161   [LJ from ha]
+  Jv      1.8606    0.0988   [LJ from ca]
+  Jw      1.7992    0.2042   [LJ from na]
+  Jx      1.8606    0.0988   [LJ from cd]
+  Jy      0.6210    0.0100   [LJ from hn]
+  OD      1.6837    0.1700   [LJ from OS]
+  O3          1.6612   0.2100   O3 LJ = O2 (OPLS by-analogy); Meagher 2003, JCC 24:1016
+

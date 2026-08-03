@@ -1,0 +1,55 @@
+{
+  "upload_type": "software",
+  "title": "ProPrep: a preparation assistant for (metallo)protein simulations",
+  "description": "ProPrep is a prompt-driven workflow manager for preparing protein and metalloprotein structures for molecular dynamics and QM/MM simulations with the Amber suite. It covers structure retrieval and curation, in silico mutagenesis, structure repair, protonation state assignment, force field selection, parameterization of small molecules, modified amino acids and metal sites, topology generation, and simulation setup and analysis. Every interaction is recorded to a session log that can be replayed, edited, or turned into a template for batch processing.",
+  "license": "MIT",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Guberman-Pfeffer, Matthew J.",
+      "orcid": "0000-0002-1143-0693",
+      "affiliation": "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+    },
+    {
+      "name": "Cairns, John",
+      "orcid": "0009-0001-6759-1031",
+      "affiliation": "Independent Software Engineer, Naperville, Illinois, United States"
+    },
+    {
+      "name": "Walker, Adara",
+      "orcid": "0009-0008-2289-4662",
+      "affiliation": "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+    },
+    {
+      "name": "Nielson, Padric",
+      "affiliation": "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+    }
+  ],
+  "grants": [
+    {
+      "id": "10.13039/100000002::P20GM103451"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementedBy",
+      "identifier": "10.5281/zenodo.21764953",
+      "scheme": "doi",
+      "resource_type": "dataset"
+    }
+  ],
+  "keywords": [
+    "ProPrep",
+    "molecular dynamics",
+    "QM/MM",
+    "structure preparation",
+    "force field parameterization",
+    "metalloproteins",
+    "Amber",
+    "AmberTools",
+    "MCPB",
+    "reproducibility",
+    "workflow automation",
+    "session replay"
+  ]
+}

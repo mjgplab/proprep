@@ -1,0 +1,5 @@
+source leaprc.constph
+m = loadpdb 7rsa_protein_only.pdb
+charge m
+saveamberparm m rnase_a.prmtop rnase_a.rst7
+quit

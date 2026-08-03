@@ -1,0 +1,108 @@
+{
+  "name": "Staged Equilibration at Physiological Conditions (310 K)",
+  "description": "Nine-stage equilibration at 310 K for solvated metalloprotein/cofactor systems: SD+CG minimize, single 0->310 K heat, CPU NPT-density / GPU NPT-relax handoff, graduated solute restraint release (25->10->5->2->0), and unrestrained NPT production. A heavy-atom restraint mask protects structural metals, cofactors, and modeled loops on fresh builds. Stage 3 (NPT density) must run on CPU to dodge the pmemd.cuda fixed-PME-grid limitation while the box shrinks; assign it a CPU resource class in your run plan.",
+  "version": "1.0",
+  "author": "Matthew J. Guberman-Pfeffer",
+  "category": "protein",
+  "steps": [
+    {
+      "id": "00_minimize",
+      "name": "Staged Minimization",
+      "type": "minimization",
+      "template": "builtin/staged_equilibration_310K/00_minimization.mdin",
+      "description": "SD+CG energy minimization with heavy-atom solute restrained at 50 kcal/mol*A^2. Relaxes solvent, hydrogens, and mobile ions around a held solute. Engine: CPU (pmemd.MPI).",
+      "parameter_overrides": {},
+      "dependencies": [],
+      "input_coord": "inpcrd",
+      "output_coord": "00_minimize.rst"
+    },
+    {
+      "id": "01_heat",
+      "name": "Heating (0 to 310 K)",
+      "type": "heating",
+      "template": "builtin/staged_equilibration_310K/01_heating.mdin",
+      "description": "Single NVT heating ramp from 0 to 310 K over 300 ps then hold, solute restrained at 25 kcal/mol*A^2, 1 fs step. Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["00_minimize"],
+      "input_coord": "00_minimize.rst",
+      "output_coord": "01_heat.rst"
+    },
+    {
+      "id": "02_npt_density",
+      "name": "NPT Density (CPU phase)",
+      "type": "equilibration",
+      "template": "builtin/staged_equilibration_310K/02_npt_density_cpu.mdin",
+      "description": "Short NPT to converge box density at 310 K, solute restrained at 25 kcal/mol*A^2, Berendsen barostat, 1 fs step. MUST run on CPU (pmemd.MPI): the box shrinks here and pmemd.cuda cannot reallocate its PME grid mid-run.",
+      "parameter_overrides": {},
+      "dependencies": ["01_heat"],
+      "input_coord": "01_heat.rst",
+      "output_coord": "02_npt_density.rst"
+    },
+    {
+      "id": "03_npt_relax",
+      "name": "NPT Relaxation (GPU phase)",
+      "type": "equilibration",
+      "template": "builtin/staged_equilibration_310K/03_npt_relax_gpu.mdin",
+      "description": "Longer NPT at 310 K once density has converged, solute restrained at 25 kcal/mol*A^2, Berendsen barostat, 1 fs step. Box is stable so the fixed pmemd.cuda PME grid is safe. Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["02_npt_density"],
+      "input_coord": "02_npt_density.rst",
+      "output_coord": "03_npt_relax.rst"
+    },
+    {
+      "id": "04_release_10",
+      "name": "Restraint Release (10 kcal)",
+      "type": "equilibration",
+      "template": "builtin/staged_equilibration_310K/04_release_10kcal.mdin",
+      "description": "NPT at 310 K with solute restraints tapered to 10 kcal/mol*A^2 for 500 ps, Berendsen barostat, 1 fs step. Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["03_npt_relax"],
+      "input_coord": "03_npt_relax.rst",
+      "output_coord": "04_release_10.rst"
+    },
+    {
+      "id": "05_release_5",
+      "name": "Restraint Release (5 kcal)",
+      "type": "equilibration",
+      "template": "builtin/staged_equilibration_310K/05_release_5kcal.mdin",
+      "description": "NPT at 310 K with solute restraints tapered to 5 kcal/mol*A^2 for 500 ps, Berendsen barostat, 1 fs step. Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["04_release_10"],
+      "input_coord": "04_release_10.rst",
+      "output_coord": "05_release_5.rst"
+    },
+    {
+      "id": "06_release_2",
+      "name": "Restraint Release (2 kcal)",
+      "type": "equilibration",
+      "template": "builtin/staged_equilibration_310K/06_release_2kcal.mdin",
+      "description": "NPT at 310 K with solute restraints tapered to 2 kcal/mol*A^2 for 500 ps, Berendsen barostat, 1 fs step. Last restrained stage. Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["05_release_5"],
+      "input_coord": "05_release_5.rst",
+      "output_coord": "06_release_2.rst"
+    },
+    {
+      "id": "07_settle",
+      "name": "Unrestrained Settle",
+      "type": "equilibration",
+      "template": "builtin/staged_equilibration_310K/07_settle_unrestrained.mdin",
+      "description": "Fully released NPT settle at 310 K for 1 ns, no restraints, Berendsen barostat, 2 fs step. Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["06_release_2"],
+      "input_coord": "06_release_2.rst",
+      "output_coord": "07_settle.rst"
+    },
+    {
+      "id": "08_production",
+      "name": "Production MD (50 ns)",
+      "type": "production",
+      "template": "builtin/staged_equilibration_310K/08_production.mdin",
+      "description": "Unrestrained production at 310 K and 1 atm, Monte Carlo barostat, low-friction Langevin (gamma=1), 2 fs step, 50 ns (restart-extendable). Engine: GPU (pmemd.cuda).",
+      "parameter_overrides": {},
+      "dependencies": ["07_settle"],
+      "input_coord": "07_settle.rst",
+      "output_coord": "08_production.rst"
+    }
+  ]
+}

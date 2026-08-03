@@ -1,0 +1,28 @@
+Zn(Cys)4 site frcmod (4-Cys equivalent, ZM/SZ atom types). Bonded params: Seminario averaged across 4 Cys from B3LYP/6-31G(d) PCM(water) LARGE-model Hessian (89-atom Zn(Cys)4 with Cα Cartesian + φ/ψ frozen at 4D1N crystal values). NONBON: ZM from Li 2013 IOD-TIP3P, SZ inherited from ff14SB SH.
+
+MASS
+ZM    65.380   ! Zn metal (Li et al. JCTC 2013, IOD-TIP3P set)
+SZ    32.060   ! S(γ) of Cys-thiolate bound to Zn — forked from ff14SB SH
+
+BOND
+ZM-SZ   32.316  2.4310   ! Seminario avg over 4 Cys; σ(K)=5.24 σ(r)=0.0078
+CT-SZ  237.000  1.8100   ! inherited from ff14SB CT-SH (Cys Cβ–Sγ bond unchanged)
+
+ANGLE
+SZ-ZM-SZ  26.945  109.330   ! Seminario avg over 6 SZ-ZM-SZ; σ(K)=8.52 σ(θ)=6.30°
+CT-SZ-ZM  51.551  108.702   ! Seminario avg over 4 CT-SZ-ZM; σ(K)=9.46 σ(θ)=1.03°
+CX-CT-SZ   50.000  108.600   ! inherited from ff14SB CX-CT-SH
+H1-CT-SZ   50.000  109.500   ! inherited from ff14SB H1-CT-SH
+
+DIHE
+CT-SZ-ZM-SZ 1    0.0000     0.000   3.0   ! treat as zero (MCPB convention)
+H1-CT-SZ-ZM 1    0.0000     0.000   3.0   ! treat as zero (MCPB convention)
+CX-CT-SZ-ZM 1    0.0000     0.000   3.0   ! treat as zero (MCPB convention)
+SZ-ZM-SZ-CT 1    0.0000     0.000   3.0   ! treat as zero (MCPB convention)
+X -CT-SZ-X  3    0.7500     0.000   3.0   ! inherited from ff14SB X-CT-SH-X
+
+IMPROPER
+
+NONBON
+  ZM   1.3950     0.014917   ! Zn IOD-TIP3P (Li et al. JCTC 2013, 9, 2733)
+  SZ   2.0000     0.250000   ! inherited from ff14SB SH

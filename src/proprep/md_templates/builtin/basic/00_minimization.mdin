@@ -1,0 +1,33 @@
+! TEMPLATE: Metalloprotein Minimization
+! DESCRIPTION: Energy minimization for metalloproteins with backbone and metal site restraints
+! TYPE: minimization
+! PRIORITY: 1
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Experience-based protocol for aqueous metalloprotein systems
+
+Energy Minimization Stage
+Minimize energy with protein backbone and metal site restraints
+
+&cntrl
+  ! Minimization Control
+  imin=1,                           ! Energy minimization (0=MD, 1=minimization)
+  ntmin=1,                          ! Minimization method (1=steepest descent for ncyc, then conjugate gradient)
+  ncyc=1000,                        ! Switch from steepest descent to conjugate gradient after this many cycles
+  maxcyc=5000,                      ! Maximum minimization cycles
+
+  ! System Control
+  ntb=1,                            ! Periodic boundaries, constant volume
+  cut=10.0,                         ! Nonbonded interaction cutoff (Angstroms)
+
+  ! Output Control
+  ntwr=100,                         ! Restart file write frequency
+  ntwx=100,                         ! Trajectory write frequency
+  ntpr=100,                         ! Energy output frequency
+
+  ! Restraints
+  ntr=1,                            ! Enable positional restraints (see restraintmask below)
+  restraint_wt=10.0,                ! Restraint force constant (kcal/mol-A2)
+  restraintmask='@CA,C,O,N&!:WAT',  ! Atoms to restrain (AMBER mask syntax)
+/
+

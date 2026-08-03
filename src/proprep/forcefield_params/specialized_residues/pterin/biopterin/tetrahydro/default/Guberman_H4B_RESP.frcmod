@@ -1,0 +1,178 @@
+Lean H4B frcmod (pterin/biopterin/tetrahydro). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c). Dihedrals = GAFF2-by-substitution, full multi-term (pterin ring-fusion from parm10-nucleic). Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Qa     14.010    0.530   [frag]
+Qb      1.008    0.161   [frag]
+Qc     12.010    0.878   [frag]
+Qd      1.008    0.135   [frag]
+Qe     12.010    0.878   [frag]
+Qg      1.008    0.135   [frag]
+Qh      1.008    0.135   [frag]
+Qi     14.010    0.530   [frag]
+Qj      1.008    0.161   [frag]
+Qk     12.010    0.878   [frag]
+Ql      1.008    0.135   [frag]
+Qm     16.000    0.465   [frag]
+Qn      1.008    0.135   [frag]
+Qo     12.010    0.878   [frag]
+Qp      1.008    0.135   [frag]
+Qq     12.010    0.878   [frag]
+Qr      1.008    0.135   [frag]
+Qs     16.000    0.465   [frag]
+Qt      1.008    0.135   [frag]
+
+BOND
+CB-Qa    292.61     1.4270   [junction] seminario-0c (n=1)
+CB-Qi    388.89     1.3615   [junction] seminario-0c (n=1)
+Qa-Qb    462.77     1.0196   Seminario method [frag]
+Qa-Qc    238.13     1.4677   Seminario method [frag]
+Qc-Qd    349.32     1.0951   Seminario method [frag]
+Qc-Qe    194.76     1.5440   Seminario method [frag]
+Qc-Qk    211.49     1.5351   Seminario method [frag]
+Qe-Qg    356.70     1.0935   Seminario method [frag]
+Qe-Qh    339.83     1.0987   Seminario method [frag]
+Qe-Qi    253.14     1.4572   Seminario method [frag]
+Qi-Qj    504.34     1.0118   Seminario method [frag]
+Qk-Ql    340.36     1.0987   Seminario method [frag]
+Qk-Qm    234.58     1.4376   Seminario method [frag]
+Qk-Qo    218.62     1.5399   Seminario method [frag]
+Qm-Qn    564.04     0.9692   Seminario method [frag]
+Qo-Qp    336.01     1.0995   Seminario method [frag]
+Qo-Qq    224.85     1.5280   Seminario method [frag]
+Qo-Qs    231.40     1.4381   Seminario method [frag]
+Qq-Qr    348.29     1.0969   Seminario method [frag]
+Qs-Qt    554.71     0.9709   Seminario method [frag]
+
+ANGLE
+C -CB-Qa    149.080    119.670   [junction] seminario-0c (n=1)
+CB-CB-Qa    161.930    121.690   [junction] seminario-0c (n=1)
+CB-CB-Qi    166.300    120.030   [junction] seminario-0c (n=1)
+CB-Qa-Qb     57.750    111.810   [junction] seminario-0c (n=1)
+CB-Qa-Qc    153.280    114.490   [junction] seminario-0c (n=1)
+CB-Qi-Qe    157.100    120.990   [junction] seminario-0c (n=1)
+CB-Qi-Qj     65.830    116.900   [junction] seminario-0c (n=1)
+NC-CB-Qi    149.270    115.770   [junction] seminario-0c (n=1)
+Qa-Qc-Qd     74.556    107.819   Seminario method [frag]
+Qa-Qc-Qe    140.948    111.561   Seminario method [frag]
+Qa-Qc-Qk    168.895    108.343   Seminario method [frag]
+Qb-Qa-Qc     67.012    109.840   Seminario method [frag]
+Qc-Qe-Qg     71.434    111.224   Seminario method [frag]
+Qc-Qe-Qh     75.775    109.934   Seminario method [frag]
+Qc-Qe-Qi    158.521    107.992   Seminario method [frag]
+Qc-Qk-Ql     75.016    107.053   Seminario method [frag]
+Qc-Qk-Qm    153.080    107.552   Seminario method [frag]
+Qc-Qk-Qo    159.677    114.138   Seminario method [frag]
+Qd-Qc-Qe     74.995    107.474   Seminario method [frag]
+Qd-Qc-Qk     64.349    107.349   Seminario method [frag]
+Qe-Qc-Qk    155.044    114.039   Seminario method [frag]
+Qe-Qi-Qj     63.600    119.561   Seminario method [frag]
+Qg-Qe-Qh     49.327    108.402   Seminario method [frag]
+Qg-Qe-Qi     72.414    107.928   Seminario method [frag]
+Qh-Qe-Qi     62.503    111.360   Seminario method [frag]
+Qk-Qm-Qn     61.273    109.355   Seminario method [frag]
+Qk-Qo-Qp     76.365    108.636   Seminario method [frag]
+Qk-Qo-Qq    143.397    112.448   Seminario method [frag]
+Qk-Qo-Qs    149.522    106.084   Seminario method [frag]
+Ql-Qk-Qm     75.880    109.427   Seminario method [frag]
+Ql-Qk-Qo     78.526    108.470   Seminario method [frag]
+Qm-Qk-Qo     93.242    110.093   Seminario method [frag]
+Qo-Qq-Qr     75.532    110.822   Seminario method [frag]
+Qo-Qs-Qt     60.948    108.465   Seminario method [frag]
+Qp-Qo-Qq     80.152    109.001   Seminario method [frag]
+Qp-Qo-Qs     71.031    109.416   Seminario method [frag]
+Qq-Qo-Qs    152.932    111.172   Seminario method [frag]
+Qr-Qq-Qr     44.482    108.921   Seminario method [frag]
+
+DIHE
+Qb-Qa-Qc-Qe  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Qb-Qa-Qc-Qk  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Qb-Qa-Qc-Qd  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Qj-Qi-Qe-Qc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Qj-Qi-Qe-Qh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Qj-Qi-Qe-Qg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Qa-Qc-Qe-Qi  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qa-Qc-Qe-Qh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qa-Qc-Qe-Qg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qk-Qc-Qe-Qi  1     0.15556     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-nu
+Qk-Qc-Qe-Qh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qk-Qc-Qe-Qg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qd-Qc-Qe-Qi  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qd-Qc-Qe-Qh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qd-Qc-Qe-Qg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qa-Qc-Qk-Ql  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qa-Qc-Qk-Qm  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qa-Qc-Qk-Qo  1     0.15556     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-nu
+Qe-Qc-Qk-Ql  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qe-Qc-Qk-Qm  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Qe-Qc-Qk-Qo  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Qe-Qc-Qk-Qo  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Qe-Qc-Qk-Qo  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Qd-Qc-Qk-Ql  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Qd-Qc-Qk-Qm  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Qd-Qc-Qk-Qm  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Qd-Qc-Qk-Qo  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ql-Qk-Qm-Qn  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Qc-Qk-Qm-Qn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Qo-Qk-Qm-Qn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Ql-Qk-Qo-Qq  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-c3
+Ql-Qk-Qo-Qs  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Ql-Qk-Qo-Qs  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Ql-Qk-Qo-Qp  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-h1
+Qc-Qk-Qo-Qq  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Qc-Qk-Qo-Qq  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Qc-Qk-Qo-Qq  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Qc-Qk-Qo-Qs  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Qc-Qk-Qo-Qp  1     0.15556     0.000    3.000   [gaff2-sub] full <- c6-c3-c3-h1
+Qm-Qk-Qo-Qq  1     0.21000     0.000    3.000   [gaff2-sub] full <- oh-c3-c3-c3
+Qm-Qk-Qo-Qs  1     0.90000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-oh
+Qm-Qk-Qo-Qs  1     1.13000     0.000    2.000   [gaff2-sub] full <- oh-c3-c3-oh
+Qm-Qk-Qo-Qp  1     0.00000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-h1
+Qm-Qk-Qo-Qp  1     0.25000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-h1
+Qs-Qo-Qq-Qr  1     0.18000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-hc
+Qs-Qo-Qq-Qr  1     0.51000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-hc
+Qk-Qo-Qq-Qr  1     0.08000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-hc
+Qp-Qo-Qq-Qr  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-hc
+Qq-Qo-Qs-Qt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Qk-Qo-Qs-Qt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Qp-Qo-Qs-Qt  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+C -CB-Qa-Qb  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+C -CB-Qa-Qc  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Qa-Qb  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Qa-Qc  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Qi-Qe  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+CB-CB-Qi-Qj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+CB-Qa-Qc-Qd  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Qa-Qc-Qe  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Qa-Qc-Qk  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Qi-Qe-Qc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Qi-Qe-Qg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Qi-Qe-Qh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+NC-CB-Qi-Qe  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+NC-CB-Qi-Qj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+
+IMPROPER
+C -CB-CB-Qa         1.1          180.0         2.0   [root: tleap-perceived]
+CB-NC-CB-Qi         1.1          180.0         2.0   [root: tleap-perceived]
+CB-Qe-Qi-Qj         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Qa      1.8403    0.1545   [LJ from nu]
+  Qb      0.6210    0.0100   [LJ from hn]
+  Qc      1.9069    0.1078   [LJ from c6]
+  Qd      1.3593    0.0208   [LJ from h1]
+  Qe      1.9069    0.1078   [LJ from c6]
+  Qg      1.3593    0.0208   [LJ from h1]
+  Qh      1.3593    0.0208   [LJ from h1]
+  Qi      1.8403    0.1545   [LJ from nu]
+  Qj      0.6210    0.0100   [LJ from hn]
+  Qk      1.9069    0.1078   [LJ from c3]
+  Ql      1.3593    0.0208   [LJ from h1]
+  Qm      1.8200    0.0930   [LJ from oh]
+  Qn      0.3019    0.0047   [LJ from ho]
+  Qo      1.9069    0.1078   [LJ from c3]
+  Qp      1.3593    0.0208   [LJ from h1]
+  Qq      1.9069    0.1078   [LJ from c3]
+  Qr      1.4593    0.0208   [LJ from hc]
+  Qs      1.8200    0.0930   [LJ from oh]
+  Qt      0.3019    0.0047   [LJ from ho]
+

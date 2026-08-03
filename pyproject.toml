@@ -1,0 +1,81 @@
+[project]
+name = "proprep"
+version = "1.15.0"
+description = "Protein Preparation Assistant - A modular workflow manager for processing PDB structures for MD simulations."
+authors = [
+    { name="Matthew J. Guberman-Pfeffer", email="mjgp@nmsu.edu" },
+    { name="John Cairns" }
+]
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+dependencies = [
+    "biopython>=1.83,<1.86",  # 1.86 changed PDBIO format string, producing 79-char lines (see CLAUDE.md)
+    "rich>=13.0",
+    "requests>=2.28",
+    "freesasa>=2.2",
+    "pyyaml>=6.0",
+    "numpy>=1.26,<2.0",
+    "networkx",
+    "scikit-learn>=1.3.0",
+    "sympy>=1.12",
+    "pydantic>=2.0,<3.0",
+    "psutil>=5.9.0",
+    "pdb2pqr>=3.5",  # Adds hydrogens with PROPKA and AMBER naming
+]
+[tool.setuptools.packages.find]
+where = ["src"]
+[tool.setuptools.package-data]
+proprep = [
+    "forcefield_params/**/*.frcmod",
+    "forcefield_params/**/*.lib",
+    "forcefield_params/**/*.mol2",
+    "forcefield_params/**/*.json",
+    "md_templates/builtin/**/*.json",
+    "md_templates/builtin/**/*.mdin",
+    "md_workflows/builtin/*.json",
+    "md_prep/templates/annotated/builtin/*.json",
+    "md_prep/user_data/templates/builtin/*.json",
+    "md_prep/user_data/workflow_presets/builtin/*.json",
+    "md_prep/cluster_profiles/*.json",
+    "pb_titrate/models/*.prmtop",
+    "pb_titrate/models/*.rst7",
+    "structure_prep/templates/*",
+    "web/static/*",
+    "web/templates/*",
+]
+[project.optional-dependencies]
+tm-align = [
+    "tmtools>=0.3.0",  # TM-align for structure-based alignment; not on conda-forge
+]
+web = [
+    "fastapi>=0.110",      # web shell server (proprep.web)
+    "uvicorn[standard]>=0.27",
+    "httpx>=0.27",         # async reverse proxy to the viewer server
+]
+feedback = [
+    "pynacl>=1.5",         # encrypt session context attached to feedback issues
+]
+test = []
+dev = [
+    "black==25.1.0",
+    "coverage==7.8.0",
+    "isort==6.0.1",
+    "mypy==1.15.0",
+    "pylint==3.3.4",
+]
+# Note: AlphaFold/ColabFold cannot be installed in the same environment as ProPrep
+# due to incompatible dependencies (BioPython, TensorFlow, etc.)
+# Use Google Colab for AlphaFold predictions or install ColabFold separately
+# alphafold = [
+#     "colabfold[alphafold]>=1.5.5",
+# ]
+[tool.setuptools]
+package-dir = {"" = "src"}
+[project.scripts]
+proprep = "proprep.main:main"
+mpsa = "proprep.main:main"
+proprep-web = "proprep.web.__main__:main"
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

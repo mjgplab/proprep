@@ -1,0 +1,101 @@
+{
+  "schema_version": "1",
+  "name": "tamu-aces",
+  "display_name": "TAMU ACES",
+  "description": "Texas A&M ACES cluster: H100/A30 GPU partitions (2-day max), gpu_debug (2-hour max), and 96-core CPU nodes (488G, 3-day max). Amber24 module is CUDA-only; Intel PVC partition is not supported. H100 classes use pmemd.cuda.DPFP because the default SPFP build hits a known kernel bug on H100; A30 stays on pmemd.cuda (SPFP) where SPFP runs correctly and faster.",
+  "required_user_fields": ["account"],
+
+  "cluster": {
+    "scheduler": "slurm",
+    "account": "",
+    "qos": "",
+    "email_address": "",
+    "email_types": "END,FAIL",
+    "modules": [
+      "GCC/13.2.0",
+      "OpenMPI/4.1.8",
+      "Amber/24-OpenMPI-4.1.8-NCCL-2.20.5-CUDA-12.4.1"
+    ],
+    "conda_env": "",
+    "pre_commands": [],
+    "post_commands": [],
+    "extra_directives": []
+  },
+
+  "resource_classes": {
+    "cpu-mpi": {
+      "mode": "cpu",
+      "partition": "cpu",
+      "nodes": 1,
+      "ntasks": 96,
+      "ntasks_per_node": 96,
+      "memory": "488G",
+      "binary": "pmemd.MPI",
+      "mpi_launcher": "srun --mpi=pmix",
+      "env_vars": [],
+      "output_pattern": "{job_name}.%j.out",
+      "error_pattern": "{job_name}.%j.err",
+      "default_time": "06:00:00",
+      "max_time": "3-00:00:00"
+    },
+    "gpu-h100": {
+      "mode": "gpu",
+      "partition": "gpu",
+      "gres": "gpu:h100:<n>",
+      "gpus": 1,
+      "nodes": 1,
+      "ntasks": 1,
+      "ntasks_per_node": 1,
+      "memory": "5G",
+      "binary": "pmemd.cuda.DPFP",
+      "mpi_launcher": "",
+      "env_vars": ["CUDA_VISIBLE_DEVICES=0"],
+      "output_pattern": "{job_name}.%j.out",
+      "error_pattern": "{job_name}.%j.err",
+      "default_time": "24:00:00",
+      "max_time": "2-00:00:00",
+      "max_per_node": 2
+    },
+    "gpu-a30": {
+      "mode": "gpu",
+      "partition": "gpu",
+      "gres": "gpu:a30:<n>",
+      "gpus": 1,
+      "nodes": 1,
+      "ntasks": 1,
+      "ntasks_per_node": 1,
+      "memory": "5G",
+      "binary": "pmemd.cuda",
+      "mpi_launcher": "",
+      "env_vars": ["CUDA_VISIBLE_DEVICES=0"],
+      "output_pattern": "{job_name}.%j.out",
+      "error_pattern": "{job_name}.%j.err",
+      "default_time": "24:00:00",
+      "max_time": "2-00:00:00",
+      "max_per_node": 4
+    },
+    "gpu-debug": {
+      "mode": "gpu",
+      "partition": "gpu_debug",
+      "gres": "gpu:h100:<n>",
+      "gpus": 1,
+      "nodes": 1,
+      "ntasks": 1,
+      "ntasks_per_node": 1,
+      "memory": "5G",
+      "binary": "pmemd.cuda.DPFP",
+      "mpi_launcher": "",
+      "env_vars": ["CUDA_VISIBLE_DEVICES=0"],
+      "output_pattern": "{job_name}.%j.out",
+      "error_pattern": "{job_name}.%j.err",
+      "default_time": "01:00:00",
+      "max_time": "02:00:00",
+      "max_per_node": 2
+    }
+  },
+
+  "defaults": {
+    "cpu_class": "cpu-mpi",
+    "gpu_class": "gpu-h100"
+  }
+}

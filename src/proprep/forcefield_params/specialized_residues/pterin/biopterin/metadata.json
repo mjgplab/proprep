@@ -1,0 +1,317 @@
+{
+  "description": "Biopterin family covering 6 redox/protonation states from fully oxidized BIO through the tetrahydro/cation-radical/N5-radical/quinonoid-dihydro/7,8-dihydro forms. Used for nitric-oxide synthase, phenylalanine hydroxylase, and other pterin-dependent enzymes.",
+  "cofactor_type": "BIOPTERIN",
+  "methodology": "Fragment-typed force-field parameters for the biopterin family across six redox and protonation states (fully oxidized biopterin, tetrahydro, cation radical, N5 radical, quinonoid-dihydro, and 7,8-dihydro), AMBER ff14SB/ff19SB-compatible. The chemistry parameterized de novo is the pterin saturated face (N5, N8, C6, C7) together with the dihydroxypropyl side chain, given fragment-scoped atom types per state; the aromatic pyrimidinone face inherits ff14SB nucleic-acid types. Partial charges are whole-molecule, two-stage restrained (Bayly) RESP fits to a gas-phase HF/6-31G(d) Merz-Kollman ESP at four RBRA reorientations on a B3LYP/6-31+G(d) PCM(water) geometry, with unrestricted references for the open-shell cation-radical and N5-radical states. Bonds and angles for the saturated face and side chain are Seminario fits to the B3LYP/6-31+G(d)/PCM(water) QM Hessian, taking interior terms from capped-fragment Hessians and cross-fragment junction terms from the whole-residue Hessian. Proper dihedrals are full multi-term GAFF2 potentials transferred by atom-type substitution and improper planarity terms are the standard AMBER terms perceived by tLEaP with pyramidal sp3 centers omitted; neither dihedral class is QM-derived. Biopterin carries no phosphate or nucleotide, so no Meagher or Walker parameters are involved. Every frcmod is a delta-only file layered on parm10/gaff2.",
+  "references": [
+    "Fragment-typed cofactor force-field library, v1.0 (20 redox-active residues across the FMN, FAD, NADP, NAD, and biopterin families). See the 'methodology' field for the full derivation. Non-redox-active atoms use established AMBER parameters (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate).",
+    "Walker NAD+ contrib parameters (Walker, in AmberTools dat/contrib/NADH_and_NAD+/).",
+    "Meagher polyphosphate parameters (J. Comput. Chem. 24, 1016-1025, 2003).",
+    "ff14SB nucleic acid types from parm10 + bsc1 + OL3 dihedrals (leaprc.RNA.OL3)."
+  ],
+  "redox_states": {
+    "tetrahydro": {
+      "description": "Resting reduced biopterin (pte_h4 fragment state).",
+      "formal_charge": 0,
+      "spin_states": {
+        "default": {
+          "description": "Resting reduced biopterin (pte_h4 fragment state).",
+          "spin_multiplicity": 1,
+          "electronic_config": "H4B \u2014 uses 20 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Qa\" \"N\" \"sp3\" }",
+            "{ \"Qb\" \"H\" \"sp3\" }",
+            "{ \"Qc\" \"C\" \"sp3\" }",
+            "{ \"Qd\" \"H\" \"sp3\" }",
+            "{ \"Qe\" \"C\" \"sp3\" }",
+            "{ \"Qf\" \"H\" \"sp3\" }",
+            "{ \"Qg\" \"H\" \"sp3\" }",
+            "{ \"Qh\" \"H\" \"sp3\" }",
+            "{ \"Qi\" \"N\" \"sp3\" }",
+            "{ \"Qj\" \"H\" \"sp3\" }",
+            "{ \"Qk\" \"C\" \"sp3\" }",
+            "{ \"Ql\" \"H\" \"sp3\" }",
+            "{ \"Qm\" \"O\" \"sp3\" }",
+            "{ \"Qn\" \"H\" \"sp3\" }",
+            "{ \"Qo\" \"C\" \"sp3\" }",
+            "{ \"Qp\" \"H\" \"sp3\" }",
+            "{ \"Qq\" \"C\" \"sp3\" }",
+            "{ \"Qr\" \"H\" \"sp3\" }",
+            "{ \"Qs\" \"O\" \"sp3\" }",
+            "{ \"Qt\" \"H\" \"sp3\" }"
+          ],
+          "residue_name": "H4B",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_H4B_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_H4B_RESP.frcmod",
+                "lib": "Guberman_H4B_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Tetrahydrobiopterin (H4B)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein and nucleic types); no extra force fields are needed (biopterin has no phosphate). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library by atom-type analogy, except the six-membered pterin rings, which are purine-like and so use the parm10 nucleic ring-fusion torsions.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "cation_radical": {
+      "description": "One-electron oxidized H4B (pte_h4_cation fragment state).",
+      "formal_charge": 1,
+      "spin_states": {
+        "default": {
+          "description": "One-electron oxidized H4B (pte_h4_cation fragment state).",
+          "spin_multiplicity": 2,
+          "electronic_config": "H4C \u2014 uses 20 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Ta\" \"N\" \"sp3\" }",
+            "{ \"Tb\" \"H\" \"sp3\" }",
+            "{ \"Tc\" \"C\" \"sp3\" }",
+            "{ \"Td\" \"H\" \"sp3\" }",
+            "{ \"Te\" \"C\" \"sp3\" }",
+            "{ \"Tf\" \"H\" \"sp3\" }",
+            "{ \"Tg\" \"H\" \"sp3\" }",
+            "{ \"Th\" \"H\" \"sp3\" }",
+            "{ \"Ti\" \"N\" \"sp3\" }",
+            "{ \"Tj\" \"H\" \"sp3\" }",
+            "{ \"Tk\" \"C\" \"sp3\" }",
+            "{ \"Tl\" \"H\" \"sp3\" }",
+            "{ \"Tm\" \"O\" \"sp3\" }",
+            "{ \"Tn\" \"H\" \"sp3\" }",
+            "{ \"To\" \"C\" \"sp3\" }",
+            "{ \"Tp\" \"H\" \"sp3\" }",
+            "{ \"Tq\" \"C\" \"sp3\" }",
+            "{ \"Tr\" \"H\" \"sp3\" }",
+            "{ \"Ts\" \"O\" \"sp3\" }",
+            "{ \"Tt\" \"H\" \"sp3\" }"
+          ],
+          "residue_name": "H4C",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_H4C_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_H4C_RESP.frcmod",
+                "lib": "Guberman_H4C_RESP.lib"
+              },
+              "is_default": true,
+              "name": "H4B cation radical (H4B\u2022\u207a)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein and nucleic types); no extra force fields are needed (biopterin has no phosphate). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library by atom-type analogy, except the six-membered pterin rings, which are purine-like and so use the parm10 nucleic ring-fusion torsions.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "n5_radical": {
+      "description": "Neutral N5-deprotonated radical (pte_n5_radical fragment state).",
+      "formal_charge": 0,
+      "spin_states": {
+        "default": {
+          "description": "Neutral N5-deprotonated radical (pte_n5_radical fragment state).",
+          "spin_multiplicity": 2,
+          "electronic_config": "H3R \u2014 uses 20 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Ua\" \"N\" \"sp2\" }",
+            "{ \"Ub\" \"H\" \"sp2\" }",
+            "{ \"Uc\" \"C\" \"sp3\" }",
+            "{ \"Ud\" \"H\" \"sp3\" }",
+            "{ \"Ue\" \"C\" \"sp3\" }",
+            "{ \"Uf\" \"H\" \"sp3\" }",
+            "{ \"Ug\" \"H\" \"sp3\" }",
+            "{ \"Uh\" \"H\" \"sp3\" }",
+            "{ \"Ui\" \"N\" \"sp3\" }",
+            "{ \"Uj\" \"H\" \"sp3\" }",
+            "{ \"Uk\" \"C\" \"sp3\" }",
+            "{ \"Ul\" \"H\" \"sp3\" }",
+            "{ \"Um\" \"O\" \"sp3\" }",
+            "{ \"Un\" \"H\" \"sp3\" }",
+            "{ \"Uo\" \"C\" \"sp3\" }",
+            "{ \"Up\" \"H\" \"sp3\" }",
+            "{ \"Uq\" \"C\" \"sp3\" }",
+            "{ \"Ur\" \"H\" \"sp3\" }",
+            "{ \"Us\" \"O\" \"sp3\" }",
+            "{ \"Ut\" \"H\" \"sp3\" }"
+          ],
+          "residue_name": "H3R",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_H3R_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_H3R_RESP.frcmod",
+                "lib": "Guberman_H3R_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Trihydrobiopterin N5 radical (H3B\u2022)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein and nucleic types); no extra force fields are needed (biopterin has no phosphate). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library by atom-type analogy, except the six-membered pterin rings, which are purine-like and so use the parm10 nucleic ring-fusion torsions.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "quinonoid_dihydro": {
+      "description": "Two-electron oxidized H4B, quinonoid form (pte_quinonoid fragment state).",
+      "formal_charge": 0,
+      "spin_states": {
+        "default": {
+          "description": "Two-electron oxidized H4B, quinonoid form (pte_quinonoid fragment state).",
+          "spin_multiplicity": 1,
+          "electronic_config": "H2Q \u2014 uses 20 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Va\" \"N\" \"sp2\" }",
+            "{ \"Vb\" \"H\" \"sp2\" }",
+            "{ \"Vc\" \"C\" \"sp3\" }",
+            "{ \"Vd\" \"H\" \"sp3\" }",
+            "{ \"Ve\" \"C\" \"sp3\" }",
+            "{ \"Vf\" \"H\" \"sp3\" }",
+            "{ \"Vg\" \"H\" \"sp3\" }",
+            "{ \"Vh\" \"H\" \"sp3\" }",
+            "{ \"Vi\" \"N\" \"sp2\" }",
+            "{ \"Vj\" \"H\" \"sp2\" }",
+            "{ \"Vk\" \"C\" \"sp3\" }",
+            "{ \"Vl\" \"H\" \"sp3\" }",
+            "{ \"Vm\" \"O\" \"sp3\" }",
+            "{ \"Vn\" \"H\" \"sp3\" }",
+            "{ \"Vo\" \"C\" \"sp3\" }",
+            "{ \"Vp\" \"H\" \"sp3\" }",
+            "{ \"Vq\" \"C\" \"sp3\" }",
+            "{ \"Vr\" \"H\" \"sp3\" }",
+            "{ \"Vs\" \"O\" \"sp3\" }",
+            "{ \"Vt\" \"H\" \"sp3\" }"
+          ],
+          "residue_name": "H2Q",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_H2Q_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_H2Q_RESP.frcmod",
+                "lib": "Guberman_H2Q_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Quinonoid dihydrobiopterin (qBH2)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein and nucleic types); no extra force fields are needed (biopterin has no phosphate). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library by atom-type analogy, except the six-membered pterin rings, which are purine-like and so use the parm10 nucleic ring-fusion torsions.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "78_dihydro": {
+      "description": "Tautomer of qBH2 with reduction at 7,8 positions (pte_78_dihydro fragment state).",
+      "formal_charge": 0,
+      "spin_states": {
+        "default": {
+          "description": "Tautomer of qBH2 with reduction at 7,8 positions (pte_78_dihydro fragment state).",
+          "spin_multiplicity": 1,
+          "electronic_config": "H2B \u2014 uses 20 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Wa\" \"N\" \"sp2\" }",
+            "{ \"Wb\" \"H\" \"sp2\" }",
+            "{ \"Wc\" \"C\" \"sp2\" }",
+            "{ \"Wd\" \"H\" \"sp2\" }",
+            "{ \"We\" \"C\" \"sp3\" }",
+            "{ \"Wf\" \"H\" \"sp3\" }",
+            "{ \"Wg\" \"H\" \"sp3\" }",
+            "{ \"Wh\" \"H\" \"sp3\" }",
+            "{ \"Wi\" \"N\" \"sp3\" }",
+            "{ \"Wj\" \"H\" \"sp3\" }",
+            "{ \"Wk\" \"C\" \"sp3\" }",
+            "{ \"Wl\" \"H\" \"sp3\" }",
+            "{ \"Wm\" \"O\" \"sp3\" }",
+            "{ \"Wn\" \"H\" \"sp3\" }",
+            "{ \"Wo\" \"C\" \"sp3\" }",
+            "{ \"Wp\" \"H\" \"sp3\" }",
+            "{ \"Wq\" \"C\" \"sp3\" }",
+            "{ \"Wr\" \"H\" \"sp3\" }",
+            "{ \"Ws\" \"O\" \"sp3\" }",
+            "{ \"Wt\" \"H\" \"sp3\" }"
+          ],
+          "residue_name": "H2B",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_H2B_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_H2B_RESP.frcmod",
+                "lib": "Guberman_H2B_RESP.lib"
+              },
+              "is_default": true,
+              "name": "7,8-Dihydrobiopterin (7,8-BH2)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein and nucleic types); no extra force fields are needed (biopterin has no phosphate). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library by atom-type analogy, except the six-membered pterin rings, which are purine-like and so use the parm10 nucleic ring-fusion torsions.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "fully_oxidized": {
+      "description": "Fully oxidized aromatic biopterin (pte_oxidized fragment state).",
+      "formal_charge": 0,
+      "spin_states": {
+        "default": {
+          "description": "Fully oxidized aromatic biopterin (pte_oxidized fragment state).",
+          "spin_multiplicity": 1,
+          "electronic_config": "BIO \u2014 uses 20 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Xa\" \"N\" \"sp2\" }",
+            "{ \"Xb\" \"H\" \"sp2\" }",
+            "{ \"Xc\" \"C\" \"sp2\" }",
+            "{ \"Xd\" \"H\" \"sp2\" }",
+            "{ \"Xe\" \"C\" \"sp2\" }",
+            "{ \"Xf\" \"H\" \"sp2\" }",
+            "{ \"Xg\" \"H\" \"sp2\" }",
+            "{ \"Xh\" \"H\" \"sp2\" }",
+            "{ \"Xi\" \"N\" \"sp2\" }",
+            "{ \"Xj\" \"H\" \"sp2\" }",
+            "{ \"Xk\" \"C\" \"sp3\" }",
+            "{ \"Xl\" \"H\" \"sp3\" }",
+            "{ \"Xm\" \"O\" \"sp3\" }",
+            "{ \"Xn\" \"H\" \"sp3\" }",
+            "{ \"Xo\" \"C\" \"sp3\" }",
+            "{ \"Xp\" \"H\" \"sp3\" }",
+            "{ \"Xq\" \"C\" \"sp3\" }",
+            "{ \"Xr\" \"H\" \"sp3\" }",
+            "{ \"Xs\" \"O\" \"sp3\" }",
+            "{ \"Xt\" \"H\" \"sp3\" }"
+          ],
+          "residue_name": "BIO",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_BIO_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_BIO_RESP.frcmod",
+                "lib": "Guberman_BIO_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Biopterin (fully oxidized)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard protein and nucleic types); no extra force fields are needed (biopterin has no phosphate). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library by atom-type analogy, except the six-membered pterin rings, which are purine-like and so use the parm10 nucleic ring-fusion torsions.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "prerequisites": {
+    "leaprc_groups": [],
+    "leaprc_groups_notes": "Lean (delta-only) frcmod: needs only a standard AMBER protein FF (ff14SB->parm10 or ff19SB->parm19) for the parm10 base types and the parm10-nucleic ring-fusion dihedrals, plus addAtomTypes registration of the custom fragment types (emitted from atom_types). No gaff2, no meagher, no other leaprc."
+  }
+}

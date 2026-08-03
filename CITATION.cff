@@ -1,0 +1,70 @@
+cff-version: 1.2.0
+title: "ProPrep: a preparation assistant for (metallo)protein simulations"
+message: "If you use ProPrep, please cite both the software and the accompanying article."
+type: software
+# Software authorship, ordered by contribution to the codebase. The article's
+# author order differs and is preserved under preferred-citation below.
+authors:
+  - family-names: Guberman-Pfeffer
+    given-names: "Matthew J."
+    email: mjgp@nmsu.edu
+    orcid: "https://orcid.org/0000-0002-1143-0693"
+    affiliation: "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+  - family-names: Cairns
+    given-names: John
+    orcid: "https://orcid.org/0009-0001-6759-1031"
+    affiliation: "Independent Software Engineer, Naperville, Illinois, United States"
+  - family-names: Walker
+    given-names: Adara
+    orcid: "https://orcid.org/0009-0008-2289-4662"
+    affiliation: "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+  - family-names: Nielson
+    given-names: Padric
+    affiliation: "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+contact:
+  - family-names: Guberman-Pfeffer
+    given-names: "Matthew J."
+    email: mjgp@nmsu.edu
+    orcid: "https://orcid.org/0000-0002-1143-0693"
+version: 1.15.0
+date-released: 2026-08-02
+license: MIT
+repository-code: "https://github.com/mjgplab/proprep"
+url: "https://anaconda.org/mjgplab/proprep"
+abstract: >-
+  ProPrep is a prompt-driven workflow manager for preparing protein and
+  metalloprotein structures for molecular dynamics and QM/MM simulations with
+  the Amber suite. It covers structure retrieval and curation, in silico
+  mutagenesis, structure repair, protonation state assignment, force field
+  selection, parameterization of small molecules, modified amino acids and
+  metal sites, topology generation, and simulation setup and analysis. Every
+  interaction is recorded to a session log that can be replayed, edited, or
+  turned into a template for batch processing.
+keywords:
+  - molecular dynamics
+  - QM/MM
+  - structure preparation
+  - force field parameterization
+  - metalloproteins
+  - Amber
+preferred-citation:
+  type: article
+  title: "ProPrep: (Metallo)protein MD Preparation That Keeps Users Informed and in Control"
+  authors:
+    - family-names: Walker
+      given-names: Adara
+      orcid: "https://orcid.org/0009-0008-2289-4662"
+      affiliation: "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+    - family-names: Nielson
+      given-names: Padric
+      affiliation: "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+    - family-names: Cairns
+      given-names: John
+      orcid: "https://orcid.org/0009-0001-6759-1031"
+      affiliation: "Independent Software Engineer, Naperville, Illinois, United States"
+    - family-names: Guberman-Pfeffer
+      given-names: "Matthew J."
+      email: mjgp@nmsu.edu
+      orcid: "https://orcid.org/0000-0002-1143-0693"
+      affiliation: "Department of Chemistry and Biochemistry, New Mexico State University, Las Cruces, New Mexico 88003, United States"
+  year: 2026

@@ -1,0 +1,53 @@
+! TEMPLATE: NPT Relaxation (GPU phase)
+! DESCRIPTION: Longer NPT phase on GPU after density has converged in the CPU phase. Box size no longer changes meaningfully, so the fixed pmemd.cuda PME grid is safe.
+! TYPE: equilibration
+! PRIORITY: 1
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Experience-based protocol for aqueous metalloprotein systems
+
+NPT Relaxation (GPU phase)
+Continue NPT on GPU once density has converged
+
+&cntrl
+  ! Temperature Control
+  ntt=3,                           ! Langevin thermostat (0=none, 1=Berendsen, 2=Anderson, 3=Langevin)
+  temp0=300.0,                     ! Target temperature (K)
+  gamma_ln=2.0,                    ! Collision frequency (1/ps) for Langevin thermostat
+  ig=-1,                           ! Random seed from wall clock (ensures unique trajectory per run)
+
+  ! Pressure Control
+  ntp=1,                           ! Isotropic pressure coupling (0=none, 1=isotropic, 2=anisotropic)
+  barostat=2,                      ! Monte Carlo barostat (1=Berendsen, 2=Monte Carlo)
+  pres0=1.0,                       ! Reference pressure (bar)
+  taup=1.0,                        ! Pressure relaxation time (ps)
+
+  ! Constraints
+  ntc=2,                           ! SHAKE constraints on bonds involving hydrogen
+  ntf=2,                           ! Omit bond forces for SHAKE-constrained bonds
+
+  ! System Control
+  ntb=2,                           ! Periodic boundaries, constant pressure
+  cut=10.0,                        ! Nonbonded interaction cutoff (Angstroms)
+
+  ! Time Control
+  dt=0.002,                        ! 0.002 ps time step (2 fs)
+  nstlim=1500000,                  ! 3 ns — keeps total NPT at 4 ns with the preceding CPU density phase
+
+  ! Restart Control
+  irest=1,                         ! Restart simulation (reads velocities from NPT density rst7)
+  ntx=5,                           ! Read coordinates and velocities
+
+  ! Output Control
+  ntwr=10000,                      ! Restart file write frequency
+  ntwx=10000,                      ! Trajectory write frequency
+  ntpr=10000,                      ! Energy output frequency
+  ioutfm=1,                        ! NetCDF binary trajectory format (compact, portable)
+  iwrap=1,                         ! Wrap coordinates into primary box
+
+  ! Restraints
+  ntr=1,                           ! Enable positional restraints (see restraintmask below)
+  restraint_wt=0.1,                ! Restraint force constant (kcal/mol-A2)
+  restraintmask='@CA,C,O,N&!:WAT', ! Atoms to restrain (AMBER mask syntax)
+/
+

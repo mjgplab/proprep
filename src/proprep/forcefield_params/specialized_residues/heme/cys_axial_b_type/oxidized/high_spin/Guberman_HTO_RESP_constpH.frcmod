@@ -1,0 +1,101 @@
+! macrocycle BOND/ANGLE = FERRIC QM-Seminario (replaces Yang); Fe-shell/torsions/impropers/vdW kept; types Ma-Me/NP/NO
+HEM frcmod for NOS heme, ferric state (Fe(III)=True, charge=+0, mult=6) -- Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)] QM Hessian
+
+MASS
+FO   55.850    ! NEW: heme Fe (patched to FO/FR per state by build_hem_frcmod_v2.py)
+NP   14.010    ! NEW: heme pyrrole N class 1 (NA, NC)
+NO   14.010    ! NEW: heme pyrrole N class 2 (NB, ND)
+Me   12.010  ! FORKED <- heme vinyl-beta C (ff14SB CX is protein-Calpha). renamed from VB to clear case-clash with pterin Vb
+Md   12.010  ! FORKED <- heme vinyl-alpha C; off standard CY. value-identical to prior CY
+Mc   12.010  ! FORKED <- heme meso-bridge C; off standard CD. value-identical to prior CD
+Ma   12.010  ! FORKED <- heme pyrrole-alpha C; confines heme bonded terms off standard CC (His CG). value-identical to prior CC
+Mb   12.010  ! FORKED <- heme beta-pyrrole C (parm10 CB is nucleic CB-CB 520/1.370; heme 418/1.357). renamed from Cp
+CT   12.010    ! REAFFIRM: identical to ff14SB parm10.dat CT (sp3 aliphatic C); re-used for heme methyl C, Cys Cβ
+HC    1.008    ! REAFFIRM: identical to ff14SB parm10.dat HC (aliphatic H, no electronegative neighbor); re-used for heme methyl H
+SH   32.060    ! REAFFIRM: identical to ff14SB parm10.dat SH (Cys-thiol S); re-used for Cys Sγ (thiolate, custom RESP charge)
+
+BOND
+FO-NP        46.38   2.1027  ! Seminario ferric (mean of 2 instances)
+FO-NO        49.67   2.0863  ! Seminario ferric (mean of 2 instances)
+FO-SH        54.14   2.3528  ! Seminario ferric (mean of 1 instances)
+NP-Ma    313.52   1.3726  ! QM-Seminario fe3 macrocycle (was Yang)
+NO-Ma    306.85   1.3755  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mb    263.50   1.4502  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mc    369.05   1.3939  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-CT    258.35   1.4988  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-Md    286.42   1.4614  ! QM-Seminario fe3 macrocycle (was Yang)
+Mc-HC    384.82   1.0843  ! QM-Seminario fe3 macrocycle (was Yang)
+Md-HC    366.40   1.0901  ! QM-Seminario fe3 macrocycle (was Yang)
+Me-HC    386.67   1.0859  ! QM-Seminario fe3 macrocycle (was Yang)
+Md-Me    600.41   1.3417  ! QM-Seminario fe3 macrocycle (was Yang)
+CT-HC        340.00  1.0900  ! inherited: ff14SB parm10.dat (NMA nmodes; AA, SUGARS)
+Mb-Mb    441.33   1.3738  ! QM-Seminario fe3 macrocycle (was Yang)
+
+ANGLE
+NP-FO-NO        37.98    87.232  ! Seminario ferric, cis N-Fe-N (mean of 4 instances)
+NP-FO-NP        40.20   153.175  ! Seminario ferric, trans N-Fe-N (NP class) (mean of 1 instances)
+NO-FO-NO        32.27   155.966  ! Seminario ferric, trans N-Fe-N (NO class) (mean of 1 instances)
+NP-FO-SH        24.53   103.368  ! Seminario ferric, axial N-Fe-S (NP class) (mean of 2 instances)
+NO-FO-SH        37.02   102.016  ! Seminario ferric, axial N-Fe-S (NO class) (mean of 2 instances)
+FO-SH-CT        57.65   108.813  ! Seminario ferric, Fe-S-Cβ splice (mean of 1 instances)
+FO-NP-Ma        61.67   126.021  ! Seminario ferric, Fe-N-Cα through pyrrole (NP class) (mean of 4 instances)
+FO-NO-Ma        57.45   126.040  ! Seminario ferric, Fe-N-Cα through pyrrole (NO class) (mean of 4 instances)
+NO-Ma-Mb    142.28   109.99  ! QM-Seminario fe3 macrocycle (was Yang)
+NP-Ma-Mb    140.64   110.09  ! QM-Seminario fe3 macrocycle (was Yang)
+NO-Ma-Mc    151.31   124.99  ! QM-Seminario fe3 macrocycle (was Yang)
+NP-Ma-Mc    151.72   124.96  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-NP-Ma    147.26   106.67  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-NO-Ma    145.79   106.62  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mb-Mb    142.26   106.63  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mc-Ma    156.43   126.67  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-Ma-Mc    146.15   124.96  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mb-CT    129.90   125.60  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-Mb-CT    135.56   128.15  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mc-HC     63.37   116.66  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-CT-HC     69.94   111.44  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-Mb-Md    152.54   127.74  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-Md-HC     69.29   115.56  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-Md-Me    142.82   126.77  ! QM-Seminario fe3 macrocycle (was Yang)
+Md-Me-HC     65.08   121.67  ! QM-Seminario fe3 macrocycle (was Yang)
+Ma-Mb-Md    146.73   125.92  ! QM-Seminario fe3 macrocycle (was Yang)
+Me-Md-HC     65.63   117.66  ! QM-Seminario fe3 macrocycle (was Yang)
+Mb-CT-CT    63.000     114.000                         ! inherited: Yang 2016 HEB heme.prm
+HC-Me-HC     43.55   116.65  ! QM-Seminario fe3 macrocycle (was Yang)
+HC-CT-HC        35.00   109.500  ! inherited: ff14SB parm10.dat
+
+DIHE
+X -NO-FO-X    1       0.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -NP-FO-X    1       0.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -NO-Ma-X    4       5.700     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -NP-Ma-X    4       5.700     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -Ma-Mb-X    4       3.150     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -Mc-Ma-X    4       7.900     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -Mb-CT-X    1       0.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -Mb-Md-X    4       0.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -Md-Me-X    4      30.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -FO-SH-X    1       9.000     180.000       2.000  ! splice torsion, Shahrokh 2012 IC6.frcmod
+Ma-NP-FO-SH   1       2.400     180.000       2.000  ! α-pyrrole-N-Fe-S specific, Shahrokh 2012 IC6.frcmod (cc-nc-fe-SH)
+Mc-NO-FO-SH   1       2.400     180.000       2.000  ! α-pyrrole-N-Fe-S specific, Shahrokh 2012 IC6.frcmod (cd-nd-fe-SH)
+Ma-NP-FO-NP   1       1.600     180.000       2.000  ! α-pyrrole-N-Fe-N specific, Shahrokh 2012 IC6.frcmod (cc-nc-fe-nc)
+Mc-NO-FO-NO   1       1.600     180.000       2.000  ! α-pyrrole-N-Fe-N specific, Shahrokh 2012 IC6.frcmod (cd-nd-fe-nd)
+X -Mb-Mb-X    4      21.500     180.000       2.000    ! Yang 2016 HEB heme.prm (restored via fork)
+
+IMPROPER
+X -X -Ma-X    0       1.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -X -Mb-X    0       1.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -X -NP-X    0       1.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+X -X -NO-X    0       1.000     180.000       2.000    ! inherited: Yang 2016 HEB heme.prm
+
+NONBON
+  FO         1.2000  0.0500   ! NEW: Yang/Capece 2013 BBA
+  NP         1.8240  0.1700   ! NEW: Yang/Capece 2013 BBA (porphyrin N)
+  NO         1.8240  0.1700   ! NEW: Yang/Capece 2013 BBA (porphyrin N)
+  Me         1.9080  0.0860   ! FORKED from Yang's CX (vinyl Cβ); see MASS section
+  Md         1.9080  0.0860   ! NEW: Yang/Capece 2013 BBA (vinyl Cα); numerically matches ff14SB C* family
+  Mc         1.9080  0.0860   ! NEW: Yang/Capece 2013 BBA (meso bridge); numerically matches ff14SB C* family
+  Ma         1.9080  0.0860   ! REAFFIRM: ff14SB parm10.dat C* equivalence (pyrrole-α C)
+  Mb         1.9080  0.0860   ! REAFFIRM: ff14SB parm10.dat C* equivalence (pyrrole-β C)
+  CT         1.9080  0.1094   ! REAFFIRM: ff14SB parm10.dat MOD4 (Spellmeyer)
+  HC         1.4870  0.0157   ! REAFFIRM: ff14SB parm10.dat MOD4 (OPLS)
+  SH         2.0000  0.2500   ! REAFFIRM: ff14SB parm10.dat MOD4 (W. Cornell CH3SH FEP)
+

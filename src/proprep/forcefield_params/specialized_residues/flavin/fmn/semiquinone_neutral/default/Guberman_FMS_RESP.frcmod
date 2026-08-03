@@ -1,0 +1,224 @@
+Lean FMS frcmod (flavin/fmn/semiquinone_neutral). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c); phosphate forks (O3<-O2 / OD bridge) from source. Dihedrals = GAFF2-by-substitution, full multi-term. Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Da     14.010    0.530   [frag]
+Db     12.010    0.360   [frag]
+Dc     16.000    0.434   [frag]
+Dd     14.010    0.530   [frag]
+De      1.008    0.161   [frag]
+Df     12.010    0.616   [frag]
+Dg     16.000    0.434   [frag]
+Dh     12.010    0.360   [frag]
+Di     14.010    0.530   [frag]
+Dj      1.008    0.161   [frag]
+Dk     12.010    0.360   [frag]
+Dl     12.010    0.360   [frag]
+Dm      1.008    0.135   [frag]
+Dn     12.010    0.360   [frag]
+Do     12.010    0.878   [frag]
+Dp      1.008    0.135   [frag]
+Dq     12.010    0.360   [frag]
+Dr     12.010    0.878   [frag]
+Ds      1.008    0.135   [frag]
+Dt     12.010    0.360   [frag]
+Du      1.008    0.135   [frag]
+Dv     12.010    0.360   [frag]
+Dw     14.010    0.530   [frag]
+Dx     12.010    0.360   [frag]
+
+BOND
+Da-Db    300.79     1.3628   Seminario method [frag]
+Da-Dx    396.94     1.3312   Seminario method [frag]
+Db-Dc    620.85     1.2409   Seminario method [frag]
+Db-Dd    245.30     1.4080   Seminario method [frag]
+Dd-De    494.31     1.0153   Seminario method [frag]
+Dd-Df    328.75     1.3798   Seminario method [frag]
+Df-Dg    633.64     1.2431   Seminario method [frag]
+Df-Dh    266.24     1.4414   Seminario method [frag]
+Dh-Di    397.76     1.3638   Seminario method [frag]
+Dh-Dx    294.36     1.4168   Seminario method [frag]
+Di-Dj    485.11     1.0172   Seminario method [frag]
+Di-Dk    327.81     1.3766   Seminario method [frag]
+Dk-Dl    358.66     1.4025   Seminario method [frag]
+Dk-Dv    311.68     1.4169   Seminario method [frag]
+Dl-Dm    379.78     1.0871   Seminario method [frag]
+Dl-Dn    397.75     1.3909   Seminario method [frag]
+Dn-Do    238.78     1.5089   Seminario method [frag]
+Dn-Dq    316.76     1.4203   Seminario method [frag]
+Do-Dp    357.04     1.0938   Seminario method [frag]
+Dq-Dr    237.61     1.5088   Seminario method [frag]
+Dq-Dt    376.66     1.3979   Seminario method [frag]
+Dr-Ds    344.83     1.0976   Seminario method [frag]
+Dt-Du    390.05     1.0829   Seminario method [frag]
+Dt-Dv    357.11     1.4022   Seminario method [frag]
+Dv-Dw    283.01     1.4059   Seminario method [frag]
+Dw-Dx    288.60     1.3843   Seminario method [frag]
+Dw-c3    198.105     1.4724   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3    228.325     1.4278   [junction] seminario-0c (n=1)   xcof-mean
+
+ANGLE
+Da-Db-Dc    107.497    123.326   Seminario method [frag]
+Da-Db-Dd    164.002    118.570   Seminario method [frag]
+Da-Dx-Dh    146.850    123.167   Seminario method [frag]
+Da-Dx-Dw    156.150    119.163   Seminario method [frag]
+Db-Da-Dx    136.709    119.430   Seminario method [frag]
+Db-Dd-De     67.908    116.771   Seminario method [frag]
+Db-Dd-Df    209.115    125.740   Seminario method [frag]
+Dc-Db-Dd    119.800    118.104   Seminario method [frag]
+Dd-Df-Dg    130.565    123.062   Seminario method [frag]
+Dd-Df-Dh    178.060    113.197   Seminario method [frag]
+De-Dd-Df     69.539    117.488   Seminario method [frag]
+Df-Dh-Di    154.032    118.829   Seminario method [frag]
+Df-Dh-Dx    156.764    119.896   Seminario method [frag]
+Dg-Df-Dh    114.922    123.741   Seminario method [frag]
+Dh-Di-Dj     70.052    117.215   Seminario method [frag]
+Dh-Di-Dk    162.214    121.909   Seminario method [frag]
+Dh-Dx-Dw    176.189    117.669   Seminario method [frag]
+Di-Dh-Dx    161.294    121.275   Seminario method [frag]
+Di-Dk-Dl    167.583    121.411   Seminario method [frag]
+Di-Dk-Dv    166.482    118.161   Seminario method [frag]
+Dj-Di-Dk     70.869    120.874   Seminario method [frag]
+Dk-Dl-Dm     65.339    118.558   Seminario method [frag]
+Dk-Dl-Dn    179.588    121.331   Seminario method [frag]
+Dk-Dv-Dt    178.078    117.845   Seminario method [frag]
+Dk-Dv-Dw    171.335    119.942   Seminario method [frag]
+Dl-Dk-Dv    167.951    120.428   Seminario method [frag]
+Dl-Dn-Do    150.607    120.205   Seminario method [frag]
+Dl-Dn-Dq    196.989    118.765   Seminario method [frag]
+Dm-Dl-Dn     67.092    120.111   Seminario method [frag]
+Dn-Do-Dp     56.127    111.095   Seminario method [frag]
+Dn-Dq-Dr    153.489    120.655   Seminario method [frag]
+Dn-Dq-Dt    199.569    119.702   Seminario method [frag]
+Do-Dn-Dq    154.101    121.029   Seminario method [frag]
+Dp-Do-Dp     43.447    107.977   Seminario method [frag]
+Dq-Dr-Ds     70.048    111.374   Seminario method [frag]
+Dq-Dt-Du     65.932    118.293   Seminario method [frag]
+Dq-Dt-Dv    193.632    121.929   Seminario method [frag]
+Dr-Dq-Dt    151.439    119.642   Seminario method [frag]
+Ds-Dr-Ds     36.061    106.709   Seminario method [frag]
+Dt-Dv-Dw    183.334    122.213   Seminario method [frag]
+Du-Dt-Dv     65.493    119.778   Seminario method [frag]
+Dv-Dw-Dx    182.978    121.043   Seminario method [frag]
+Dv-Dw-c3    154.715    120.5350   [junction] seminario-0c (n=1)   xcof-mean
+Dw-c3-c3    127.250    113.2950   [junction] seminario-0c (n=1)   xcof-mean
+Dw-c3-h1     70.345    107.8050   [junction] seminario-0c (n=2)   xcof-mean
+Dx-Dw-c3    159.765    118.7000   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-c3    136.420    106.9890   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-h1     68.429    110.2730   [junction] seminario-0c (n=2)   xcof-mean
+P -OS-c3    117.200    119.6680   [junction] seminario-0c (n=1)   xcof-mean
+
+DIHE
+Dx-Da-Db-Dc  1     4.75000   180.000    2.000   [gaff2-sub] full <- cc-nc-cd-o
+Dx-Da-Db-Dd  1     4.75000   180.000    2.000   [gaff2-sub] full <- cc-nc-cd-ns
+Db-Da-Dx-Dw  1     4.75000   180.000    2.000   [gaff2-sub] full <- cd-nc-cc-na
+Db-Da-Dx-Dh  1     4.75000   180.000    2.000   [gaff2-sub] full <- cd-nc-cc-cd
+Da-Db-Dd-De  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Da-Db-Dd-Df  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Dc-Db-Dd-De  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Dc-Db-Dd-Df  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Db-Dd-Df-Dg  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Db-Dd-Df-Dh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+De-Dd-Df-Dg  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+De-Dd-Df-Dg  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+De-Dd-Df-Dh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Dd-Df-Dh-Di  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-na
+Dd-Df-Dh-Dx  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-cc
+Dg-Df-Dh-Di  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-na
+Dg-Df-Dh-Dx  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-cc
+Dx-Dh-Di-Dj  1     1.70000   180.000    2.000   [gaff2-sub] full <- cc-cd-na-hn
+Dx-Dh-Di-Dk  1     1.70000   180.000    2.000   [gaff2-sub] full <- cc-cd-na-ca
+Df-Dh-Di-Dj  1     1.70000   180.000    2.000   [gaff2-sub] full <- c-cd-na-hn
+Df-Dh-Di-Dk  1     1.70000   180.000    2.000   [gaff2-sub] full <- c-cd-na-ca
+Di-Dh-Dx-Da  1     4.00000   180.000    2.000   [gaff2-sub] full <- na-cd-cc-nc
+Di-Dh-Dx-Dw  1     4.00000   180.000    2.000   [gaff2-sub] full <- na-cd-cc-na
+Df-Dh-Dx-Da  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cc-nc
+Df-Dh-Dx-Dw  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cc-na
+Dj-Di-Dk-Dv  1     0.30000   180.000    2.000   [gaff2-sub] full <- hn-na-ca-ca
+Dj-Di-Dk-Dl  1     0.30000   180.000    2.000   [gaff2-sub] full <- hn-na-ca-ca
+Dh-Di-Dk-Dv  1     0.30000   180.000    2.000   [gaff2-sub] full <- cd-na-ca-ca
+Dh-Di-Dk-Dl  1     0.30000   180.000    2.000   [gaff2-sub] full <- cd-na-ca-ca
+Di-Dk-Dl-Dn  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ca
+Di-Dk-Dl-Dm  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ha
+Dv-Dk-Dl-Dn  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Dv-Dk-Dl-Dm  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Di-Dk-Dv-Dw  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-na
+Di-Dk-Dv-Dt  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ca
+Dl-Dk-Dv-Dw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Dl-Dk-Dv-Dt  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Dk-Dl-Dn-Do  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Dk-Dl-Dn-Dq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Dm-Dl-Dn-Do  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-c3
+Dm-Dl-Dn-Dq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Dl-Dn-Do-Dp  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Dq-Dn-Do-Dp  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Dl-Dn-Dq-Dr  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Dl-Dn-Dq-Dt  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Do-Dn-Dq-Dr  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-c3
+Do-Dn-Dq-Dt  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Dn-Dq-Dr-Ds  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Dt-Dq-Dr-Ds  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Dn-Dq-Dt-Dv  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Dn-Dq-Dt-Du  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Dr-Dq-Dt-Dv  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Dr-Dq-Dt-Du  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ha
+Du-Dt-Dv-Dk  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Du-Dt-Dv-Dw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-na
+Dq-Dt-Dv-Dk  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Dq-Dt-Dv-Dw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Dk-Dv-Dw-Dx  1     0.60300   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cc
+Dt-Dv-Dw-Dx  1     0.60300   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cc
+Dv-Dw-Dx-Da  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cc-nc
+Dv-Dw-Dx-Dh  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cc-cd
+Dk-Dv-Dw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Dt-Dv-Dw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Dv-Dw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-c3
+Dv-Dw-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-h1
+Dx-Dw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- cc-na-c3-c3
+Dx-Dw-c3-h1  1     0.00000   180.000    2.000   [gaff2-sub] full <- cc-na-c3-h1
+c3-Dw-Dx-Da  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cc-nc
+c3-Dw-Dx-Dh  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cc-cd
+P -OS-c3-c3  1     0.38300     0.000   -3.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-c3  1     3.95000   180.000    1.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-h1  1     0.21700     0.000    3.000   [base-FF sub] full <- h1-c3-os-p5
+
+IMPROPER
+Da-Dd-Db-Dc         1.1          180.0         2.0   [root: tleap-perceived]
+Dh-Dd-Df-Dg        10.5          180.0         2.0   [root: tleap-perceived]
+Df-Dx-Dh-Di         1.1          180.0         2.0   [root: tleap-perceived]
+Dl-Dv-Dk-Di         1.1          180.0         2.0   [root: tleap-perceived]
+Do-Dl-Dn-Dq         1.1          180.0         2.0   [root: tleap-perceived]
+Dr-Dn-Dq-Dt         1.1          180.0         2.0   [root: tleap-perceived]
+Dk-Dt-Dv-Dw         1.1          180.0         2.0   [root: tleap-perceived]
+c3-Dv-Dw-Dx         1.1          180.0         2.0   [root: tleap-perceived]
+Da-Dw-Dx-Dh         1.1          180.0         2.0   [root: tleap-perceived]
+Df-Db-Dd-De         1.1          180.0         2.0   [root: tleap-perceived]
+Dk-Dh-Di-Dj         1.1          180.0         2.0   [root: tleap-perceived]
+Dk-Dn-Dl-Dm         1.1          180.0         2.0   [root: tleap-perceived]
+Dq-Dv-Dt-Du         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Da      1.8993    0.0941   [LJ from nc]
+  Db      1.8606    0.0988   [LJ from cd]
+  Dc      1.7107    0.1463   [LJ from o]
+  Dd      1.8352    0.1174   [LJ from ns]
+  De      0.6210    0.0100   [LJ from hn]
+  Df      1.8606    0.0988   [LJ from c]
+  Dg      1.7107    0.1463   [LJ from o]
+  Dh      1.8606    0.0988   [LJ from cd]
+  Di      1.7992    0.2042   [LJ from na]
+  Dj      0.6210    0.0100   [LJ from hn]
+  Dk      1.8606    0.0988   [LJ from ca]
+  Dl      1.8606    0.0988   [LJ from ca]
+  Dm      1.4735    0.0161   [LJ from ha]
+  Dn      1.8606    0.0988   [LJ from ca]
+  Do      1.9069    0.1078   [LJ from c3]
+  Dp      1.4593    0.0208   [LJ from hc]
+  Dq      1.8606    0.0988   [LJ from ca]
+  Dr      1.9069    0.1078   [LJ from c3]
+  Ds      1.4593    0.0208   [LJ from hc]
+  Dt      1.8606    0.0988   [LJ from ca]
+  Du      1.4735    0.0161   [LJ from ha]
+  Dv      1.8606    0.0988   [LJ from ca]
+  Dw      1.7992    0.2042   [LJ from na]
+  Dx      1.8606    0.0988   [LJ from cc]
+

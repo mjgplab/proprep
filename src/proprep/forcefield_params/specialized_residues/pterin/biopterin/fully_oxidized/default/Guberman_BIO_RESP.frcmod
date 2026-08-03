@@ -1,0 +1,132 @@
+Lean BIO frcmod (pterin/biopterin/fully_oxidized). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c). Dihedrals = GAFF2-by-substitution, full multi-term (pterin ring-fusion from parm10-nucleic). Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Xa     14.010    0.530   [frag]
+Xc     12.010    0.360   [frag]
+Xe     12.010    0.360   [frag]
+Xf      1.008    0.135   [frag]
+Xi     14.010    0.530   [frag]
+Xk     12.010    0.878   [frag]
+Xl      1.008    0.135   [frag]
+Xm     16.000    0.465   [frag]
+Xn      1.008    0.135   [frag]
+Xo     12.010    0.878   [frag]
+Xp      1.008    0.135   [frag]
+Xq     12.010    0.878   [frag]
+Xr      1.008    0.135   [frag]
+Xs     16.000    0.465   [frag]
+Xt      1.008    0.135   [frag]
+
+BOND
+CB-Xa    372.60     1.3429   [junction] seminario-0c (n=1)
+CB-Xi    342.12     1.3583   [junction] seminario-0c (n=1)
+Xa-Xc    422.33     1.3267   Seminario method [frag]
+Xc-Xe    308.39     1.4175   Seminario method [frag]
+Xc-Xk    245.86     1.5134   Seminario method [frag]
+Xe-Xf    381.94     1.0875   Seminario method [frag]
+Xe-Xi    454.64     1.3235   Seminario method [frag]
+Xk-Xl    345.88     1.0972   Seminario method [frag]
+Xk-Xm    240.12     1.4356   Seminario method [frag]
+Xk-Xo    207.46     1.5451   Seminario method [frag]
+Xm-Xn    555.19     0.9707   Seminario method [frag]
+Xo-Xp    335.55     1.1000   Seminario method [frag]
+Xo-Xq    224.86     1.5279   Seminario method [frag]
+Xo-Xs    234.85     1.4357   Seminario method [frag]
+Xq-Xr    348.91     1.0968   Seminario method [frag]
+Xs-Xt    554.96     0.9709   Seminario method [frag]
+
+ANGLE
+C -CB-Xa    144.500    118.650   [junction] seminario-0c (n=1)
+CB-CB-Xa    166.230    122.610   [junction] seminario-0c (n=1)
+CB-CB-Xi    185.630    119.470   [junction] seminario-0c (n=1)
+CB-Xa-Xc    146.970    117.400   [junction] seminario-0c (n=1)
+CB-Xi-Xe    157.780    117.030   [junction] seminario-0c (n=1)
+NC-CB-Xi    150.950    116.870   [junction] seminario-0c (n=1)
+Xa-Xc-Xe    190.491    120.231   Seminario method [frag]
+Xa-Xc-Xk    162.480    118.461   Seminario method [frag]
+Xc-Xe-Xf     84.608    120.081   Seminario method [frag]
+Xc-Xe-Xi    184.787    123.253   Seminario method [frag]
+Xc-Xk-Xl     72.225    107.538   Seminario method [frag]
+Xc-Xk-Xm    170.829    106.711   Seminario method [frag]
+Xc-Xk-Xo    145.187    112.533   Seminario method [frag]
+Xe-Xc-Xk    204.541    121.304   Seminario method [frag]
+Xf-Xe-Xi     75.438    116.665   Seminario method [frag]
+Xk-Xm-Xn     63.027    108.986   Seminario method [frag]
+Xk-Xo-Xp     76.043    108.277   Seminario method [frag]
+Xk-Xo-Xq    143.877    112.805   Seminario method [frag]
+Xk-Xo-Xs    148.654    105.397   Seminario method [frag]
+Xl-Xk-Xm     78.718    110.609   Seminario method [frag]
+Xl-Xk-Xo     80.721    108.660   Seminario method [frag]
+Xm-Xk-Xo    119.998    110.744   Seminario method [frag]
+Xo-Xq-Xr     66.820    110.895   Seminario method [frag]
+Xo-Xs-Xt     60.888    108.531   Seminario method [frag]
+Xp-Xo-Xq     80.121    109.411   Seminario method [frag]
+Xp-Xo-Xs     70.440    109.532   Seminario method [frag]
+Xq-Xo-Xs    148.063    111.292   Seminario method [frag]
+Xr-Xq-Xr     45.712    109.084   Seminario method [frag]
+
+DIHE
+Xa-Xc-Xe-Xi  1     3.62500   180.000    2.000   [gaff2-sub] full <- nb-ca-ca-nb
+Xa-Xc-Xe-Xf  1     3.62500   180.000    2.000   [gaff2-sub] full <- nb-ca-ca-h4
+Xk-Xc-Xe-Xi  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-nb
+Xk-Xc-Xe-Xf  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-h4
+Xa-Xc-Xk-Xl  1     0.00000     0.000    2.000   [gaff2-sub] full <- nb-ca-c3-h1
+Xa-Xc-Xk-Xm  1     0.00000     0.000    2.000   [gaff2-sub] full <- nb-ca-c3-oh
+Xa-Xc-Xk-Xo  1     0.00000     0.000    2.000   [gaff2-sub] full <- nb-ca-c3-c3
+Xe-Xc-Xk-Xl  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-ca-c3-h1
+Xe-Xc-Xk-Xm  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-ca-c3-oh
+Xe-Xc-Xk-Xo  1     0.24500   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-c3
+Xl-Xk-Xm-Xn  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Xc-Xk-Xm-Xn  1     0.16667     0.000    3.000   [gaff2-sub] full <- ca-c3-oh-ho
+Xo-Xk-Xm-Xn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Xl-Xk-Xo-Xq  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-c3
+Xl-Xk-Xo-Xs  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Xl-Xk-Xo-Xs  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Xl-Xk-Xo-Xp  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-h1
+Xc-Xk-Xo-Xq  1     0.15556     0.000    3.000   [gaff2-sub] full <- ca-c3-c3-c3
+Xc-Xk-Xo-Xs  1     0.15556     0.000    3.000   [gaff2-sub] full <- ca-c3-c3-oh
+Xc-Xk-Xo-Xp  1     0.15556     0.000    3.000   [gaff2-sub] full <- ca-c3-c3-h1
+Xm-Xk-Xo-Xq  1     0.21000     0.000    3.000   [gaff2-sub] full <- oh-c3-c3-c3
+Xm-Xk-Xo-Xs  1     0.90000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-oh
+Xm-Xk-Xo-Xs  1     1.13000     0.000    2.000   [gaff2-sub] full <- oh-c3-c3-oh
+Xm-Xk-Xo-Xp  1     0.00000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-h1
+Xm-Xk-Xo-Xp  1     0.25000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-h1
+Xs-Xo-Xq-Xr  1     0.18000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-hc
+Xs-Xo-Xq-Xr  1     0.51000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-hc
+Xp-Xo-Xq-Xr  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-hc
+Xk-Xo-Xq-Xr  1     0.08000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-hc
+Xq-Xo-Xs-Xt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Xp-Xo-Xs-Xt  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Xk-Xo-Xs-Xt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+C -CB-Xa-Xc  1     4.15000   180.000    2.000   [parm10-nucleic-sub] full <- C-CB-NC-CA
+CB-CB-Xa-Xc  1     4.15000   180.000    2.000   [parm10-nucleic-sub] full <- CB-CB-NC-CA
+CB-CB-Xi-Xe  1     4.15000   180.000    2.000   [parm10-nucleic-sub] full <- CB-CB-NC-CA
+CB-Xa-Xc-Xe  1     4.80000   180.000    2.000   [gaff2-sub] full <- CB-nb-ca-ca
+CB-Xa-Xc-Xk  1     4.80000   180.000    2.000   [gaff2-sub] full <- CB-nb-ca-c3
+CB-Xi-Xe-Xc  1     4.80000   180.000    2.000   [gaff2-sub] full <- CB-nb-ca-ca
+CB-Xi-Xe-Xf  1     4.80000   180.000    2.000   [gaff2-sub] full <- CB-nb-ca-h4
+NC-CB-Xi-Xe  1     4.15000   180.000    2.000   [parm10-nucleic-sub] full <- NC-CB-NC-CA
+
+IMPROPER
+C -CB-CB-Xa         1.1          180.0         2.0   [root: tleap-perceived]
+CB-NC-CB-Xi         1.1          180.0         2.0   [root: tleap-perceived]
+Xk-Xe-Xc-Xa         1.1          180.0         2.0   [root: tleap-perceived]
+Xc-Xf-Xe-Xi         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Xa      1.8993    0.0941   [LJ from nb]
+  Xc      1.8606    0.0988   [LJ from ca]
+  Xe      1.8606    0.0988   [LJ from ca]
+  Xf      1.4235    0.0161   [LJ from h4]
+  Xi      1.8993    0.0941   [LJ from nb]
+  Xk      1.9069    0.1078   [LJ from c3]
+  Xl      1.3593    0.0208   [LJ from h1]
+  Xm      1.8200    0.0930   [LJ from oh]
+  Xn      0.3019    0.0047   [LJ from ho]
+  Xo      1.9069    0.1078   [LJ from c3]
+  Xp      1.3593    0.0208   [LJ from h1]
+  Xq      1.9069    0.1078   [LJ from c3]
+  Xr      1.4593    0.0208   [LJ from hc]
+  Xs      1.8200    0.0930   [LJ from oh]
+  Xt      0.3019    0.0047   [LJ from ho]
+

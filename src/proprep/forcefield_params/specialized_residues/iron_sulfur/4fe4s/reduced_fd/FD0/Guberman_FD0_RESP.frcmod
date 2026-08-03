@@ -1,0 +1,33 @@
+REMARK Averaged Fe4S4 parameters, Fd_red [Fe4S4]^+: BOND/ANGL = arithmetic mean across 6 BS guesses; CHARGES from MC + group-equivalence RESP (in .lib). State-distinct atom types FD/SD/GD.
+MASS
+FD 55.85                            Fe (state-specific, averaged across 4 Fe)
+SD 32.06         2.900              bridging sulfide (state-specific, averaged)
+GD 32.06         2.900              Cys SG (state-specific, averaged)
+
+BOND
+CT-GD   237.00   1.8100   avg over 24 (sd k=0.00)
+FD-SD    43.20   2.4291   avg over 72 (sd k=17.25)
+FD-GD    68.00   2.3362   avg over 24 (sd k=3.11)
+
+ANGL
+CT-GD-FD    47.74    100.56   avg over 24 (sd k=12.50)
+CX-CT-GD    50.00    108.60   avg over 24 (sd k=0.00)
+FD-SD-FD    29.36     75.76   avg over 72 (sd k=11.33)
+H1-CT-GD    50.00    109.50   avg over 24 (sd k=0.00)
+SD-FD-SD    35.95    102.27   avg over 72 (sd k=9.75)
+SD-FD-GD    30.64    115.60   avg over 72 (sd k=7.70)
+
+DIHE
+CT-GD-FD-SD    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+CX-CT-GD-FD    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FD-SD-FD-SD    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FD-SD-FD-GD    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FD-GD-CT-H1    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+
+IMPR
+
+NONB
+  FD        1.4033  0.0163002425  Composition-weighted Fe2+/Fe3+ TIP3P IOD (frac Fe3+ = 0.25; Li JCTC 2021/2020)
+  SD          2.0000  0.2500        bridging S (W. Cornell defaults)
+  GD          2.0000  0.2500        Cys SG (W. Cornell defaults)
+

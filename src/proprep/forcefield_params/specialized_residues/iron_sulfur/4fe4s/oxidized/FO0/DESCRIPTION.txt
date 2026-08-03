@@ -1,0 +1,40 @@
+# Averaged Fe4S4 parameters (2-stage joint MC+equiv RESP), HiPIP_ox [Fe4S4]^3+
+
+Cluster residue: FO0
+Averaged Cys ligand residue: CXO
+Atom types: FS (Fe), SB (bridging S), SC (Cys SG)
+All 4 Fe / 4 bridging S / 4 Cys SG are point-charge identical.
+
+Cluster atom RESP charges (2-stage joint multi-conformer + group-equivalence RESP):
+  FS (Fe):           +0.714634
+  SB (bridging S):   -0.569487
+  SC (Cys SG):       -0.556109
+  [2026-07-06 METHOD CORRECTION: the original deposit used a non-standard single-stage
+   fit with the CM hydrogens free, giving inequivalent HB2!=HB3. Rebuilt with the
+   standard 2-stage RESP protocol (same as per-guess FO1-6) run jointly with core
+   equivalencing, so HB2=HB3. Oxidized had NO BS collapse; only the method changed.
+   Pre-switch FS/SB/SC were +0.70783/-0.56465/-0.55302. See ../../methods.md 3.1/4.
+   Backup: Guberman_FO0_RESP.lib.bak_pre_2stage.]
+
+Averaged CM atom charges (per atom name, mean of 24 instances = 4 Cys * 6 BS conformers):
+  N      -0.415700  (backbone: ff14SB CYM canonical, RESP-constrained)
+  H      +0.271900  (backbone: ff14SB CYM canonical, RESP-constrained)
+  CA     -0.035100  (backbone: ff14SB CYM canonical, RESP-constrained)
+  HA     +0.050800  (backbone: ff14SB CYM canonical, RESP-constrained)
+  CB     +0.293029  (2-stage joint fit; deposited single-stage was +0.29738)
+  HB2    -0.016684  (equivalenced HB2=HB3; deposited split was -0.01265)
+  HB3    -0.016684  (equivalenced HB2=HB3; deposited split was -0.02618)
+  SG     -0.556109  (= SC; deposited was -0.55302)
+  C      +0.597300  (backbone: ff14SB CYM canonical, RESP-constrained)
+  O      -0.567900  (backbone: ff14SB CYM canonical, RESP-constrained)
+
+Note: HB2 = HB3 (methylene equivalence from RESP stage 2), consistent with every
+per-guess FO1-6 set.
+
+Charge balance: cluster_resname + 4 * CM_resname totals = -1.000004 e (matches the
+original deposit's rounding; ~4e-6 from mean rounding, well within tolerance).
+
+Bond/angle parameters: arithmetic mean across BS guesses (from `average_parameters.py`).
+Charges: standard 2-stage RESP (stage 1 qwt=0.0005 all free; stage 2 qwt=0.001 iqopt=2,
+heavy atoms frozen, methylene HB2=HB3 equivalenced) applied jointly over all 6 BS
+conformers with FS/SB/SC group equivalence across all conformers.

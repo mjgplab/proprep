@@ -1,0 +1,215 @@
+Lean FMR frcmod (flavin/fmn/semiquinone_anionic). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c); phosphate forks (O3<-O2 / OD bridge) from source. Dihedrals = GAFF2-by-substitution, full multi-term. Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Ea     14.010    0.530   [frag]
+Eb     12.010    0.616   [frag]
+Ec     16.000    0.434   [frag]
+Ed     14.010    0.530   [frag]
+Ee      1.008    0.161   [frag]
+Ef     12.010    0.616   [frag]
+Eg     16.000    0.434   [frag]
+Eh     12.010    0.360   [frag]
+Ei     14.010    0.530   [frag]
+Ek     12.010    0.360   [frag]
+El     12.010    0.360   [frag]
+Em      1.008    0.135   [frag]
+En     12.010    0.360   [frag]
+Eo     12.010    0.878   [frag]
+Ep      1.008    0.135   [frag]
+Eq     12.010    0.360   [frag]
+Er     12.010    0.878   [frag]
+Es      1.008    0.135   [frag]
+Et     12.010    0.360   [frag]
+Eu      1.008    0.135   [frag]
+Ev     12.010    0.360   [frag]
+Ew     14.010    0.530   [frag]
+Ex     12.010    0.360   [frag]
+
+BOND
+Ea-Eb    320.84     1.3544   Seminario method [frag]
+Ea-Ex    371.48     1.3423   Seminario method [frag]
+Eb-Ec    574.41     1.2518   Seminario method [frag]
+Eb-Ed    256.70     1.3971   Seminario method [frag]
+Ed-Ee    493.74     1.0147   Seminario method [frag]
+Ed-Ef    299.26     1.3923   Seminario method [frag]
+Ef-Eg    601.56     1.2487   Seminario method [frag]
+Ef-Eh    236.54     1.4491   Seminario method [frag]
+Eh-Ei    337.77     1.3639   Seminario method [frag]
+Eh-Ex    264.53     1.4250   Seminario method [frag]
+Ei-Ek    307.14     1.3627   Seminario method [frag]
+Ek-El    337.51     1.4164   Seminario method [frag]
+Ek-Ev    282.15     1.4275   Seminario method [frag]
+El-Em    375.26     1.0878   Seminario method [frag]
+El-En    390.66     1.3920   Seminario method [frag]
+En-Eo    235.39     1.5118   Seminario method [frag]
+En-Eq    318.08     1.4174   Seminario method [frag]
+Eo-Ep    353.72     1.0946   Seminario method [frag]
+Eq-Er    235.46     1.5106   Seminario method [frag]
+Eq-Et    361.08     1.4033   Seminario method [frag]
+Er-Es    341.07     1.0985   Seminario method [frag]
+Et-Eu    383.31     1.0843   Seminario method [frag]
+Et-Ev    363.14     1.4004   Seminario method [frag]
+Ev-Ew    285.35     1.4056   Seminario method [frag]
+Ew-Ex    288.08     1.3872   Seminario method [frag]
+Ew-c3    207.685     1.4671   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3    228.325     1.4278   [junction] seminario-0c (n=1)   xcof-mean
+
+ANGLE
+Ea-Eb-Ec    111.325    123.569   Seminario method [frag]
+Ea-Eb-Ed    163.910    118.086   Seminario method [frag]
+Ea-Ex-Eh    146.749    125.303   Seminario method [frag]
+Ea-Ex-Ew    158.718    117.264   Seminario method [frag]
+Eb-Ea-Ex    142.392    119.058   Seminario method [frag]
+Eb-Ed-Ee     67.428    116.905   Seminario method [frag]
+Eb-Ed-Ef    204.646    126.442   Seminario method [frag]
+Ec-Eb-Ed    121.980    118.345   Seminario method [frag]
+Ed-Ef-Eg    124.353    119.469   Seminario method [frag]
+Ed-Ef-Eh    162.785    114.229   Seminario method [frag]
+Ee-Ed-Ef     69.294    116.653   Seminario method [frag]
+Ef-Eh-Ei    123.501    118.630   Seminario method [frag]
+Ef-Eh-Ex    141.238    116.881   Seminario method [frag]
+Eg-Ef-Eh    104.964    126.302   Seminario method [frag]
+Eh-Ei-Ek    121.607    116.601   Seminario method [frag]
+Eh-Ex-Ew    166.738    117.433   Seminario method [frag]
+Ei-Eh-Ex    132.807    124.488   Seminario method [frag]
+Ei-Ek-El    148.506    119.464   Seminario method [frag]
+Ei-Ek-Ev    138.925    122.953   Seminario method [frag]
+Ek-El-Em     64.539    116.936   Seminario method [frag]
+Ek-El-En    186.504    122.971   Seminario method [frag]
+Ek-Ev-Et    174.415    119.486   Seminario method [frag]
+Ek-Ev-Ew    160.268    118.381   Seminario method [frag]
+El-Ek-Ev    165.428    117.584   Seminario method [frag]
+El-En-Eo    150.471    120.304   Seminario method [frag]
+El-En-Eq    199.835    118.796   Seminario method [frag]
+Em-El-En     65.564    120.093   Seminario method [frag]
+En-Eo-Ep     55.576    110.996   Seminario method [frag]
+En-Eq-Er    153.331    121.018   Seminario method [frag]
+En-Eq-Et    199.091    119.216   Seminario method [frag]
+Eo-En-Eq    153.453    120.900   Seminario method [frag]
+Ep-Eo-Ep     42.833    107.808   Seminario method [frag]
+Eq-Er-Es     70.320    111.734   Seminario method [frag]
+Eq-Et-Eu     65.941    118.052   Seminario method [frag]
+Eq-Et-Ev    197.239    121.948   Seminario method [frag]
+Er-Eq-Et    149.913    119.765   Seminario method [frag]
+Es-Er-Es     38.413    106.520   Seminario method [frag]
+Et-Ev-Ew    182.781    122.133   Seminario method [frag]
+Eu-Et-Ev     66.283    120.000   Seminario method [frag]
+Ev-Ew-Ex    174.745    120.143   Seminario method [frag]
+Ev-Ew-c3    151.655    120.6050   [junction] seminario-0c (n=1)   xcof-mean
+Ew-c3-c3    126.815    113.7850   [junction] seminario-0c (n=1)   xcof-mean
+Ew-c3-h1     69.125    108.0100   [junction] seminario-0c (n=2)   xcof-mean
+Ex-Ew-c3    158.875    119.5150   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-c3    136.420    106.9890   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-h1     68.429    110.2730   [junction] seminario-0c (n=2)   xcof-mean
+P -OS-c3    117.200    119.6680   [junction] seminario-0c (n=1)   xcof-mean
+
+DIHE
+Ex-Ea-Eb-Ec  1     4.00000   180.000    2.000   [gaff2-sub] full <- cd-nc-c-o
+Ex-Ea-Eb-Ed  1     4.00000   180.000    2.000   [gaff2-sub] full <- cd-nc-c-ns
+Eb-Ea-Ex-Ew  1     4.75000   180.000    2.000   [gaff2-sub] full <- c-nc-cd-na
+Eb-Ea-Ex-Eh  1     4.75000   180.000    2.000   [gaff2-sub] full <- c-nc-cd-cd
+Ea-Eb-Ed-Ee  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ea-Eb-Ed-Ef  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ec-Eb-Ed-Ee  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Ec-Eb-Ed-Ee  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Ec-Eb-Ed-Ef  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Eb-Ed-Ef-Eg  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Eb-Ed-Ef-Eh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ee-Ed-Ef-Eg  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Ee-Ed-Ef-Eg  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Ee-Ed-Ef-Eh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ed-Ef-Eh-Ei  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-nc
+Ed-Ef-Eh-Ex  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-cd
+Eg-Ef-Eh-Ei  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-nc
+Eg-Ef-Eh-Ex  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-cd
+Ex-Eh-Ei-Ek  1     4.75000   180.000    2.000   [gaff2-sub] full <- cd-cd-nc-ca
+Ef-Eh-Ei-Ek  1     4.75000   180.000    2.000   [gaff2-sub] full <- c-cd-nc-ca
+Ei-Eh-Ex-Ea  1     4.00000   180.000    2.000   [gaff2-sub] full <- nc-cd-cd-nc
+Ei-Eh-Ex-Ew  1     4.00000   180.000    2.000   [gaff2-sub] full <- nc-cd-cd-na
+Ef-Eh-Ex-Ea  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cd-nc
+Ef-Eh-Ex-Ew  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cd-na
+Eh-Ei-Ek-Ev  1     4.80000   180.000    2.000   [gaff2-sub] full <- cd-nc-ca-ca
+Eh-Ei-Ek-El  1     4.80000   180.000    2.000   [gaff2-sub] full <- cd-nc-ca-ca
+Ei-Ek-El-En  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-ca
+Ei-Ek-El-Em  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-ha
+Ev-Ek-El-En  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Ev-Ek-El-Em  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Ei-Ek-Ev-Ew  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-na
+Ei-Ek-Ev-Et  1     3.62500   180.000    2.000   [gaff2-sub] full <- nc-ca-ca-ca
+El-Ek-Ev-Ew  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+El-Ek-Ev-Et  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Ek-El-En-Eo  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Ek-El-En-Eq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Em-El-En-Eo  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-c3
+Em-El-En-Eq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+El-En-Eo-Ep  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Eq-En-Eo-Ep  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+El-En-Eq-Er  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+El-En-Eq-Et  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Eo-En-Eq-Er  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-c3
+Eo-En-Eq-Et  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+En-Eq-Er-Es  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Et-Eq-Er-Es  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+En-Eq-Et-Ev  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+En-Eq-Et-Eu  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Er-Eq-Et-Ev  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Er-Eq-Et-Eu  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ha
+Eu-Et-Ev-Ek  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Eu-Et-Ev-Ew  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-na
+Eq-Et-Ev-Ek  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Eq-Et-Ev-Ew  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Ek-Ev-Ew-Ex  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cd
+Et-Ev-Ew-Ex  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cd
+Ev-Ew-Ex-Ea  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cd-nc
+Ev-Ew-Ex-Eh  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cd-cd
+Ek-Ev-Ew-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Et-Ev-Ew-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Ev-Ew-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-c3
+Ev-Ew-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-h1
+Ex-Ew-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- cd-na-c3-c3
+Ex-Ew-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- cd-na-c3-h1
+c3-Ew-Ex-Ea  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cd-nc
+c3-Ew-Ex-Eh  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cd-cd
+P -OS-c3-c3  1     0.38300     0.000   -3.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-c3  1     3.95000   180.000    1.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-h1  1     0.21700     0.000    3.000   [base-FF sub] full <- h1-c3-os-p5
+
+IMPROPER
+Ea-Ed-Eb-Ec        10.5          180.0         2.0   [root: tleap-perceived]
+Eh-Ed-Ef-Eg        10.5          180.0         2.0   [root: tleap-perceived]
+Ef-Ex-Eh-Ei         1.1          180.0         2.0   [root: tleap-perceived]
+El-Ev-Ek-Ei         1.1          180.0         2.0   [root: tleap-perceived]
+Eo-El-En-Eq         1.1          180.0         2.0   [root: tleap-perceived]
+Er-En-Eq-Et         1.1          180.0         2.0   [root: tleap-perceived]
+Ek-Et-Ev-Ew         1.1          180.0         2.0   [root: tleap-perceived]
+c3-Ev-Ew-Ex         1.1          180.0         2.0   [root: tleap-perceived]
+Ea-Ew-Ex-Eh         1.1          180.0         2.0   [root: tleap-perceived]
+Eb-Ef-Ed-Ee         1.1          180.0         2.0   [root: tleap-perceived]
+Ek-En-El-Em         1.1          180.0         2.0   [root: tleap-perceived]
+Eq-Ev-Et-Eu         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Ea      1.8993    0.0941   [LJ from nc]
+  Eb      1.8606    0.0988   [LJ from c]
+  Ec      1.7107    0.1463   [LJ from o]
+  Ed      1.8352    0.1174   [LJ from ns]
+  Ee      0.6210    0.0100   [LJ from hn]
+  Ef      1.8606    0.0988   [LJ from c]
+  Eg      1.7107    0.1463   [LJ from o]
+  Eh      1.8606    0.0988   [LJ from cd]
+  Ei      1.8993    0.0941   [LJ from nc]
+  Ek      1.8606    0.0988   [LJ from ca]
+  El      1.8606    0.0988   [LJ from ca]
+  Em      1.4735    0.0161   [LJ from ha]
+  En      1.8606    0.0988   [LJ from ca]
+  Eo      1.9069    0.1078   [LJ from c3]
+  Ep      1.4593    0.0208   [LJ from hc]
+  Eq      1.8606    0.0988   [LJ from ca]
+  Er      1.9069    0.1078   [LJ from c3]
+  Es      1.4593    0.0208   [LJ from hc]
+  Et      1.8606    0.0988   [LJ from ca]
+  Eu      1.4735    0.0161   [LJ from ha]
+  Ev      1.8606    0.0988   [LJ from ca]
+  Ew      1.7992    0.2042   [LJ from na]
+  Ex      1.8606    0.0988   [LJ from cd]
+

@@ -1,0 +1,51 @@
+! TEMPLATE: Unrestrained Settle
+! DESCRIPTION: Fully released NPT settle at 310 K for 1 ns, no restraints, Berendsen barostat, 2 fs step. Run on GPU (pmemd.cuda).
+! TYPE: equilibration
+! PRIORITY: 8
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Staged equilibration at physiological temperature (310 K) for solvated metalloprotein/cofactor systems. Basic skeleton + heavy-atom restraint mask and graduated restraint release.
+
+Final equilibration stage with all positional restraints removed (ntr=0). NPT at 310 K and 1 atm for 1 ns lets the fully released system settle before production. The timestep increases to 2 fs now that the stiff restraint forces are gone. Still uses the fast equilibration thermostat (gamma_ln=5) and the smooth Berendsen barostat. Engine: GPU (pmemd.cuda).
+
+&cntrl
+! Run Control
+  imin = 0,			! Molecular dynamics (0=MD, 1=minimization)
+  nstlim = 500000,		! Total MD steps (1 ns at 2 fs)
+  dt = 0.002,			! 0.002 ps time step (2 fs) -- restraints released, SHAKE permits 2 fs
+
+! Input_Output Control
+  ntx = 5,			! Read coordinates and velocities (restart)
+  irest = 1,			! Restart simulation (0 = start, 1 = restart)
+  ntpr = 10000,			! Every ntpr steps, print human-readable energy info
+  ntwx = 10000,			! Every ntwx steps, print coordinates to mdcrd file
+  ntwr = 10000,			! Every ntwr steps, print coordinates to restart file
+  ioutfm = 1,			! NetCDF binary trajectory format (compact, portable)
+
+! Restraints
+  ntr = 0,			! No positional restraints -- system fully released
+
+! Temperature Control
+  ntt = 3,			! Langevin thermostat (0=none, 1=Berendsen, 2=Anderson, 3=Langevin)
+  gamma_ln = 5.0,		! Collision frequency (1/ps) -- fast thermalization during equilibration
+  ig = -1,			! Random seed from wall clock (ensures unique trajectory per run)
+  temp0 = 310.0,		! Target temperature (K) -- physiological / turnover condition
+
+! Pressure Control
+  ntp = 1,			! Isotropic pressure coupling (0=none, 1=isotropic, 2=anisotropic)
+  barostat = 1,			! Berendsen barostat (1=Berendsen, 2=Monte Carlo) -- smooth final settle
+  pres0 = 1.0,			! Reference pressure (bar)
+  taup = 1.0,			! Pressure relaxation time (ps)
+
+! Miscellaneous
+  cut = 10.0,			! Nonbonded interaction cutoff (Angstroms)
+  nscm = 100,			! Remove center-of-mass translation every 100 steps
+
+! Periodic Boundary Conditions
+  ntb = 2,			! Periodic boundaries, constant pressure
+  iwrap = 0,			! Do not wrap coordinates
+
+! SHAKE
+  ntc = 2,			! SHAKE constraints on bonds involving hydrogen
+  ntf = 2,			! Omit bond forces for SHAKE-constrained bonds
+/

@@ -1,0 +1,12 @@
+Cluster residue: FO4
+Cys ligand residues: C13, C14, C15, C16
+State: oxidized
+Source guess: guess2b
+State letter: E
+Atom types: E1-E4 (Fe), E5-E8 (bridging S), EA-ED (Cys SG)
+
+Per-Fe formal state (BS layer assignment from spin populations):
+  E1 (Fe1): mv        Rmin/2 = 1.3975, eps = 0.015390
+  E2 (Fe2): ferric    Rmin/2 = 1.3860, eps = 0.013571
+  E3 (Fe3): mv        Rmin/2 = 1.3975, eps = 0.015390
+  E4 (Fe4): ferric    Rmin/2 = 1.3860, eps = 0.013571

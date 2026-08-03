@@ -1,0 +1,5 @@
+source leaprc.constph
+bpti = loadpdb 5pti_as4.pdb
+charge bpti
+saveamberparm bpti bpti.prmtop bpti.rst7
+quit

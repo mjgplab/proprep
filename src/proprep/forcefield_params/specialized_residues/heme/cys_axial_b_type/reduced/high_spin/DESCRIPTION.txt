@@ -1,0 +1,51 @@
+NOS oxygenase-domain heme — ferrous (Fe²⁺, S=2, one-electron reduced).
+
+This set covers the heme + proximal Cys415 (rat nNOS) thiolate-ligated
+oxygenase-domain b-type heme. Parameters fit specifically for the
+substrate (L-Arg)-bound active-site geometry; force constants are
+calibrated to that conformational basin.
+
+Residues:
+    HTR  — heme cofactor (Fe + porphyrin macrocycle; 33 heavy + 22 H)
+    CTR  — proximal Cys415 thiolate (10 atoms; ff14SB-compatible backbone)
+
+Method: Yang 2016 HEB macrocycle + Seminario Fe-shell from B3LYP/[LANL2DZ+6-31G(d)]
+QM Hessian; Shahrokh 2012 IC6 Cys-axial-specific dihedrals (published P450
+Cys-axial values, applicable to NOS without modification). Yang/Capece 2013
+BBA Fe Lennard-Jones (1.20 Å, 0.05 kcal/mol).
+
+State-distinguishing parameters (vs ferric):
+    Fe-N    2.15–2.16 Å  (vs 2.08–2.10 Å ferric)  — HS Fe(III)→HS Fe(II) shift
+    Fe-S    2.45 Å       (vs 2.36 Å ferric)
+    Heme.FE charge  +0.520 (vs +0.727 ferric)
+    Cys.SG charge   −0.523 (vs −0.387 ferric)
+
+Cross-residue bonds the transformer must emit:
+    bond <HTR_resi>.FE <CTR_resi>.SG      ! Fe-S coordination
+    bond <HTR_resi>.C2A <PRN_A_resi>.CA   ! propionate A attachment
+    bond <HTR_resi>.C3D <PRN_D_resi>.CA   ! propionate D attachment
+
+Net charge: HTR + CTR + 2 PRN = −1 e (Fe²⁺ + porph²⁻ + Cys-thiolate, plus
+propionates handled by constph PRN). tleap will report one expected
+"unit charge −1.0 is not zero" warning.
+
+Limitations: same as the ferric set; see oxidized/default/DESCRIPTION.txt
+and docs/nos_heme_methodology.md.
+
+# --- 2026-05-27 macrocycle atom-type fork (value-neutral) ---
+# Macrocycle carbons forked off standard/cofactor-colliding names so this set is
+# safe to load with protein FF + flavin/nicotinamide/pterin/Zn in one NOS session:
+#   CC->Ma  Cp->Mb  CD->Mc  CY->Md  VB->Me  (charges/bonded/vdW unchanged).
+# Kept FO/FR,NP/NO (already custom) and CT/HC/SH (standard, value-identical).
+
+# --- 2026-05-27 QM-Seminario macrocycle + full per-state fork ---
+# Macrocycle BOND/ANGLE replaced by this state's QM-Seminario values (was Yang 2016).
+# Ferrous heme fully forked to its own types (FR,Mu,Mv,Mp-Mt) so a NOS homodimer can
+# hold the two oxygenase hemes in DIFFERENT redox states in one tleap session.
+# Fe-shell (per-state Seminario), Cys-axial torsions (Shahrokh), planarity impropers
+# + vdW (Yang/ff14SB) unchanged in value; CT/HC/SH stay standard.
+
+# --- 2026-05-27 option-2' charge refinement ---
+# Proximal-Cys methylene (Cβ, HB2, HB3) pinned state-invariant (Cβ=-0.136, HB=+0.108) so the
+# Fe-S redox response sits on Sγ (the Fe-bonded atom), not the buried ESP-ill-determined Cβ.
+# Backbone already pinned to ff14SB CYM; net charge unchanged (0 ferric / -1 ferrous).

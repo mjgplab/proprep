@@ -1,0 +1,30 @@
+{
+  "name": "NPT Equilibration",
+  "description": "Pressure Equilibration Stage at 300K",
+  "simulation_type": "equilibration",
+  "config": {
+    "imin": 0,
+    "ntx": 5,
+    "irest": 1,
+    "nstlim": 100000,
+    "dt": 0.002,
+    "ntt": 3,
+    "temp0": 300.0,
+    "gamma_ln": 2.0,
+    "ntp": 1,
+    "pres0": 1.0,
+    "barostat": 2,
+    "ntb": 2,
+    "ntc": 2,
+    "ntf": 2,
+    "cut": 10.0,
+    "ntr": 1,
+    "restraint_wt": 1.0,
+    "restraintmask": "!@H=",
+    "ntpr": 1000,
+    "ntwx": 1000,
+    "ntwr": 5000,
+    "ntxo": 2,
+    "ioutfm": 1
+  }
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ProPrep Web Shell</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">ProPrep</span>
+    <span class="subtitle">Web Shell</span>
+    <span class="grow"></span>
+    <button id="detach-btn" class="topbtn" type="button"
+            title="Open the structure viewer in a separate window so the terminal pane gets full width">
+      Detach viewer
+    </button>
+    <span id="status" class="status">connecting&hellip;</span>
+  </header>
+  <main class="layout" id="layout">
+    <section class="pane pane-term" aria-label="Terminal">
+      <div id="term" class="term-host"></div>
+    </section>
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"
+         aria-label="Resize terminal pane" tabindex="0"></div>
+    <section class="pane pane-viewer" aria-label="Structure Viewer">
+      <div class="viewer-placeholder" id="viewer-placeholder">
+        <h2>Structure Viewer</h2>
+        <p>Launch the Interactive Structure Viewer from the CLI.<br>
+           It will appear here automatically.</p>
+      </div>
+      <iframe id="viewer-frame" class="viewer-frame" hidden
+              title="ProPrep Structure Viewer"
+              referrerpolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin"></iframe>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

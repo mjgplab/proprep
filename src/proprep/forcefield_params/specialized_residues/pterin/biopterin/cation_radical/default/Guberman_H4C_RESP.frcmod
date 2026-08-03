@@ -1,0 +1,179 @@
+Lean H4C frcmod (pterin/biopterin/cation_radical). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c). Dihedrals = GAFF2-by-substitution, full multi-term (pterin ring-fusion from parm10-nucleic). Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Ta     14.010    0.530   [frag]
+Tb      1.008    0.161   [frag]
+Tc     12.010    0.878   [frag]
+Td      1.008    0.135   [frag]
+Te     12.010    0.878   [frag]
+Tg      1.008    0.135   [frag]
+Th      1.008    0.135   [frag]
+Ti     14.010    0.530   [frag]
+Tj      1.008    0.161   [frag]
+Tk     12.010    0.878   [frag]
+Tl      1.008    0.135   [frag]
+Tm     16.000    0.465   [frag]
+Tn      1.008    0.135   [frag]
+To     12.010    0.878   [frag]
+Tp      1.008    0.135   [frag]
+Tq     12.010    0.878   [frag]
+Tr      1.008    0.135   [frag]
+Ts     16.000    0.465   [frag]
+Tt      1.008    0.135   [frag]
+
+BOND
+CB-Ta    476.14     1.3419   [junction] seminario-0c (n=1)
+CB-Ti    450.01     1.3385   [junction] seminario-0c (n=1)
+Ta-Tb    486.05     1.0177   Seminario method [frag]
+Ta-Tc    223.61     1.4687   Seminario method [frag]
+Tc-Td    348.94     1.0961   Seminario method [frag]
+Tc-Te    222.94     1.5351   Seminario method [frag]
+Tc-Tk    202.59     1.5384   Seminario method [frag]
+Te-Tg    370.30     1.0906   Seminario method [frag]
+Te-Th    352.96     1.0956   Seminario method [frag]
+Te-Ti    241.30     1.4660   Seminario method [frag]
+Ti-Tj    496.87     1.0148   Seminario method [frag]
+Tk-Tl    338.76     1.0996   Seminario method [frag]
+Tk-Tm    251.17     1.4270   Seminario method [frag]
+Tk-To    215.73     1.5419   Seminario method [frag]
+Tm-Tn    562.12     0.9697   Seminario method [frag]
+To-Tp    337.25     1.0994   Seminario method [frag]
+To-Tq    225.75     1.5273   Seminario method [frag]
+To-Ts    235.33     1.4359   Seminario method [frag]
+Tq-Tr    349.75     1.0965   Seminario method [frag]
+Ts-Tt    555.52     0.9709   Seminario method [frag]
+
+ANGLE
+C -CB-Ta    147.520    119.930   [junction] seminario-0c (n=1)
+CB-CB-Ta    161.220    120.930   [junction] seminario-0c (n=1)
+CB-CB-Ti    173.420    117.860   [junction] seminario-0c (n=1)
+CB-Ta-Tb     67.650    117.100   [junction] seminario-0c (n=1)
+CB-Ta-Tc    155.310    121.870   [junction] seminario-0c (n=1)
+CB-Ti-Te    163.680    122.100   [junction] seminario-0c (n=1)
+CB-Ti-Tj     68.820    117.190   [junction] seminario-0c (n=1)
+NC-CB-Ti    149.220    119.550   [junction] seminario-0c (n=1)
+Ta-Tc-Td     55.312    107.942   Seminario method [frag]
+Ta-Tc-Te    165.349    108.722   Seminario method [frag]
+Ta-Tc-Tk    170.043    109.378   Seminario method [frag]
+Tb-Ta-Tc     67.304    119.834   Seminario method [frag]
+Tc-Te-Tg     67.486    109.527   Seminario method [frag]
+Tc-Te-Th     79.010    110.547   Seminario method [frag]
+Tc-Te-Ti    167.018    110.447   Seminario method [frag]
+Tc-Tk-Tl     72.387    107.317   Seminario method [frag]
+Tc-Tk-Tm    154.571    107.662   Seminario method [frag]
+Tc-Tk-To    159.237    112.495   Seminario method [frag]
+Td-Tc-Te     75.435    109.248   Seminario method [frag]
+Td-Tc-Tk     71.436    107.788   Seminario method [frag]
+Te-Tc-Tk    165.036    113.616   Seminario method [frag]
+Te-Ti-Tj     66.085    118.796   Seminario method [frag]
+Tg-Te-Th     46.937    108.822   Seminario method [frag]
+Tg-Te-Ti     76.701    107.743   Seminario method [frag]
+Th-Te-Ti     60.826    109.694   Seminario method [frag]
+Tk-Tm-Tn     61.722    109.525   Seminario method [frag]
+Tk-To-Tp     76.971    108.533   Seminario method [frag]
+Tk-To-Tq    141.035    112.231   Seminario method [frag]
+Tk-To-Ts    150.477    105.741   Seminario method [frag]
+Tl-Tk-Tm     81.313    110.210   Seminario method [frag]
+Tl-Tk-To     77.306    108.034   Seminario method [frag]
+Tm-Tk-To     99.887    111.059   Seminario method [frag]
+To-Tq-Tr     75.773    110.858   Seminario method [frag]
+To-Ts-Tt     61.063    108.757   Seminario method [frag]
+Tp-To-Tq     80.317    109.038   Seminario method [frag]
+Tp-To-Ts     71.307    109.659   Seminario method [frag]
+Tq-To-Ts    152.586    111.549   Seminario method [frag]
+Tr-Tq-Tr     45.185    109.020   Seminario method [frag]
+
+DIHE
+Tb-Ta-Tc-Te  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Tb-Ta-Tc-Tk  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Tb-Ta-Tc-Td  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Tj-Ti-Te-Tc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Tj-Ti-Te-Th  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Tj-Ti-Te-Tg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Ta-Tc-Te-Ti  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ta-Tc-Te-Th  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ta-Tc-Te-Tg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Tk-Tc-Te-Ti  1     0.15556     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-nu
+Tk-Tc-Te-Th  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Tk-Tc-Te-Tg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Td-Tc-Te-Ti  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Td-Tc-Te-Th  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Td-Tc-Te-Tg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ta-Tc-Tk-Tl  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ta-Tc-Tk-Tm  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ta-Tc-Tk-To  1     0.15556     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-nu
+Te-Tc-Tk-Tl  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Te-Tc-Tk-Tm  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Te-Tc-Tk-To  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Te-Tc-Tk-To  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Te-Tc-Tk-To  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Td-Tc-Tk-Tl  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Td-Tc-Tk-Tm  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Td-Tc-Tk-Tm  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Td-Tc-Tk-To  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Tl-Tk-Tm-Tn  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Tc-Tk-Tm-Tn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+To-Tk-Tm-Tn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Tl-Tk-To-Tq  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-c3
+Tl-Tk-To-Ts  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Tl-Tk-To-Ts  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Tl-Tk-To-Tp  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-h1
+Tc-Tk-To-Tq  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Tc-Tk-To-Tq  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Tc-Tk-To-Tq  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Tc-Tk-To-Ts  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Tc-Tk-To-Tp  1     0.15556     0.000    3.000   [gaff2-sub] full <- c6-c3-c3-h1
+Tm-Tk-To-Tq  1     0.21000     0.000    3.000   [gaff2-sub] full <- oh-c3-c3-c3
+Tm-Tk-To-Ts  1     0.90000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-oh
+Tm-Tk-To-Ts  1     1.13000     0.000    2.000   [gaff2-sub] full <- oh-c3-c3-oh
+Tm-Tk-To-Tp  1     0.00000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-h1
+Tm-Tk-To-Tp  1     0.25000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-h1
+Ts-To-Tq-Tr  1     0.18000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-hc
+Ts-To-Tq-Tr  1     0.51000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-hc
+Tk-To-Tq-Tr  1     0.08000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-hc
+Tp-To-Tq-Tr  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-hc
+Tq-To-Ts-Tt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Tk-To-Ts-Tt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Tp-To-Ts-Tt  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+C -CB-Ta-Tb  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+C -CB-Ta-Tc  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Ta-Tb  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Ta-Tc  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Ti-Te  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+CB-CB-Ti-Tj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+CB-Ta-Tc-Td  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ta-Tc-Te  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ta-Tc-Tk  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ti-Te-Tc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ti-Te-Tg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ti-Te-Th  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+NC-CB-Ti-Te  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+NC-CB-Ti-Tj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+
+IMPROPER
+C -CB-CB-Ta         1.1          180.0         2.0   [root: tleap-perceived]
+CB-NC-CB-Ti         1.1          180.0         2.0   [root: tleap-perceived]
+CB-Tc-Ta-Tb         1.1          180.0         2.0   [root: tleap-perceived]
+CB-Te-Ti-Tj         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Ta      1.8403    0.1545   [LJ from nu]
+  Tb      0.6210    0.0100   [LJ from hn]
+  Tc      1.9069    0.1078   [LJ from c6]
+  Td      1.3593    0.0208   [LJ from h1]
+  Te      1.9069    0.1078   [LJ from c6]
+  Tg      1.3593    0.0208   [LJ from h1]
+  Th      1.3593    0.0208   [LJ from h1]
+  Ti      1.8403    0.1545   [LJ from nu]
+  Tj      0.6210    0.0100   [LJ from hn]
+  Tk      1.9069    0.1078   [LJ from c3]
+  Tl      1.3593    0.0208   [LJ from h1]
+  Tm      1.8200    0.0930   [LJ from oh]
+  Tn      0.3019    0.0047   [LJ from ho]
+  To      1.9069    0.1078   [LJ from c3]
+  Tp      1.3593    0.0208   [LJ from h1]
+  Tq      1.9069    0.1078   [LJ from c3]
+  Tr      1.4593    0.0208   [LJ from hc]
+  Ts      1.8200    0.0930   [LJ from oh]
+  Tt      0.3019    0.0047   [LJ from ho]
+

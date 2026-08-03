@@ -1,0 +1,130 @@
+!!index array str
+ "CYZ"
+ "ZNC"
+!entry.CYZ.unit.atoms table  str name  str type  int typex  int resx  int flags  int seq  int elmnt  dbl chg
+ "N" "N" 0 1 131072 1 7 -0.415700
+ "H" "H" 0 1 131072 2 1 0.271900
+ "CA" "CX" 0 1 131072 3 6 -0.035100
+ "HA" "H1" 0 1 131072 4 1 0.050800
+ "CB" "CT" 0 1 131072 5 6 0.083020
+ "HB3" "H1" 0 1 131072 6 1 0.046858
+ "HB2" "H1" 0 1 131072 7 1 0.046858
+ "SG" "SZ" 0 1 131072 8 16 -0.818450
+ "C" "C" 0 1 131072 9 6 0.597300
+ "O" "O" 0 1 131072 10 8 -0.567900
+!entry.CYZ.unit.atomspertinfo table  str pname  str ptype  int ptypex  int pelmnt  dbl pchg
+ "N" "N" 0 -1 0.0
+ "H" "H" 0 -1 0.0
+ "CA" "CX" 0 -1 0.0
+ "HA" "H1" 0 -1 0.0
+ "CB" "CT" 0 -1 0.0
+ "HB3" "H1" 0 -1 0.0
+ "HB2" "H1" 0 -1 0.0
+ "SG" "SZ" 0 -1 0.0
+ "C" "C" 0 -1 0.0
+ "O" "O" 0 -1 0.0
+!entry.CYZ.unit.boundbox array dbl
+ -1.000000
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+!entry.CYZ.unit.childsequence single int
+ 2
+!entry.CYZ.unit.connect array int
+ 1
+ 9
+!entry.CYZ.unit.connectivity table  int atom1x  int atom2x  int flags
+ 1 2 1
+ 1 3 1
+ 3 4 1
+ 3 5 1
+ 3 9 1
+ 5 6 1
+ 5 7 1
+ 5 8 1
+ 9 10 1
+!entry.CYZ.unit.hierarchy table  str abovetype  int abovex  str belowtype  int belowx
+ "U" 0 "R" 1
+ "R" 1 "A" 1
+ "R" 1 "A" 2
+ "R" 1 "A" 3
+ "R" 1 "A" 4
+ "R" 1 "A" 5
+ "R" 1 "A" 6
+ "R" 1 "A" 7
+ "R" 1 "A" 8
+ "R" 1 "A" 9
+ "R" 1 "A" 10
+!entry.CYZ.unit.name single str
+ "CYZ"
+!entry.CYZ.unit.positions table  dbl x  dbl y  dbl z
+ 2.396400 1.819400 2.785100
+ 1.747300 1.188900 3.239100
+ 2.411500 1.810300 1.335900
+ 3.370600 1.415000 0.980200
+ 1.275100 0.936900 0.778200
+ 1.429400 0.881500 -0.300600
+ 0.317600 1.436200 0.963100
+ 1.228900 -0.763600 1.491500
+ 2.209100 3.234500 0.766100
+ 1.511000 4.076400 1.340300
+!entry.CYZ.unit.residueconnect table  int c1x  int c2x  int c3x  int c4x  int c5x  int c6x
+ 1 9 0 0 0 0
+!entry.CYZ.unit.residues table  str name  int seq  int childseq  int startatomx  str restype  int imagingx
+ "CYZ" 1 11 1 "p" 0
+!entry.CYZ.unit.residuesPdbSequenceNumber array int
+ 0
+!entry.CYZ.unit.solventcap array dbl
+ -1.000000
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+!entry.CYZ.unit.velocities table  dbl x  dbl y  dbl z
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+!entry.ZNC.unit.atoms table  str name  str type  int typex  int resx  int flags  int seq  int elmnt  dbl chg
+ "ZN" "ZM" 0 1 131072 1 30 0.961652
+!entry.ZNC.unit.atomspertinfo table  str pname  str ptype  int ptypex  int pelmnt  dbl pchg
+ "ZN" "ZM" 0 -1 0.0
+!entry.ZNC.unit.boundbox array dbl
+ -1.000000
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+!entry.ZNC.unit.childsequence single int
+ 2
+!entry.ZNC.unit.connect array int
+ 0
+ 0
+!entry.ZNC.unit.hierarchy table  str abovetype  int abovex  str belowtype  int belowx
+ "U" 0 "R" 1
+ "R" 1 "A" 1
+!entry.ZNC.unit.name single str
+ "ZNC"
+!entry.ZNC.unit.positions table  dbl x  dbl y  dbl z
+ 0.001800 -2.214100 -0.015900
+!entry.ZNC.unit.residueconnect table  int c1x  int c2x  int c3x  int c4x  int c5x  int c6x
+ 0 0 0 0 0 0
+!entry.ZNC.unit.residues table  str name  int seq  int childseq  int startatomx  str restype  int imagingx
+ "ZNC" 1 2 1 "?" 0
+!entry.ZNC.unit.residuesPdbSequenceNumber array int
+ 0
+!entry.ZNC.unit.solventcap array dbl
+ -1.000000
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+!entry.ZNC.unit.velocities table  dbl x  dbl y  dbl z
+ 0.0 0.0 0.0

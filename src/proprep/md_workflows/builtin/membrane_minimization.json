@@ -1,0 +1,31 @@
+{
+  "name": "Membrane Protein Minimization Protocol",
+  "description": "2-step minimization protocol for membrane-protein systems built with packmol-memgen. Stage 1 restrains protein and lipid phosphorus atoms (10 kcal/mol*A^2) while relaxing water, ions, and lipid tails. Stage 2 releases all restraints for full system relaxation.",
+  "version": "1.0",
+  "author": "ProPrep (based on packmol-memgen protocol)",
+  "category": "membrane",
+  "steps": [
+    {
+      "id": "000_min_restrained",
+      "name": "Restrained Minimization",
+      "type": "minimization",
+      "template": "builtin/membrane_protein/00_restrained_minimization.mdin",
+      "description": "Restrained energy minimization of the membrane-protein system. Protein residues and lipid phosphorus atoms (@P31) are positionally restrained with 10 kcal/mol*A^2 to relax water, ions, and lipid tails while maintaining bilayer structure. 5000 steepest descent + 5000 conjugate gradient cycles.",
+      "parameter_overrides": {},
+      "dependencies": [],
+      "input_coord": "inpcrd",
+      "output_coord": "000_min_restrained.rst"
+    },
+    {
+      "id": "001_min_unrestrained",
+      "name": "Unrestrained Minimization",
+      "type": "minimization",
+      "template": "builtin/membrane_protein/01_unrestrained_minimization.mdin",
+      "description": "Unrestrained energy minimization of the full membrane-protein system. All restraints are released to allow the entire system to relax. 5000 steepest descent + 5000 conjugate gradient cycles.",
+      "parameter_overrides": {},
+      "dependencies": ["000_min_restrained"],
+      "input_coord": "000_min_restrained.rst",
+      "output_coord": "001_min_unrestrained.rst"
+    }
+  ]
+}

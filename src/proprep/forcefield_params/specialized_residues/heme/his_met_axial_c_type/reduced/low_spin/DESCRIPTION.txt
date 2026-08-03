@@ -1,0 +1,102 @@
+Cytochrome c2 heme — ferrous (Fe²⁺, low-spin S=0 closed-shell, reduced).
+
+His/Met-axial c-type heme of cyt c2 (Blastochloris/Rhodopseudomonas viridis):
+six-coordinate, His(NE2) + Met(SD) axial ligands, covalently bound to the
+protein through two thioether linkages (CXXCH motif). One-electron-reduced
+counterpart of the ferric (HMO) set; pair them for redox / charge-compensation
+work.
+
+Units in this lib (combined OFF — SELF-CONTAINED, like the bis-His c-type set):
+    HMR  — heme macrocycle + axial His imidazole + axial Met thioether
+           + the two CXXCH thioether-Cys sidechains (87 atoms; net 0 e)
+    CYO  — thioether-Cys backbone stub (used ×2)
+    HIO  — axial-His backbone stub
+    MEO  — axial-Met backbone stub (N/H/CA/HA/C/O; 6 atoms; net 0 e)
+    PRN  — propionate (used ×2; -1 each)
+
+This set loads with any standard AMBER protein FF (ff14SB/parm10 or ff19SB/parm19 —
+the reused standard types are parameter-identical in both) + an `addAtomTypes`
+registration of the custom heme types (FR, NP, NO, CD, Cp — see addAtomTypes.leap /
+LOADING.md; REQUIRED, else tleap mis-assigns GB Born radii for the NO-typed pyrrole
+N) — no leaprc.conste, no leaprc.constph. All splice stubs are bundled above, and
+PRN's protonated-carboxyl angles/impropers are folded into the .frcmod.
+
+Method: identical protocol to the ferric set, on the Fe²⁺ S=0 state.
+State-specific differences: Fe-Npyrrole softer/longer (K 65.15 vs 76.70);
+Fe-S(Met) markedly softer and longer (K 12.22 vs 33.33 — labile ferrous
+Fe-S(Met)). Charges: CM5 (density-based); the redox change vs ferric is the
+clean CM5 density difference (~ -0.5 e at Fe), not a pinned Mulliken value
+(see metadata.json methodology and methodology.md §13).
+
+Charge-set alternatives (4 reduced libs sharing ONE bonded frcmod —
+Guberman_HMR.frcmod; bonded terms are charge-independent):
+    Guberman_HMR_CM5.lib           — CM5 (default; recommended)
+    Guberman_HMR_RESPmc.lib        — pooled multi-conformer RESP
+    Guberman_HMR_RESPsc.lib        — single-conformer RESP
+    Guberman_HMR_CM5_FeLocal.lib   — CM5 charges with the redox Δq localized
+                                     entirely on Fe (Blumberger-style; the
+                                     −1.0 e endpoint of the comparison axis)
+Redox-Δq sensitivity axis (Fe Δq −0.15 → −0.50 → −1.0 e); methodology.md §13.12.
+CM5_FeLocal is an intentionally crude limiting case for the sensitivity study,
+NOT a recommended production charge model.
+
+CORRECTION 2026-08-02 - trans pyrrole N-Fe-N angles
+---------------------------------------------------
+Same defect as the ferric set: NP and NO alternate around the macrocycle
+(NA=NP, NB=NO, NC=NP, ND=NO), so a same-type triplet is a TRANS pair. All three
+N-Fe-N combinations had been written with the cis class average 109.99/90.000,
+restraining two ~178 deg angles to 90 deg. Trajectories produced with the
+previous values are invalid.
+
+The original ferrous QM was not recoverable (only a 2024 BLYP/6-31G(d)
+all-electron job survived, a different functional and core treatment that must
+not be mixed with this fit). The calculation was therefore REPRODUCED at the
+ferric level of theory: B3LYP/[LANL2DZ Fe + 6-31G(d)], charge 0, multiplicity 1,
+opt freq, geometry from 1CO6 chain A (R. viridis ferrocytochrome c2, the
+species-matched partner to the ferric 1IO3), same sidechain-only model with H
+caps and the four sidechain CB Cartesian-frozen at crystal positions.
+
+The reproduction is faithful, which is what makes this a correction rather than
+a replacement. Optimised geometry against the shipped values:
+
+    Fe-N (axial His)    2.0158   vs  2.0158
+    Fe-N pyrrole mean   2.0265   vs  2.0265
+    Fe-S (axial Met)    2.4952   vs  2.4955
+    N(His)-Fe-S       176.006    vs 176.020
+
+and the Seminario refit (pymsmt, scalef=1.000, avg=1) against the shipped force
+constants:
+
+    FR-NP     65.14  vs  65.15        NB-FR-S      93.96  vs  93.96
+    FR-NB     54.60  vs  54.61        NB-FR-Npyr  105.02  vs 105.00
+    FR-S      12.25  vs  12.22        cis          109.98 vs 109.99
+
+Every unaffected term reproduces to within rounding, so the rest of this file is
+validated rather than assumed, and only the two trans lines changed:
+
+    NP-FR-NP     90.15  178.756     ! trans NA-Fe-NC
+    NO-FR-NO    101.57  178.196     ! trans NB-Fe-ND
+
+NP vs NO assignment was fixed independently on this geometry by thioether
+orientation: ring B's thioether faces ring C, ring C's faces ring D. Composition
+alone cannot decide it, since both trans pairs hold one thioether and one
+propionate ring.
+
+No other term changed. Charges are unaffected. The job that produced this is at
+/Users/mjgp/Desktop/Software/cytc2_ferrous (normal termination, NImag=0).
+
+Cross-residue bonds the transformer must emit:
+    bond <HMR_resi>.CBC1 <Cys1_resi>.CA   ! thioether linkage 1
+    bond <HMR_resi>.CBC2 <Cys2_resi>.CA   ! thioether linkage 2
+    bond <HMR_resi>.CBH  <His_resi>.CA    ! axial His backbone splice
+    bond <HMR_resi>.CBM  <Met_resi>.CA    ! axial Met backbone splice
+    bond <HMR_resi>.C2A  <PRN_A_resi>.CA  ! propionate A attachment
+    bond <HMR_resi>.C3D  <PRN_D_resi>.CA  ! propionate D attachment
+
+Net charge: HMR + 2 CYO + HIO + MEO + 2 PRN = -2 e. tleap emits the expected
+'unit charge is not zero' warning (the assembled unit is legitimately charged).
+
+Atom-type forks: FR (ferrous Fe; FO for ferric so both coexist); Cp for the 8
+β-pyrrole carbons.
+
+Met-axial torsion X-S-FR-X: accepted K=0 placeholder.

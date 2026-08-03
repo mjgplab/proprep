@@ -1,0 +1,75 @@
+{
+  "name": "Basic Equilibration Protocol",
+  "description": "Equilibration protocol adapted from AMBER Tutorial 33 (Constant pH and Redox Potential MD), Sections 2-3. The tutorial's 5-stage explicit-solvent procedure (min -> heat -> NPT equilibration -> NVT equilibration -> production) is split into 6 stages here: the single NPT equilibration is run as a short CPU density segment followed by a GPU relaxation segment, working around the pmemd.cuda failure that occurs when the box volume changes substantially during GPU NPT.",
+  "version": "1.1",
+  "author": "AMBER Tutorial 33 - Constant pH and Redox Potential MD (https://ambermd.org/tutorials/advanced/tutorial33)",
+  "category": "protein",
+  "steps": [
+    {
+      "id": "001_minimize",
+      "name": "Energy Minimization",
+      "type": "minimization",
+      "template": "builtin/basic/00_minimization.mdin",
+      "description": "Energy minimization with protein backbone and metal site restraints (10 kcal/mol·Å²). Removes bad contacts and optimizes initial geometry.",
+      "parameter_overrides": {},
+      "dependencies": [],
+      "input_coord": "inpcrd",
+      "output_coord": "001_minimize.rst"
+    },
+    {
+      "id": "002_heating",
+      "name": "System Heating",
+      "type": "heating",
+      "template": "builtin/basic/01_heating.mdin",
+      "description": "Gradual heating from 0-300K over 2 ns with light restraints (1.0 kcal/mol·Å²). Temperature ramping prevents thermal shock.",
+      "parameter_overrides": {},
+      "dependencies": ["001_minimize"],
+      "input_coord": "001_minimize.rst",
+      "output_coord": "002_heating.rst"
+    },
+    {
+      "id": "003_npt_density",
+      "name": "NPT Density Equilibration",
+      "type": "equilibration",
+      "template": "builtin/basic/02a_npt_density.mdin",
+      "description": "NPT equilibration for 1 ns on CPU with very weak restraints (0.1 kcal/mol·Å²). Short phase to converge box density before handing off to GPU; pmemd.cuda can't reallocate the PME grid when the box shrinks here.",
+      "parameter_overrides": {},
+      "dependencies": ["002_heating"],
+      "input_coord": "002_heating.rst",
+      "output_coord": "003_npt_density.rst"
+    },
+    {
+      "id": "004_npt_relaxation",
+      "name": "NPT Relaxation",
+      "type": "equilibration",
+      "template": "builtin/basic/02b_npt_relaxation.mdin",
+      "description": "NPT equilibration for 3 ns on GPU with very weak restraints (0.1 kcal/mol·Å²). Continues NPT once density has converged; safe for the fixed pmemd.cuda PME grid. Keeps total NPT at 4 ns.",
+      "parameter_overrides": {},
+      "dependencies": ["003_npt_density"],
+      "input_coord": "003_npt_density.rst",
+      "output_coord": "004_npt_relaxation.rst"
+    },
+    {
+      "id": "005_nvt_equilibration",
+      "name": "NVT Equilibration",
+      "type": "equilibration",
+      "template": "builtin/basic/03_nvt_equilibration.mdin",
+      "description": "Final NVT equilibration for 4 ns with very weak restraints (0.1 kcal/mol·Å²). Prepares system for unrestrained production.",
+      "parameter_overrides": {},
+      "dependencies": ["004_npt_relaxation"],
+      "input_coord": "004_npt_relaxation.rst",
+      "output_coord": "005_nvt_equilibration.rst"
+    },
+    {
+      "id": "006_production",
+      "name": "NVT Production MD",
+      "type": "production",
+      "template": "builtin/basic/04_production.mdin",
+      "description": "Unrestrained NVT production molecular dynamics for 100 ns. Optional constant pH capability included but commented out.",
+      "parameter_overrides": {},
+      "dependencies": ["005_nvt_equilibration"],
+      "input_coord": "005_nvt_equilibration.rst",
+      "output_coord": "006_production.rst"
+    }
+  ]
+}

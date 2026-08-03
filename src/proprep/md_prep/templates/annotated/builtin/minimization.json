@@ -1,0 +1,182 @@
+{
+  "name": "Energy Minimization",
+  "description": "Standard energy minimization with restraints",
+  "simulation_type": "minimization",
+  "parameters": {
+    "imin": {
+      "name": "imin",
+      "value": 1,
+      "description": "Enable minimization (imin=1)",
+      "typical_values": [
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "simulation_control"
+    },
+    "ntx": {
+      "name": "ntx",
+      "value": 1,
+      "description": "Read coordinates only (no velocities)",
+      "typical_values": [
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "input_control"
+    },
+    "maxcyc": {
+      "name": "maxcyc",
+      "value": 10000,
+      "description": "Maximum number of minimization cycles",
+      "typical_values": [
+        "5000",
+        "10000",
+        "50000"
+      ],
+      "warnings": [
+        "Very large values may indicate convergence problems"
+      ],
+      "dependencies": [],
+      "category": "minimization"
+    },
+    "ncyc": {
+      "name": "ncyc",
+      "value": 1000,
+      "description": "Steepest descent cycles before switching to conjugate gradient",
+      "typical_values": [
+        "500",
+        "1000",
+        "2000"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "maxcyc"
+      ],
+      "category": "minimization"
+    },
+    "ntmin": {
+      "name": "ntmin",
+      "value": 2,
+      "description": "Minimization algorithm (1=steepest descent only, 2=steepest+conjugate)",
+      "typical_values": [
+        "1",
+        "2"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "minimization"
+    },
+    "dx0": {
+      "name": "dx0",
+      "value": 0.01,
+      "description": "Initial step size for minimization",
+      "typical_values": [
+        "0.01",
+        "0.1",
+        "1.0"
+      ],
+      "warnings": [
+        "Large values may cause instability"
+      ],
+      "dependencies": [],
+      "category": "minimization"
+    },
+    "drms": {
+      "name": "drms",
+      "value": 0.0001,
+      "description": "RMS gradient convergence criterion",
+      "typical_values": [
+        "0.0001",
+        "0.001",
+        "0.01"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "minimization"
+    },
+    "cut": {
+      "name": "cut",
+      "value": 10.0,
+      "description": "Nonbonded cutoff distance in Angstroms",
+      "typical_values": [
+        "8.0",
+        "10.0",
+        "12.0"
+      ],
+      "warnings": [
+        "Values < 8.0 may affect electrostatics",
+        "Values > 12.0 require large boxes"
+      ],
+      "dependencies": [],
+      "category": "nonbonded"
+    },
+    "ntpr": {
+      "name": "ntpr",
+      "value": 100,
+      "description": "Print energy every ntpr steps",
+      "typical_values": [
+        "50",
+        "100",
+        "500"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "output_control"
+    },
+    "ntr": {
+      "name": "ntr",
+      "value": 1,
+      "description": "Enable positional restraints (1=yes, 0=no)",
+      "typical_values": [
+        "0",
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "restraint_wt",
+        "restraintmask"
+      ],
+      "category": "restraints"
+    },
+    "restraint_wt": {
+      "name": "restraint_wt",
+      "value": 500.0,
+      "description": "Restraint force constant in kcal/mol/\u00c5\u00b2",
+      "typical_values": [
+        "1.0",
+        "10.0",
+        "100.0",
+        "500.0"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "ntr"
+      ],
+      "category": "restraints"
+    },
+    "restraintmask": {
+      "name": "restraintmask",
+      "value": "!@H=",
+      "description": "Atom selection for restraints (!@H= means all heavy atoms)",
+      "typical_values": [
+        "!@H=",
+        "@CA,C,N,O",
+        "!:WAT",
+        ":1-100@CA"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "ntr"
+      ],
+      "category": "restraints"
+    }
+  },
+  "nmr_section": null,
+  "comments": [
+    "Standard minimization protocol with restraints on heavy atoms",
+    "Adjust restraint_wt and restraintmask as needed for your system",
+    "Consider reducing restraints or removing them entirely for final minimization"
+  ],
+  "metadata": {}
+}

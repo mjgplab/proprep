@@ -1,0 +1,236 @@
+Lean FAH frcmod (flavin/fad/hydroquinone_anionic). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c); phosphate forks (O3<-O2 / OD bridge) from source. Dihedrals = GAFF2-by-substitution, full multi-term. Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Ga     14.010    0.530   [frag]
+Gb     12.010    0.360   [frag]
+Gc     16.000    0.434   [frag]
+Gd     14.010    0.530   [frag]
+Ge      1.008    0.161   [frag]
+Gf     12.010    0.616   [frag]
+Gg     16.000    0.434   [frag]
+Gh     12.010    0.360   [frag]
+Gi     14.010    0.530   [frag]
+Gj      1.008    0.161   [frag]
+Gk     12.010    0.360   [frag]
+Gl     12.010    0.360   [frag]
+Gm      1.008    0.135   [frag]
+Gn     12.010    0.360   [frag]
+Go     12.010    0.878   [frag]
+Gp      1.008    0.135   [frag]
+Gq     12.010    0.360   [frag]
+Gr     12.010    0.878   [frag]
+Gs      1.008    0.135   [frag]
+Gt     12.010    0.360   [frag]
+Gu      1.008    0.135   [frag]
+Gv     12.010    0.360   [frag]
+Gw     14.010    0.530   [frag]
+Gx     12.010    0.360   [frag]
+OD     16.000    0.465   [fork-diphosphate-bridge]
+O3 16.00              O3 terminal-phosphate fork (mass = O2); Meagher 2003, JCC 24:1016
+
+BOND
+Ga-Gb    318.34     1.3550   Seminario method [frag]
+Ga-Gx    361.65     1.3483   Seminario method [frag]
+Gb-Gc    555.47     1.2569   Seminario method [frag]
+Gb-Gd    256.93     1.3968   Seminario method [frag]
+Gd-Ge    495.71     1.0142   Seminario method [frag]
+Gd-Gf    288.46     1.3979   Seminario method [frag]
+Gf-Gg    551.61     1.2620   Seminario method [frag]
+Gf-Gh    317.24     1.4104   Seminario method [frag]
+Gh-Gi    298.41     1.4262   Seminario method [frag]
+Gh-Gx    362.06     1.3937   Seminario method [frag]
+Gi-Gj    481.85     1.0158   Seminario method [frag]
+Gi-Gk    297.48     1.4063   Seminario method [frag]
+Gk-Gl    381.65     1.3955   Seminario method [frag]
+Gk-Gv    326.84     1.4124   Seminario method [frag]
+Gl-Gm    371.18     1.0889   Seminario method [frag]
+Gl-Gn    365.91     1.4049   Seminario method [frag]
+Gn-Go    235.18     1.5121   Seminario method [frag]
+Gn-Gq    347.36     1.4059   Seminario method [frag]
+Go-Gp    352.91     1.0948   Seminario method [frag]
+Gq-Gr    234.33     1.5126   Seminario method [frag]
+Gq-Gt    357.93     1.4075   Seminario method [frag]
+Gr-Gs    340.63     1.0986   Seminario method [frag]
+Gt-Gu    381.96     1.0848   Seminario method [frag]
+Gt-Gv    377.85     1.3981   Seminario method [frag]
+Gv-Gw    265.90     1.4232   Seminario method [frag]
+Gw-Gx    284.74     1.4009   Seminario method [frag]
+Gw-c3    221.835     1.4609   [junction] seminario-0c (n=1)   xcof-mean
+O3-P     525.00     1.4800   [fork O3<-O2 = parm10 O2-P]
+OD-P     167.151     1.6563   [junction] seminario-0c (n=2)   xcof-mean
+OS-c3    228.325     1.4278   [junction] seminario-0c (n=1)   xcof-mean
+
+ANGLE
+Ga-Gb-Gc    111.986    123.554   Seminario method [frag]
+Ga-Gb-Gd    166.271    118.089   Seminario method [frag]
+Ga-Gx-Gh    160.089    124.532   Seminario method [frag]
+Ga-Gx-Gw    161.731    117.963   Seminario method [frag]
+Gb-Ga-Gx    144.131    118.515   Seminario method [frag]
+Gb-Gd-Ge     67.694    117.188   Seminario method [frag]
+Gb-Gd-Gf    203.399    125.753   Seminario method [frag]
+Gc-Gb-Gd    122.643    118.355   Seminario method [frag]
+Gd-Gf-Gg    129.376    120.493   Seminario method [frag]
+Gd-Gf-Gh    175.347    113.705   Seminario method [frag]
+Ge-Gd-Gf     68.854    117.047   Seminario method [frag]
+Gf-Gh-Gi    147.253    120.298   Seminario method [frag]
+Gf-Gh-Gx    164.626    119.376   Seminario method [frag]
+Gg-Gf-Gh    114.486    125.796   Seminario method [frag]
+Gh-Gi-Gj     63.968    112.035   Seminario method [frag]
+Gh-Gi-Gk    136.203    115.331   Seminario method [frag]
+Gh-Gx-Gw    185.217    117.502   Seminario method [frag]
+Gi-Gh-Gx    161.231    120.199   Seminario method [frag]
+Gi-Gk-Gl    169.213    122.537   Seminario method [frag]
+Gi-Gk-Gv    166.244    118.062   Seminario method [frag]
+Gj-Gi-Gk     64.562    114.891   Seminario method [frag]
+Gk-Gl-Gm     67.799    118.501   Seminario method [frag]
+Gk-Gl-Gn    196.432    122.114   Seminario method [frag]
+Gk-Gv-Gt    196.895    118.541   Seminario method [frag]
+Gk-Gv-Gw    179.528    118.792   Seminario method [frag]
+Gl-Gk-Gv    194.655    119.344   Seminario method [frag]
+Gl-Gn-Go    149.948    119.954   Seminario method [frag]
+Gl-Gn-Gq    193.172    118.765   Seminario method [frag]
+Gm-Gl-Gn     66.804    119.378   Seminario method [frag]
+Gn-Go-Gp     64.215    111.135   Seminario method [frag]
+Gn-Gq-Gr    151.044    121.256   Seminario method [frag]
+Gn-Gq-Gt    194.054    118.997   Seminario method [frag]
+Go-Gn-Gq    151.328    121.281   Seminario method [frag]
+Gp-Go-Gp     42.908    107.704   Seminario method [frag]
+Gq-Gr-Gs     70.626    111.853   Seminario method [frag]
+Gq-Gt-Gu     66.493    118.185   Seminario method [frag]
+Gq-Gt-Gv    198.986    122.216   Seminario method [frag]
+Gr-Gq-Gt    150.066    119.746   Seminario method [frag]
+Gs-Gr-Gs     39.594    106.558   Seminario method [frag]
+Gt-Gv-Gw    185.689    122.662   Seminario method [frag]
+Gu-Gt-Gv     67.313    119.599   Seminario method [frag]
+Gv-Gw-Gx    175.108    117.728   Seminario method [frag]
+Gv-Gw-c3    151.490    120.6300   [junction] seminario-0c (n=1)   xcof-mean
+Gw-c3-c3    125.245    114.4550   [junction] seminario-0c (n=1)   xcof-mean
+Gw-c3-h1     70.790    108.2450   [junction] seminario-0c (n=2)   xcof-mean
+Gx-Gw-c3    158.665    119.9950   [junction] seminario-0c (n=1)   xcof-mean
+O3-P -O3    140.000    119.900   [fork O3<-O2 = parm10 O2-P-O2]
+O3-P -OD    101.291    109.1667   [junction] seminario-0c (n=4)   xcof-mean
+O3-P -OS    100.000    108.230   [fork O3<-O2 = parm10 O2-P-OS]
+OD-P -OS     94.333     99.1767   [junction] seminario-0c (n=2)   xcof-mean
+OS-c3-c3    136.420    106.9890   [junction] seminario-0c (n=1)   xcof-mean
+OS-c3-h1     68.429    110.2730   [junction] seminario-0c (n=2)   xcof-mean
+P -OD-P     104.454    132.6867   [junction] seminario-0c (n=1)   xcof-mean
+P -OS-c3    117.200    119.6680   [junction] seminario-0c (n=1)   xcof-mean
+
+DIHE
+Gx-Ga-Gb-Gc  1     4.75000   180.000    2.000   [gaff2-sub] full <- cc-nc-cd-o
+Gx-Ga-Gb-Gd  1     4.75000   180.000    2.000   [gaff2-sub] full <- cc-nc-cd-ns
+Gb-Ga-Gx-Gw  1     4.75000   180.000    2.000   [gaff2-sub] full <- cd-nc-cc-na
+Gb-Ga-Gx-Gh  1     4.75000   180.000    2.000   [gaff2-sub] full <- cd-nc-cc-cd
+Ga-Gb-Gd-Ge  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Ga-Gb-Gd-Gf  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Gc-Gb-Gd-Ge  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Gc-Gb-Gd-Gf  1     1.65000   180.000    2.000   [gaff2-sub] full <- X-n-cd-X
+Gb-Gd-Gf-Gg  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Gb-Gd-Gf-Gh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Ge-Gd-Gf-Gg  1     2.50000   180.000   -2.000   [gaff2-sub] full <- o-c-n-hn
+Ge-Gd-Gf-Gg  1     2.00000     0.000    1.000   [gaff2-sub] full <- o-c-n-hn
+Ge-Gd-Gf-Gh  1     2.50000   180.000    2.000   [gaff2-sub] full <- X-c-n-X
+Gd-Gf-Gh-Gi  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-na
+Gd-Gf-Gh-Gx  1     2.87500   180.000    2.000   [gaff2-sub] full <- ns-c-cd-cc
+Gg-Gf-Gh-Gi  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-na
+Gg-Gf-Gh-Gx  1     2.87500   180.000    2.000   [gaff2-sub] full <- o-c-cd-cc
+Gx-Gh-Gi-Gj  1     1.70000   180.000    2.000   [gaff2-sub] full <- cc-cd-na-hn
+Gx-Gh-Gi-Gk  1     1.70000   180.000    2.000   [gaff2-sub] full <- cc-cd-na-ca
+Gf-Gh-Gi-Gj  1     1.70000   180.000    2.000   [gaff2-sub] full <- c-cd-na-hn
+Gf-Gh-Gi-Gk  1     1.70000   180.000    2.000   [gaff2-sub] full <- c-cd-na-ca
+Gi-Gh-Gx-Ga  1     4.00000   180.000    2.000   [gaff2-sub] full <- na-cd-cc-nc
+Gi-Gh-Gx-Gw  1     4.00000   180.000    2.000   [gaff2-sub] full <- na-cd-cc-na
+Gf-Gh-Gx-Ga  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cc-nc
+Gf-Gh-Gx-Gw  1     4.00000   180.000    2.000   [gaff2-sub] full <- c-cd-cc-na
+Gj-Gi-Gk-Gv  1     0.30000   180.000    2.000   [gaff2-sub] full <- hn-na-ca-ca
+Gj-Gi-Gk-Gl  1     0.30000   180.000    2.000   [gaff2-sub] full <- hn-na-ca-ca
+Gh-Gi-Gk-Gv  1     0.30000   180.000    2.000   [gaff2-sub] full <- cd-na-ca-ca
+Gh-Gi-Gk-Gl  1     0.30000   180.000    2.000   [gaff2-sub] full <- cd-na-ca-ca
+Gi-Gk-Gl-Gn  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ca
+Gi-Gk-Gl-Gm  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ha
+Gv-Gk-Gl-Gn  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Gv-Gk-Gl-Gm  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Gi-Gk-Gv-Gw  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-na
+Gi-Gk-Gv-Gt  1     3.62500   180.000    2.000   [gaff2-sub] full <- na-ca-ca-ca
+Gl-Gk-Gv-Gw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Gl-Gk-Gv-Gt  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Gk-Gl-Gn-Go  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Gk-Gl-Gn-Gq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Gm-Gl-Gn-Go  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-c3
+Gm-Gl-Gn-Gq  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Gl-Gn-Go-Gp  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Gq-Gn-Go-Gp  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Gl-Gn-Gq-Gr  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-c3
+Gl-Gn-Gq-Gt  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Go-Gn-Gq-Gr  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-c3
+Go-Gn-Gq-Gt  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Gn-Gq-Gr-Gs  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Gt-Gq-Gr-Gs  1     0.00000   180.000    2.000   [gaff2-sub] full <- ca-ca-c3-hc
+Gn-Gq-Gt-Gv  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Gn-Gq-Gt-Gu  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ha
+Gr-Gq-Gt-Gv  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ca
+Gr-Gq-Gt-Gu  1     3.62500   180.000    2.000   [gaff2-sub] full <- c3-ca-ca-ha
+Gu-Gt-Gv-Gk  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-ca
+Gu-Gt-Gv-Gw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ha-ca-ca-na
+Gq-Gt-Gv-Gk  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-ca
+Gq-Gt-Gv-Gw  1     3.62500   180.000    2.000   [gaff2-sub] full <- ca-ca-ca-na
+Gk-Gv-Gw-Gx  1     0.60300   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cc
+Gt-Gv-Gw-Gx  1     0.60300   180.000    2.000   [gaff2-sub] full <- ca-ca-na-cc
+Gv-Gw-Gx-Ga  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cc-nc
+Gv-Gw-Gx-Gh  1     1.70000   180.000    2.000   [gaff2-sub] full <- ca-na-cc-cd
+Gk-Gv-Gw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Gt-Gv-Gw-c3  1     0.30000   180.000    2.000   [gaff2-sub] full <- ca-ca-na-c3
+Gv-Gw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-c3
+Gv-Gw-c3-h1  1     0.00000     0.000    2.000   [gaff2-sub] full <- ca-na-c3-h1
+Gx-Gw-c3-c3  1     0.00000     0.000    2.000   [gaff2-sub] full <- cc-na-c3-c3
+Gx-Gw-c3-h1  1     0.00000   180.000    2.000   [gaff2-sub] full <- cc-na-c3-h1
+c3-Gw-Gx-Ga  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cc-nc
+c3-Gw-Gx-Gh  1     1.70000   180.000    2.000   [gaff2-sub] full <- c3-na-cc-cd
+P -OD-P -OS  1     0.89700     0.000    1.000   [fork OD<-OS / O3<-O2: Meagher+parm10 torsion]
+P -OS-c3-c3  1     0.38300     0.000   -3.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-c3  1     3.95000   180.000    1.000   [base-FF sub] full <- c3-c3-os-p5
+P -OS-c3-h1  1     0.21700     0.000    3.000   [base-FF sub] full <- h1-c3-os-p5
+X -P -OD-X   3     0.75000     0.000    3.000   [fork OD<-OS / O3<-O2: Meagher+parm10 torsion]
+
+IMPROPER
+Ga-Gd-Gb-Gc         1.1          180.0         2.0   [root: tleap-perceived]
+Gh-Gd-Gf-Gg        10.5          180.0         2.0   [root: tleap-perceived]
+Gf-Gx-Gh-Gi         1.1          180.0         2.0   [root: tleap-perceived]
+Gl-Gv-Gk-Gi         1.1          180.0         2.0   [root: tleap-perceived]
+Go-Gl-Gn-Gq         1.1          180.0         2.0   [root: tleap-perceived]
+Gr-Gn-Gq-Gt         1.1          180.0         2.0   [root: tleap-perceived]
+Gk-Gt-Gv-Gw         1.1          180.0         2.0   [root: tleap-perceived]
+c3-Gv-Gw-Gx         1.1          180.0         2.0   [root: tleap-perceived]
+Gh-Gw-Gx-Ga         1.1          180.0         2.0   [root: tleap-perceived]
+Gf-Gb-Gd-Ge         1.1          180.0         2.0   [root: tleap-perceived]
+Gk-Gn-Gl-Gm         1.1          180.0         2.0   [root: tleap-perceived]
+Gq-Gv-Gt-Gu         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Ga      1.8993    0.0941   [LJ from nc]
+  Gb      1.8606    0.0988   [LJ from cd]
+  Gc      1.7107    0.1463   [LJ from o]
+  Gd      1.8352    0.1174   [LJ from ns]
+  Ge      0.6210    0.0100   [LJ from hn]
+  Gf      1.8606    0.0988   [LJ from c]
+  Gg      1.7107    0.1463   [LJ from o]
+  Gh      1.8606    0.0988   [LJ from cd]
+  Gi      1.7992    0.2042   [LJ from na]
+  Gj      0.6210    0.0100   [LJ from hn]
+  Gk      1.8606    0.0988   [LJ from ca]
+  Gl      1.8606    0.0988   [LJ from ca]
+  Gm      1.4735    0.0161   [LJ from ha]
+  Gn      1.8606    0.0988   [LJ from ca]
+  Go      1.9069    0.1078   [LJ from c3]
+  Gp      1.4593    0.0208   [LJ from hc]
+  Gq      1.8606    0.0988   [LJ from ca]
+  Gr      1.9069    0.1078   [LJ from c3]
+  Gs      1.4593    0.0208   [LJ from hc]
+  Gt      1.8606    0.0988   [LJ from ca]
+  Gu      1.4735    0.0161   [LJ from ha]
+  Gv      1.8606    0.0988   [LJ from ca]
+  Gw      1.7992    0.2042   [LJ from na]
+  Gx      1.8606    0.0988   [LJ from cc]
+  OD      1.6837    0.1700   [LJ from OS]
+  O3          1.6612   0.2100   O3 LJ = O2 (OPLS by-analogy); Meagher 2003, JCC 24:1016
+

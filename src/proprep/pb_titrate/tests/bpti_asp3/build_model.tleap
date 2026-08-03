@@ -1,0 +1,4 @@
+source leaprc.constph
+m = sequence { ACE AS4 NME }
+saveamberparm m model_as4.prmtop model_as4.rst7
+quit

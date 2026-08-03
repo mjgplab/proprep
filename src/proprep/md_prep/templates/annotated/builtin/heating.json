@@ -1,0 +1,326 @@
+{
+  "name": "Heating Protocol",
+  "description": "Gradual heating from 0 to 300K with restraints",
+  "simulation_type": "heating",
+  "parameters": {
+    "imin": {
+      "name": "imin",
+      "value": 0,
+      "description": "Molecular dynamics simulation (imin=0)",
+      "typical_values": [
+        "0"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "simulation_control"
+    },
+    "ntx": {
+      "name": "ntx",
+      "value": 1,
+      "description": "Read coordinates only (new simulation)",
+      "typical_values": [
+        "1",
+        "5"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "irest"
+      ],
+      "category": "input_control"
+    },
+    "irest": {
+      "name": "irest",
+      "value": 0,
+      "description": "Do not restart simulation (new start)",
+      "typical_values": [
+        "0",
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "ntx"
+      ],
+      "category": "input_control"
+    },
+    "nstlim": {
+      "name": "nstlim",
+      "value": 50000,
+      "description": "Number of MD steps (50k steps = 50 ps with dt=0.001)",
+      "typical_values": [
+        "25000",
+        "50000",
+        "100000"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "dt"
+      ],
+      "category": "time_control"
+    },
+    "dt": {
+      "name": "dt",
+      "value": 0.001,
+      "description": "Time step in ps (1 fs for heating)",
+      "typical_values": [
+        "0.001",
+        "0.002"
+      ],
+      "warnings": [
+        "Use 0.001 ps for heating phases",
+        "0.002 ps requires SHAKE constraints"
+      ],
+      "dependencies": [],
+      "category": "time_control"
+    },
+    "ntt": {
+      "name": "ntt",
+      "value": 3,
+      "description": "Langevin thermostat (recommended)",
+      "typical_values": [
+        "1",
+        "2",
+        "3",
+        "11"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "gamma_ln",
+        "temp0",
+        "tempi"
+      ],
+      "category": "temperature"
+    },
+    "tempi": {
+      "name": "tempi",
+      "value": 0.0,
+      "description": "Initial temperature in K (start from 0K)",
+      "typical_values": [
+        "0.0",
+        "100.0",
+        "200.0"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "nmropt"
+      ],
+      "category": "temperature"
+    },
+    "temp0": {
+      "name": "temp0",
+      "value": 300.0,
+      "description": "Target temperature in K",
+      "typical_values": [
+        "300.0",
+        "310.0",
+        "350.0"
+      ],
+      "warnings": [
+        "High temperatures (>350K) may require smaller time steps"
+      ],
+      "dependencies": [],
+      "category": "temperature"
+    },
+    "gamma_ln": {
+      "name": "gamma_ln",
+      "value": 2.0,
+      "description": "Langevin collision frequency in ps\u207b\u00b9",
+      "typical_values": [
+        "1.0",
+        "2.0",
+        "5.0"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "ntt"
+      ],
+      "category": "temperature"
+    },
+    "ntb": {
+      "name": "ntb",
+      "value": 1,
+      "description": "Constant volume periodic boundary (NVT)",
+      "typical_values": [
+        "1",
+        "2"
+      ],
+      "warnings": [
+        "Use ntb=1 for heating, ntb=2 for production"
+      ],
+      "dependencies": [],
+      "category": "system_setup"
+    },
+    "ntc": {
+      "name": "ntc",
+      "value": 2,
+      "description": "SHAKE constraint algorithm (bonds with hydrogen)",
+      "typical_values": [
+        "1",
+        "2",
+        "3"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "ntf",
+        "tol"
+      ],
+      "category": "constraints"
+    },
+    "ntf": {
+      "name": "ntf",
+      "value": 2,
+      "description": "Omit bond forces with hydrogen (when ntc=2)",
+      "typical_values": [
+        "1",
+        "2",
+        "3"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "ntc"
+      ],
+      "category": "constraints"
+    },
+    "cut": {
+      "name": "cut",
+      "value": 10.0,
+      "description": "Nonbonded cutoff distance in Angstroms",
+      "typical_values": [
+        "8.0",
+        "10.0",
+        "12.0"
+      ],
+      "warnings": [
+        "Values < 8.0 may affect electrostatics"
+      ],
+      "dependencies": [],
+      "category": "nonbonded"
+    },
+    "nmropt": {
+      "name": "nmropt",
+      "value": 1,
+      "description": "Enable varying conditions (&wt blocks for temperature ramping)",
+      "typical_values": [
+        "0",
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "tempi",
+        "temp0"
+      ],
+      "category": "advanced"
+    },
+    "ntr": {
+      "name": "ntr",
+      "value": 1,
+      "description": "Enable positional restraints",
+      "typical_values": [
+        "0",
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [
+        "restraint_wt",
+        "restraintmask"
+      ],
+      "category": "restraints"
+    },
+    "restraint_wt": {
+      "name": "restraint_wt",
+      "value": 10.0,
+      "description": "Restraint force constant in kcal/mol/\u00c5\u00b2",
+      "typical_values": [
+        "1.0",
+        "10.0",
+        "25.0"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "restraints"
+    },
+    "restraintmask": {
+      "name": "restraintmask",
+      "value": "!@H=",
+      "description": "Restrain all heavy atoms during heating",
+      "typical_values": [
+        "!@H=",
+        "@CA,C,N,O",
+        "!:WAT"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "restraints"
+    },
+    "ntpr": {
+      "name": "ntpr",
+      "value": 500,
+      "description": "Print energy every 500 steps",
+      "typical_values": [
+        "250",
+        "500",
+        "1000"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "output_control"
+    },
+    "ntwx": {
+      "name": "ntwx",
+      "value": 500,
+      "description": "Write trajectory every 500 steps",
+      "typical_values": [
+        "250",
+        "500",
+        "1000"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "output_control"
+    },
+    "ntwr": {
+      "name": "ntwr",
+      "value": 2500,
+      "description": "Write restart file every 2500 steps",
+      "typical_values": [
+        "1000",
+        "2500",
+        "5000"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "output_control"
+    },
+    "ntxo": {
+      "name": "ntxo",
+      "value": 2,
+      "description": "NetCDF format for restart file",
+      "typical_values": [
+        "1",
+        "2"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "output_control"
+    },
+    "ioutfm": {
+      "name": "ioutfm",
+      "value": 1,
+      "description": "NetCDF format for trajectory file",
+      "typical_values": [
+        "0",
+        "1"
+      ],
+      "warnings": [],
+      "dependencies": [],
+      "category": "output_control"
+    }
+  },
+  "nmr_section": "&wt type='TEMP0', istep1=0, istep2=25000,\n    value1=0.0, value2=300.0 /\n&wt type='END' /",
+  "comments": [
+    "Gradual heating protocol from 0K to 300K over 50 ps",
+    "Uses Langevin thermostat with moderate restraints",
+    "Temperature ramping controlled by &wt blocks",
+    "Adjust heating rate by modifying nstlim and &wt blocks"
+  ],
+  "metadata": {}
+}

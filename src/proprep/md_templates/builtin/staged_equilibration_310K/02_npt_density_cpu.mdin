@@ -1,0 +1,53 @@
+! TEMPLATE: NPT Density (CPU phase)
+! DESCRIPTION: Short NPT to converge box density at 310 K, solute restrained at 25 kcal/mol·Å², Berendsen barostat, 1 fs step. MUST run on CPU (pmemd.MPI).
+! TYPE: equilibration
+! PRIORITY: 3
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Staged equilibration at physiological temperature (310 K) for solvated metalloprotein/cofactor systems. Basic skeleton + heavy-atom restraint mask and graduated restraint release.
+
+NPT density convergence at 310 K and 1 atm with the solute heavy atoms restrained at 25 kcal/mol*Å^2. The box does its big shrink here as density rises. Engine: CPU (pmemd.MPI) -- pmemd.cuda fixes the PME grid at job start and cannot reallocate it when the box shrinks, so this density stage runs on CPU. This CPU->GPU handoff replaces the box-chunking used by longer protocols. Berendsen barostat (taup=1) gives smooth density settling while restrained.
+
+&cntrl
+! Run Control
+  imin = 0,			! Molecular dynamics (0=MD, 1=minimization)
+  nstlim = 300000,		! Total MD steps (300 ps at 1 fs) -- enough for density to converge
+  dt = 0.001,			! 0.001 ps time step (1 fs) -- short step while restrained
+
+! Input_Output Control
+  ntx = 5,			! Read coordinates and velocities (restart from heating)
+  irest = 1,			! Restart simulation (0 = start, 1 = restart)
+  ntpr = 10000,			! Every ntpr steps, print human-readable energy info
+  ntwx = 10000,			! Every ntwx steps, print coordinates to mdcrd file
+  ntwr = 10000,			! Every ntwr steps, print coordinates to restart file
+  ioutfm = 1,			! NetCDF binary trajectory format (compact, portable)
+
+! Restraints
+  ntr = 1,				! Enable positional restraints (see restraintmask below)
+  restraint_wt = 25.0,			! Restraint force constant (kcal/mol-A2)
+  restraintmask = '!@H= & !:WAT,Na+,Cl-,K+,MG', ! Heavy-atom solute restraint (frees water + mobile ions)
+
+! Temperature Control
+  ntt = 3,			! Langevin thermostat (0=none, 1=Berendsen, 2=Anderson, 3=Langevin)
+  gamma_ln = 5.0,		! Collision frequency (1/ps) -- fast thermalization during equilibration
+  ig = -1,			! Random seed from wall clock (ensures unique trajectory per run)
+  temp0 = 310.0,		! Target temperature (K) -- physiological / turnover condition
+
+! Pressure Control
+  ntp = 1,			! Isotropic pressure coupling (0=none, 1=isotropic, 2=anisotropic)
+  barostat = 1,			! Berendsen barostat (1=Berendsen, 2=Monte Carlo) -- smooth density settling
+  pres0 = 1.0,			! Reference pressure (bar)
+  taup = 1.0,			! Pressure relaxation time (ps)
+
+! Miscellaneous
+  cut = 10.0,			! Nonbonded interaction cutoff (Angstroms)
+  nscm = 100,			! Remove center-of-mass translation every 100 steps
+
+! Periodic Boundary Conditions
+  ntb = 2,			! Periodic boundaries, constant pressure
+  iwrap = 0,			! Do not wrap coordinates
+
+! SHAKE
+  ntc = 2,			! SHAKE constraints on bonds involving hydrogen
+  ntf = 2,			! Omit bond forces for SHAKE-constrained bonds
+/

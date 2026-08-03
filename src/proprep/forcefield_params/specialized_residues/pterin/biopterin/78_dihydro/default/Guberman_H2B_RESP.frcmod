@@ -1,0 +1,150 @@
+Lean H2B frcmod (pterin/biopterin/78_dihydro). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c). Dihedrals = GAFF2-by-substitution, full multi-term (pterin ring-fusion from parm10-nucleic). Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Wa     14.010    0.530   [frag]
+Wc     12.010    0.360   [frag]
+We     12.010    0.878   [frag]
+Wg      1.008    0.135   [frag]
+Wh      1.008    0.135   [frag]
+Wi     14.010    0.530   [frag]
+Wj      1.008    0.161   [frag]
+Wk     12.010    0.878   [frag]
+Wl      1.008    0.135   [frag]
+Wm     16.000    0.465   [frag]
+Wn      1.008    0.135   [frag]
+Wo     12.010    0.878   [frag]
+Wp      1.008    0.135   [frag]
+Wq     12.010    0.878   [frag]
+Wr      1.008    0.135   [frag]
+Ws     16.000    0.465   [frag]
+Wt      1.008    0.135   [frag]
+
+BOND
+CB-Wa    274.05     1.3984   [junction] seminario-0c (n=1)
+CB-Wi    393.21     1.3561   [junction] seminario-0c (n=1)
+Wa-Wc    620.20     1.2850   Seminario method [frag]
+Wc-We    207.09     1.5233   Seminario method [frag]
+Wc-Wk    245.32     1.5105   Seminario method [frag]
+We-Wg    360.57     1.0923   Seminario method [frag]
+We-Wh    324.46     1.1035   Seminario method [frag]
+We-Wi    255.55     1.4604   Seminario method [frag]
+Wi-Wj    498.84     1.0133   Seminario method [frag]
+Wk-Wl    346.42     1.0970   Seminario method [frag]
+Wk-Wm    232.89     1.4394   Seminario method [frag]
+Wk-Wo    203.64     1.5463   Seminario method [frag]
+Wm-Wn    557.41     0.9702   Seminario method [frag]
+Wo-Wp    336.21     1.0995   Seminario method [frag]
+Wo-Wq    223.96     1.5286   Seminario method [frag]
+Wo-Ws    234.54     1.4360   Seminario method [frag]
+Wq-Wr    348.85     1.0968   Seminario method [frag]
+Ws-Wt    554.04     0.9710   Seminario method [frag]
+
+ANGLE
+C -CB-Wa    132.830    119.870   [junction] seminario-0c (n=1)
+CB-CB-Wa    143.230    121.090   [junction] seminario-0c (n=1)
+CB-CB-Wi    162.680    117.740   [junction] seminario-0c (n=1)
+CB-Wa-Wc    122.940    118.890   [junction] seminario-0c (n=1)
+CB-Wi-We    160.490    119.460   [junction] seminario-0c (n=1)
+CB-Wi-Wj     67.490    116.790   [junction] seminario-0c (n=1)
+NC-CB-Wi    153.770    117.260   [junction] seminario-0c (n=1)
+Wa-Wc-We    135.818    122.059   Seminario method [frag]
+Wa-Wc-Wk    143.917    119.233   Seminario method [frag]
+Wc-We-Wg     72.214    111.636   Seminario method [frag]
+Wc-We-Wh     68.555    109.372   Seminario method [frag]
+Wc-We-Wi    171.031    108.399   Seminario method [frag]
+Wc-Wk-Wl     72.562    107.544   Seminario method [frag]
+Wc-Wk-Wm    168.804    106.312   Seminario method [frag]
+Wc-Wk-Wo    146.539    113.442   Seminario method [frag]
+We-Wc-Wk    164.191    118.637   Seminario method [frag]
+We-Wi-Wj     65.051    118.402   Seminario method [frag]
+Wg-We-Wh     47.032    107.230   Seminario method [frag]
+Wg-We-Wi     74.625    108.850   Seminario method [frag]
+Wh-We-Wi     64.336    111.375   Seminario method [frag]
+Wk-Wm-Wn     62.086    109.006   Seminario method [frag]
+Wk-Wo-Wp     76.831    108.485   Seminario method [frag]
+Wk-Wo-Wq    144.917    112.470   Seminario method [frag]
+Wk-Wo-Ws    146.063    105.916   Seminario method [frag]
+Wl-Wk-Wm     78.798    110.626   Seminario method [frag]
+Wl-Wk-Wo     78.865    108.740   Seminario method [frag]
+Wm-Wk-Wo    116.044    110.139   Seminario method [frag]
+Wo-Wq-Wr     68.548    110.879   Seminario method [frag]
+Wo-Ws-Wt     60.866    108.422   Seminario method [frag]
+Wp-Wo-Wq     79.567    109.188   Seminario method [frag]
+Wp-Wo-Ws     70.112    109.435   Seminario method [frag]
+Wq-Wo-Ws    151.693    111.250   Seminario method [frag]
+Wr-Wq-Wr     46.203    109.028   Seminario method [frag]
+
+DIHE
+Wj-Wi-We-Wh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Wj-Wi-We-Wc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Wj-Wi-We-Wg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Wa-Wc-We-Wh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c2-c3-X
+Wa-Wc-We-Wi  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c2-c3-X
+Wa-Wc-We-Wg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c2-c3-X
+Wk-Wc-We-Wh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c2-c3-X
+Wk-Wc-We-Wi  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c2-c3-X
+Wk-Wc-We-Wg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c2-c3-X
+Wa-Wc-Wk-Wl  1     0.00000     0.000    2.000   [gaff2-sub] full <- nf-c2-c3-h1
+Wa-Wc-Wk-Wm  1     0.00000     0.000    2.000   [gaff2-sub] full <- nf-c2-c3-oh
+Wa-Wc-Wk-Wo  1     0.00000     0.000    2.000   [gaff2-sub] full <- nf-c2-c3-c3
+We-Wc-Wk-Wl  1     0.00000     0.000    2.000   [gaff2-sub] full <- c6-c2-c3-h1
+We-Wc-Wk-Wm  1     0.00000     0.000    2.000   [gaff2-sub] full <- c6-c2-c3-oh
+We-Wc-Wk-Wo  1     0.00000     0.000    2.000   [gaff2-sub] full <- c6-c2-c3-c3
+Wl-Wk-Wm-Wn  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Wc-Wk-Wm-Wn  1     0.16667     0.000    3.000   [gaff2-sub] full <- c2-c3-oh-ho
+Wo-Wk-Wm-Wn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Wl-Wk-Wo-Wq  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-c3
+Wl-Wk-Wo-Ws  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Wl-Wk-Wo-Ws  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Wl-Wk-Wo-Wp  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-h1
+Wc-Wk-Wo-Wq  1     0.15556     0.000    3.000   [gaff2-sub] full <- c2-c3-c3-c3
+Wc-Wk-Wo-Ws  1     0.15556     0.000    3.000   [gaff2-sub] full <- c2-c3-c3-oh
+Wc-Wk-Wo-Wp  1     0.15556     0.000    3.000   [gaff2-sub] full <- c2-c3-c3-h1
+Wm-Wk-Wo-Wq  1     0.21000     0.000    3.000   [gaff2-sub] full <- oh-c3-c3-c3
+Wm-Wk-Wo-Ws  1     0.90000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-oh
+Wm-Wk-Wo-Ws  1     1.13000     0.000    2.000   [gaff2-sub] full <- oh-c3-c3-oh
+Wm-Wk-Wo-Wp  1     0.00000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-h1
+Wm-Wk-Wo-Wp  1     0.25000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-h1
+Ws-Wo-Wq-Wr  1     0.18000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-hc
+Ws-Wo-Wq-Wr  1     0.51000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-hc
+Wp-Wo-Wq-Wr  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-hc
+Wk-Wo-Wq-Wr  1     0.08000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-hc
+Wq-Wo-Ws-Wt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Wp-Wo-Ws-Wt  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Wk-Wo-Ws-Wt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+C -CB-Wa-Wc  1     0.17000   180.000    2.000   [gaff2-sub] full <- c2-ce-ne-c2
+CB-CB-Wa-Wc  1     0.17000   180.000    2.000   [gaff2-sub] full <- c2-ce-ne-c2
+CB-CB-Wi-We  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+CB-CB-Wi-Wj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+CB-Wa-Wc-We  1     4.15000   180.000    2.000   [gaff2-sub] full <- CB-nf-c2-c6
+CB-Wa-Wc-Wk  1     4.15000   180.000    2.000   [gaff2-sub] full <- CB-nf-c2-c3
+CB-Wi-We-Wc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Wi-We-Wg  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Wi-We-Wh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+NC-CB-Wi-We  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+NC-CB-Wi-Wj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cc-nh-X
+
+IMPROPER
+C -CB-CB-Wa         1.1          180.0         2.0   [root: tleap-perceived]
+CB-NC-CB-Wi         1.1          180.0         2.0   [root: tleap-perceived]
+Wk-We-Wc-Wa         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Wa      1.8993    0.0941   [LJ from nf]
+  Wc      1.8606    0.0988   [LJ from c2]
+  We      1.9069    0.1078   [LJ from c6]
+  Wg      1.3593    0.0208   [LJ from h1]
+  Wh      1.3593    0.0208   [LJ from h1]
+  Wi      1.8403    0.1545   [LJ from nu]
+  Wj      0.6210    0.0100   [LJ from hn]
+  Wk      1.9069    0.1078   [LJ from c3]
+  Wl      1.3593    0.0208   [LJ from h1]
+  Wm      1.8200    0.0930   [LJ from oh]
+  Wn      0.3019    0.0047   [LJ from ho]
+  Wo      1.9069    0.1078   [LJ from c3]
+  Wp      1.3593    0.0208   [LJ from h1]
+  Wq      1.9069    0.1078   [LJ from c3]
+  Wr      1.4593    0.0208   [LJ from hc]
+  Ws      1.8200    0.0930   [LJ from oh]
+  Wt      0.3019    0.0047   [LJ from ho]
+

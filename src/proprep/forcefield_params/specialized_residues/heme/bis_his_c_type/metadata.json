@@ -1,0 +1,263 @@
+{
+  "description": "Bis-histidine ligated c-type heme parameters with two covalent thioether bonds to cysteine ligands. Heme residue absorbs the redox-active atoms from 4 protein residues (2 thioether-linked Cys side chains + 2 axial His side chains) following the conste convention; the source Cys and His residues are reduced to backbone-only stubs (CYO and HIO).",
+  "cofactor_type": "bis_his_c_type",
+  "references": [
+    "Henriques, J.; Costa, P. J.; Calhorda, M. J.; Machuqueiro, M. Charge parametrization of the DvH-c3 heme group: Validation using constant (pH,E) molecular dynamics simulations. J. Phys. Chem. B 2013, 117 (1), 70-82. (Source of the bis-His c-heme RESP charges in conste.lib for both oxidized and reduced states.)",
+    "Crespo, A.; Mart\u00ed, M. A.; Kalko, S. G.; Morreale, A.; Orozco, M.; Gelpi, J. L.; Luque, F. J.; Estrin, D. A. Theoretical study of the truncated hemoglobin HbN: Exploring the molecular basis of the NO detoxification mechanism. J. Am. Chem. Soc. 2005, 127 (12), 4433-4444. (Earlier bis-His heme parameterization; underlies the atom-type scheme and macrocycle bonded parameters in frcmod.conste.)",
+    "Guberman-Pfeffer, M. J. Force field parameters for bis-histidine ligated c-type hemes developed using Metal Center Parameter Builder with B3LYP/mixed basis set. Independent re-parameterization for state-distinct Fe-shell bonded parameters."
+  ],
+  "prerequisites": {
+    "leaprc_groups": [],
+    "leaprc_groups_notes": "Per-set prerequisites apply (see each forcefield set). The _constpH sets need leaprc.constph + leaprc.conste (PRN lives in conste.lib); the _FixedpH sets are self-contained (PRP/PRD bundled, parm10 types) and need only ff14SB/ff19SB."
+  },
+  "redox_states": {
+    "reduced": {
+      "description": "Iron(II) oxidation state - ferrous heme",
+      "formal_charge": 0,
+      "spin_states": {
+        "low_spin": {
+          "description": "Low-spin Fe(II), S=0, singlet state",
+          "spin_multiplicity": 1,
+          "electronic_config": "d6 low-spin",
+          "atom_types": [
+            "{ \"FE\" \"Fe\" \"sp3\" }",
+            "{ \"NP\" \"N\" \"sp2\" }",
+            "{ \"NO\" \"N\" \"sp2\" }",
+            "{ \"CY\" \"C\" \"sp2\" }",
+            "{ \"CX\" \"C\" \"sp2\" }",
+            "{ \"CD\" \"C\" \"sp2\" }",
+            "{ \"Cp\" \"C\" \"sp2\" }"
+          ],
+          "residue_name": "HCR",
+          "ligand_residue_names": {
+            "axial_his_stub": "HIO",
+            "thioether_cys_stub": "CYO"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Henriques_HCR_RESP_constpH": {
+              "description": "Henriques c-type heme parameters from conste.lib + frcmod.conste, packaged for ProPrep with state-specific oxidized/reduced charge tables. Per-atom charges differ between HCO (Fe\u00b3\u207a) and HCR (Fe\u00b2\u207a); bonded terms are state-independent (Henriques did not fork bonded params between redox states).",
+              "version": "1.0",
+              "reference": "Henriques et al. J. Phys. Chem. B 2013, 117, 70-82",
+              "files": {
+                "frcmod": "Henriques_HCR_RESP_constpH.frcmod",
+                "lib": "Henriques_HCR_RESP_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Henriques bis-His c-heme (conste)",
+              "methodology": "This is the bis-histidine-ligated c-type heme of cytochrome c, in its reduced (ferrous, Fe2+), low-spin state. It re-packages the published Henriques (2013) 'conste' constant-(pH,redox) parameters for use in ProPrep.\n\nA force field describes the molecule's energy with a few simple terms; here is where each came from:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces): a multi-conformation RESP fit. RESP tunes the charges to reproduce the molecule's quantum-mechanical (QM) electrostatic field; 'multi-conformation' means it was averaged over the four crystallographically distinct hemes of the reference structure (PDB 2CTH, Desulfovibrio vulgaris cytochrome c3) for robustness. The QM was the B3LYP density-functional method with a LANL2TZ(f) basis on iron and 6-31G(d) on the other atoms, on a geometry optimized with the cysteine/histidine attachment carbons restrained to keep the protein-induced heme ruffling. The two redox states share identical bond/angle/torsion terms - the oxidized-vs-reduced difference is carried entirely by the charges (Fe carries +0.666 when ferric and +0.480 when ferrous, with the one-electron difference spread across the macrocycle and ligands).\n- Bond, angle, torsion and planarity terms: inherited from the earlier Crespo (2005) bis-His heme model that underlies conste (a classical model fit against QM).\n- Custom atom types: the porphyrin nitrogens use conste's NP/NO types; their element and hybridization are registered up front so their implicit-solvent (Born) radii are assigned as nitrogen rather than mis-guessed.\n- The heme's two propionate side chains are split off as separate titratable PRN residues; the few extra angle/improper terms they need are folded into this file, so no constant-pH force field need be loaded separately.\n\nNote: building a heme site produces a handful of harmless 'No sp2 improper torsion term' messages - the Crespo/Henriques model keeps the porphyrin and imidazole flat with stiff bond/angle terms instead of out-of-plane improper terms, so tleap notes the missing impropers but the topology is correct.\n\nReferences: Henriques 2013 (conste charges, multi-conformer RESP); Crespo 2005 (bis-His heme bonded model); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Henriques_HCR_RESP_FixedpH": {
+              "description": "Henriques c-type heme parameters from conste.lib + frcmod.conste, packaged for ProPrep with state-specific oxidized/reduced charge tables. Per-atom charges differ between HCO (Fe\u00b3\u207a) and HCR (Fe\u00b2\u207a); bonded terms are state-independent (Henriques did not fork bonded params between redox states).",
+              "version": "1.0",
+              "reference": "Henriques et al. J. Phys. Chem. B 2013, 117, 70-82",
+              "files": {
+                "frcmod": "Henriques_HCR_RESP_FixedpH.frcmod",
+                "lib": "Henriques_HCR_RESP_FixedpH.lib"
+              },
+              "is_default": true,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Henriques bis-His c-heme (conste)",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the bis-histidine-ligated c-type heme of cytochrome c, in its reduced (ferrous, Fe2+), low-spin state. It re-packages the published Henriques (2013) 'conste' constant-(pH,redox) parameters for use in ProPrep.\n\nA force field describes the molecule's energy with a few simple terms; here is where each came from:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces): a multi-conformation RESP fit. RESP tunes the charges to reproduce the molecule's quantum-mechanical (QM) electrostatic field; 'multi-conformation' means it was averaged over the four crystallographically distinct hemes of the reference structure (PDB 2CTH, Desulfovibrio vulgaris cytochrome c3) for robustness. The QM was the B3LYP density-functional method with a LANL2TZ(f) basis on iron and 6-31G(d) on the other atoms, on a geometry optimized with the cysteine/histidine attachment carbons restrained to keep the protein-induced heme ruffling. The two redox states share identical bond/angle/torsion terms - the oxidized-vs-reduced difference is carried entirely by the charges (Fe carries +0.666 when ferric and +0.480 when ferrous, with the one-electron difference spread across the macrocycle and ligands).\n- Bond, angle, torsion and planarity terms: inherited from the earlier Crespo (2005) bis-His heme model that underlies conste (a classical model fit against QM).\n- Custom atom types: the porphyrin nitrogens use conste's NP/NO types; their element and hybridization are registered up front so their implicit-solvent (Born) radii are assigned as nitrogen rather than mis-guessed.\n- The heme's two propionate side chains are split off as separate titratable PRN residues; the few extra angle/improper terms they need are folded into this file, so no constant-pH force field need be loaded separately.\n\nNote: building a heme site produces a handful of harmless 'No sp2 improper torsion term' messages - the Crespo/Henriques model keeps the porphyrin and imidazole flat with stiff bond/angle terms instead of out-of-plane improper terms, so tleap notes the missing impropers but the topology is correct.\n\nReferences: Henriques 2013 (conste charges, multi-conformer RESP); Crespo 2005 (bis-His heme bonded model); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "oxidized": {
+      "description": "Iron(III) oxidation state - ferric heme",
+      "formal_charge": 1,
+      "spin_states": {
+        "low_spin": {
+          "description": "Low-spin Fe(III), S=1/2, doublet state",
+          "spin_multiplicity": 2,
+          "electronic_config": "d5 low-spin",
+          "atom_types": [
+            "{ \"FE\" \"Fe\" \"sp3\" }",
+            "{ \"NP\" \"N\" \"sp2\" }",
+            "{ \"NO\" \"N\" \"sp2\" }",
+            "{ \"CY\" \"C\" \"sp2\" }",
+            "{ \"CX\" \"C\" \"sp2\" }",
+            "{ \"CD\" \"C\" \"sp2\" }",
+            "{ \"Cp\" \"C\" \"sp2\" }"
+          ],
+          "residue_name": "HCO",
+          "ligand_residue_names": {
+            "axial_his_stub": "HIO",
+            "thioether_cys_stub": "CYO"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Henriques_HCO_RESP_constpH": {
+              "description": "Henriques c-type heme parameters from conste.lib + frcmod.conste, packaged for ProPrep with state-specific oxidized/reduced charge tables. Per-atom charges differ between HCO (Fe³⁺) and HCR (Fe²⁺); bonded terms are state-independent (Henriques did not fork bonded params between redox states).",
+              "version": "1.0",
+              "reference": "Henriques et al. J. Phys. Chem. B 2013, 117, 70-82",
+              "files": {
+                "frcmod": "Henriques_HCO_RESP_constpH.frcmod",
+                "lib": "Henriques_HCO_RESP_constpH.lib"
+              },
+              "is_default": false,
+              "ph_treatment": "constant_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "titratable_residue": "PRN"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "titratable_residue": "PRN"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Constant-pH titratable protein residues (AS4/GL4 etc.) come from AMBER's constant-pH library.",
+                    "satisfied_by": [
+                      "leaprc.constph"
+                    ]
+                  },
+                  {
+                    "description": "The titratable PRN heme propionate is defined in AMBER's constant-redox library (conste.lib) - NOT in constph.lib. Constant-(pH,E) MD loads both together (the 'Constant pH + Redox' picker option).",
+                    "satisfied_by": [
+                      "leaprc.conste"
+                    ]
+                  }
+                ]
+              },
+              "name": "Henriques bis-His c-heme (conste)",
+              "methodology": "This is the bis-histidine-ligated c-type heme of cytochrome c, in its oxidized (ferric, Fe3+), low-spin state. It re-packages the published Henriques (2013) 'conste' constant-(pH,redox) parameters for use in ProPrep.\n\nA force field describes the molecule's energy with a few simple terms; here is where each came from:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces): a multi-conformation RESP fit. RESP tunes the charges to reproduce the molecule's quantum-mechanical (QM) electrostatic field; 'multi-conformation' means it was averaged over the four crystallographically distinct hemes of the reference structure (PDB 2CTH, Desulfovibrio vulgaris cytochrome c3) for robustness. The QM was the B3LYP density-functional method with a LANL2TZ(f) basis on iron and 6-31G(d) on the other atoms, on a geometry optimized with the cysteine/histidine attachment carbons restrained to keep the protein-induced heme ruffling. The two redox states share identical bond/angle/torsion terms - the oxidized-vs-reduced difference is carried entirely by the charges (Fe carries +0.666 when ferric and +0.480 when ferrous, with the one-electron difference spread across the macrocycle and ligands).\n- Bond, angle, torsion and planarity terms: inherited from the earlier Crespo (2005) bis-His heme model that underlies conste (a classical model fit against QM).\n- Custom atom types: the porphyrin nitrogens use conste's NP/NO types; their element and hybridization are registered up front so their implicit-solvent (Born) radii are assigned as nitrogen rather than mis-guessed.\n- The heme's two propionate side chains are split off as separate titratable PRN residues; the few extra angle/improper terms they need are folded into this file, so no constant-pH force field need be loaded separately.\n\nNote: building a heme site produces a handful of harmless 'No sp2 improper torsion term' messages - the Crespo/Henriques model keeps the porphyrin and imidazole flat with stiff bond/angle terms instead of out-of-plane improper terms, so tleap notes the missing impropers but the topology is correct.\n\nReferences: Henriques 2013 (conste charges, multi-conformer RESP); Crespo 2005 (bis-His heme bonded model); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            },
+            "Henriques_HCO_RESP_FixedpH": {
+              "description": "Henriques c-type heme parameters from conste.lib + frcmod.conste, packaged for ProPrep with state-specific oxidized/reduced charge tables. Per-atom charges differ between HCO (Fe³⁺) and HCR (Fe²⁺); bonded terms are state-independent (Henriques did not fork bonded params between redox states).",
+              "version": "1.0",
+              "reference": "Henriques et al. J. Phys. Chem. B 2013, 117, 70-82",
+              "files": {
+                "frcmod": "Henriques_HCO_RESP_FixedpH.frcmod",
+                "lib": "Henriques_HCO_RESP_FixedpH.lib"
+              },
+              "is_default": true,
+              "ph_treatment": "fixed_pH",
+              "protonation_model": {
+                "sites": [
+                  {
+                    "role": "propionate_a",
+                    "label": "A-ring propionate (pyrrole A)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  },
+                  {
+                    "role": "propionate_d",
+                    "label": "D-ring propionate (pyrrole D)",
+                    "variants": {
+                      "deprotonated": "PRD",
+                      "protonated": "PRP"
+                    },
+                    "default": "deprotonated"
+                  }
+                ]
+              },
+              "prerequisites": {
+                "leaprc_groups": [
+                  {
+                    "description": "Fixed-pH propionates (PRD/PRP) are bundled in the heme library and use standard parm10 atom types, so no constant-pH/redox library is needed; any cofactor-compatible protein force field suffices.",
+                    "satisfied_by": [
+                      "leaprc.protein.ff14SB",
+                      "leaprc.protein.ff19SB"
+                    ]
+                  }
+                ]
+              },
+              "name": "Henriques bis-His c-heme (conste)",
+              "methodology": "FIXED-pH propionate treatment. Identical heme/ligand charges, bonded terms, and atom types as the companion constant-pH set - the ONLY difference is that the two heme propionates are represented by static residues bundled in the lib: PRD (deprotonated carboxylate, COO-, net -1) and PRP (protonated carboxylic acid, COOH, net 0, syn). Each ring's protonation is chosen independently at build time. Loads cleanly under ff14SB/ff19SB with NO leaprc.constph or leaprc.conste dependency. Propionate charges/atoms are taken verbatim from parmed's titratable_residues PRN (state 0 -> PRD, state 1 -> PRP), with the inactive zero-charge ghost hydrogens dropped exactly. Use this set for fixed-protonation MD; use the constant-pH companion set for constant-(pH,E) MD on the propionates.\n\n---\n\nThis is the bis-histidine-ligated c-type heme of cytochrome c, in its oxidized (ferric, Fe3+), low-spin state. It re-packages the published Henriques (2013) 'conste' constant-(pH,redox) parameters for use in ProPrep.\n\nA force field describes the molecule's energy with a few simple terms; here is where each came from:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces): a multi-conformation RESP fit. RESP tunes the charges to reproduce the molecule's quantum-mechanical (QM) electrostatic field; 'multi-conformation' means it was averaged over the four crystallographically distinct hemes of the reference structure (PDB 2CTH, Desulfovibrio vulgaris cytochrome c3) for robustness. The QM was the B3LYP density-functional method with a LANL2TZ(f) basis on iron and 6-31G(d) on the other atoms, on a geometry optimized with the cysteine/histidine attachment carbons restrained to keep the protein-induced heme ruffling. The two redox states share identical bond/angle/torsion terms - the oxidized-vs-reduced difference is carried entirely by the charges (Fe carries +0.666 when ferric and +0.480 when ferrous, with the one-electron difference spread across the macrocycle and ligands).\n- Bond, angle, torsion and planarity terms: inherited from the earlier Crespo (2005) bis-His heme model that underlies conste (a classical model fit against QM).\n- Custom atom types: the porphyrin nitrogens use conste's NP/NO types; their element and hybridization are registered up front so their implicit-solvent (Born) radii are assigned as nitrogen rather than mis-guessed.\n- The heme's two propionate side chains are split off as separate titratable PRN residues; the few extra angle/improper terms they need are folded into this file, so no constant-pH force field need be loaded separately.\n\nNote: building a heme site produces a handful of harmless 'No sp2 improper torsion term' messages - the Crespo/Henriques model keeps the porphyrin and imidazole flat with stiff bond/angle terms instead of out-of-plane improper terms, so tleap notes the missing impropers but the topology is correct.\n\nReferences: Henriques 2013 (conste charges, multi-conformer RESP); Crespo 2005 (bis-His heme bonded model); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "transformation_info": {
+    "transforms_from": [
+      "Standard heme residues (HEM, HEC) in the input PDB",
+      "2 thioether-linked CYS residues (one each on pyrrole-B and pyrrole-D vinyl-\u03b1 carbons; identified by closest CYS SG to CAB and CAC respectively)",
+      "2 axial HIS residues (proximal + distal; identified by Fe-NE2 coordination bonds)"
+    ],
+    "creates_bonds": [
+      "Coordination bonds between Fe and 2 axial His NE2 nitrogens (atoms NE21, NE22 inside the heme residue after migration)",
+      "Thioether bonds between heme vinyl-\u03b1 carbons (CAB, CAC) and Cys-SG atoms (atoms SGB2, SGC1 inside the heme residue after migration)"
+    ],
+    "notes": "Cys and His side chains are migrated INTO the heme residue (conste convention). After transformation, every redox-active atom lives in HCO/HCR; the source Cys and His residues are left as backbone-only CYO and HIO stubs (just N/H/CA/HA/C/O). The propionates are extracted as PRN residues via the standard pattern (residue ID = heme_id + 1 for propionate A, heme_id + 2 for propionate D)."
+  }
+}

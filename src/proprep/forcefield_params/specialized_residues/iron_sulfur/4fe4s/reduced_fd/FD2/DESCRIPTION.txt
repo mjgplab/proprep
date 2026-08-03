@@ -1,0 +1,12 @@
+Cluster residue: FD2
+Cys ligand residues: C41, C42, C43, C44
+State: reduced_fd
+Source guess: guess1b
+State letter: U
+Atom types: U1-U4 (Fe), U5-U8 (bridging S), UA-UD (Cys SG)
+
+Per-Fe formal state (BS layer assignment from spin populations):
+  U1 (Fe1): ferrous   Rmin/2 = 1.4090, eps = 0.017210
+  U2 (Fe2): ferrous   Rmin/2 = 1.4090, eps = 0.017210
+  U3 (Fe3): mv        Rmin/2 = 1.3975, eps = 0.015390
+  U4 (Fe4): mv        Rmin/2 = 1.3975, eps = 0.015390

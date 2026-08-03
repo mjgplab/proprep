@@ -1,0 +1,62 @@
+{
+  "description": "Tetrahedral Zn(II) coordinated by 4 cysteinate ligands (zinc-finger-style structural site). Single redox state. Bundled set uses symmetry-averaged Seminario bonded parameters and cross-Cys-equivalence-constrained 2-stage RESP charges fit on an ACE-CYM-NME large-cap protein model with ff14SB backbone charge constraints and HF/6-31G(d) gas-phase ESP.",
+  "cofactor_type": "zinc_cys4",
+  "references": [
+    "Guberman-Pfeffer, M. J. Bundled Zn(Cys)4 force-field parameters derived via ProPrep MCPB workflow with cross-ligand-equivalence RESP refit (this work).",
+    "Li, P.; Merz, K. M. MCPB.py: A python based metal center parameter builder. J. Chem. Inf. Model. 2016, 56, 599–604.",
+    "Seminario, J. M. Calculation of intramolecular force fields from second-derivative tensors. Int. J. Quantum Chem. 1996, 60, 1271."
+  ],
+  "prerequisites": {
+    "leaprc_groups": [
+      {
+        "description": "Any parm10-compatible protein FF (CYZ uses standard backbone + side-chain types N/H/CX/H1/CT/C/O; CYZ inherits all ff14SB CYM types except SG, which is retyped to YZ). Cofactor parameterization team blessed ff14SB and ff19SB empirically; the constph/conste variants source ff10 (parm10-equivalent backbone) so they are also valid carriers of the required standard types. The combined 'Constant pH + Redox' picker option (which sources both constph and conste) is matched implicitly because its leaprc list intersects this satisfied_by set.",
+        "satisfied_by": [
+          "leaprc.protein.ff14SB",
+          "leaprc.protein.ff19SB",
+          "leaprc.protein.ff14SBonlysc",
+          "leaprc.constph",
+          "leaprc.conste"
+        ]
+      }
+    ]
+  },
+  "methodology": "Tetrahedral Zn(II)(Cys-)4 cluster parameterized from a large 89-atom ACE/NMe-capped QM cluster (PDB 4D1N dimer-interface site, chains A + B, Cys 331/336 each). DFT: B3LYP/6-31G(d) PCM(water) opt with Cα atom positions and Cys φ/ψ dihedrals frozen (Gaussian modredundant restraints) at the 4D1N crystal values; final frequencies all real (lowest +13.3 cm⁻¹). RESP: large-model ESP grid with custom MK Zn radius = 1.395 Å (Li et al. JCTC 2013 IOD-TIP3P set), 2-stage Bayly-Cieplak with 4-Cys equivalence via RESP atom-equivalence groups (the ivary entries in the RESP input), CYZ backbone (N/H/CA/HA/C/O) pinned per-atom to canonical ff14SB CYM values, ACE/NMe cap-sums constrained to 0, net cluster charge -2 e. Per-residue totals: CYZ = -0.7404 e (each of 4 instances), ZNC (Zn ion) = +0.9617 e; 4 × CYZ + ZNC = -2.0000 e exactly. Bonded parameters from the Seminario method on the same large-model Hessian, 4-fold averages: ZM-SZ bond (K=32.32 kcal/mol/Å², r=2.431 Å) over 4 instances, CT-SZ-ZM angle over 4, SZ-ZM-SZ angle over 6. The 4-fold averaging is used despite the true C2 site symmetry because within-pair Seminario noise exceeds between-pair difference for bonds and CT-SZ-ZM angles; the SZ-ZM-SZ angle does show a real C2 splitting (121.95° vs 109° in the QM equilibrium) that a future C2-constrained 2-fold variant could capture. Atom-type forks: ZM (Zn metal, distinct from parm19 solvent Zn) and SZ (Cys-thiolate Sγ bound to Zn, forked from ff14SB SH). Bundled file names: ZNC.lib (single combined lib with CYZ + ZNC units; CYZ has standard head/tail for protein backbone splice; ZNC is a one-atom non-splicing residue), ZNC.frcmod (atom-type masses + bonded + LJ).",
+  "set_comparison_guidance": "Only one variant is bundled for this cofactor. The averaged-symmetry parameters are appropriate for any tetrahedral Zn(Cys)4 site (structural zinc fingers, zinc-binding motifs in DNA-binding proteins, zinc hooks in DNA repair complexes). For Zn coordinated by His or other ligands, mixed N/S/O coordination, or non-tetrahedral geometries, regenerate parameters per-site via ProPrep's metal-site parameterizer rather than reusing this set.",
+  "redox_states": {
+    "single_state": {
+      "description": "Tetrahedral Zn(II)(Cys-)4 - structural zinc-thiolate site (non-redox-active)",
+      "formal_charge": -2,
+      "spin_states": {
+        "default": {
+          "description": "Closed-shell singlet Zn(II) (d10); diamagnetic; tetrahedral S4 coordination",
+          "spin_multiplicity": 1,
+          "electronic_config": "d10 closed shell; ground-state singlet",
+          "atom_types": [
+            "{ \"ZM\" \"Zn\" \"sp3\" }",
+            "{ \"SZ\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "ZNC",
+          "ligand_cys_residues": [
+            "CYZ"
+          ],
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_ZNC_RESP": {
+              "description": "Guberman-Pfeffer Zn(Cys)4 parameters: 4-fold-symmetric RESP from a large-model ESP grid (89-atom ACE/NMe-capped cluster from PDB 4D1N), pinned-CYM-backbone protocol, Seminario bonded params averaged over 4 ligands.",
+              "version": "1.0",
+              "reference": "Large-model 89-atom Zn(Cys)4 cluster from 4D1N dimer-interface site; B3LYP/6-31G(d) PCM(water) opt with Cα + φ/ψ constraints; ESP at custom MK radius 1.395 Å (Li et al. JCTC 2013 IOD-TIP3P set); 2-stage RESP with 4-Cys ivary equivalence + HB2=HB3 stage-2 equiv; CYZ backbone pinned to ff14SB CYM standard charges.",
+              "files": {
+                "frcmod": "Guberman_ZNC_RESP.frcmod",
+                "lib": "Guberman_ZNC_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Tetrahedral Zn(II)(Cys-)4 with cysteinate ligands",
+              "methodology": "QM model: 89-atom ACE/NMe-capped Zn(Cys)4 cluster from PDB 4D1N (chains A + B, Cys 331/336 each — homodimer-interface site, true C2 symmetry). Geometry: B3LYP/6-31G(d) PCM(water) opt with Cα atom positions and Cys φ/ψ dihedrals frozen (Gaussian modredundant restraints) at 4D1N crystal values; all final frequencies real (lowest +13.3 cm⁻¹), clean minimum at the protein-constrained geometry.\n\nRESP charges (2-stage Bayly-Cieplak-Cornell-Kollman): large-model ESP grid with custom MK Zn radius = 1.395 Å (Li et al. JCTC 2013 IOD-TIP3P set). CYZ backbone (N/H/CA/HA/C/O) pinned per-atom to canonical ff14SB CYM values; sidechain CB/HB2/HB3/SG free in the fit; 4-Cys equivalence enforced via RESP atom-equivalence groups (the ivary entries in the RESP input) (all 4 CYZ instances share charges); HB2=HB3 stage-2 equivalence within each Cys; ACE/NMe cap-sums constrained to 0. Net cluster charge = -2 e (Zn²⁺ + 4× Cys-thiolate⁻ = -2). Per-residue totals: CYZ = -0.7404 e, ZNC (Zn) = +0.9617 e, 4×CYZ + ZNC = -2.0000 e exactly.\n\nSeminario bonded params: same large-model analytical Hessian. 4-fold averages: ZM-SZ bond (K=32.32 kcal/mol/Å², r=2.431 Å — over 4 instances), CT-SZ-ZM angle (over 4), SZ-ZM-SZ angle (over 6). The 4-fold-averaged values are used despite the true C2 site symmetry because within-pair Seminario noise exceeds between-pair difference for bonds and CT-SZ-ZM angles (the SZ-ZM-SZ angle does show a real C2 splitting — 121.95° vs 109° — that a future C2-constrained 2-fold variant could capture).\n\nAtom-type forks: ZM (Zn metal, distinct from parm19 solvent Zn) and SZ (Cys-thiolate Sγ bound to Zn, forked from ff14SB SH to isolate the Zn-shell vdW from canonical thiol params). Case-insensitive collision-checked against ff14SB / parm19 / heme bundle.\n\nBundle file names: ZNC.lib (combined CYZ + ZNC units; CYZ has head/tail set for protein backbone splice via standard peptide bonds; ZNC has no head/tail), ZNC.frcmod (atom-type masses + bonded + LJ). The Zn-ion residue is named ZNC to match the existing ProPrep transformer convention."
+            }
+          }
+        }
+      }
+    }
+  }
+}

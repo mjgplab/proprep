@@ -1,0 +1,12 @@
+Cluster residue: FO6
+Cys ligand residues: C21, C22, C23, C24
+State: oxidized
+Source guess: guess3b
+State letter: J
+Atom types: J1-J4 (Fe), J5-J8 (bridging S), JA-JD (Cys SG)
+
+Per-Fe formal state (BS layer assignment from spin populations):
+  J1 (Fe1): ferric    Rmin/2 = 1.3860, eps = 0.013571
+  J2 (Fe2): mv        Rmin/2 = 1.3975, eps = 0.015390
+  J3 (Fe3): mv        Rmin/2 = 1.3975, eps = 0.015390
+  J4 (Fe4): ferric    Rmin/2 = 1.3860, eps = 0.013571

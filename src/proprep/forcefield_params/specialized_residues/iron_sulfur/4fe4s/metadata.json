@@ -1,0 +1,770 @@
+{
+  "description": "4Fe-4S iron-sulfur cluster parameters covering HiPIP and ferredoxin redox couples. 15 per-guess parameter sets (one per broken-symmetry initial guess) plus 3 averaged sets (one per redox state, multi-conformer + group-equivalence RESP + arithmetic-mean Seminario across BS guesses). Each per-guess set has a unique cluster residue code and 4 unique modified-cysteinate residues so multiple clusters can coexist. Averaged sets use FO0/FR0/FD0 cluster residues and CXO/CXR/CXD shared ligand residues.",
+  "cofactor_type": "4fe4s",
+  "references": [
+    "Parameters derived from B3LYP/6-31G(d,p)+GD3 / C-PCM (diethyl ether, eps=4) DFT calculations followed by MCPB.py Seminario method (bonded) and 2-stage RESP charge fitting on an ACE-CYS-NME large protein-cap model with ff14SB CYM backbone constraints.",
+    "Fe MK ESP radii chosen as the IOD-weighted average of Li-Merz Fe(II)/Fe(III) Rmin/2 values per oxidation state."
+  ],
+  "redox_states": {
+    "oxidized": {
+      "description": "[Fe4S4]^3+ - HiPIP oxidized state; formally 1 Fe(II) + 3 Fe(III), ground-state S=1/2 doublet",
+      "formal_charge": 3,
+      "spin_states": {
+        "FO1": {
+          "description": "Broken-symmetry guess: {Fe1,Fe2} | {Fe3,Fe4} partition, spin variant a",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe2} | {Fe3,Fe4}, spin variant a; state letter A; atom-type prefix A1-A4 (Fe), A5-A8 (bridging S), AA-AD (Cys SG)",
+          "atom_types": [
+            "{ \"A1\" \"Fe\" \"sp3\" }",
+            "{ \"A2\" \"Fe\" \"sp3\" }",
+            "{ \"A3\" \"Fe\" \"sp3\" }",
+            "{ \"A4\" \"Fe\" \"sp3\" }",
+            "{ \"A5\" \"S\" \"sp3\" }",
+            "{ \"A6\" \"S\" \"sp3\" }",
+            "{ \"A7\" \"S\" \"sp3\" }",
+            "{ \"A8\" \"S\" \"sp3\" }",
+            "{ \"AA\" \"S\" \"sp3\" }",
+            "{ \"AB\" \"S\" \"sp3\" }",
+            "{ \"AC\" \"S\" \"sp3\" }",
+            "{ \"AD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO1",
+          "ligand_cys_residues": [
+            "C01",
+            "C02",
+            "C03",
+            "C04"
+          ],
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FO1_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 oxidized parameters, BS guess {Fe1,Fe2} | {Fe3,Fe4}, spin variant a",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FO1_RESP.frcmod",
+                "lib": "Guberman_FO1_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Oxidized HiPIP [Fe4S4]³⁺ — spin pattern ++-- ({Fe1,Fe2}|{Fe3,Fe4}, variant a)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern ++-- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe2}|{Fe3,Fe4}, spin variant a (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FO2": {
+          "description": "Broken-symmetry guess: {Fe1,Fe2} | {Fe3,Fe4} partition, spin variant b",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe2} | {Fe3,Fe4}, spin variant b; state letter B; atom-type prefix B1-B4 (Fe), B5-B8 (bridging S), BA-BD (Cys SG)",
+          "atom_types": [
+            "{ \"B1\" \"Fe\" \"sp3\" }",
+            "{ \"B2\" \"Fe\" \"sp3\" }",
+            "{ \"B3\" \"Fe\" \"sp3\" }",
+            "{ \"B4\" \"Fe\" \"sp3\" }",
+            "{ \"B5\" \"S\" \"sp3\" }",
+            "{ \"B6\" \"S\" \"sp3\" }",
+            "{ \"B7\" \"S\" \"sp3\" }",
+            "{ \"B8\" \"S\" \"sp3\" }",
+            "{ \"BA\" \"S\" \"sp3\" }",
+            "{ \"BB\" \"S\" \"sp3\" }",
+            "{ \"BC\" \"S\" \"sp3\" }",
+            "{ \"BD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO2",
+          "ligand_cys_residues": [
+            "C05",
+            "C06",
+            "C07",
+            "C08"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FO2_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 oxidized parameters, BS guess {Fe1,Fe2} | {Fe3,Fe4}, spin variant b",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FO2_RESP.frcmod",
+                "lib": "Guberman_FO2_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Oxidized HiPIP [Fe4S4]³⁺ — spin pattern --++ ({Fe1,Fe2}|{Fe3,Fe4}, variant b)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern --++ on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe2}|{Fe3,Fe4}, spin variant b (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FO3": {
+          "description": "Broken-symmetry guess: {Fe1,Fe3} | {Fe2,Fe4} partition, spin variant a",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe3} | {Fe2,Fe4}, spin variant a; state letter D; atom-type prefix D1-D4 (Fe), D5-D8 (bridging S), DA-DD (Cys SG)",
+          "atom_types": [
+            "{ \"D1\" \"Fe\" \"sp3\" }",
+            "{ \"D2\" \"Fe\" \"sp3\" }",
+            "{ \"D3\" \"Fe\" \"sp3\" }",
+            "{ \"D4\" \"Fe\" \"sp3\" }",
+            "{ \"D5\" \"S\" \"sp3\" }",
+            "{ \"D6\" \"S\" \"sp3\" }",
+            "{ \"D7\" \"S\" \"sp3\" }",
+            "{ \"D8\" \"S\" \"sp3\" }",
+            "{ \"DA\" \"S\" \"sp3\" }",
+            "{ \"DB\" \"S\" \"sp3\" }",
+            "{ \"DC\" \"S\" \"sp3\" }",
+            "{ \"DD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO3",
+          "ligand_cys_residues": [
+            "C09",
+            "C10",
+            "C11",
+            "C12"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FO3_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 oxidized parameters, BS guess {Fe1,Fe3} | {Fe2,Fe4}, spin variant a",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FO3_RESP.frcmod",
+                "lib": "Guberman_FO3_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Oxidized HiPIP [Fe4S4]³⁺ — spin pattern +-+- ({Fe1,Fe3}|{Fe2,Fe4}, variant a)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern +-+- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe3}|{Fe2,Fe4}, spin variant a (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FO4": {
+          "description": "Broken-symmetry guess: {Fe1,Fe3} | {Fe2,Fe4} partition, spin variant b",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe3} | {Fe2,Fe4}, spin variant b; state letter E; atom-type prefix E1-E4 (Fe), E5-E8 (bridging S), EA-ED (Cys SG)",
+          "atom_types": [
+            "{ \"E1\" \"Fe\" \"sp3\" }",
+            "{ \"E2\" \"Fe\" \"sp3\" }",
+            "{ \"E3\" \"Fe\" \"sp3\" }",
+            "{ \"E4\" \"Fe\" \"sp3\" }",
+            "{ \"E5\" \"S\" \"sp3\" }",
+            "{ \"E6\" \"S\" \"sp3\" }",
+            "{ \"E7\" \"S\" \"sp3\" }",
+            "{ \"E8\" \"S\" \"sp3\" }",
+            "{ \"EA\" \"S\" \"sp3\" }",
+            "{ \"EB\" \"S\" \"sp3\" }",
+            "{ \"EC\" \"S\" \"sp3\" }",
+            "{ \"ED\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO4",
+          "ligand_cys_residues": [
+            "C13",
+            "C14",
+            "C15",
+            "C16"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FO4_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 oxidized parameters, BS guess {Fe1,Fe3} | {Fe2,Fe4}, spin variant b",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FO4_RESP.frcmod",
+                "lib": "Guberman_FO4_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Oxidized HiPIP [Fe4S4]³⁺ — spin pattern -+-+ ({Fe1,Fe3}|{Fe2,Fe4}, variant b)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern -+-+ on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe3}|{Fe2,Fe4}, spin variant b (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FO5": {
+          "description": "Broken-symmetry guess: {Fe1,Fe4} | {Fe2,Fe3} partition, spin variant a",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe4} | {Fe2,Fe3}, spin variant a; state letter G; atom-type prefix G1-G4 (Fe), G5-G8 (bridging S), GA-GD (Cys SG)",
+          "atom_types": [
+            "{ \"G1\" \"Fe\" \"sp3\" }",
+            "{ \"G2\" \"Fe\" \"sp3\" }",
+            "{ \"G3\" \"Fe\" \"sp3\" }",
+            "{ \"G4\" \"Fe\" \"sp3\" }",
+            "{ \"G5\" \"S\" \"sp3\" }",
+            "{ \"G6\" \"S\" \"sp3\" }",
+            "{ \"G7\" \"S\" \"sp3\" }",
+            "{ \"G8\" \"S\" \"sp3\" }",
+            "{ \"GA\" \"S\" \"sp3\" }",
+            "{ \"GB\" \"S\" \"sp3\" }",
+            "{ \"GC\" \"S\" \"sp3\" }",
+            "{ \"GD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO5",
+          "ligand_cys_residues": [
+            "C17",
+            "C18",
+            "C19",
+            "C20"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FO5_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 oxidized parameters, BS guess {Fe1,Fe4} | {Fe2,Fe3}, spin variant a",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FO5_RESP.frcmod",
+                "lib": "Guberman_FO5_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Oxidized HiPIP [Fe4S4]³⁺ — spin pattern -++- ({Fe1,Fe4}|{Fe2,Fe3}, variant a)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern -++- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe4}|{Fe2,Fe3}, spin variant a (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FO6": {
+          "description": "Broken-symmetry guess: {Fe1,Fe4} | {Fe2,Fe3} partition, spin variant b",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe4} | {Fe2,Fe3}, spin variant b; state letter J; atom-type prefix J1-J4 (Fe), J5-J8 (bridging S), JA-JD (Cys SG)",
+          "atom_types": [
+            "{ \"J1\" \"Fe\" \"sp3\" }",
+            "{ \"J2\" \"Fe\" \"sp3\" }",
+            "{ \"J3\" \"Fe\" \"sp3\" }",
+            "{ \"J4\" \"Fe\" \"sp3\" }",
+            "{ \"J5\" \"S\" \"sp3\" }",
+            "{ \"J6\" \"S\" \"sp3\" }",
+            "{ \"J7\" \"S\" \"sp3\" }",
+            "{ \"J8\" \"S\" \"sp3\" }",
+            "{ \"JA\" \"S\" \"sp3\" }",
+            "{ \"JB\" \"S\" \"sp3\" }",
+            "{ \"JC\" \"S\" \"sp3\" }",
+            "{ \"JD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO6",
+          "ligand_cys_residues": [
+            "C21",
+            "C22",
+            "C23",
+            "C24"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FO6_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 oxidized parameters, BS guess {Fe1,Fe4} | {Fe2,Fe3}, spin variant b",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FO6_RESP.frcmod",
+                "lib": "Guberman_FO6_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Oxidized HiPIP [Fe4S4]³⁺ — spin pattern +--+ ({Fe1,Fe4}|{Fe2,Fe3}, variant b)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern +--+ on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe4}|{Fe2,Fe3}, spin variant b (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FO0": {
+          "description": "Averaged parameters across all BS guesses (single shared Fe/S/SG atom types per redox state)",
+          "spin_multiplicity": 2,
+          "electronic_config": "Averaged: all 4 Fe share atom type FO, all 4 bridging S share SO, all 4 Cys SG share GO",
+          "atom_types": [
+            "{ \"FO\" \"Fe\" \"sp3\" }",
+            "{ \"SO\" \"S\" \"sp3\" }",
+            "{ \"GO\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FO0",
+          "ligand_cys_residues": [
+            "CXO",
+            "CXO",
+            "CXO",
+            "CXO"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FO0_RESP": {
+              "description": "Guberman-Pfeffer averaged Fe4S4 parameters for oxidized (single set across BS guesses)",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer averaged set: multi-conformer RESP + arithmetic-mean Seminario + composition-weighted Fe LJ",
+              "files": {
+                "frcmod": "Guberman_FO0_RESP.frcmod",
+                "lib": "Guberman_FO0_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Averaged Oxidized HiPIP [Fe4S4]³⁺ (6-BS-guess mean)",
+              "methodology": "Averaged across BS guesses. BOND/ANGL force constants are the arithmetic mean of the Seminario values from each per-guess MCPB fit, after collapsing all 4 Fe (resp. 4 bridging S, 4 Cys SG) to a single atom type. Charges from the standard two-stage RESP procedure — the same protocol as the per-guess sets (stage 1 free fit, qwt=0.0005; stage 2 methylene HB2=HB3 equivalenced with heavy atoms frozen, qwt=0.0010) — run jointly over the combined ESP grid of all BS guesses, with the 4 Fe / 4 bridging S / 4 Cys SG each equivalenced to a single charge across all conformers. The two methylene protons therefore share one charge (2026-07 correction: the original deposit used a non-standard single-stage fit that left HB2≠HB3). Fe LJ is composition-weighted (0.75 Fe³⁺ + 0.25 Fe²⁺; Rmin/2 = 1.3917 Å, ε = 0.01448 kcal/mol) between Li-Song-Merz Fe³⁺ (1.386 / 0.01357) and Li-Roberts-Chakravorty-Merz Fe²⁺ (1.409 / 0.01721) TIP3P IOD values. Use for studies of integer redox-state changes where BS-specific asymmetry is not required (charge capacitance, pKa coupling, redox-driven ET). For BS-specific work, pick a per-guess set instead."
+            }
+          }
+        }
+      }
+    },
+    "reduced_hipip": {
+      "description": "[Fe4S4]^2+ - HiPIP reduced / ferredoxin oxidized; formally 2 Fe(II) + 2 Fe(III), broken-symmetry singlet (S=0 ground state)",
+      "formal_charge": 2,
+      "spin_states": {
+        "FR1": {
+          "description": "Broken-symmetry guess: {Fe1,Fe2} | {Fe3,Fe4} partition",
+          "spin_multiplicity": 1,
+          "electronic_config": "BS partition {Fe1,Fe2} | {Fe3,Fe4}; state letter L; atom-type prefix L1-L4 (Fe), L5-L8 (bridging S), LA-LD (Cys SG)",
+          "atom_types": [
+            "{ \"L1\" \"Fe\" \"sp3\" }",
+            "{ \"L2\" \"Fe\" \"sp3\" }",
+            "{ \"L3\" \"Fe\" \"sp3\" }",
+            "{ \"L4\" \"Fe\" \"sp3\" }",
+            "{ \"L5\" \"S\" \"sp3\" }",
+            "{ \"L6\" \"S\" \"sp3\" }",
+            "{ \"L7\" \"S\" \"sp3\" }",
+            "{ \"L8\" \"S\" \"sp3\" }",
+            "{ \"LA\" \"S\" \"sp3\" }",
+            "{ \"LB\" \"S\" \"sp3\" }",
+            "{ \"LC\" \"S\" \"sp3\" }",
+            "{ \"LD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FR1",
+          "ligand_cys_residues": [
+            "C25",
+            "C26",
+            "C27",
+            "C28"
+          ],
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FR1_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_hipip parameters, BS guess {Fe1,Fe2} | {Fe3,Fe4}",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FR1_RESP.frcmod",
+                "lib": "Guberman_FR1_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced HiPIP [Fe4S4]²⁺ — spin pattern ++-- ({Fe1,Fe2}|{Fe3,Fe4})",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern ++-- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe2}|{Fe3,Fe4}. See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FR2": {
+          "description": "Broken-symmetry guess: {Fe1,Fe3} | {Fe2,Fe4} partition",
+          "spin_multiplicity": 1,
+          "electronic_config": "BS partition {Fe1,Fe3} | {Fe2,Fe4}; state letter Q; atom-type prefix Q1-Q4 (Fe), Q5-Q8 (bridging S), QA-QD (Cys SG)",
+          "atom_types": [
+            "{ \"Q1\" \"Fe\" \"sp3\" }",
+            "{ \"Q2\" \"Fe\" \"sp3\" }",
+            "{ \"Q3\" \"Fe\" \"sp3\" }",
+            "{ \"Q4\" \"Fe\" \"sp3\" }",
+            "{ \"Q5\" \"S\" \"sp3\" }",
+            "{ \"Q6\" \"S\" \"sp3\" }",
+            "{ \"Q7\" \"S\" \"sp3\" }",
+            "{ \"Q8\" \"S\" \"sp3\" }",
+            "{ \"QA\" \"S\" \"sp3\" }",
+            "{ \"QB\" \"S\" \"sp3\" }",
+            "{ \"QC\" \"S\" \"sp3\" }",
+            "{ \"QD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FR2",
+          "ligand_cys_residues": [
+            "C29",
+            "C30",
+            "C31",
+            "C32"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FR2_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_hipip parameters, BS guess {Fe1,Fe3} | {Fe2,Fe4}",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FR2_RESP.frcmod",
+                "lib": "Guberman_FR2_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced HiPIP [Fe4S4]²⁺ — spin pattern +-+- ({Fe1,Fe3}|{Fe2,Fe4})",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern +-+- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe3}|{Fe2,Fe4}. See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FR3": {
+          "description": "Broken-symmetry guess: {Fe1,Fe4} | {Fe2,Fe3} partition",
+          "spin_multiplicity": 1,
+          "electronic_config": "BS partition {Fe1,Fe4} | {Fe2,Fe3}; state letter R; atom-type prefix R1-R4 (Fe), R5-R8 (bridging S), RA-RD (Cys SG)",
+          "atom_types": [
+            "{ \"R1\" \"Fe\" \"sp3\" }",
+            "{ \"R2\" \"Fe\" \"sp3\" }",
+            "{ \"R3\" \"Fe\" \"sp3\" }",
+            "{ \"R4\" \"Fe\" \"sp3\" }",
+            "{ \"R5\" \"S\" \"sp3\" }",
+            "{ \"R6\" \"S\" \"sp3\" }",
+            "{ \"R7\" \"S\" \"sp3\" }",
+            "{ \"R8\" \"S\" \"sp3\" }",
+            "{ \"RA\" \"S\" \"sp3\" }",
+            "{ \"RB\" \"S\" \"sp3\" }",
+            "{ \"RC\" \"S\" \"sp3\" }",
+            "{ \"RD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FR3",
+          "ligand_cys_residues": [
+            "C33",
+            "C34",
+            "C35",
+            "C36"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FR3_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_hipip parameters, BS guess {Fe1,Fe4} | {Fe2,Fe3}",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FR3_RESP.frcmod",
+                "lib": "Guberman_FR3_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced HiPIP [Fe4S4]²⁺ — spin pattern -++- ({Fe1,Fe4}|{Fe2,Fe3})",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern -++- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe4}|{Fe2,Fe3}. See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FR0": {
+          "description": "Averaged parameters across all BS guesses (single shared Fe/S/SG atom types per redox state)",
+          "spin_multiplicity": 1,
+          "electronic_config": "Averaged: all 4 Fe share atom type FR, all 4 bridging S share SR, all 4 Cys SG share GR",
+          "atom_types": [
+            "{ \"FR\" \"Fe\" \"sp3\" }",
+            "{ \"SR\" \"S\" \"sp3\" }",
+            "{ \"GR\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FR0",
+          "ligand_cys_residues": [
+            "CXR",
+            "CXR",
+            "CXR",
+            "CXR"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FR0_RESP": {
+              "description": "Guberman-Pfeffer averaged Fe4S4 parameters for reduced_hipip (single set across BS guesses)",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer averaged set: multi-conformer RESP + arithmetic-mean Seminario + composition-weighted Fe LJ",
+              "files": {
+                "frcmod": "Guberman_FR0_RESP.frcmod",
+                "lib": "Guberman_FR0_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Averaged Reduced HiPIP [Fe4S4]²⁺ (3-BS-guess mean)",
+              "methodology": "Averaged across BS guesses. BOND/ANGL force constants are the arithmetic mean of the Seminario values from each per-guess MCPB fit, after collapsing all 4 Fe (resp. 4 bridging S, 4 Cys SG) to a single atom type. Charges from the standard two-stage RESP procedure — the same protocol as the per-guess sets (stage 1 free fit, qwt=0.0005; stage 2 methylene HB2=HB3 equivalenced with heavy atoms frozen, qwt=0.0010) — run jointly over the combined ESP grid of all BS guesses, with the 4 Fe / 4 bridging S / 4 Cys SG each equivalenced to a single charge across all conformers. The two methylene protons therefore share one charge (2026-07 correction: the original deposit used a non-standard single-stage fit that left HB2≠HB3). Fe LJ is composition-weighted (0.50 Fe³⁺ + 0.50 Fe²⁺; Rmin/2 = 1.3975 Å, ε = 0.01539 kcal/mol) between Li-Song-Merz Fe³⁺ (1.386 / 0.01357) and Li-Roberts-Chakravorty-Merz Fe²⁺ (1.409 / 0.01721) TIP3P IOD values. Use for studies of integer redox-state changes where BS-specific asymmetry is not required (charge capacitance, pKa coupling, redox-driven ET). For BS-specific work, pick a per-guess set instead."
+            }
+          }
+        }
+      }
+    },
+    "reduced_fd": {
+      "description": "[Fe4S4]^1+ - ferredoxin reduced state; formally 3 Fe(II) + 1 Fe(III), ground-state S=1/2 doublet",
+      "formal_charge": 1,
+      "spin_states": {
+        "FD1": {
+          "description": "Broken-symmetry guess: {Fe1,Fe2} | {Fe3,Fe4} partition, spin variant a",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe2} | {Fe3,Fe4}, spin variant a; state letter T; atom-type prefix T1-T4 (Fe), T5-T8 (bridging S), TA-TD (Cys SG)",
+          "atom_types": [
+            "{ \"T1\" \"Fe\" \"sp3\" }",
+            "{ \"T2\" \"Fe\" \"sp3\" }",
+            "{ \"T3\" \"Fe\" \"sp3\" }",
+            "{ \"T4\" \"Fe\" \"sp3\" }",
+            "{ \"T5\" \"S\" \"sp3\" }",
+            "{ \"T6\" \"S\" \"sp3\" }",
+            "{ \"T7\" \"S\" \"sp3\" }",
+            "{ \"T8\" \"S\" \"sp3\" }",
+            "{ \"TA\" \"S\" \"sp3\" }",
+            "{ \"TB\" \"S\" \"sp3\" }",
+            "{ \"TC\" \"S\" \"sp3\" }",
+            "{ \"TD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD1",
+          "ligand_cys_residues": [
+            "C37",
+            "C38",
+            "C39",
+            "C40"
+          ],
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FD1_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_fd parameters, BS guess {Fe1,Fe2} | {Fe3,Fe4}, spin variant a",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FD1_RESP.frcmod",
+                "lib": "Guberman_FD1_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced ferredoxin [Fe4S4]⁺ — spin pattern ++-- ({Fe1,Fe2}|{Fe3,Fe4}, variant a)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern ++-- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe2}|{Fe3,Fe4}, spin variant a (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FD2": {
+          "description": "Broken-symmetry guess: {Fe1,Fe2} | {Fe3,Fe4} partition, spin variant b",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe2} | {Fe3,Fe4}, spin variant b; state letter U; atom-type prefix U1-U4 (Fe), U5-U8 (bridging S), UA-UD (Cys SG)",
+          "atom_types": [
+            "{ \"U1\" \"Fe\" \"sp3\" }",
+            "{ \"U2\" \"Fe\" \"sp3\" }",
+            "{ \"U3\" \"Fe\" \"sp3\" }",
+            "{ \"U4\" \"Fe\" \"sp3\" }",
+            "{ \"U5\" \"S\" \"sp3\" }",
+            "{ \"U6\" \"S\" \"sp3\" }",
+            "{ \"U7\" \"S\" \"sp3\" }",
+            "{ \"U8\" \"S\" \"sp3\" }",
+            "{ \"UA\" \"S\" \"sp3\" }",
+            "{ \"UB\" \"S\" \"sp3\" }",
+            "{ \"UC\" \"S\" \"sp3\" }",
+            "{ \"UD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD2",
+          "ligand_cys_residues": [
+            "C41",
+            "C42",
+            "C43",
+            "C44"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FD2_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_fd parameters, BS guess {Fe1,Fe2} | {Fe3,Fe4}, spin variant b",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FD2_RESP.frcmod",
+                "lib": "Guberman_FD2_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced ferredoxin [Fe4S4]⁺ — spin pattern --++ ({Fe1,Fe2}|{Fe3,Fe4}, variant b)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern --++ on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe2}|{Fe3,Fe4}, spin variant b (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FD3": {
+          "description": "Broken-symmetry guess: {Fe1,Fe3} | {Fe2,Fe4} partition, spin variant a",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe3} | {Fe2,Fe4}, spin variant a; state letter V; atom-type prefix V1-V4 (Fe), V5-V8 (bridging S), VA-VD (Cys SG)",
+          "atom_types": [
+            "{ \"V1\" \"Fe\" \"sp3\" }",
+            "{ \"V2\" \"Fe\" \"sp3\" }",
+            "{ \"V3\" \"Fe\" \"sp3\" }",
+            "{ \"V4\" \"Fe\" \"sp3\" }",
+            "{ \"V5\" \"S\" \"sp3\" }",
+            "{ \"V6\" \"S\" \"sp3\" }",
+            "{ \"V7\" \"S\" \"sp3\" }",
+            "{ \"V8\" \"S\" \"sp3\" }",
+            "{ \"VA\" \"S\" \"sp3\" }",
+            "{ \"VB\" \"S\" \"sp3\" }",
+            "{ \"VC\" \"S\" \"sp3\" }",
+            "{ \"VD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD3",
+          "ligand_cys_residues": [
+            "C45",
+            "C46",
+            "C47",
+            "C48"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FD3_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_fd parameters, BS guess {Fe1,Fe3} | {Fe2,Fe4}, spin variant a",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FD3_RESP.frcmod",
+                "lib": "Guberman_FD3_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced ferredoxin [Fe4S4]⁺ — spin pattern +-+- ({Fe1,Fe3}|{Fe2,Fe4}, variant a)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern +-+- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe3}|{Fe2,Fe4}, spin variant a (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FD4": {
+          "description": "Broken-symmetry guess: {Fe1,Fe3} | {Fe2,Fe4} partition, spin variant b",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe3} | {Fe2,Fe4}, spin variant b; state letter W; atom-type prefix W1-W4 (Fe), W5-W8 (bridging S), WA-WD (Cys SG)",
+          "atom_types": [
+            "{ \"W1\" \"Fe\" \"sp3\" }",
+            "{ \"W2\" \"Fe\" \"sp3\" }",
+            "{ \"W3\" \"Fe\" \"sp3\" }",
+            "{ \"W4\" \"Fe\" \"sp3\" }",
+            "{ \"W5\" \"S\" \"sp3\" }",
+            "{ \"W6\" \"S\" \"sp3\" }",
+            "{ \"W7\" \"S\" \"sp3\" }",
+            "{ \"W8\" \"S\" \"sp3\" }",
+            "{ \"WA\" \"S\" \"sp3\" }",
+            "{ \"WB\" \"S\" \"sp3\" }",
+            "{ \"WC\" \"S\" \"sp3\" }",
+            "{ \"WD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD4",
+          "ligand_cys_residues": [
+            "C49",
+            "C50",
+            "C51",
+            "C52"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FD4_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_fd parameters, BS guess {Fe1,Fe3} | {Fe2,Fe4}, spin variant b",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FD4_RESP.frcmod",
+                "lib": "Guberman_FD4_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced ferredoxin [Fe4S4]⁺ — spin pattern -+-+ ({Fe1,Fe3}|{Fe2,Fe4}, variant b)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern -+-+ on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe3}|{Fe2,Fe4}, spin variant b (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FD5": {
+          "description": "Broken-symmetry guess: {Fe1,Fe4} | {Fe2,Fe3} partition, spin variant a",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe4} | {Fe2,Fe3}, spin variant a; state letter X; atom-type prefix X1-X4 (Fe), X5-X8 (bridging S), XA-XD (Cys SG)",
+          "atom_types": [
+            "{ \"X1\" \"Fe\" \"sp3\" }",
+            "{ \"X2\" \"Fe\" \"sp3\" }",
+            "{ \"X3\" \"Fe\" \"sp3\" }",
+            "{ \"X4\" \"Fe\" \"sp3\" }",
+            "{ \"X5\" \"S\" \"sp3\" }",
+            "{ \"X6\" \"S\" \"sp3\" }",
+            "{ \"X7\" \"S\" \"sp3\" }",
+            "{ \"X8\" \"S\" \"sp3\" }",
+            "{ \"XA\" \"S\" \"sp3\" }",
+            "{ \"XB\" \"S\" \"sp3\" }",
+            "{ \"Xz\" \"S\" \"sp3\" }",
+            "{ \"XD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD5",
+          "ligand_cys_residues": [
+            "C53",
+            "C54",
+            "C55",
+            "C56"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FD5_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_fd parameters, BS guess {Fe1,Fe4} | {Fe2,Fe3}, spin variant a",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FD5_RESP.frcmod",
+                "lib": "Guberman_FD5_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced ferredoxin [Fe4S4]⁺ — spin pattern -++- ({Fe1,Fe4}|{Fe2,Fe3}, variant a)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern -++- on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe4}|{Fe2,Fe3}, spin variant a (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess.\n\nAtom-type fork: the Cys-SG ligand at position 3 of the X-state uses type Xz rather than the convention-suggested XC. parm19's XC is the protein Cα (sp3 carbon, ff19SB backbone) — a hard naming collision with a Cys-SG sulfur. The Xz name preserves the X-state convention; the lowercase z signals that this position was renamed to avoid the parm19 collision.\n\n2026-07 correction: this guess's large-model broken-symmetry SCF had collapsed to a non-BS delocalized state (<S**2>~7.4 vs ~8.5, ~+80 kcal/mol high), giving invalid RESP charges. It was re-converged (alpha/beta spin-swapped seed from guess3b + CalcFC constrained opt) to the correct -++- layer state (Fe spins -3.75/+3.86/+3.86/-3.74, <S**2>=8.54) and the 2-stage RESP re-fit (corrected Fe 0.874/0.603/0.682/0.754). Bonded/LJ parameters were unaffected (small-model Seminario, never collapsed)."
+            }
+          }
+        },
+        "FD6": {
+          "description": "Broken-symmetry guess: {Fe1,Fe4} | {Fe2,Fe3} partition, spin variant b",
+          "spin_multiplicity": 2,
+          "electronic_config": "BS partition {Fe1,Fe4} | {Fe2,Fe3}, spin variant b; state letter Z; atom-type prefix Z1-Z4 (Fe), Z5-Z8 (bridging S), ZA-ZD (Cys SG)",
+          "atom_types": [
+            "{ \"Z1\" \"Fe\" \"sp3\" }",
+            "{ \"Z2\" \"Fe\" \"sp3\" }",
+            "{ \"Z3\" \"Fe\" \"sp3\" }",
+            "{ \"Z4\" \"Fe\" \"sp3\" }",
+            "{ \"Z5\" \"S\" \"sp3\" }",
+            "{ \"Z6\" \"S\" \"sp3\" }",
+            "{ \"Z7\" \"S\" \"sp3\" }",
+            "{ \"Z8\" \"S\" \"sp3\" }",
+            "{ \"ZA\" \"S\" \"sp3\" }",
+            "{ \"ZB\" \"S\" \"sp3\" }",
+            "{ \"ZC\" \"S\" \"sp3\" }",
+            "{ \"ZD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD6",
+          "ligand_cys_residues": [
+            "C57",
+            "C58",
+            "C59",
+            "C60"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FD6_RESP": {
+              "description": "Guberman-Pfeffer Fe4S4 reduced_fd parameters, BS guess {Fe1,Fe4} | {Fe2,Fe3}, spin variant b",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer DFT (B3LYP/6-31G(d,p)+GD3, C-PCM eps=4) + MCPB.py Seminario + 2-stage RESP",
+              "files": {
+                "frcmod": "Guberman_FD6_RESP.frcmod",
+                "lib": "Guberman_FD6_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Reduced ferredoxin [Fe4S4]⁺ — spin pattern +--+ ({Fe1,Fe4}|{Fe2,Fe3}, variant b)",
+              "methodology": "Broken-symmetry initial guess with spin-coupling pattern +--+ on (Fe1, Fe2, Fe3, Fe4); ferric/mixed-valence partition {Fe1,Fe4}|{Fe2,Fe3}, spin variant b (orientation of the spin density on the mixed-valence pair). See the cofactor-level methodology for the shared DFT, Seminario, and RESP protocol applied to this guess."
+            }
+          }
+        },
+        "FD0": {
+          "description": "Averaged parameters across all BS guesses (single shared Fe/S/SG atom types per redox state)",
+          "spin_multiplicity": 2,
+          "electronic_config": "Averaged: all 4 Fe share atom type FD, all 4 bridging S share SD, all 4 Cys SG share GD",
+          "atom_types": [
+            "{ \"FD\" \"Fe\" \"sp3\" }",
+            "{ \"SD\" \"S\" \"sp3\" }",
+            "{ \"GD\" \"S\" \"sp3\" }"
+          ],
+          "residue_name": "FD0",
+          "ligand_cys_residues": [
+            "CXD",
+            "CXD",
+            "CXD",
+            "CXD"
+          ],
+          "is_valid": true,
+          "is_default": false,
+          "forcefield_sets": {
+            "Guberman_FD0_RESP": {
+              "description": "Guberman-Pfeffer averaged Fe4S4 parameters for reduced_fd (single set across BS guesses)",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer averaged set: multi-conformer RESP + arithmetic-mean Seminario + composition-weighted Fe LJ",
+              "files": {
+                "frcmod": "Guberman_FD0_RESP.frcmod",
+                "lib": "Guberman_FD0_RESP.lib"
+              },
+              "is_default": true,
+              "name": "Averaged Reduced ferredoxin [Fe4S4]⁺ (6-BS-guess mean)",
+              "methodology": "Averaged across BS guesses. BOND/ANGL force constants are the arithmetic mean of the Seminario values from each per-guess MCPB fit, after collapsing all 4 Fe (resp. 4 bridging S, 4 Cys SG) to a single atom type. Charges from the standard two-stage RESP procedure — the same protocol as the per-guess sets (stage 1 free fit, qwt=0.0005; stage 2 methylene HB2=HB3 equivalenced with heavy atoms frozen, qwt=0.0010) — run jointly over the combined ESP grid of all BS guesses, with the 4 Fe / 4 bridging S / 4 Cys SG each equivalenced to a single charge across all conformers. Two 2026-07 corrections are folded in: (1) the methylene HB2=HB3 equivalence was restored, replacing the original non-standard single-stage fit that left HB2≠HB3; and (2) the guess3a/FD5 conformer, whose large-model broken-symmetry SCF had collapsed to a non-BS delocalized state, was re-converged and its corrected ESP used in the joint fit (this raises the ensemble Fe charge to +0.723 and the bridging S to -0.818). Fe LJ is composition-weighted (0.25 Fe³⁺ + 0.75 Fe²⁺; Rmin/2 = 1.4033 Å, ε = 0.01630 kcal/mol) between Li-Song-Merz Fe³⁺ (1.386 / 0.01357) and Li-Roberts-Chakravorty-Merz Fe²⁺ (1.409 / 0.01721) TIP3P IOD values. Use for studies of integer redox-state changes where BS-specific asymmetry is not required (charge capacitance, pKa coupling, redox-driven ET). For BS-specific work, pick a per-guess set instead."
+            }
+          }
+        }
+      }
+    }
+  },
+  "transformation_info": {
+    "transforms_from": [
+      "PDB 4Fe-4S cluster residue (e.g. SF4, FES, F3S) with atoms FE1 FE2 FE3 FE4 S1 S2 S3 S4",
+      "4 CYS residues whose SG atoms ligate the 4 Fe centers (~2.3 A)"
+    ],
+    "creates_bonds": [
+      "12 internal cubane Fe-S bonds within the cluster residue",
+      "4 inter-residue Fe-SG bonds linking the cluster to its modified cysteinate ligands"
+    ],
+    "notes": "Cys-Fe matching is deterministic: for each FE<n> atom, the closest CYS SG becomes the n-th modified cysteinate (e.g. FO1: FE1->C01, FE2->C02, FE3->C03, FE4->C04). Both .frcmod (loadamberparams) and .lib (loadoff) must be loaded for the chosen set; the .frcmod must be loaded before the .lib so that the state-letter atom types are defined."
+  },
+  "methodology": "Cluster model. Two computational models per the MCPB.py workflow. The small model truncates each of the 4 cysteinate ligands at C-alpha (saturating with H) for Seminario bonded-parameter input; total atom count 40. The large model extends each cysteine to an ACE-CYS-NME tripeptide cap with ff14SB backbone geometry frozen at protein-derived coordinates, used for RESP charge fitting. The backbone constraint preserves the protein-imposed alpha-carbon position while letting the side chain and cluster relax.\n\nDFT method. B3LYP with Grimme D3 dispersion, 6-31G(d,p) basis, C-PCM solvation in diethyl ether (ε=4) as a protein-dielectric mimic. Ultrafine integration grid; tight SCF with quadratic-convergence backup; symmetry disabled; unrestricted formalism for the broken-symmetry states.\n\nBroken-symmetry treatment. Three distinct ways to pair the 4 Fe atoms into ferric and mixed-valence groupings yield 6 spin-coupling guesses for the oxidized and reduced-ferredoxin states, 3 guesses for the reduced-HiPIP state (alpha/beta variants collapse when the two mixed-valence layers are equivalent). Each guess is a distinct initial-density seed; the optimizer converges to that guess's specific BS solution.\n\n10-step calculation pipeline. Initial high-spin geometry optimization, SCF stability check, re-opt from the stable density, BS initial-guess generation, BS opt, post-opt stability check, frequency calculation (Hessian), Merz-Kollman ESP single-point. Steps 1-4 are shared across guesses; steps 5-10 are per-guess. Where the constrained small-model geometry yields one or two small imaginary frequencies (-5 to -30 cm⁻¹) as artifacts of the alpha-carbon constraint, the geometry is displaced 0.2 Å along the imaginary mode and re-optimized until the Hessian passes.\n\nBonded parameters. Seminario method on the diagonal blocks of the Cartesian Hessian from the small-model Step 9 frequency calculation, via pymsmt (the MCPB.py back-end shipped with AmberTools 22).\n\nRESP charges. Standard two-stage Bayly-Cieplak-Cornell-Kollman procedure. ff14SB CYM backbone atoms (N, HN, CA, HA, C, O) are constrained to their canonical charges in the RESP fit so the resulting modified-cysteinate residues integrate seamlessly with the rest of CYM in MD simulations. The three averaged sets (FD0/FO0/FR0) apply this same two-stage procedure jointly across all BS-guess ESP grids, additionally equivalencing the 4 Fe / 4 bridging S / 4 Cys SG to a single charge each across conformers; the methylene HB2/HB3 remain equivalenced by stage 2, and the per-atom-name mean over the 4 cysteines yields the shared CXO/CXR/CXD ligand residue. (A 2026-07 rebuild switched the averaged sets from an earlier non-standard single-stage fit, which had left HB2≠HB3, to this two-stage joint fit; validated by reproducing the per-guess resp2 charges to 1e-6 with the cross-conformer equivalencing disabled.)\n\nFe MK ESP radius. Linear interpolation between Li-Merz Fe(II) (Rmin/2 = 1.409 Å, JCTC 2013, 9, 2733) and Fe(III) (Rmin/2 = 1.386 Å, JPCB 2015, 119, 883) IOD-set values, weighted by the formal oxidation-state composition of each cluster: 1.392 Å for oxidized [Fe4S4]³⁺ (3 Fe³⁺ + 1 Fe²⁺), 1.398 Å for reduced HiPIP [Fe4S4]²⁺ (2 Fe³⁺ + 2 Fe²⁺), 1.403 Å for reduced ferredoxin [Fe4S4]⁺ (1 Fe³⁺ + 3 Fe²⁺). These are LJ Rmin/2 parameters used as a proxy for the MK ESP radius (no canonical literature MK ESP radius exists for Fe).\n\nValidation. All 10 calculation steps terminate normally per state; Mulliken spin populations on the 4 Fe atoms match the intended BS coupling pattern (magnitudes ~±4.0 for oxidized, ~±3.85 for reduced HiPIP, ~±3.8 for reduced Fd); total RESP charge sums to the cluster's overall formal charge (-1, -2, or -3).",
+  "set_comparison_guidance": "The 15 parameter sets span three redox states with multiple broken-symmetry initial-guess starting points per state — 6 for oxidized [Fe4S4]³⁺, 3 for reduced HiPIP [Fe4S4]²⁺, and 6 for reduced ferredoxin [Fe4S4]⁺. Each guess corresponds to a specific spin-coupling pattern among the 4 Fe atoms.\n\nSpin patterns are shown as the sign sequence (Fe1, Fe2, Fe3, Fe4) with + for majority-alpha and − for majority-beta spin density. The three ways to partition the 4 Fe atoms into ferric and mixed-valence pairs are 'guess 1' ({Fe1,Fe2}|{Fe3,Fe4}), 'guess 2' ({Fe1,Fe3}|{Fe2,Fe4}), and 'guess 3' ({Fe1,Fe4}|{Fe2,Fe3}). Where applicable, alpha/beta variants (a/b) capture the two orientations of the spin density on the mixed-valence pair.\n\nDifferent guesses yield qualitatively similar parameter values but differ in detail because the specific ferric/mixed-valence partition affects the local electronic structure on each Fe. The standard practice is to pick the guess whose spin-coupling pattern best matches the experimentally determined pattern for the cluster in the protein of interest (typically from EPR, or by following the convention established for a closely related protein). If no pattern is known a priori, the convention is to use the lowest-energy converged BS state (default: FO1 / FR1 / FD1)."
+}

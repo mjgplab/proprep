@@ -1,0 +1,301 @@
+{
+  "description": "FMN (flavin mononucleotide) and its 4 reduced/protonated variants. Five redox states covering the catalytic ensemble: oxidized quinone, neutral and anionic semiquinones, and neutral and anionic hydroquinones. All states use canonical FMN-family isoalloxazine atom names.",
+  "cofactor_type": "FMN",
+  "methodology": "Fragment-typed force-field parameters for the FMN isoalloxazine in five oxidation and protonation states (oxidized quinone, neutral and anionic semiquinones, neutral and anionic hydroquinones), AMBER ff14SB/ff19SB-compatible. The chemistry parameterized de novo is the isoalloxazine ring with its N10, N3-H, C2/C4 carbonyls, and ring methyls, given fragment-scoped atom types per redox state (the same isoalloxazine set shared with FAD); the ribitol side chain carries GAFF2 aliphatic types and the terminal phosphate carries Meagher polyphosphate parameters. Partial charges are whole-molecule, two-stage restrained (Bayly) RESP fits to a gas-phase HF/6-31G(d) Merz-Kollman ESP sampled at four RBRA reorientations of one conformer, on a B3LYP/6-31+G(d) PCM(water) geometry, with unrestricted references for the open-shell semiquinones. Bond and angle force constants for the isoalloxazine are Seminario fits to the B3LYP/6-31+G(d)/PCM(water) QM Hessian, taking interior terms from capped-fragment Hessians and cross-fragment junction terms from the whole-residue Hessian. Proper dihedrals are full multi-term GAFF2 potentials transferred by atom-type substitution, and improper planarity terms are the standard AMBER terms perceived by tLEaP with pyramidal sp3 centers omitted; neither dihedral class is QM-derived. Every frcmod is a delta-only file layered on parm10/gaff2, and the fragment-scoped types let FMN, FAD, and the other cofactors share one topology without atom-type collisions.",
+  "references": [
+    "Fragment-typed cofactor force-field library, v1.0 (20 redox-active residues across the FMN, FAD, NADP, NAD, and biopterin families). See the 'methodology' field for the full derivation. Non-redox-active atoms use established AMBER parameters (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate).",
+    "Walker NAD+ contrib parameters (Walker, in AmberTools dat/contrib/NADH_and_NAD+/).",
+    "Meagher polyphosphate parameters (J. Comput. Chem. 24, 1016-1025, 2003).",
+    "ff14SB nucleic acid types from parm10 + bsc1 + OL3 dihedrals (leaprc.RNA.OL3)."
+  ],
+  "prerequisites": {
+    "leaprcs": [
+      "leaprc.gaff2"
+    ],
+    "leaprcs_notes": {
+      "leaprc.gaff2": "Required for the GAFF2 atom types (c3, h1, oh, ho) used on the ribitol and the isoalloxazine ring's methyl carbons. Without it, the Aw-c3 linker bond from N10 to ribitol C1' (and other GAFF2-typed Seminario terms) is silently dropped at frcmod load. The parm10 types referenced in the consolidated frcmod (CT, OS, OH, H, H1, P, etc.) are compatible with either leaprc.protein.ff14SB or leaprc.protein.ff19SB, so any protein topology using either FF already covers them."
+    }
+  },
+  "redox_states": {
+    "oxidized": {
+      "description": "Oxidized isoalloxazine \u2014 quinone form, ground-state singlet.",
+      "formal_charge": -2,
+      "spin_states": {
+        "default": {
+          "description": "Oxidized isoalloxazine \u2014 quinone form, ground-state singlet.",
+          "spin_multiplicity": 1,
+          "electronic_config": "FMN \u2014 uses 25 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Aa\" \"N\" \"sp2\" }",
+            "{ \"Ab\" \"C\" \"sp2\" }",
+            "{ \"Ac\" \"O\" \"sp2\" }",
+            "{ \"Ad\" \"N\" \"sp2\" }",
+            "{ \"Ae\" \"H\" \"sp2\" }",
+            "{ \"Af\" \"C\" \"sp2\" }",
+            "{ \"Ag\" \"O\" \"sp2\" }",
+            "{ \"Ah\" \"C\" \"sp2\" }",
+            "{ \"Ai\" \"N\" \"sp2\" }",
+            "{ \"Aj\" \"H\" \"sp2\" }",
+            "{ \"Ak\" \"C\" \"sp2\" }",
+            "{ \"Al\" \"C\" \"sp2\" }",
+            "{ \"Am\" \"H\" \"sp2\" }",
+            "{ \"An\" \"C\" \"sp2\" }",
+            "{ \"Ao\" \"C\" \"sp3\" }",
+            "{ \"Ap\" \"H\" \"sp3\" }",
+            "{ \"Aq\" \"C\" \"sp2\" }",
+            "{ \"Ar\" \"C\" \"sp3\" }",
+            "{ \"As\" \"H\" \"sp3\" }",
+            "{ \"At\" \"C\" \"sp2\" }",
+            "{ \"Au\" \"H\" \"sp2\" }",
+            "{ \"Av\" \"C\" \"sp2\" }",
+            "{ \"Aw\" \"N\" \"sp2\" }",
+            "{ \"Ax\" \"C\" \"sp2\" }",
+            "{ \"Ay\" \"H\" \"sp2\" }",
+            "{ \"O3\" \"O\" \"sp2\" }"
+          ],
+          "residue_name": "FMN",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FMN_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_FMN_RESP.frcmod",
+                "lib": "Guberman_FMN_RESP.lib"
+              },
+              "is_default": true,
+              "name": "FMN oxidized (quinone)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard types) plus GAFF2 (the general types used for the flavin ring and the ribitol tail). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library, matched by atom-type analogy.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n- Phosphate: FMN carries a single (mono)phosphate, whose terminal oxygens are the standard O2 type - no special polyphosphate oxygen types are needed.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "semiquinone_neutral": {
+      "description": "One-electron-reduced flavin radical, N5-protonated.",
+      "formal_charge": -2,
+      "spin_states": {
+        "default": {
+          "description": "One-electron-reduced flavin radical, N5-protonated.",
+          "spin_multiplicity": 2,
+          "electronic_config": "FMS \u2014 uses 25 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Da\" \"N\" \"sp2\" }",
+            "{ \"Db\" \"C\" \"sp2\" }",
+            "{ \"Dc\" \"O\" \"sp2\" }",
+            "{ \"Dd\" \"N\" \"sp2\" }",
+            "{ \"De\" \"H\" \"sp2\" }",
+            "{ \"Df\" \"C\" \"sp2\" }",
+            "{ \"Dg\" \"O\" \"sp2\" }",
+            "{ \"Dh\" \"C\" \"sp2\" }",
+            "{ \"Di\" \"N\" \"sp2\" }",
+            "{ \"Dj\" \"H\" \"sp2\" }",
+            "{ \"Dk\" \"C\" \"sp2\" }",
+            "{ \"Dl\" \"C\" \"sp2\" }",
+            "{ \"Dm\" \"H\" \"sp2\" }",
+            "{ \"Dn\" \"C\" \"sp2\" }",
+            "{ \"Do\" \"C\" \"sp3\" }",
+            "{ \"Dp\" \"H\" \"sp3\" }",
+            "{ \"Dq\" \"C\" \"sp2\" }",
+            "{ \"Dr\" \"C\" \"sp3\" }",
+            "{ \"Ds\" \"H\" \"sp3\" }",
+            "{ \"Dt\" \"C\" \"sp2\" }",
+            "{ \"Du\" \"H\" \"sp2\" }",
+            "{ \"Dv\" \"C\" \"sp2\" }",
+            "{ \"Dw\" \"N\" \"sp2\" }",
+            "{ \"Dx\" \"C\" \"sp2\" }",
+            "{ \"Dy\" \"H\" \"sp2\" }",
+            "{ \"O3\" \"O\" \"sp2\" }"
+          ],
+          "residue_name": "FMS",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FMS_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_FMS_RESP.frcmod",
+                "lib": "Guberman_FMS_RESP.lib"
+              },
+              "is_default": true,
+              "name": "FMN neutral blue semiquinone (FMNH\u2022)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard types) plus GAFF2 (the general types used for the flavin ring and the ribitol tail). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library, matched by atom-type analogy.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n- Phosphate: FMN carries a single (mono)phosphate, whose terminal oxygens are the standard O2 type - no special polyphosphate oxygen types are needed.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "semiquinone_anionic": {
+      "description": "One-electron-reduced flavin radical, N1/N5 both deprotonated.",
+      "formal_charge": -3,
+      "spin_states": {
+        "default": {
+          "description": "One-electron-reduced flavin radical, N1/N5 both deprotonated.",
+          "spin_multiplicity": 2,
+          "electronic_config": "FMR \u2014 uses 25 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Ea\" \"N\" \"sp2\" }",
+            "{ \"Eb\" \"C\" \"sp2\" }",
+            "{ \"Ec\" \"O\" \"sp2\" }",
+            "{ \"Ed\" \"N\" \"sp2\" }",
+            "{ \"Ee\" \"H\" \"sp2\" }",
+            "{ \"Ef\" \"C\" \"sp2\" }",
+            "{ \"Eg\" \"O\" \"sp2\" }",
+            "{ \"Eh\" \"C\" \"sp2\" }",
+            "{ \"Ei\" \"N\" \"sp2\" }",
+            "{ \"Ej\" \"H\" \"sp2\" }",
+            "{ \"Ek\" \"C\" \"sp2\" }",
+            "{ \"El\" \"C\" \"sp2\" }",
+            "{ \"Em\" \"H\" \"sp2\" }",
+            "{ \"En\" \"C\" \"sp2\" }",
+            "{ \"Eo\" \"C\" \"sp3\" }",
+            "{ \"Ep\" \"H\" \"sp3\" }",
+            "{ \"Eq\" \"C\" \"sp2\" }",
+            "{ \"Er\" \"C\" \"sp3\" }",
+            "{ \"Es\" \"H\" \"sp3\" }",
+            "{ \"Et\" \"C\" \"sp2\" }",
+            "{ \"Eu\" \"H\" \"sp2\" }",
+            "{ \"Ev\" \"C\" \"sp2\" }",
+            "{ \"Ew\" \"N\" \"sp2\" }",
+            "{ \"Ex\" \"C\" \"sp2\" }",
+            "{ \"Ey\" \"H\" \"sp2\" }",
+            "{ \"O3\" \"O\" \"sp2\" }"
+          ],
+          "residue_name": "FMR",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FMR_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_FMR_RESP.frcmod",
+                "lib": "Guberman_FMR_RESP.lib"
+              },
+              "is_default": true,
+              "name": "FMN anionic red semiquinone (FMN\u2022\u207b)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard types) plus GAFF2 (the general types used for the flavin ring and the ribitol tail). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library, matched by atom-type analogy.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n- Phosphate: FMN carries a single (mono)phosphate, whose terminal oxygens are the standard O2 type - no special polyphosphate oxygen types are needed.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "hydroquinone_anionic": {
+      "description": "Two-electron-reduced flavin, N5-protonated.",
+      "formal_charge": -3,
+      "spin_states": {
+        "default": {
+          "description": "Two-electron-reduced flavin, N5-protonated.",
+          "spin_multiplicity": 1,
+          "electronic_config": "FMH \u2014 uses 25 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Ga\" \"N\" \"sp2\" }",
+            "{ \"Gb\" \"C\" \"sp2\" }",
+            "{ \"Gc\" \"O\" \"sp2\" }",
+            "{ \"Gd\" \"N\" \"sp2\" }",
+            "{ \"Ge\" \"H\" \"sp2\" }",
+            "{ \"Gf\" \"C\" \"sp2\" }",
+            "{ \"Gg\" \"O\" \"sp2\" }",
+            "{ \"Gh\" \"C\" \"sp2\" }",
+            "{ \"Gi\" \"N\" \"sp3\" }",
+            "{ \"Gj\" \"H\" \"sp3\" }",
+            "{ \"Gk\" \"C\" \"sp2\" }",
+            "{ \"Gl\" \"C\" \"sp2\" }",
+            "{ \"Gm\" \"H\" \"sp2\" }",
+            "{ \"Gn\" \"C\" \"sp2\" }",
+            "{ \"Go\" \"C\" \"sp3\" }",
+            "{ \"Gp\" \"H\" \"sp3\" }",
+            "{ \"Gq\" \"C\" \"sp2\" }",
+            "{ \"Gr\" \"C\" \"sp3\" }",
+            "{ \"Gs\" \"H\" \"sp3\" }",
+            "{ \"Gt\" \"C\" \"sp2\" }",
+            "{ \"Gu\" \"H\" \"sp2\" }",
+            "{ \"Gv\" \"C\" \"sp2\" }",
+            "{ \"Gw\" \"N\" \"sp2\" }",
+            "{ \"Gx\" \"C\" \"sp2\" }",
+            "{ \"Gy\" \"H\" \"sp2\" }",
+            "{ \"O3\" \"O\" \"sp2\" }"
+          ],
+          "residue_name": "FMH",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FMH_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_FMH_RESP.frcmod",
+                "lib": "Guberman_FMH_RESP.lib"
+              },
+              "is_default": true,
+              "name": "FMN anionic hydroquinone (FMNH\u207b)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard types) plus GAFF2 (the general types used for the flavin ring and the ribitol tail). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library, matched by atom-type analogy.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n- Phosphate: FMN carries a single (mono)phosphate, whose terminal oxygens are the standard O2 type - no special polyphosphate oxygen types are needed.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    },
+    "hydroquinone_neutral": {
+      "description": "Two-electron-reduced flavin, N1 and N5 both protonated.",
+      "formal_charge": -2,
+      "spin_states": {
+        "default": {
+          "description": "Two-electron-reduced flavin, N1 and N5 both protonated.",
+          "spin_multiplicity": 1,
+          "electronic_config": "FMQ \u2014 uses 25 fragment-typed atoms",
+          "atom_types": [
+            "{ \"Ja\" \"N\" \"sp3\" }",
+            "{ \"Jb\" \"C\" \"sp2\" }",
+            "{ \"Jc\" \"O\" \"sp2\" }",
+            "{ \"Jd\" \"N\" \"sp2\" }",
+            "{ \"Je\" \"H\" \"sp2\" }",
+            "{ \"Jf\" \"C\" \"sp2\" }",
+            "{ \"Jg\" \"O\" \"sp2\" }",
+            "{ \"Jh\" \"C\" \"sp2\" }",
+            "{ \"Ji\" \"N\" \"sp3\" }",
+            "{ \"Jj\" \"H\" \"sp3\" }",
+            "{ \"Jk\" \"C\" \"sp2\" }",
+            "{ \"Jl\" \"C\" \"sp2\" }",
+            "{ \"Jm\" \"H\" \"sp2\" }",
+            "{ \"Jn\" \"C\" \"sp2\" }",
+            "{ \"Jo\" \"C\" \"sp3\" }",
+            "{ \"Jp\" \"H\" \"sp3\" }",
+            "{ \"Jq\" \"C\" \"sp2\" }",
+            "{ \"Jr\" \"C\" \"sp3\" }",
+            "{ \"Js\" \"H\" \"sp3\" }",
+            "{ \"Jt\" \"C\" \"sp2\" }",
+            "{ \"Ju\" \"H\" \"sp2\" }",
+            "{ \"Jv\" \"C\" \"sp2\" }",
+            "{ \"Jw\" \"N\" \"sp2\" }",
+            "{ \"Jx\" \"C\" \"sp2\" }",
+            "{ \"Jy\" \"H\" \"sp3\" }",
+            "{ \"O3\" \"O\" \"sp2\" }"
+          ],
+          "residue_name": "FMQ",
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_FMQ_RESP": {
+              "description": "Constrained-geometry-optimization RESP charges + Seminario bonded parameters on redox-active fragment atoms + validated AMBER libraries (ff14SB / Walker NAD+ / Meagher polyphosphate) for non-redox-active atoms. Multi-cofactor-safe by construction (cross-residue same-fragment-type bonds are bit-identical).",
+              "version": "1.1",
+              "reference": "Fragment-typed cofactor force field library, v1.0. 20 redox-active residues across FMN, FAD, NADP, NAD, and biopterin families. Each residue's frcmod is self-contained (merged from per-fragment Seminario frcmod + cofactor-to-protein linker + residue-specific cross-source params + cross-residue patches). with validated AMBER libs (ff14SB nucleic acids, Walker NAD+ contrib, Meagher polyphosphate) for non-redox-active atoms.",
+              "files": {
+                "frcmod": "Guberman_FMQ_RESP.frcmod",
+                "lib": "Guberman_FMQ_RESP.lib"
+              },
+              "is_default": true,
+              "name": "FMN neutral hydroquinone (FMNH\u2082)",
+              "methodology": "This is a 'lean' add-on parameter file (an AMBER frcmod): it holds ONLY the force-field terms that the standard base force fields (loaded first) do not already supply, so nothing is duplicated. Here the base is ff14SB/parm10 (standard types) plus GAFF2 (the general types used for the flavin ring and the ribitol tail). A force field models the molecule's energy with a few simple terms; here is where each one came from, in plain terms:\n\n- Atomic charges (the partial electric charge on each atom, which sets the electrostatic forces) come from RESP, the standard recipe that adjusts the charges until they reproduce the molecule's quantum-mechanical (QM) electrostatic field. The field is sampled (Merz-Kollman scheme) over four molecular orientations and averaged, then fit in the usual two-stage (Bayly-Cieplak) way, held to the molecule's whole-number net charge. Charges were fit separately for each oxidation/protonation state and are unchanged by the atom-type relabeling below.\n- Custom atom types: the redox-active ring atoms are given short custom type names so each state's distinct chemistry stays separate from the standard regions. This relabeling is value-neutral (a custom type keeps the same charge and atom 'size' as the type its atoms had before) and the types' element + hybridization are registered up front so implicit-solvent (Born) radii come out right.\n- Van der Waals (each atom's effective size and 'stickiness', i.e. its Lennard-Jones radius and well depth): inherited unchanged from the source type each custom type maps to; no new values are invented.\n- Bond and angle stiffness (how hard it is to stretch a bond or bend an angle, plus their rest values): from the Seminario method, which reads these constants directly off the QM second-derivative matrix (the 'Hessian') of the optimized geometry, instead of using rule-of-thumb estimates. Terms wholly inside the redox ring use an isolated-fragment Hessian; terms at a junction (where the ring meets a standard region, or where two base force fields meet) get a fresh value from the whole-molecule Hessian so the cross-boundary coupling is captured.\n- Dihedrals/torsions (the energy of twisting around a bond): the Hessian gives only bonds/angles, so torsions are taken as complete (untruncated) Fourier series from the transferable GAFF2 torsion library, matched by atom-type analogy.\n- Impropers (small terms that keep flat groups flat): read from a clean build of the conventionally-typed molecule (one per planar center) and mapped onto the custom types; an improper is dropped where the QM geometry shows that center is actually pyramidal (e.g. a ring nitrogen in a reduced state), so a genuinely puckered atom is not wrongly flattened.\n- Phosphate: FMN carries a single (mono)phosphate, whose terminal oxygens are the standard O2 type - no special polyphosphate oxygen types are needed.\n- Cross-cofactor consistency: where a structural unit is SHARED with the other flavin/nicotinamide cofactors (the sugar-to-phosphate ester linkage, the pyrophosphate bridge, and the ring atoms common to both), its Seminario bond/angle values are set to the average across those cofactors, so a structure holding more than one cofactor (e.g. FAD and FMN, or FAD and NAD) uses one consistent value per shared unit; the spread being averaged is within force-field accuracy.\n\nGeometry was a DFT optimization (one conformer per state). Every state was checked to build a complete tleap topology with no missing parameters.\n\nReferences: Seminario 1996 (bonded constants from the QM Hessian); Bayly-Cieplak-Cornell-Kollman 1993 (two-stage RESP)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

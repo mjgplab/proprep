@@ -1,0 +1,12 @@
+Cluster residue: FD6
+Cys ligand residues: C57, C58, C59, C60
+State: reduced_fd
+Source guess: guess3b
+State letter: Z
+Atom types: Z1-Z4 (Fe), Z5-Z8 (bridging S), ZA-ZD (Cys SG)
+
+Per-Fe formal state (BS layer assignment from spin populations):
+  Z1 (Fe1): mv        Rmin/2 = 1.3975, eps = 0.015390
+  Z2 (Fe2): ferrous   Rmin/2 = 1.4090, eps = 0.017210
+  Z3 (Fe3): ferrous   Rmin/2 = 1.4090, eps = 0.017210
+  Z4 (Fe4): mv        Rmin/2 = 1.3975, eps = 0.015390

@@ -1,0 +1,44 @@
+# Averaged Fe4S4 parameters (2-stage joint MC+equiv RESP), Fd_red [Fe4S4]^+
+
+Cluster residue: FD0
+Averaged Cys ligand residue: CXD
+Atom types: FS (Fe), SB (bridging S), SC (Cys SG)
+All 4 Fe / 4 bridging S / 4 Cys SG are point-charge identical.
+
+Cluster atom RESP charges (2-stage joint multi-conformer + group-equivalence RESP):
+  FS (Fe):           +0.723004
+  SB (bridging S):   -0.817572
+  SC (Cys SG):       -0.686771
+  [2026-07-06 CORRECTED x2. (1) COLLAPSE: the guess3a (FD5) large-model broken-symmetry
+   solution had collapsed to a non-BS delocalized state, contaminating this joint fit;
+   guess3a was re-converged (alpha/beta spin-swap seed + CalcFC opt) and swapped in
+   (guess3a_refit_B). Pre-collapse-fix FS/SB/SC were +0.697535/-0.796580/-0.685209.
+   (2) METHOD: the original deposit used a non-standard single-stage fit with the CM
+   hydrogens free, giving inequivalent HB2!=HB3. Rebuilt with the standard 2-stage RESP
+   protocol (same as the per-guess FD1-6) run jointly with core equivalencing, so HB2=HB3.
+   See ../../methods.md 3.1/4. Backups: Guberman_FD0_RESP.lib.bak_collapsed_guess3a
+   (true original) and .bak_pre_2stage (single-stage, collapse-fixed intermediate).]
+
+Averaged CM atom charges (per atom name, mean of 24 instances = 4 Cys * 6 BS conformers):
+  N      -0.415700  (backbone: ff14SB CYM canonical, RESP-constrained)
+  H      +0.271900  (backbone: ff14SB CYM canonical, RESP-constrained)
+  CA     -0.035100  (backbone: ff14SB CYM canonical, RESP-constrained)
+  HA     +0.050800  (backbone: ff14SB CYM canonical, RESP-constrained)
+  CB     -0.010345  (2-stage joint fit; deposited single-stage was +0.002784)
+  HB2    +0.070192  (equivalenced HB2=HB3; deposited split was +0.061872)
+  HB3    +0.070192  (equivalenced HB2=HB3; deposited split was +0.068296)
+  SG     -0.686771  (= SC; deposited was -0.685209)
+  C      +0.597300  (backbone: ff14SB CYM canonical, RESP-constrained)
+  O      -0.567900  (backbone: ff14SB CYM canonical, RESP-constrained)
+
+Note: HB2 = HB3 (methylene equivalence from RESP stage 2), consistent with every
+per-guess FD1-6 set. The deposited averaged set's HB2 != HB3 was a single-stage artifact.
+
+Charge balance: cluster_resname + 4 * CM_resname totals = -3.000000 e (exact).
+
+Bond/angle parameters: arithmetic mean across BS guesses (from `average_parameters.py`).
+Charges: standard 2-stage RESP (stage 1 qwt=0.0005 all free; stage 2 qwt=0.001 iqopt=2,
+heavy atoms frozen, methylene HB2=HB3 equivalenced) applied jointly over all 6 BS
+conformers with the 4 Fe / 4 bridging S / 4 Cys SG each equivalenced to one charge
+across all conformers. Validated: reproduces the per-guess resp2.chg to 1e-6 with
+core-equivalencing off.

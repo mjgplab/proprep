@@ -1,0 +1,85 @@
+{
+  "schema_version": "1",
+  "name": "_template",
+  "display_name": "Cluster Profile Template",
+  "description": "Starter template. Copy this file, rename it (e.g., my-cluster.json), and fill in the values. Remove all _notes_* keys when done.",
+  "required_user_fields": ["account"],
+
+  "_notes_top": "Top-level fields. 'name' should match the filename without .json. 'required_user_fields' lists dotted paths inside 'cluster' (or elsewhere) that MUST be non-empty before script generation; the wizard prompts for them on first use.",
+
+  "cluster": {
+    "_notes_scheduler": "Only 'slurm' is supported in v1. PBS/SGE is reserved for future versions.",
+    "scheduler": "slurm",
+
+    "_notes_account": "Site-specific allocation/account identifier. Leave empty in a shared profile; the wizard asks the user on first load.",
+    "account": "",
+
+    "_notes_qos": "Quality-of-service name if your site uses it. Leave empty if unused.",
+    "qos": "",
+
+    "email_address": "",
+    "email_types": "END,FAIL",
+
+    "_notes_modules": "List of module load strings issued verbatim after `module purge` in the generated script. Use the exact names your site provides.",
+    "modules": [
+      "REPLACE/WITH/your-compiler-module",
+      "REPLACE/WITH/your-mpi-module",
+      "REPLACE/WITH/your-amber-module"
+    ],
+
+    "_notes_conda_env": "If set, the generated script activates this conda env after module loads.",
+    "conda_env": "",
+
+    "_notes_pre_commands": "Bash lines injected after module loads, before the pmemd invocation. Use for env vars, cd, staging, etc.",
+    "pre_commands": [],
+
+    "_notes_post_commands": "Bash lines injected after pmemd completes.",
+    "post_commands": [],
+
+    "_notes_extra_directives": "Extra #SBATCH lines (without the '#SBATCH ' prefix) for anything the schema doesn't cover, e.g. '--exclusive' or '--constraint=a100'.",
+    "extra_directives": []
+  },
+
+  "_notes_resource_classes": "Named hardware profiles. 'mode' must be 'cpu' or 'gpu'. 'binary' is usually 'pmemd.MPI' for cpu or 'pmemd.cuda' for gpu. 'gres' is documentation — the script uses the GPU type parsed from it plus the 'gpus' count. 'default_time' is the fallback wall-time; run plans override per step. 'mpi_launcher' prefixes the binary (use 'srun', or 'srun --mpi=<plugin>' — see _notes_mpi_launcher). 'env_vars' inject 'export KEY=VALUE' lines before the binary. 'output_pattern' / 'error_pattern' use '{job_name}' (substituted at script-write time) and '%j' (SLURM job ID).",
+
+  "_notes_mpi_launcher": "Use 'srun' for MPI binaries (pmemd.MPI, pmemd.cuda.MPI), NOT 'mpirun'. Under Slurm with TaskPlugin=task/affinity, 'mpirun' launches its proxy as a single Slurm task that gets pinned to one core, and every MPI rank it forks inherits that single-core cpuset — so an N-rank job time-shares one core (~N x slowdown). 'srun' makes Slurm bind each rank to its own core. The required PMI plugin is SITE-SPECIFIC: set 'srun --mpi=<plugin>' to match your cluster. Run 'scontrol show config | grep MpiDefault' and 'srun --mpi=list'. If MpiDefault=none you MUST name a plugin or ranks get no PMI bootstrap. MPICH-linked AMBER -> 'srun --mpi=pmi2'; OpenMPI-linked AMBER -> 'srun --mpi=pmix'. Leave empty for serial/single-GPU (non-MPI) binaries.",
+  "resource_classes": {
+    "cpu-mpi": {
+      "mode": "cpu",
+      "partition": "REPLACE_CPU_PARTITION",
+      "nodes": 1,
+      "ntasks": 0,
+      "ntasks_per_node": 0,
+      "memory": "REPLACE_E.G._128G",
+      "binary": "pmemd.MPI",
+      "mpi_launcher": "srun",
+      "env_vars": [],
+      "output_pattern": "{job_name}.%j.out",
+      "error_pattern": "{job_name}.%j.err",
+      "default_time": "06:00:00"
+    },
+    "gpu-generic": {
+      "mode": "gpu",
+      "partition": "REPLACE_GPU_PARTITION",
+      "gres": "gpu:REPLACE_GPU_TYPE:<n>",
+      "gpus": 1,
+      "nodes": 1,
+      "ntasks": 1,
+      "ntasks_per_node": 1,
+      "memory": "REPLACE_E.G._5G",
+      "binary": "pmemd.cuda",
+      "mpi_launcher": "",
+      "env_vars": ["CUDA_VISIBLE_DEVICES=0"],
+      "output_pattern": "{job_name}.%j.out",
+      "error_pattern": "{job_name}.%j.err",
+      "default_time": "24:00:00",
+      "max_per_node": 1
+    }
+  },
+
+  "_notes_defaults": "Which resource class fulfills each mode when the Amber-recommendation classifier decides cpu vs gpu. Class names must appear in resource_classes above.",
+  "defaults": {
+    "cpu_class": "cpu-mpi",
+    "gpu_class": "gpu-generic"
+  }
+}

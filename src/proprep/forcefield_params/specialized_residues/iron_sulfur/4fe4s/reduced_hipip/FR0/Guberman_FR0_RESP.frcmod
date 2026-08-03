@@ -1,0 +1,33 @@
+REMARK Averaged Fe4S4 parameters, HiPIP_red / Fd_ox [Fe4S4]^2+: BOND/ANGL = arithmetic mean across 3 BS guesses; CHARGES from MC + group-equivalence RESP (in .lib). State-distinct atom types FR/SR/GR.
+MASS
+FR 55.85                            Fe (state-specific, averaged across 4 Fe)
+SR 32.06         2.900              bridging sulfide (state-specific, averaged)
+GR 32.06         2.900              Cys SG (state-specific, averaged)
+
+BOND
+CT-GR   237.00   1.8100   avg over 12 (sd k=0.00)
+FR-SR    48.77   2.3888   avg over 36 (sd k=10.68)
+FR-GR    87.61   2.3006   avg over 12 (sd k=4.79)
+
+ANGL
+CT-GR-FR    52.04    101.12   avg over 12 (sd k=9.89)
+CX-CT-GR    50.00    108.60   avg over 12 (sd k=0.00)
+FR-SR-FR    35.89     74.51   avg over 36 (sd k=14.73)
+H1-CT-GR    50.00    109.50   avg over 12 (sd k=0.00)
+SR-FR-SR    35.79    102.75   avg over 36 (sd k=10.65)
+SR-FR-GR    30.34    115.44   avg over 36 (sd k=7.70)
+
+DIHE
+CT-GR-FR-SR    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+CX-CT-GR-FR    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FR-SR-FR-SR    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FR-SR-FR-GR    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+FR-GR-CT-H1    3       0.00       0.00   3.0    Treat as zero (MCPB convention)
+
+IMPR
+
+NONB
+  FR        1.3975  0.0153904850  Composition-weighted Fe2+/Fe3+ TIP3P IOD (frac Fe3+ = 0.50; Li JCTC 2021/2020)
+  SR          2.0000  0.2500        bridging S (W. Cornell defaults)
+  GR          2.0000  0.2500        Cys SG (W. Cornell defaults)
+

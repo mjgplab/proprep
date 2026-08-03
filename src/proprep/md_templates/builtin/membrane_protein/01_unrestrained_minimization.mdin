@@ -1,0 +1,27 @@
+! TEMPLATE: Unrestrained Membrane Minimization
+! DESCRIPTION: Full system minimization without restraints
+! TYPE: minimization
+! PRIORITY: 2
+! AUTHOR: ProPrep (based on packmol-memgen protocol)
+! VERSION: 1.0
+
+Unrestrained energy minimization of the full membrane-protein system.
+All restraints are released to allow the entire system to relax.
+5000 steepest descent + 5000 conjugate gradient cycles.
+
+&cntrl
+! Run Control
+  imin = 1,			! Energy minimization (0=MD, 1=minimization)
+  maxcyc = 10000,		! Maximum minimization cycles
+  ncyc = 5000,			! Steepest descent cycles before switching to conjugate gradient
+
+! Input_Output Control
+  ntx = 1,			! Read coordinates, but not velocities
+  ntpr = 100,			! Every ntpr steps, print human-readable energy info
+  ntwx = 0,			! No trajectory output during minimization
+
+! Miscellaneous
+  nmropt = 0,
+  cut = 10.0,			! Nonbonded interaction cutoff (Angstroms)
+/
+

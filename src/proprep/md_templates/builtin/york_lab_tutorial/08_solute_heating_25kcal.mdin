@@ -1,0 +1,56 @@
+! TEMPLATE: Solute Heating Restrained
+! DESCRIPTION: Heat solute from 0K to 300K with 25 kcal/mol·Å² restraints, then equilibrate
+! TYPE: heating
+! PRIORITY: 2
+! AUTHOR: Erika McCarthy, Şölen Ekesan, and Darrin M. York
+! VERSION: 1.0
+! SOURCE: https://ambertutorials-rutgerslbsr-c744272d5a9c1169e0dc9e19b8d800019105.gitlab.io/workshop/02_intoMD/MTR1/Build_MTR1.html
+
+Solute equilibration heating stage. Increase the temperature from 0 to 300 K over 600 ps, then hold at constant temperature for 1 ns. Solute atoms are positionally restrained with weights of 25 kcal/mol*Å^2. The restraints are released gradually over ensuing stages of dynamics. Changing restraints effectively changes the force field. If the energy associated with a restraint is high and it is suddenly removed, the bonds to the associated atom could be broken as the atom position changes dramatically in a step of dynamics.
+
+&cntrl
+! Run Control
+  imin = 0,			! Molecular dynamics (0=MD, 1=minimization)
+  nstlim = 1600000,		! Total MD steps (600ps for heating, hold at temp for 1 ns)
+  dt = 0.001,			! 0.001 ps time step (1 fs)
+  vlimit = 20,			! Velocity limit (Angstroms/ps) -- caps atomic velocities to prevent instability
+
+! Input_Output Control
+  ntx = 1,			! Read coordinates and/or velocities: 1 = start, 5 = restart
+  irest = 0,                    ! Start or Restart simulation       : 0 = start, 1 = restart
+  ntpr = 10000,			! Every ntpr steps, print human-readable energy info
+  ntwx = 10000,			! Every ntwx steps, print coordinates to mdcrd file
+  ntwr = 10000,			! Every ntwr steps, print coordinates to restart file
+  ioutfm = 1,			! NetCDF binary trajectory format (compact, portable)
+
+! Restraints
+  ntr = 1,                              ! Enable positional restraints (see restraintmask below)
+  restraint_wt = 25.0,                  ! Restraint force constant (kcal/mol-A2)
+  restraintmask = '!@H= & !:WAT,Na+,Cl-,K+,MG', ! Atoms to restrain (AMBER mask syntax)
+
+! Temperature Control
+  ntt = 3,			! Langevin thermostat (0=none, 1=Berendsen, 2=Anderson, 3=Langevin)
+  gamma_ln = 5.0,		! Collision frequency (1/ps) for Langevin thermostat
+  ig=-1,			! Random seed from wall clock (ensures unique trajectory per run)
+  temp0 = 300.0,		! Target temperature (K)
+
+! Miscellaneous
+  cut = 12.0,			! Nonbonded interaction cutoff (Angstroms)
+  nmropt = 1,			! Enable varying conditions via &wt blocks below (temperature ramps, etc.)
+  nscm = 100                    ! Remove center-of-mass translation every 100 steps
+
+! Periodic Boundary Conditions
+  ntb = 1,			! Periodic boundaries, constant volume
+  iwrap = 0,			! Do not wrap coordinates
+
+! SHAKE
+  ntc = 2,			! SHAKE constraints on bonds involving hydrogen
+  ntf = 2,			! Omit bond forces for SHAKE-constrained bonds
+/
+&wt                                        ! Temperature ramp: 0.0 to 300.0 over steps 0 to 600000
+ TYPE='TEMP0',
+ ISTEP1=0, ISTEP2=600000,
+ VALUE1=0.0, VALUE2=300.0,
+/
+&wt type='END' /
+

@@ -1,0 +1,17 @@
+name: proprep_env
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+  - salilab
+dependencies:
+  - python=3.12
+  - modeller
+  - pip
+  - propka
+  - dacase::ambertools-dac=26
+  - reduce  # ligand H-addition (bioconda); AmberTools no longer bundles it
+  # Conformer generation for paramfit refinement (optional)
+  - xtb  # GFN2-xTB semiempirical method
+  - crest  # Conformer-Rotamer Ensemble Sampling Tool
+

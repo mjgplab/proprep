@@ -1,0 +1,157 @@
+Lean H2Q frcmod (pterin/biopterin/quinonoid_dihydro). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c). Dihedrals = GAFF2-by-substitution, full multi-term (pterin ring-fusion from parm10-nucleic). Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Va     14.010    0.530   [frag]
+Vc     12.010    0.878   [frag]
+Vd      1.008    0.135   [frag]
+Ve     12.010    0.878   [frag]
+Vg      1.008    0.135   [frag]
+Vh      1.008    0.135   [frag]
+Vi     14.010    0.530   [frag]
+Vk     12.010    0.878   [frag]
+Vl      1.008    0.135   [frag]
+Vm     16.000    0.465   [frag]
+Vn      1.008    0.135   [frag]
+Vo     12.010    0.878   [frag]
+Vp      1.008    0.135   [frag]
+Vq     12.010    0.878   [frag]
+Vr      1.008    0.135   [frag]
+Vs     16.000    0.465   [frag]
+Vt      1.008    0.135   [frag]
+
+BOND
+CB-Va    646.38     1.2768   [junction] seminario-0c (n=1)
+CB-Vi    581.83     1.2885   [junction] seminario-0c (n=1)
+Va-Vc    200.39     1.4686   Seminario method [frag]
+Vc-Vd    332.29     1.1003   Seminario method [frag]
+Vc-Ve    214.29     1.5323   Seminario method [frag]
+Vc-Vk    208.88     1.5366   Seminario method [frag]
+Ve-Vg    353.80     1.0938   Seminario method [frag]
+Ve-Vh    334.82     1.1000   Seminario method [frag]
+Ve-Vi    223.73     1.4660   Seminario method [frag]
+Vk-Vl    340.07     1.0988   Seminario method [frag]
+Vk-Vm    241.16     1.4331   Seminario method [frag]
+Vk-Vo    217.04     1.5411   Seminario method [frag]
+Vm-Vn    562.01     0.9694   Seminario method [frag]
+Vo-Vp    336.96     1.0993   Seminario method [frag]
+Vo-Vq    224.64     1.5281   Seminario method [frag]
+Vo-Vs    230.57     1.4386   Seminario method [frag]
+Vq-Vr    348.30     1.0969   Seminario method [frag]
+Vs-Vt    555.36     0.9708   Seminario method [frag]
+
+ANGLE
+C -CB-Va    138.680    118.380   [junction] seminario-0c (n=1)
+CB-CB-Va    146.390    123.680   [junction] seminario-0c (n=1)
+CB-CB-Vi    154.800    120.670   [junction] seminario-0c (n=1)
+CB-Va-Vc    133.050    116.030   [junction] seminario-0c (n=1)
+CB-Vi-Ve    144.710    116.350   [junction] seminario-0c (n=1)
+NC-CB-Vi    136.070    119.890   [junction] seminario-0c (n=1)
+Va-Vc-Vd     66.560    105.721   Seminario method [frag]
+Va-Vc-Ve    144.571    111.594   Seminario method [frag]
+Va-Vc-Vk    156.074    108.668   Seminario method [frag]
+Vc-Ve-Vg     69.742    109.914   Seminario method [frag]
+Vc-Ve-Vh     69.603    110.385   Seminario method [frag]
+Vc-Ve-Vi    160.572    113.251   Seminario method [frag]
+Vc-Vk-Vl     69.415    106.917   Seminario method [frag]
+Vc-Vk-Vm    159.353    107.702   Seminario method [frag]
+Vc-Vk-Vo    151.929    113.463   Seminario method [frag]
+Vd-Vc-Ve     65.961    109.166   Seminario method [frag]
+Vd-Vc-Vk     61.274    106.603   Seminario method [frag]
+Ve-Vc-Vk    162.910    114.601   Seminario method [frag]
+Vg-Ve-Vh     48.988    106.805   Seminario method [frag]
+Vg-Ve-Vi     68.194    107.898   Seminario method [frag]
+Vh-Ve-Vi     65.450    108.351   Seminario method [frag]
+Vk-Vm-Vn     61.214    109.190   Seminario method [frag]
+Vk-Vo-Vp     76.369    108.743   Seminario method [frag]
+Vk-Vo-Vq    144.334    112.480   Seminario method [frag]
+Vk-Vo-Vs    148.999    105.920   Seminario method [frag]
+Vl-Vk-Vm     78.238    109.772   Seminario method [frag]
+Vl-Vk-Vo     77.758    108.460   Seminario method [frag]
+Vm-Vk-Vo    102.092    110.438   Seminario method [frag]
+Vo-Vq-Vr     75.361    110.826   Seminario method [frag]
+Vo-Vs-Vt     60.877    108.590   Seminario method [frag]
+Vp-Vo-Vq     80.227    109.097   Seminario method [frag]
+Vp-Vo-Vs     71.680    109.399   Seminario method [frag]
+Vq-Vo-Vs    151.553    111.115   Seminario method [frag]
+Vr-Vq-Vr     44.058    108.944   Seminario method [frag]
+
+DIHE
+Va-Vc-Ve-Vh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Va-Vc-Ve-Vg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Va-Vc-Ve-Vi  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vd-Vc-Ve-Vh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vd-Vc-Ve-Vg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vd-Vc-Ve-Vi  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vk-Vc-Ve-Vh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vk-Vc-Ve-Vg  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vk-Vc-Ve-Vi  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Va-Vc-Vk-Vl  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Va-Vc-Vk-Vm  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Va-Vc-Vk-Vo  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vd-Vc-Vk-Vl  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Vd-Vc-Vk-Vm  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Vd-Vc-Vk-Vm  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Vd-Vc-Vk-Vo  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ve-Vc-Vk-Vl  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ve-Vc-Vk-Vm  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Ve-Vc-Vk-Vo  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Ve-Vc-Vk-Vo  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Ve-Vc-Vk-Vo  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Vl-Vk-Vm-Vn  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Vc-Vk-Vm-Vn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Vo-Vk-Vm-Vn  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Vl-Vk-Vo-Vq  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-c3
+Vl-Vk-Vo-Vs  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Vl-Vk-Vo-Vs  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Vl-Vk-Vo-Vp  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-h1
+Vc-Vk-Vo-Vq  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Vc-Vk-Vo-Vq  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Vc-Vk-Vo-Vq  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Vc-Vk-Vo-Vs  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Vc-Vk-Vo-Vp  1     0.15556     0.000    3.000   [gaff2-sub] full <- c6-c3-c3-h1
+Vm-Vk-Vo-Vq  1     0.21000     0.000    3.000   [gaff2-sub] full <- oh-c3-c3-c3
+Vm-Vk-Vo-Vs  1     0.90000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-oh
+Vm-Vk-Vo-Vs  1     1.13000     0.000    2.000   [gaff2-sub] full <- oh-c3-c3-oh
+Vm-Vk-Vo-Vp  1     0.00000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-h1
+Vm-Vk-Vo-Vp  1     0.25000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-h1
+Vs-Vo-Vq-Vr  1     0.18000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-hc
+Vs-Vo-Vq-Vr  1     0.51000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-hc
+Vp-Vo-Vq-Vr  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-hc
+Vk-Vo-Vq-Vr  1     0.08000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-hc
+Vq-Vo-Vs-Vt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Vp-Vo-Vs-Vt  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Vk-Vo-Vs-Vt  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+C -CB-Va-Vc  1     4.75000   180.000    2.000   [gaff2-sub] full <- X-cc-nc-X
+CB-CB-Va-Vc  1     4.75000   180.000    2.000   [gaff2-sub] full <- X-cc-nc-X
+CB-CB-Vi-Ve  1     4.75000   180.000    2.000   [gaff2-sub] full <- X-cc-nc-X
+CB-Va-Vc-Vd  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Va-Vc-Ve  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Va-Vc-Vk  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Vi-Ve-Vc  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Vi-Ve-Vg  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Vi-Ve-Vh  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+NC-CB-Vi-Ve  1     4.75000   180.000    2.000   [gaff2-sub] full <- X-cc-nc-X
+
+IMPROPER
+C -CB-CB-Va         1.1          180.0         2.0   [root: tleap-perceived]
+CB-NC-CB-Vi         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Va      1.8993    0.0941   [LJ from n2]
+  Vc      1.9069    0.1078   [LJ from c6]
+  Vd      1.3593    0.0208   [LJ from h1]
+  Ve      1.9069    0.1078   [LJ from c6]
+  Vg      1.3593    0.0208   [LJ from h1]
+  Vh      1.3593    0.0208   [LJ from h1]
+  Vi      1.8993    0.0941   [LJ from n2]
+  Vk      1.9069    0.1078   [LJ from c3]
+  Vl      1.3593    0.0208   [LJ from h1]
+  Vm      1.8200    0.0930   [LJ from oh]
+  Vn      0.3019    0.0047   [LJ from ho]
+  Vo      1.9069    0.1078   [LJ from c3]
+  Vp      1.3593    0.0208   [LJ from h1]
+  Vq      1.9069    0.1078   [LJ from c3]
+  Vr      1.4593    0.0208   [LJ from hc]
+  Vs      1.8200    0.0930   [LJ from oh]
+  Vt      0.3019    0.0047   [LJ from ho]
+

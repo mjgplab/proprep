@@ -1,0 +1,55 @@
+! TEMPLATE: NPT Equilibration 1
+! DESCRIPTION: Initial NPT equilibration at 300K and 1 atm for 5ps to adjust density
+! TYPE: equilibration
+! PRIORITY: 5
+! AUTHOR: Erika McCarthy, Şölen Ekesan, and Darrin M. York
+! VERSION: 1.0
+! SOURCE: https://ambertutorials-rutgerslbsr-c744272d5a9c1169e0dc9e19b8d800019105.gitlab.io/workshop/02_intoMD/MTR1/Build_MTR1.html
+
+Initial equilibration after minimization in the isothermal-isobaric ensemble. Hold temperature at 300K and pressure at 1 atm for 5 ps. Solute atoms are positionally restrained with weights of 50 kcal/mol*Å^2. This effectively freezes the positions of the solute atoms.
+
+&cntrl
+! Run Control
+  imin = 0,			! Molecular dynamics (0=MD, 1=minimization)
+  nstlim = 5000,		! Total MD steps
+  dt = 0.001,			! 0.001 ps time step (1 fs)
+
+! Input_Output Control
+  ntx = 1,			! Read coordinates and/or velocities
+  ntpr = 1000,			! Every ntpr steps, print human-readable energy info
+  ntwx = 1000,			! Every ntwx steps, print coordinates to mdcrd file
+  ntwr = 1000,                 ! Every ntwr steps, print coordinates to restart file
+  irest = 0,			! Do not restart simulation, ignore velocities, step count = 0
+  ioutfm = 1,                   ! NetCDF binary trajectory format (compact, portable)
+
+! Restraints
+  ntr = 1,				! Enable positional restraints (see restraintmask below)
+  restraint_wt = 50.0,			! Restraint force constant (kcal/mol-A2)
+  restraintmask = '!@H= & !:WAT,Na+,Cl-,K+,MG', ! Atoms to restrain (AMBER mask syntax)
+
+
+! Temperature Control
+  ntt = 3,			! Langevin thermostat (0=none, 1=Berendsen, 2=Anderson, 3=Langevin)
+  gamma_ln = 5.0,		! Collision frequency (1/ps) for Langevin thermostat
+  ig=-1,			! Random seed from wall clock (ensures unique trajectory per run)
+  temp0 = 298.0,		! Target temperature (K)
+
+! Pressure Control
+  ntp = 1,			! Isotropic pressure coupling (0=none, 1=isotropic, 2=anisotropic)
+  barostat = 1,			! Berendsen barostat (1=Berendsen, 2=Monte Carlo)
+  pres0 = 1.0,			! Reference pressure (in bar)
+  taup = 1.0,			! Pressure relaxation time
+
+! Miscellaneous
+  cut = 12.0,			! Nonbonded interaction cutoff (Angstroms)
+  nscm = 100                    ! Remove center-of-mass translation every 100 steps
+
+! Periodic Boundary Conditions
+  ntb = 2,			! Periodic boundaries, constant pressure
+  iwrap = 0,			! Do not wrap coordinates
+
+! SHAKE
+  ntc = 2,			! SHAKE constraints on bonds involving hydrogen
+  ntf = 2,			! Omit bond forces for SHAKE-constrained bonds
+/
+

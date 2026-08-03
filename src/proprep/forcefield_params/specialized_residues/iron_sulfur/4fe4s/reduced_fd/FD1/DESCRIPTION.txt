@@ -1,0 +1,12 @@
+Cluster residue: FD1
+Cys ligand residues: C37, C38, C39, C40
+State: reduced_fd
+Source guess: guess1a
+State letter: T
+Atom types: T1-T4 (Fe), T5-T8 (bridging S), TA-TD (Cys SG)
+
+Per-Fe formal state (BS layer assignment from spin populations):
+  T1 (Fe1): mv        Rmin/2 = 1.3975, eps = 0.015390
+  T2 (Fe2): mv        Rmin/2 = 1.3975, eps = 0.015390
+  T3 (Fe3): ferrous   Rmin/2 = 1.4090, eps = 0.017210
+  T4 (Fe4): ferrous   Rmin/2 = 1.4090, eps = 0.017210

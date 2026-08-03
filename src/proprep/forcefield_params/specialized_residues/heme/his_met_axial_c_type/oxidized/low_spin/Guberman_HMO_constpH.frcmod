@@ -1,0 +1,80 @@
+Cyt c2 HMM frcmod, ferric state. SHARED across all ferric charge-set libs (Guberman_HMO_CM5 / _RESPmc / _RESPsc / _CM5_FeLocal) — bonded terms are charge-independent, so one frcmod serves every charge model. Self-complete: macrocycle terms from frcmod.conste (Henriques 2013) with FE→FO fork, Fe-coordination-shell BOND+ANGLE values overridden by our state-specific Seminario fits. No load-time dependence on frcmod.conste. CORRECTED 2026-08-01: the two TRANS pyrrole angles (NP-FO-NP = NA-Fe-NC, NO-FO-NO = NB-Fe-ND) had carried the cis class average 139.20/90.000; re-derived by Seminario from the original Hessian — see DESCRIPTION.txt. Trajectories built before this correction are invalid.
+
+MASS
+FO  55.85         ! Fe — forked from conste FE for state distinction
+NP 14.01
+NO 14.01
+CD 12.0
+Cp 12.010        ! FORKED from CB: heme β-pyrrole carbon (C2A/C3A/C2B/C3B/C2C/C3C/C2D/C3D). parm10 CB is nucleic-acid (CB-CB 520/1.370); heme CB-CB 418/1.357. Fork keeps both. Mirrors b-type heme set.
+
+BOND
+FO-NP        76.70    2.0072        ! Seminario ferric, 4-pyrrole avg
+FO-NB        71.28    2.0017        ! Seminario ferric, axial His N
+FO-NO        76.70    2.0072        ! Seminario ferric, 4-pyrrole avg (same K as NP)
+NP-CC  316.000     1.38400        ! from conste (Henriques 2013)
+NO-CC  316.000     1.38400        ! from conste (Henriques 2013)
+CC-Cp  273.000     1.44400        ! from conste (Henriques 2013)
+CC-CD  391.000     1.39100        ! from conste (Henriques 2013)
+Cp-Cp  418.000     1.35700        ! from conste (Henriques 2013)
+Cp-CT  297.000     1.50100        ! from conste (Henriques 2013)
+CD-HC  338.000     1.09000        ! from conste (Henriques 2013)
+FO-S         33.33    2.4671        ! Seminario ferric, axial Met S (NEW vs conste)
+
+ANGLE
+NB-FO-NB     0.000     180.000        ! from conste
+NB-FO-NP      81.06     90.000        ! Seminario ferric
+NB-FO-NO      81.06     90.000        ! Seminario ferric
+NB-FO-S       76.17    175.424        ! Seminario ferric, axial-axial NB-Fe-S (NEW)
+NP-FO-NP      65.74    178.087        ! Seminario ferric, TRANS pair NA-Fe-NC
+NO-FO-NO      80.67    179.291        ! Seminario ferric, TRANS pair NB-Fe-ND
+NO-FO-NP     139.20     90.000        ! Seminario ferric, cis class avg (4 cis angles)
+FO-NP-CC     145.53    126.997        ! Seminario ferric, 8-pyrrole avg (OVERRIDES conste FE-NP-CC)
+FO-NO-CC     145.53    126.997        ! Seminario ferric, 8-pyrrole avg (OVERRIDES conste FE-NO-CC)
+NO-CC-Cp    70.000     110.300        ! from conste
+NP-CC-Cp    70.000     110.300        ! from conste
+NO-CC-CD    70.000     125.500        ! from conste
+NP-CC-CD    70.000     125.500        ! from conste
+CC-NP-CC    70.000     105.400        ! from conste
+CC-NO-CC    70.000     105.400        ! from conste
+CC-Cp-Cp    70.000     107.000        ! from conste
+CC-CD-CC    70.000     124.100        ! from conste
+Cp-CC-CD    70.000     125.400        ! from conste
+CC-Cp-CT    70.000     124.900        ! from conste
+Cp-Cp-CT    70.000     128.200        ! from conste
+CC-CD-HC    30.000     118.000        ! from conste
+CR-NB-FO      94.03    125.593        ! Seminario ferric (OVERRIDES conste CR-NB-FE which was K=0)
+CV-NB-FO      96.02    127.344        ! Seminario ferric (OVERRIDES conste CV-NB-FE which was K=0)
+Cp-CT-HC    35.000     109.500        ! from conste
+Cp-CT-H1    35.000     109.500        ! from conste
+Cp-CT-CT    63.000     114.000        ! from conste
+Cp-CT-S     50.0       114.70        ! from conste
+HC-CT-S     50.0       109.50        ! from conste
+NP-FO-S       86.69     90.000        ! Seminario ferric, N-Fe-S(Met) eq class (NEW) (NEW — not in conste)
+NO-FO-S       86.69     90.000        ! Seminario ferric, N-Fe-S(Met) eq class (NEW) (NEW — not in conste)
+FO-S-CT      105.79    107.107        ! Seminario ferric, Fe-S(Met)-Cε (NEW) (NEW — not in conste)
+FO-S-Cp      107.03    111.700        ! Seminario ferric, Fe-S(Met)-Cβ_Met (NEW) (NEW — not in conste)
+
+DIHE
+X -NB-FO-X    1       0.000       0.000       2.000        ! from conste
+X -NO-FO-X    1       0.000     180.000       2.000        ! from conste
+X -NP-FO-X    1       0.000     180.000       2.000        ! from conste
+X -S -FO-X    1       0.000       0.000       2.000        ! from conste
+X -NO-CC-X    4       5.700     180.000       2.000        ! from conste
+X -NP-CC-X    4       5.700     180.000       2.000        ! from conste
+X -CC-Cp-X    4       3.150     180.000       2.000        ! from conste
+X -Cp-Cp-X    4      21.500     180.000       2.000        ! from conste
+X -CD-CC-X    4       7.900     180.000       2.000        ! from conste
+X -Cp-CT-X    1       0.000     180.000       2.000        ! from conste
+
+IMPROPER
+X -X -CC-X    0       1.000     180.000       2.000        ! from conste (porphyrin planarity)
+X -X -Cp-X    0       1.000     180.000       2.000        ! from conste (porphyrin planarity)
+X -X -NP-X    0       1.000     180.000       2.000        ! from conste (porphyrin planarity)
+X -X -NO-X    0       1.000     180.000       2.000        ! from conste (porphyrin planarity)
+
+NONBON
+  FO        1.20000   0.05000   0.00000   ! Yang/Capece 2013 BBA (= conste FE LJ, = NOS HTO/HTR)
+  NP         1.8240    0.1700    0.0        ! from conste
+  NO         1.8240    0.1700    0.0        ! from conste
+  Cp         1.9080    0.0860    0.0        ! FORKED from CB (parm10 C* family LJ 1.9080/0.0860); see MASS
+

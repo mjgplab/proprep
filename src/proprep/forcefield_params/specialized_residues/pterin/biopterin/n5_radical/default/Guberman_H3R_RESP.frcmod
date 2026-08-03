@@ -1,0 +1,168 @@
+Lean H3R frcmod (pterin/biopterin/n5_radical). DELTA-ONLY AMBER modification file: only params absent from the loaded base FFs (parm10/gaff2 + family prereqs). Interior bonds/angles = fragment-Hessian Seminario; junctions = full-molecule QM Seminario (0c). Dihedrals = GAFF2-by-substitution, full multi-term (pterin ring-fusion from parm10-nucleic). Impropers = read from a clean tleap build of the production typing (one most-specific improper per center; QM-pyramidal centers dropped).
+
+MASS
+Ua     14.010    0.530   [frag]
+Uc     12.010    0.878   [frag]
+Ud      1.008    0.135   [frag]
+Ue     12.010    0.878   [frag]
+Ug      1.008    0.135   [frag]
+Uh      1.008    0.135   [frag]
+Ui     14.010    0.530   [frag]
+Uj      1.008    0.161   [frag]
+Uk     12.010    0.878   [frag]
+Ul      1.008    0.135   [frag]
+Um     16.000    0.465   [frag]
+Un      1.008    0.135   [frag]
+Uo     12.010    0.878   [frag]
+Up      1.008    0.135   [frag]
+Uq     12.010    0.878   [frag]
+Ur      1.008    0.135   [frag]
+Us     16.000    0.465   [frag]
+Ut      1.008    0.135   [frag]
+
+BOND
+CB-Ua    384.68     1.3392   [junction] seminario-0c (n=1)
+CB-Ui    417.48     1.3496   [junction] seminario-0c (n=1)
+Ua-Uc    214.05     1.4623   Seminario method [frag]
+Uc-Ud    328.92     1.1010   Seminario method [frag]
+Uc-Ue    204.66     1.5358   Seminario method [frag]
+Uc-Uk    200.65     1.5450   Seminario method [frag]
+Ue-Ug    363.42     1.0920   Seminario method [frag]
+Ue-Uh    339.66     1.0989   Seminario method [frag]
+Ue-Ui    245.61     1.4619   Seminario method [frag]
+Ui-Uj    497.82     1.0136   Seminario method [frag]
+Uk-Ul    330.34     1.1013   Seminario method [frag]
+Uk-Um    238.39     1.4307   Seminario method [frag]
+Uk-Uo    229.30     1.5322   Seminario method [frag]
+Um-Un    521.93     0.9763   Seminario method [frag]
+Uo-Up    334.46     1.1000   Seminario method [frag]
+Uo-Uq    225.68     1.5271   Seminario method [frag]
+Uo-Us    232.09     1.4389   Seminario method [frag]
+Uq-Ur    348.48     1.0967   Seminario method [frag]
+Us-Ut    555.64     0.9706   Seminario method [frag]
+
+ANGLE
+C -CB-Ua    129.060    119.310   [junction] seminario-0c (n=1)
+CB-CB-Ua    140.280    124.180   [junction] seminario-0c (n=1)
+CB-CB-Ui    155.650    117.930   [junction] seminario-0c (n=1)
+CB-Ua-Uc    138.720    116.300   [junction] seminario-0c (n=1)
+CB-Ui-Ue    157.430    120.220   [junction] seminario-0c (n=1)
+CB-Ui-Uj     67.320    116.830   [junction] seminario-0c (n=1)
+NC-CB-Ui    148.450    117.330   [junction] seminario-0c (n=1)
+Ua-Uc-Ud     52.867    108.133   Seminario method [frag]
+Ua-Uc-Ue    155.733    112.926   Seminario method [frag]
+Ua-Uc-Uk    157.913    106.401   Seminario method [frag]
+Uc-Ue-Ug     67.183    110.622   Seminario method [frag]
+Uc-Ue-Uh     72.625    110.676   Seminario method [frag]
+Uc-Ue-Ui    149.825    108.572   Seminario method [frag]
+Uc-Uk-Ul     79.661    106.619   Seminario method [frag]
+Uc-Uk-Um    146.181    110.164   Seminario method [frag]
+Uc-Uk-Uo    153.547    115.100   Seminario method [frag]
+Ud-Uc-Ue     67.214    107.703   Seminario method [frag]
+Ud-Uc-Uk     65.663    107.458   Seminario method [frag]
+Ue-Uc-Uk    153.741    113.965   Seminario method [frag]
+Ue-Ui-Uj     64.868    119.144   Seminario method [frag]
+Ug-Ue-Uh     49.571    108.564   Seminario method [frag]
+Ug-Ue-Ui     72.087    108.144   Seminario method [frag]
+Uh-Ue-Ui     61.766    110.230   Seminario method [frag]
+Uk-Um-Un     61.072    105.231   Seminario method [frag]
+Uk-Uo-Up     76.461    108.815   Seminario method [frag]
+Uk-Uo-Uq    140.891    112.463   Seminario method [frag]
+Uk-Uo-Us    148.165    105.753   Seminario method [frag]
+Ul-Uk-Um     67.948    109.246   Seminario method [frag]
+Ul-Uk-Uo     75.906    108.235   Seminario method [frag]
+Um-Uk-Uo    143.353    107.367   Seminario method [frag]
+Uo-Uq-Ur     72.263    110.590   Seminario method [frag]
+Uo-Us-Ut     61.267    108.350   Seminario method [frag]
+Up-Uo-Uq     80.796    109.042   Seminario method [frag]
+Up-Uo-Us     71.329    109.302   Seminario method [frag]
+Uq-Uo-Us    150.259    111.371   Seminario method [frag]
+Ur-Uq-Ur     38.122    108.730   Seminario method [frag]
+
+DIHE
+Uj-Ui-Ue-Uh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Uj-Ui-Ue-Uc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Uj-Ui-Ue-Ug  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+Ua-Uc-Ue-Uh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ua-Uc-Ue-Ui  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ua-Uc-Ue-Ug  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ud-Uc-Ue-Uh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ud-Uc-Ue-Ui  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ud-Uc-Ue-Ug  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Uk-Uc-Ue-Uh  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Uk-Uc-Ue-Ui  1     0.15556     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-nu
+Uk-Uc-Ue-Ug  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ua-Uc-Uk-Ul  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ua-Uc-Uk-Um  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ua-Uc-Uk-Uo  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ud-Uc-Uk-Ul  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ud-Uc-Uk-Um  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Ud-Uc-Uk-Um  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Ud-Uc-Uk-Uo  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ue-Uc-Uk-Ul  1     0.15556     0.000    3.000   [gaff2-sub] full <- X-c3-c3-X
+Ue-Uc-Uk-Um  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Ue-Uc-Uk-Uo  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Ue-Uc-Uk-Uo  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Ue-Uc-Uk-Uo  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Ul-Uk-Um-Un  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+Uc-Uk-Um-Un  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Uo-Uk-Um-Un  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Ul-Uk-Uo-Uq  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-c3
+Ul-Uk-Uo-Us  1     0.00000     0.000   -3.000   [gaff2-sub] full <- h1-c3-c3-oh
+Ul-Uk-Uo-Us  1     0.25000     0.000    1.000   [gaff2-sub] full <- h1-c3-c3-oh
+Ul-Uk-Uo-Up  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-h1
+Uc-Uk-Uo-Uq  1     0.13000     0.000   -3.000   [gaff2-sub] full <- c3-c3-c3-c3
+Uc-Uk-Uo-Uq  1     0.29000   180.000   -2.000   [gaff2-sub] full <- c3-c3-c3-c3
+Uc-Uk-Uo-Uq  1     0.11000     0.000    1.000   [gaff2-sub] full <- c3-c3-c3-c3
+Uc-Uk-Uo-Us  1     0.21000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-oh
+Uc-Uk-Uo-Up  1     0.15556     0.000    3.000   [gaff2-sub] full <- c6-c3-c3-h1
+Um-Uk-Uo-Uq  1     0.21000     0.000    3.000   [gaff2-sub] full <- oh-c3-c3-c3
+Um-Uk-Uo-Us  1     0.90000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-oh
+Um-Uk-Uo-Us  1     1.13000     0.000    2.000   [gaff2-sub] full <- oh-c3-c3-oh
+Um-Uk-Uo-Up  1     0.00000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-h1
+Um-Uk-Uo-Up  1     0.25000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-h1
+Us-Uo-Uq-Ur  1     0.18000     0.000   -3.000   [gaff2-sub] full <- oh-c3-c3-hc
+Us-Uo-Uq-Ur  1     0.51000     0.000    1.000   [gaff2-sub] full <- oh-c3-c3-hc
+Uk-Uo-Uq-Ur  1     0.08000     0.000    3.000   [gaff2-sub] full <- c3-c3-c3-hc
+Up-Uo-Uq-Ur  1     0.15556     0.000    3.000   [gaff2-sub] full <- h1-c3-c3-hc
+Uq-Uo-Us-Ut  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Uk-Uo-Us-Ut  1     0.00000     0.000    3.000   [gaff2-sub] full <- c3-c3-oh-ho
+Up-Uo-Us-Ut  1     0.11300     0.000    3.000   [gaff2-sub] full <- h1-c3-oh-ho
+C -CB-Ua-Uc  1     4.75000   180.000    2.000   [gaff2-sub] full <- X-cd-nd-X
+CB-CB-Ua-Uc  1     4.75000   180.000    2.000   [gaff2-sub] full <- X-cd-nd-X
+CB-CB-Ui-Ue  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-CB-Ui-Uj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+CB-Ua-Uc-Ud  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Ua-Uc-Ue  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Ua-Uc-Uk  1     0.00000     0.000    3.000   [gaff2-sub] full <- X-c3-n2-X
+CB-Ui-Ue-Uc  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ui-Ue-Ug  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+CB-Ui-Ue-Uh  1     0.00000     0.000    2.000   [gaff2-sub] full <- X-c3-nh-X
+NC-CB-Ui-Ue  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+NC-CB-Ui-Uj  1     1.05000   180.000    2.000   [gaff2-sub] full <- X-cd-nh-X
+
+IMPROPER
+C -CB-CB-Ua         1.1          180.0         2.0   [root: tleap-perceived]
+CB-NC-CB-Ui         1.1          180.0         2.0   [root: tleap-perceived]
+CB-Ue-Ui-Uj         1.1          180.0         2.0   [root: tleap-perceived]
+
+NONBON
+  Ua      1.8993    0.0941   [LJ from n2]
+  Uc      1.9069    0.1078   [LJ from c6]
+  Ud      1.3593    0.0208   [LJ from h1]
+  Ue      1.9069    0.1078   [LJ from c6]
+  Ug      1.3593    0.0208   [LJ from h1]
+  Uh      1.3593    0.0208   [LJ from h1]
+  Ui      1.8403    0.1545   [LJ from nu]
+  Uj      0.6210    0.0100   [LJ from hn]
+  Uk      1.9069    0.1078   [LJ from c3]
+  Ul      1.3593    0.0208   [LJ from h1]
+  Um      1.8200    0.0930   [LJ from oh]
+  Un      0.3019    0.0047   [LJ from ho]
+  Uo      1.9069    0.1078   [LJ from c3]
+  Up      1.3593    0.0208   [LJ from h1]
+  Uq      1.9069    0.1078   [LJ from c3]
+  Ur      1.4593    0.0208   [LJ from hc]
+  Us      1.8200    0.0930   [LJ from oh]
+  Ut      0.3019    0.0047   [LJ from ho]
+

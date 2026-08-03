@@ -1,0 +1,138 @@
+{
+  "description": "Bis-histidine ligated b-type heme parameters (non-covalently bound to protein)",
+  "cofactor_type": "bis_his_b_type",
+  "references": [
+    "Guberman-Pfeffer, M. J. Force field parameters for bis-histidine ligated b-type hemes developed using Metal Center Parameter Builder with B3LYP/mixed basis set. Parameterized from PDB 1CYO.",
+    "Li, P.; Merz, K. M. MCPB.py: A Python Based Metal Center Parameter Builder. J. Chem. Inf. Model. 2016, 56 (4), 599-604."
+  ],
+  "prerequisites": {
+    "leaprc_groups": [
+      {
+        "description": "Required for PRN (the heme-derived propionate residue that the transformer carves out of HEM). constph defines the protonation-state types used by PRN. The combined 'Constant pH + Redox' picker option satisfies this because its leaprc list contains leaprc.constph.",
+        "satisfied_by": [
+          "leaprc.constph"
+        ]
+      },
+      {
+        "description": "Required for the heme residue itself (HBO/HBR). conste defines the redox-state-aware atom types used by the heme. The combined 'Constant pH + Redox' picker option satisfies this because its leaprc list contains leaprc.conste.",
+        "satisfied_by": [
+          "leaprc.conste"
+        ]
+      }
+    ]
+  },
+  "redox_states": {
+    "reduced": {
+      "description": "Iron(II) oxidation state - ferrous heme",
+      "formal_charge": 0,
+      "spin_states": {
+        "low_spin": {
+          "description": "Low-spin Fe(II), S=0, singlet state",
+          "spin_multiplicity": 1,
+          "electronic_config": "d6 low-spin",
+          "atom_types": [
+            "{ \"M2\" \"Fe\" \"sp3\" }",
+            "{ \"Z1\" \"N\" \"sp3\" }",
+            "{ \"Z2\" \"N\" \"sp3\" }",
+            "{ \"Z3\" \"N\" \"sp3\" }",
+            "{ \"Z4\" \"N\" \"sp3\" }",
+            "{ \"Z5\" \"N\" \"sp3\" }",
+            "{ \"Z6\" \"N\" \"sp3\" }"
+          ],
+          "residue_name": "HBR",
+          "ligand_residue_names": {
+            "front_his": "FHR",
+            "rear_his": "RHR"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_HBR_RESP": {
+              "description": "Guberman-Pfeffer Fe(II) b-type heme parameters with RESP charges",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer MCPB B3LYP/mixed basis set, RESP charge fitting",
+              "files": {
+                "frcmod": "Guberman_HBR_RESP.frcmod",
+                "lib": "Guberman_HBR_RESP.lib"
+              },
+              "is_default": true,
+              "is_valid": true
+            },
+            "Guberman_HBR_CM5": {
+              "description": "Guberman-Pfeffer Fe(II) b-type heme parameters with CM5 charges",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer MCPB B3LYP/mixed basis set, CM5 charge model",
+              "files": {
+                "frcmod": "Guberman_HBR_CM5.frcmod",
+                "lib": "Guberman_HBR_CM5.lib"
+              },
+              "is_default": false,
+              "is_valid": true
+            }
+          }
+        }
+      }
+    },
+    "oxidized": {
+      "description": "Iron(III) oxidation state - ferric heme",
+      "formal_charge": 1,
+      "spin_states": {
+        "low_spin": {
+          "description": "Low-spin Fe(III), S=1/2, doublet state",
+          "spin_multiplicity": 2,
+          "electronic_config": "d5 low-spin",
+          "atom_types": [
+            "{ \"M1\" \"Fe\" \"sp3\" }",
+            "{ \"Y1\" \"N\" \"sp3\" }",
+            "{ \"Y2\" \"N\" \"sp3\" }",
+            "{ \"Y3\" \"N\" \"sp3\" }",
+            "{ \"Y4\" \"N\" \"sp3\" }",
+            "{ \"Y5\" \"N\" \"sp3\" }",
+            "{ \"Y6\" \"N\" \"sp3\" }"
+          ],
+          "residue_name": "HBO",
+          "ligand_residue_names": {
+            "front_his": "FHO",
+            "rear_his": "RHO"
+          },
+          "is_valid": true,
+          "is_default": true,
+          "forcefield_sets": {
+            "Guberman_HBO_RESP": {
+              "description": "Guberman-Pfeffer Fe(III) b-type heme parameters with RESP charges",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer MCPB B3LYP/mixed basis set, RESP charge fitting",
+              "files": {
+                "frcmod": "Guberman_HBO_RESP.frcmod",
+                "lib": "Guberman_HBO_RESP.lib"
+              },
+              "is_default": true,
+              "is_valid": true
+            },
+            "Guberman_HBO_CM5": {
+              "description": "Guberman-Pfeffer Fe(III) b-type heme parameters with CM5 charges",
+              "version": "1.0",
+              "reference": "Guberman-Pfeffer MCPB B3LYP/mixed basis set, CM5 charge model",
+              "files": {
+                "frcmod": "Guberman_HBO_CM5.frcmod",
+                "lib": "Guberman_HBO_CM5.lib"
+              },
+              "is_default": false,
+              "is_valid": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "transformation_info": {
+    "transforms_from": [
+      "Standard heme residues (HEM)"
+    ],
+    "creates_bonds": [
+      "Coordination bonds between Fe and histidine nitrogens"
+    ],
+    "notes": "Transforms standard b-type heme to bis-histidine ligated heme. Unlike c-type hemes, b-type hemes are not covalently attached to the protein via thioether bonds. The two axial histidine ligands are designated 'front' (FH*) and 'rear' (RH*) based on the parameterization model (PDB 1CYO). User assigns which protein histidine corresponds to each role."
+  },
+  "history_note": "2026-05: all four sets were disabled because the reduced set (HBR) did not build (its lib used metal-shell types M2/Z1-Z6 while its frcmod and this metadata declared M1/Y1-Y6). 2026-07-04: fixed by relabeling the HBR frcmod (Guberman_HBR_RESP.frcmod and Guberman_HBR_CM5.frcmod) and this metadata's HBR atom_types from M1/Y1-Y6 to the M2/Z1-Z6 naming the HBR lib already used, keeping the oxidized HBO set on M1/Y1-Y6 so oxidized and reduced bis-His hemes remain type-distinct and can coexist in one topology. Bonded VALUES were not changed (they are genuine state-specific ferrous MCPB/Seminario fits). is_valid flipped to true. NOTE: the underlying QM/build-script/methodology source is not recoverable on this machine, so these values cannot be reproduced from on-disk artifacts; a fresh MCPB.py re-parameterization from PDB 1CYO (per the original publication) is planned to replace them. A tleap saveAmberParm build test under leaprc.conste + leaprc.constph should be run to confirm HBO and HBR build with zero missing parameters."
+}

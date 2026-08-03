@@ -1,0 +1,33 @@
+! TEMPLATE: Restrained Membrane Minimization
+! DESCRIPTION: Minimize solvent/lipid tails with protein and lipid phosphorus restrained
+! TYPE: minimization
+! PRIORITY: 1
+! AUTHOR: ProPrep (based on packmol-memgen protocol)
+! VERSION: 1.0
+
+Restrained energy minimization of the membrane-protein system. Protein residues
+and lipid phosphorus atoms (@P31) are positionally restrained with 10 kcal/mol*Å^2
+to relax water, ions, and lipid tails while maintaining bilayer structure and
+protein conformation. 5000 steepest descent + 5000 conjugate gradient cycles.
+
+&cntrl
+! Run Control
+  imin = 1,			! Energy minimization (0=MD, 1=minimization)
+  maxcyc = 10000,		! Maximum minimization cycles
+  ncyc = 5000,			! Steepest descent cycles before switching to conjugate gradient
+
+! Input_Output Control
+  ntx = 1,			! Read coordinates, but not velocities
+  ntpr = 100,			! Every ntpr steps, print human-readable energy info
+  ntwx = 0,			! No trajectory output during minimization
+
+! Restraints
+  ntr = 1,				! Enable positional restraints
+  restraint_wt = 10.0,			! Restraint force constant (kcal/mol-A2)
+  restraintmask = '(!:WAT,Na+,Cl-,K+,Cs+ & !@H=) | @P31',	! Non-solvent heavy atoms + lipid phosphorus
+
+! Miscellaneous
+  nmropt = 0,
+  cut = 10.0,			! Nonbonded interaction cutoff (Angstroms)
+/
+

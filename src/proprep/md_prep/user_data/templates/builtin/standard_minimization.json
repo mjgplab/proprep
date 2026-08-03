@@ -1,0 +1,26 @@
+{
+  "name": "Standard Minimization",
+  "description": "Basic energy minimization with restraints",
+  "simulation_type": "minimization",
+  "config": {
+    "imin": 1,
+    "ntmin": 1,
+    "ncyc": 10000,
+    "maxcyc": 50000,
+    "ntb": 1,
+    "cut": 10.0,
+    "ntr": 1,
+    "restraintmask": "'@CA,C,O,N'",
+    "restraint_wt": 10.0
+  },
+  "keywords": {
+    "imin": "Minimization flag (1=on)",
+    "ntmin": "Minimization method (1=steepest descent then conjugate gradient)",
+    "ncyc": "Number of steepest descent steps",
+    "maxcyc": "Maximum minimization steps",
+    "ntb": "Periodic boundary (1=constant volume)",
+    "cut": "Non-bonded cutoff distance (Angstroms)",
+    "ntr": "Position restraints (1=on)",
+    "restraint_wt": "Restraint force constant (kcal/mol/\u00c5\u00b2)"
+  }
+}

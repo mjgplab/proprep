@@ -1,0 +1,90 @@
+Cytochrome c2 heme — ferric (Fe³⁺, low-spin S=1/2, resting oxidized).
+
+His/Met-axial c-type heme of cyt c2 (Blastochloris/Rhodopseudomonas viridis):
+six-coordinate, His(NE2) + Met(SD) axial ligands, covalently bound to the
+protein through two thioether linkages (CXXCH motif). Parameterized for a
+charge-compensation study (protein electrostatic response to heme redox change,
+including propionate pKa shifts).
+
+Units in this lib (combined OFF — SELF-CONTAINED, like the bis-His c-type set):
+    HMO  — heme macrocycle + axial His imidazole + axial Met thioether
+           + the two CXXCH thioether-Cys sidechains (87 atoms; net +1 e)
+    CYO  — thioether-Cys backbone stub (used ×2)
+    HIO  — axial-His backbone stub
+    MEO  — axial-Met backbone stub (N/H/CA/HA/C/O; 6 atoms; net 0 e)
+    PRN  — propionate (used ×2; -1 each)
+
+This set loads with any standard AMBER protein FF (ff14SB/parm10 or ff19SB/parm19 —
+the reused standard types are parameter-identical in both) + an `addAtomTypes`
+registration of the custom heme types (FO, NP, NO, CD, Cp — see addAtomTypes.leap /
+LOADING.md; REQUIRED, else tleap mis-assigns GB Born radii for the NO-typed pyrrole
+N) — no leaprc.conste, no leaprc.constph. All splice stubs are bundled above, and
+PRN's protonated-carboxyl angles/impropers are folded into the .frcmod.
+
+Method: conste (Henriques 2013) macrocycle + state-specific Seminario Fe-shell
+from a B3LYP/[LANL2DZ+6-31G(d)] QM Hessian. Charges: CM5 (density-based,
+ensemble-averaged) at B3LYP/[LANL2TZ(f)+6-31G(d)] — chosen over RESP for this
+buried-metal redox-difference problem (see metadata.json methodology and
+methodology.md §13). Fe LJ: Yang/Capece 2013 BBA (1.20/0.05).
+
+Charge-set alternatives (this leaf ships 4 libs sharing ONE bonded frcmod —
+Guberman_HMO.frcmod; bonded terms are charge-independent):
+    Guberman_HMO_CM5.lib       — CM5 (default; recommended)
+    Guberman_HMO_RESPmc.lib    — pooled multi-conformer RESP
+    Guberman_HMO_RESPsc.lib    — single-conformer RESP
+    (Fe-localized-Δq set reuses Guberman_HMO_CM5.lib in the oxidized state)
+They form the redox-Δq comparison axis for the charge-compensation sensitivity
+study (Fe redox Δq −0.15 → −0.50 → −1.0 e); see methodology.md §13.12.
+
+CORRECTION 2026-08-01 — trans pyrrole N-Fe-N angles
+---------------------------------------------------
+NP and NO alternate around the macrocycle (NA=NP, NB=NO, NC=NP, ND=NO), so a
+same-type triplet is a TRANS pair across the ring and a mixed-type triplet is
+cis. All three N-Fe-N combinations had been written with the cis class average:
+
+    NP-FO-NP   139.20   90.000     <- trans NA-Fe-NC, wrong
+    NO-FO-NO   139.20   90.000     <- trans NB-Fe-ND, wrong
+    NO-FO-NP   139.20   90.000     <- cis, correct
+
+The two trans angles measure ~178 deg in both the QM structure and this lib's
+own coordinates, so restraining them to 90 deg at k=139.20 costs about
+310 kcal/mol each. A planar macrocycle cannot relieve that except by pulling
+Fe out of plane. Trajectories produced with the previous values show Fe doming
+of 0.7-0.8 A and trans angles of 132-141 deg, and are invalid.
+
+Corrected values were re-derived by the Seminario method from the ORIGINAL
+B3LYP/[LANL2DZ Fe + 6-31G(d)] Hessian for this set (cytc2_fe3_opt.chk,
+geometry from 1IO3 chain A) with pymsmt at scalef=1.000, avg=1 — the same
+data, method and settings that produced every other Fe-shell term in this
+frcmod. Those settings were confirmed by reproducing the six unaffected values
+exactly: FO-NP 76.70, FO-NB 71.28, FO-S 33.33, NB-FO-NP 81.06, NB-FO-S 76.17,
+and the cis average 139.20. The per-atom assignment (which QM nitrogen is NP
+vs NO) was fixed by thioether orientation: ring B's thioether faces ring C,
+ring C's faces ring D, which breaks the four-fold symmetry unambiguously.
+
+    NP-FO-NP    65.74  178.087     ! trans NA-Fe-NC
+    NO-FO-NO    80.67  179.291     ! trans NB-Fe-ND
+
+No other term changed. Charges are unaffected. The ferrous (HMR) set has the
+same defect but CANNOT be corrected the same way: no Hessian at this level of
+theory survives for the ferrous state (the only ferrous QM available is a 2024
+BLYP/6-31G(d) all-electron job, a different functional and core treatment that
+must not be mixed with this fit). It awaits a ferrous re-run at
+B3LYP/[LANL2DZ + 6-31G(d)], charge 0, multiplicity 1.
+
+Cross-residue bonds the transformer must emit:
+    bond <HMO_resi>.CBC1 <Cys1_resi>.CA   ! thioether linkage 1
+    bond <HMO_resi>.CBC2 <Cys2_resi>.CA   ! thioether linkage 2
+    bond <HMO_resi>.CBH  <His_resi>.CA    ! axial His backbone splice
+    bond <HMO_resi>.CBM  <Met_resi>.CA    ! axial Met backbone splice
+    bond <HMO_resi>.C2A  <PRN_A_resi>.CA  ! propionate A attachment
+    bond <HMO_resi>.C3D  <PRN_D_resi>.CA  ! propionate D attachment
+(Fe-NE2 His and Fe-SD Met axial bonds are INTERNAL to HMO — already in the lib.)
+
+Net charge: HMO + 2 CYO + HIO + MEO + 2 PRN = -1 e (PRN is -1 each).
+
+Atom-type forks: FO (ferric Fe; FR for ferrous so both coexist); Cp for the 8
+β-pyrrole carbons (keeps heme CB-CB out of parm10's nucleic-acid CB-CB).
+
+Met-axial torsion X-S-FO-X: accepted K=0 placeholder (barrier negligible and
+irrelevant to the charge-compensation observables).

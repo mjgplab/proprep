@@ -1,0 +1,5 @@
+source leaprc.constph
+hewl = loadpdb 4lzt_hip_dry.pdb
+charge hewl
+saveamberparm hewl hewl.prmtop hewl.rst7
+quit
