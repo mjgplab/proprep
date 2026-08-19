@@ -2938,6 +2938,11 @@ def run_workflow(residue_name: str, residues: list, output_dir: str = None, inte
             output_dir = Path(output_dir)
 
         output_dir.mkdir(exist_ok=True)
+        # Resolve BEFORE the chdir: the checklist keeps state_dir and rebuilds
+        # the state-file path at every save, so a relative one would follow the
+        # process around. Any step that chdirs would drop workflow_state.json
+        # somewhere else and the resume lookup would miss it.
+        output_dir = output_dir.resolve()
         os.chdir(output_dir)
 
         runner = SmallMolWorkflowRunner(
@@ -2960,7 +2965,7 @@ def run_workflow(residue_name: str, residues: list, output_dir: str = None, inte
             processor=processor,
             workflow_name="Small Molecule Parameterization",
             console=runner.console,
-            state_dir=Path("."),
+            state_dir=output_dir,
         )
         success = checklist.run()
 

@@ -94,7 +94,7 @@ class RESPInputGenerator:
 
         # Identify scaffolding vs metal-site residues
         # Metal-site residues (from RedoxSite): get free RESP fitting + backbone restraints
-        # Scaffolding (ACE, NME, gap fillers): constrained to sum to 0, no mol2 output
+        # Scaffolding (ACE, NME, gap fillers): group-sum constrained, no mol2 output
         residue_atoms_by_key = {}
         for idx, atom in enumerate(atoms_info, 1):
             key = (atom['chain'], atom['resid'])
@@ -102,17 +102,32 @@ class RESPInputGenerator:
                 residue_atoms_by_key[key] = {'resname': atom['resname'], 'indices': []}
             residue_atoms_by_key[key]['indices'].append(idx)
 
-        # Build group constraints for scaffolding residues (sum to 0)
+        # Build group constraints for scaffolding residues, each at its own
+        # force-field charge rather than a blanket zero. See
+        # _scaffolding_group_charge for why zero is wrong for a charged one.
+        charge_lookup = self._build_charge_lookup(type_assignments)
         residue_groups = []
         scaffolding_resids = set()
         for (chain, resid), info in residue_atoms_by_key.items():
             is_metal_site = metal_site_resids and (chain, resid) in metal_site_resids
-            if not is_metal_site:
-                residue_groups.append(info['indices'])
-                scaffolding_resids.add((chain, resid))
+            if is_metal_site:
+                continue
+            target = self._scaffolding_group_charge(
+                info['indices'], atoms_info, ff_collector, charge_lookup)
+            residue_groups.append((info['indices'], target))
+            scaffolding_resids.add((chain, resid))
+            if target:
+                # Worth saying out loud: this is the case that was silently
+                # wrong, and it moves every fitted charge in the model.
+                self.logger.info(
+                    f"  Scaffolding {info['resname']} {chain}:{resid} constrained "
+                    f"to {target:+.0f}, not 0")
 
         if residue_groups:
-            self.logger.debug(f"  Scaffolding constraints: {len(residue_groups)} residues (sum to 0)")
+            nonzero = sum(1 for _idx, q in residue_groups if q)
+            self.logger.debug(
+                f"  Scaffolding constraints: {len(residue_groups)} residues "
+                f"({nonzero} with a nonzero charge)")
         if metal_site_resids:
             self.logger.debug(f"  Metal-site residues (free fitting): {len(metal_site_resids)}")
 
@@ -263,6 +278,76 @@ class RESPInputGenerator:
             )
 
         return atomic_numbers[element_key]
+
+    @staticmethod
+    def _build_charge_lookup(type_assignments: Optional[Dict]) -> Dict[Tuple[str, str], float]:
+        """``(resname, atom_name) -> charge`` from type_assignments.
+
+        The prmtop-based path's source of per-atom charges, used when there is
+        no ff_collector.
+        """
+        lookup: Dict[Tuple[str, str], float] = {}
+        if not type_assignments:
+            return lookup
+        for _coords, assignment in type_assignments.items():
+            if not isinstance(assignment, dict):
+                continue
+            charge = assignment.get('charge')
+            if charge is None:
+                continue
+            lookup[(assignment.get('resname', ''), assignment.get('atom_name', ''))] = charge
+        return lookup
+
+    def _scaffolding_group_charge(self, indices: List[int], atoms_info: List[Dict],
+                                  ff_collector, charge_lookup: Dict) -> float:
+        """The charge a scaffolding residue's group constraint should target.
+
+        Scaffolding is everything in the large model that gets no mol2 file:
+        the ACE/NME caps and any residue added to bridge a gap. All of it used
+        to be constrained to zero, which is right for a cap and for a GLY
+        bridge but wrong for a charged residue.
+
+        Keeping a real ARG as a gap bridge is the case that exposed it. The ESP
+        was computed with the guanidinium present, but pinning the ARG at zero
+        left its +1 nowhere to go except the free atoms, and RESP put it on the
+        nearest ones -- the two coordinating cysteines flanking it came out at
+        -0.27 and +0.23 where the two remote ones sat at -0.48, and the site
+        summed to -1 instead of the -2 of [Fe2S2(SCys)4]2-.
+
+        Only whole residues are ever added as bridges, and a whole residue
+        carries an integer charge. So a sum that is not integral did not come
+        from a whole residue -- it is a cap, whose synthetic atom names
+        partially resolve -- and zero is the right target for those.
+        """
+        total = 0.0
+        for atom_index in indices:
+            atom = atoms_info[atom_index - 1]
+            resname, atom_name = atom['resname'], atom['atom_name']
+
+            charge = None
+            if ff_collector is not None:
+                try:
+                    atom_type_def = ff_collector.get_atom_type(resname, atom_name)
+                    if atom_type_def is not None and getattr(
+                            atom_type_def, 'atom_charge', None) is not None:
+                        charge = atom_type_def.atom_charge
+                except Exception as e:  # noqa: BLE001 — a miss is not an error
+                    self.logger.debug(
+                        f"ff_collector lookup failed for {resname}:{atom_name}: {e}")
+            if charge is None:
+                charge = charge_lookup.get((resname, atom_name))
+            if charge is None:
+                # Incomplete: any target derived from a partial sum would be
+                # arbitrary, and zero is what a cap should get anyway.
+                return 0.0
+            total += charge
+
+        if abs(total - round(total)) > 0.01:
+            self.logger.debug(
+                f"  Scaffolding residue sums to {total:+.4f}, not an integer; "
+                f"treating as a partial residue and constraining to 0")
+            return 0.0
+        return float(round(total))
 
     def _get_backbone_restraints(self,
                                 atoms_info: List[Dict],
@@ -599,7 +684,7 @@ class RESPInputGenerator:
                       atoms_info: List[Dict],
                       total_charge: int,
                       restraints: Dict[int, float],
-                      residue_groups: List[List[int]] = None) -> None:
+                      residue_groups: List[Tuple[List[int], float]] = None) -> None:
         """
         Write stage 1 resp input (weak restraint).
 
@@ -649,9 +734,9 @@ class RESPInputGenerator:
             # Constraints section (no blank line before — blank line terminates)
             # Part 3: Residue group constraints (capping groups sum to 0)
             if residue_groups:
-                for group_atoms in residue_groups:
+                for group_atoms, group_charge in residue_groups:
                     n_grp = len(group_atoms)
-                    f.write(f"{n_grp:5d}{'0.00000':>10s}\n")
+                    f.write(f"{n_grp:5d}{group_charge:10.5f}\n")
                     for idx, atom_idx in enumerate(group_atoms):
                         f.write(f"{1:5d}{atom_idx:5d}")
                         if (idx + 1) % 8 == 0:
@@ -674,7 +759,7 @@ class RESPInputGenerator:
                       total_charge: int,
                       restraints: Dict[int, float],
                       equivalences: List[List[int]],
-                      residue_groups: List[List[int]] = None,
+                      residue_groups: List[Tuple[List[int], float]] = None,
                       frozen_cap_atoms: set = None) -> None:
         """
         Write stage 2 resp input (strong restraint + equivalences).
@@ -685,7 +770,8 @@ class RESPInputGenerator:
             total_charge: Total molecular charge
             restraints: Dict of atom_index → fixed_charge
             equivalences: List of atom groups to constrain equal charges
-            residue_groups: List of atom index groups for capping residues (sum to 0)
+            residue_groups: List of (atom index group, target charge) for
+                scaffolding residues -- caps and gap bridges
             frozen_cap_atoms: Set of 1-based atom indices to freeze (-99) in capping groups
         """
         n_atoms = len(atoms_info)
@@ -743,9 +829,9 @@ class RESPInputGenerator:
             # Constraints section (no blank line before — blank line terminates)
             # Part 3: Residue group constraints (capping groups sum to 0)
             if residue_groups:
-                for group_atoms in residue_groups:
+                for group_atoms, group_charge in residue_groups:
                     n_grp = len(group_atoms)
-                    f.write(f"{n_grp:5d}{'0.00000':>10s}\n")
+                    f.write(f"{n_grp:5d}{group_charge:10.5f}\n")
                     for idx, atom_idx in enumerate(group_atoms):
                         f.write(f"{1:5d}{atom_idx:5d}")
                         if (idx + 1) % 8 == 0:

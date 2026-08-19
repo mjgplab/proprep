@@ -28,6 +28,13 @@
         }
         #header h1 { font-size: 20px; color: #0078d4; margin: 0; }
         #header .info { font-size: 14px; color: #888; }
+        #header .header-right { display: flex; align-items: center; gap: 14px; }
+        .header-btn {
+            padding: 5px 12px; font-size: 12px;
+            background-color: transparent; color: #e0e0e0;
+            border: 1px solid #3e3e42; border-radius: 4px; cursor: pointer;
+        }
+        .header-btn:hover { border-color: #0078d4; color: #0078d4; }
 
         #container { display: flex; height: calc(100vh - 60px); }
         #viewport { flex: 1; position: relative; }
@@ -39,6 +46,10 @@
             overflow-y: auto;
             padding: 16px;
         }
+
+        /* Collapsed control panel: the viewport (flex: 1) reclaims the width,
+         * so the structure fills the window for screenshots and figures. */
+        #container.sidebar-collapsed #sidebar { display: none; }
 
         /* Scrollbar */
         #sidebar::-webkit-scrollbar { width: 8px; }
@@ -302,7 +313,15 @@
 <body>
     <div id="header">
         <h1>ProPrep Interactive Structure Viewer</h1>
-        <div class="info" id="structure-info">Loading...</div>
+        <div class="header-right">
+            <div class="info" id="structure-info">Loading...</div>
+            <button id="sidebar-toggle" class="header-btn" type="button"
+                    aria-controls="sidebar" aria-expanded="true"
+                    onclick="toggleSidebar()"
+                    title="Collapse the control panel so the structure fills the window">
+                Hide Panel
+            </button>
+        </div>
     </div>
 
     <div id="container">
@@ -659,6 +678,10 @@
 
         async function init() {
             initStage();
+            // Restore before the structures load so autoView frames the
+            // structure against the final viewport width, not the wide-then-
+            // narrow one.
+            restoreSidebarState();
             await loadConfig();
             await loadStructures();
             applyShapesFromConfig(config);
@@ -1546,6 +1569,39 @@
             } else {
                 stage.autoView();
             }
+        }
+
+        // Collapse/restore the right-hand control panel. Useful when capturing
+        // a figure: the viewport is `flex: 1`, so hiding the sidebar hands its
+        // 370px to the structure with no reload and no camera change.
+        var SIDEBAR_KEY = 'proprep.viewer.sidebarCollapsed';
+
+        function applySidebarCollapsed(collapsed) {
+            document.getElementById('container')
+                .classList.toggle('sidebar-collapsed', collapsed);
+            var btn = document.getElementById('sidebar-toggle');
+            if (btn) {
+                btn.textContent = collapsed ? 'Show Panel' : 'Hide Panel';
+                btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            }
+            // NGL sizes its canvas from the viewport element's box and only
+            // re-reads it on a window resize event. A CSS-only width change
+            // fires none, so the canvas would keep the old width (the render
+            // would sit letterboxed) until told explicitly.
+            if (stage) stage.handleResize();
+        }
+
+        function toggleSidebar() {
+            var collapsed = !document.getElementById('container')
+                .classList.contains('sidebar-collapsed');
+            try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) { /* private mode */ }
+            applySidebarCollapsed(collapsed);
+        }
+
+        function restoreSidebarState() {
+            var collapsed = false;
+            try { collapsed = localStorage.getItem(SIDEBAR_KEY) === '1'; } catch (e) { /* private mode */ }
+            if (collapsed) applySidebarCollapsed(true);
         }
 
         function toggleFullscreen() {

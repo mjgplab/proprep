@@ -323,7 +323,7 @@ KEY_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
     "preprocessing_metal_clusters": {"type": "dict", "description": "Pure inorganic clusters (triage category F) withheld whole from the standard force-field pass"},
     "_preprocessing_tleap_active": {"type": "bool", "description": "Re-entrancy flag marking the preprocessor's internal, boxless tLEaP build"},
     "redox_sites_pristine": {"type": "list[RedoxSite]", "description": "Untouched snapshot of redox sites, re-synchronized from on every rerun"},
-    "mcpb_step_results": {"type": "dict", "description": "Per-step MCPB results (paths, QM charge, RESP intermediates) enabling resume"},
+    "mcpb_step_results": {"type": "dict", "description": "Per-SITE, per-step MCPB results (paths, QM charge, RESP intermediates) enabling resume; keyed by site_id"},
     "ligand_mol2_file": {"type": "str (path)", "description": "Charged mol2 for a single extracted ligand (externally seeded)"},
     "ligand_frcmod_file": {"type": "str (path)", "description": "GAFF frcmod for a single extracted ligand (externally seeded)"},
     "ff_resolved_atom_types": {"type": "list[str]", "description": "addAtomTypes entries emitted after resolving atom-type collisions between parameter sets"},

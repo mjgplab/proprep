@@ -43,10 +43,31 @@
     },
   };
 
+  // Terminal font size. Kept in localStorage so a size chosen for, say, a
+  // manuscript screenshot survives reloads; proprep-web --font-size overrides
+  // it at launch (see the /shell-theme fetch below).
+  const FONT_KEY = "proprep.web.fontSize";
+  const FONT_DEFAULT = 13, FONT_MIN = 8, FONT_MAX = 32;
+
+  function clampFont(px) {
+    if (!Number.isFinite(px)) return FONT_DEFAULT;
+    return Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(px)));
+  }
+
+  function storedFontSize() {
+    try {
+      const raw = localStorage.getItem(FONT_KEY);
+      if (raw === null) return FONT_DEFAULT;
+      return clampFont(parseInt(raw, 10));
+    } catch (_) {
+      return FONT_DEFAULT;  // storage blocked (private mode / sandboxed frame)
+    }
+  }
+
   const term = new Terminal({
     cursorBlink: true,
     fontFamily: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
-    fontSize: 13,
+    fontSize: storedFontSize(),
     theme: THEMES.dark,
     // Lines retained above the viewport. ProPrep sessions are long, so this is
     // generous; xterm keeps scrollback in browser memory only, so it is still
@@ -73,6 +94,9 @@
       term.options.theme = THEMES[name];
       term.options.minimumContrastRatio = cfg.highContrast ? 7 : 1;
       document.body.dataset.theme = name;
+      // Only when --font-size was actually passed; otherwise the remembered
+      // in-page size stands.
+      if (typeof cfg.fontSize === "number") setFontSize(cfg.fontSize);
     })
     .catch(() => { /* keep the dark default */ });
 
@@ -163,6 +187,59 @@
   }
   // After fonts/layout settle, refit once more.
   window.addEventListener("load", () => setTimeout(scheduleFit, 50));
+
+  // ---- font size --------------------------------------------------------
+
+  const fontReadout = document.getElementById("font-readout");
+  const fontDec = document.getElementById("font-dec");
+  const fontInc = document.getElementById("font-inc");
+
+  function setFontSize(px, persist) {
+    px = clampFont(px);
+    // xterm 5 applies option writes live, so no reopen is needed. Bigger glyphs
+    // mean fewer columns, so refit and tell the PTY — otherwise Rich keeps
+    // wrapping tables to the old width.
+    term.options.fontSize = px;
+    fontReadout.textContent = px + "px";
+    fontDec.disabled = px <= FONT_MIN;
+    fontInc.disabled = px >= FONT_MAX;
+    if (persist !== false) {
+      try { localStorage.setItem(FONT_KEY, String(px)); } catch (_) { /* storage blocked */ }
+    }
+    scheduleFit();
+  }
+
+  fontDec.addEventListener("click", () => setFontSize(term.options.fontSize - 1));
+  fontInc.addEventListener("click", () => setFontSize(term.options.fontSize + 1));
+
+  // Ctrl/Cmd +/-/0, the shortcut every terminal emulator uses. We take it over
+  // from the browser's page zoom on purpose: zoom would scale the whole UI and
+  // leave xterm re-rasterizing at a fractional device pixel ratio, which is
+  // exactly the blur to avoid in a figure.
+  function fontKeyDelta(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return null;
+    if (e.key === "+" || e.key === "=") return 1;
+    if (e.key === "-" || e.key === "_") return -1;
+    if (e.key === "0") return 0;
+    return null;
+  }
+
+  document.addEventListener("keydown", (e) => {
+    const delta = fontKeyDelta(e);
+    if (delta === null) return;
+    e.preventDefault();
+    setFontSize(delta === 0 ? FONT_DEFAULT : term.options.fontSize + delta);
+  });
+
+  // Returning false stops xterm from consuming the chord and sending it to the
+  // PTY; the event still bubbles to the document listener above.
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type === "keydown" && fontKeyDelta(e) !== null) return false;
+    return true;
+  });
+
+  // Sync the readout/buttons with the size the terminal was constructed with.
+  setFontSize(term.options.fontSize, false);
 
   // ---- splitter ---------------------------------------------------------
 

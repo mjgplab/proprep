@@ -55,6 +55,31 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
             # Default handler for other files
             super().do_GET()
 
+    # Errors that mean "the client hung up", not "the server failed".
+    _CLIENT_GONE = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)
+
+    def _handle_serve_error(self, what: str, exc: Exception) -> None:
+        """Report a failure while serving, distinguishing a vanished client.
+
+        The browser polls /version every 1.5 s and never aborts, so any stall
+        long enough to outlast its patience (a compiled extension such as
+        MODELLER holding the GIL for minutes, with this single-threaded server
+        unable to drain its backlog) leaves a queue of requests whose sockets
+        are closed by the time they are answered. That is ordinary, and logging
+        it at ERROR made a normal disconnect look like a fault.
+
+        It also must not be answered: send_error would write a 500 to the same
+        closed socket and raise again inside the handler.
+        """
+        if isinstance(exc, self._CLIENT_GONE):
+            logger.debug("Client disconnected while serving %s: %s", what, exc)
+            return
+        logger.error(f"Error serving {what}: {exc}")
+        try:
+            self.send_error(500, f"Internal server error: {exc}")
+        except self._CLIENT_GONE:
+            logger.debug("Client also gone before the 500 for %s could be sent", what)
+
     def serve_html(self):
         """Serve the NGL viewer HTML template."""
         try:
@@ -70,8 +95,7 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         except FileNotFoundError:
             self.send_error(404, f"Template not found: {self.template_path}")
         except Exception as e:
-            logger.error(f"Error serving HTML: {e}")
-            self.send_error(500, f"Internal server error: {e}")
+            self._handle_serve_error("HTML", e)
 
     def serve_config(self):
         """Serve the viewer configuration as JSON."""
@@ -88,8 +112,7 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.wfile.write(config_json.encode('utf-8'))
 
         except Exception as e:
-            logger.error(f"Error serving config: {e}")
-            self.send_error(500, f"Internal server error: {e}")
+            self._handle_serve_error("config", e)
 
     def serve_version(self):
         """Tiny endpoint for the browser's poll loop."""
@@ -102,8 +125,7 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         except Exception as e:
-            logger.error(f"Error serving version: {e}")
-            self.send_error(500, f"Internal server error: {e}")
+            self._handle_serve_error("version", e)
 
     def serve_structure(self):
         """Serve a PDB structure file."""
@@ -143,8 +165,7 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         except ValueError:
             self.send_error(400, "Invalid structure index")
         except Exception as e:
-            logger.error(f"Error serving structure: {e}")
-            self.send_error(500, f"Internal server error: {e}")
+            self._handle_serve_error("structure", e)
 
     def log_message(self, format, *args):
         """Override to suppress routine HTTP request logging."""

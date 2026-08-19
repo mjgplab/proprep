@@ -27,6 +27,9 @@ Design choices baked in here (see the user-library plan):
 """
 
 import logging
+import os
+import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -187,31 +190,38 @@ def run_import_wizard(
     ))
 
     frcmod = _prompt_existing_file(
-        console, processor, "Path to the .frcmod file",
+        console, processor, ".frcmod file",
         suffixes=(".frcmod",), required=True,
     )
     if frcmod is None:
         return None
+    # The companion files are almost always beside the frcmod, so start there
+    # rather than sending the user back to the working directory.
+    beside = str(Path(frcmod).parent)
     lib = _prompt_existing_file(
-        console, processor, "Path to the .lib / .off library file",
-        suffixes=(".lib", ".off"), required=True,
+        console, processor, ".lib / .off library file",
+        suffixes=(".lib", ".off"), required=True, start_dir=beside,
     )
     if lib is None:
         return None
     prep = _prompt_existing_file(
-        console, processor, "Path to a .prep file (optional, press Enter to skip)",
-        suffixes=(".prep", ".prepi", ".prepin"), required=False,
+        console, processor, ".prep file (optional)",
+        suffixes=(".prep", ".prepi", ".prepin"), required=False, start_dir=beside,
     )
 
     # Category for an imported set is whatever the user says it is.
     category = _prompt_category(console, processor)
     default_name = Path(lib).stem
 
+    # Imported files can declare atom types; generated ones cannot. See
+    # _prompt_imported_atom_types.
+    imported_types = _prompt_imported_atom_types(console, processor, frcmod)
+
     request = _build_request_interactively(
         console, processor,
         category=category, residue_name=default_name,
         frcmod_file=frcmod, lib_file=lib, prep_file=prep,
-        atom_types=None,
+        atom_types=imported_types or None,
     )
     if request is None:
         return None
@@ -283,7 +293,12 @@ def _build_request_interactively(
         redox_state = user_library.DEFAULT_REDOX_STATE
         spin_state = user_library.DEFAULT_SPIN_STATE
         state_meta = {}
-        resolved_atom_types = []  # GAFF / standard types — nothing new to declare
+        # GENERATED small molecules / modified AAs declare nothing new -- they
+        # are typed with existing GAFF or standard types -- so callers pass
+        # None and this stays empty. An IMPORT can supply types read from the
+        # frcmod's MASS section, and dropping them here would leave tleap with
+        # no addAtomTypes entry for them.
+        resolved_atom_types = list(atom_types or [])
 
     lib_srcs = [lib_file] if lib_file else []
     if not lib_srcs:
@@ -307,7 +322,15 @@ def _build_request_interactively(
         lib_srcs=lib_srcs,
         redox_state=redox_state,
         spin_state=spin_state,
-        residue_meta={"description": description, "references": references},
+        residue_meta={
+            "description": description,
+            "references": references,
+            # What must be sourced for these files to load. Recorded here
+            # because nothing else will: the Topology Generator enforces
+            # declared prerequisites but almost no entry declared any, so the
+            # requirement lived only in the depositor's head.
+            **_inferred_prerequisites([frcmod_file, *lib_srcs]),
+        },
         state_meta=state_meta,
         spin_meta=spin_meta,
         set_meta={"description": description, "version": "1.0"},
@@ -397,16 +420,244 @@ def _prompt_optional_int(console: Console, processor, label: str) -> Optional[in
         return None
 
 
+# Offered category -> (label, what it means, library family it lands in).
+_CATEGORY_CHOICES = {
+    "1": ("Small molecule / ligand",
+          "a cofactor or ligand parameterized as its own residue (FAD, NAD, a drug)",
+          "small_molecules"),
+    "2": ("Modified amino acid",
+          "a residue that stays part of the chain (phosphoserine, a crosslink)",
+          "modified_aa"),
+    "3": ("Metal site",
+          "a metal centre and its coordinating residues (MCPB output)",
+          "metal_sites"),
+}
+
+
+# --------------------------------------------------------------------------- #
+# atom types declared by an imported frcmod
+# --------------------------------------------------------------------------- #
+
+# Masses that identify an element unambiguously. Used to propose the element
+# for an addAtomTypes entry; the user confirms before it is stored.
+_MASS_TO_ELEMENT = {
+    1.008: "H", 4.003: "He", 6.941: "Li", 9.012: "Be", 10.81: "B", 12.01: "C",
+    14.01: "N", 16.00: "O", 19.00: "F", 22.99: "Na", 24.305: "Mg",
+    26.98: "Al", 28.09: "Si", 30.97: "P", 32.06: "S", 35.45: "Cl",
+    39.10: "K", 40.08: "Ca", 47.87: "Ti", 50.94: "V", 52.00: "Cr",
+    54.94: "Mn", 55.85: "Fe", 58.93: "Co", 58.69: "Ni", 63.55: "Cu",
+    65.38: "Zn", 65.4: "Zn", 79.90: "Br", 95.96: "Mo", 95.94: "Mo",
+    126.9: "I", 183.84: "W",
+}
+
+
+def _inferred_prerequisites(paths) -> dict:
+    """``{"prerequisites": {...}}`` for a deposit, or ``{}`` when undeterminable.
+
+    Derived from the atom types the files use; see
+    ``forcefield_params.prerequisites``. Returns an empty dict rather than an
+    empty block so metadata gains nothing when nothing is known.
+    """
+    try:
+        from proprep.forcefield_params.prerequisites import infer_leaprc_groups
+        groups = infer_leaprc_groups(list(paths))
+    except Exception as exc:  # noqa: BLE001 - a deposit must not fail on this
+        logger.debug("Could not infer prerequisites: %s", exc)
+        return {}
+    if not groups:
+        return {}
+    return {"prerequisites": {"leaprc_groups": groups}}
+
+
+def library_atom_names(lib_path) -> set:
+    """Non-hydrogen atom names declared by an OFF/mol2 library unit.
+
+    Hydrogens are excluded because a crystal structure usually lacks them, so
+    including them would depress every comparison against a PDB residue.
+    """
+    names = set()
+    try:
+        text = Path(lib_path).read_text(errors="ignore")
+    except OSError:
+        return names
+
+    in_atoms = False
+    for line in text.splitlines():
+        if line.startswith("!entry.") and ".unit.atoms table" in line:
+            in_atoms = True
+            continue
+        if in_atoms:
+            if line.startswith("!"):
+                break
+            match = re.match(r'\s*"([^"]+)"\s+"([^"]+)"', line)
+            if match:
+                name = match.group(1).strip()
+                if name and not name.upper().startswith("H"):
+                    names.add(name.upper())
+    return names
+
+
+def parse_frcmod_mass_types(frcmod_path) -> List[tuple]:
+    """``(atom_type, mass)`` for each entry in a frcmod's MASS section.
+
+    The section runs from the ``MASS`` header to the first blank line. An
+    frcmod that introduces no new types has an empty one, which is the common
+    case for GAFF output.
+    """
+    types = []
+    try:
+        in_mass = False
+        with open(frcmod_path, errors="ignore") as fh:
+            for line in fh:
+                stripped = line.strip()
+                if not in_mass:
+                    if stripped.upper() == "MASS":
+                        in_mass = True
+                    continue
+                if not stripped:
+                    break
+                parts = stripped.split()
+                if len(parts) < 2:
+                    continue
+                try:
+                    types.append((parts[0], float(parts[1])))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return types
+
+
+def _known_atom_types() -> set:
+    """Atom types the shipped Amber parameter files already define.
+
+    A type already in parm19/parm10/gaff2 needs no addAtomTypes entry, and
+    redeclaring one risks changing an existing definition.
+    """
+    known = set()
+    amberhome = os.environ.get("AMBERHOME")
+    candidates = []
+    if amberhome:
+        candidates.append(Path(amberhome) / "dat" / "leap" / "parm")
+    candidates.append(Path(sys.prefix) / "dat" / "leap" / "parm")
+
+    for parm_dir in candidates:
+        if not parm_dir.is_dir():
+            continue
+        # The .dat files open with their MASS block; a frcmod labels it. Both
+        # are needed: ff19SB's 2C/3C are declared in frcmod.ff19SB, not in
+        # parm19.dat, so scanning only the .dat files reports them as new.
+        sources = [(parm_dir / n, False)
+                   for n in ("parm19.dat", "parm10.dat", "gaff2.dat", "gaff.dat")]
+        # Only the frcmods a leaprc actually sources. Scanning all of them is
+        # over-broad: frcmod.tumuc, a niche nucleic-acid set, declares YA as a
+        # hydrogen, which would vouch for a type ProPrep uses for a metal-bound
+        # oxygen and suppress a prompt the user needs.
+        for pattern in ("frcmod.ff*", "frcmod.tip*", "frcmod.opc*",
+                        "frcmod.spce*", "frcmod.ions*"):
+            sources += [(f, True) for f in sorted(parm_dir.glob(pattern))]
+
+        for path, labelled in sources:
+            if not path.is_file():
+                continue
+            try:
+                with open(path, errors="ignore") as fh:
+                    in_mass = not labelled
+                    if not labelled:
+                        next(fh, None)      # title line
+                    for line in fh:
+                        stripped = line.strip()
+                        if labelled and not in_mass:
+                            if stripped.upper() == "MASS":
+                                in_mass = True
+                            continue
+                        if not stripped:
+                            break           # MASS block ends at the first blank
+                        parts = stripped.split()
+                        if len(parts) >= 2:
+                            try:
+                                float(parts[1])
+                            except ValueError:
+                                continue
+                            known.add(parts[0])
+            except OSError:
+                continue
+        if known:
+            break
+    return known
+
+
+def _prompt_imported_atom_types(console: Console, processor, frcmod_path) -> List[str]:
+    """addAtomTypes entries for types an imported frcmod introduces.
+
+    Generated parameters cannot introduce types -- antechamber assigns existing
+    GAFF ones -- which is why the post-parameterization path never asks. That
+    reasoning does not carry to an IMPORT: those files came from a collaborator
+    or a paper and may declare anything, and a type with no addAtomTypes entry
+    fails at tleap with nothing in this wizard having mentioned it.
+
+    Nothing is asked when the frcmod declares no new types, which is the common
+    case, so this is silent for ordinary GAFF sets.
+    """
+    declared = parse_frcmod_mass_types(frcmod_path)
+    if not declared:
+        return []
+
+    known = _known_atom_types()
+    novel = [(t, m) for t, m in declared if t not in known] if known else declared
+    if not novel:
+        console.print(
+            f"[grey50]The frcmod declares {len(declared)} atom type(s), all "
+            f"already defined by the standard parameter files.[/grey50]")
+        return []
+
+    console.print(
+        f"\n[bold]This frcmod introduces {len(novel)} atom type(s)[/bold]")
+    console.print(
+        "[grey50]tLEaP needs an addAtomTypes entry for each, giving its element "
+        "and hybridization. The element is proposed from the mass.[/grey50]")
+
+    entries = []
+    for atom_type, mass in novel:
+        element = _MASS_TO_ELEMENT.get(round(mass, 3)) or _MASS_TO_ELEMENT.get(round(mass, 2))
+        if element is None:
+            element = prompt_with_context(
+                processor, f"Element for atom type {atom_type} (mass {mass})",
+                default="", module=_MODULE,
+                description="Element for imported atom type").strip()
+        else:
+            element = prompt_with_context(
+                processor, f"Element for atom type {atom_type} (mass {mass})",
+                default=element, module=_MODULE,
+                description="Element for imported atom type").strip()
+        if not element:
+            console.print(f"[yellow]  Skipping {atom_type} — no element given.[/yellow]")
+            continue
+        hybridization = prompt_with_context(
+            processor, f"Hybridization for {atom_type}",
+            default="sp3", module=_MODULE,
+            description="Hybridization for imported atom type").strip() or "sp3"
+        entries.append(f'{{ "{atom_type}" "{element}" "{hybridization}" }}')
+        console.print(f"[grey50]  {entries[-1]}[/grey50]")
+
+    return entries
+
+
 def _prompt_category(console: Console, processor) -> str:
+    # options_map only feeds the session recorder, and passing it SUPPRESSES
+    # the inline choice list (show_choices defaults to False on the assumption
+    # they are printed separately). They were not, so this read as a bare
+    # "What kind of parameters are these? (1):" with nothing to go on.
+    console.print("\n[bold]What kind of parameters are these?[/bold]")
+    for key, (label, meaning, family) in _CATEGORY_CHOICES.items():
+        console.print(f"  {key}. [green]{label}[/green] — {meaning}")
+        console.print(f"     [grey50]stored under {family}/[/grey50]")
+
     choice = prompt_with_context(
-        processor, "What kind of parameters are these?",
-        choices=["1", "2", "3"], default="1",
+        processor, "Category",
+        choices=list(_CATEGORY_CHOICES), default="1",
         module=_MODULE, description="Parameter category",
-        options_map={
-            "1": "Small molecule / ligand",
-            "2": "Modified amino acid",
-            "3": "Metal site",
-        },
+        options_map={k: v[0] for k, v in _CATEGORY_CHOICES.items()},
     )
     return {"1": "small_molecule", "2": "modified_amino_acid",
             "3": "metal_site"}[choice]
@@ -419,30 +670,50 @@ def _prompt_existing_file(
     *,
     suffixes: tuple,
     required: bool,
+    start_dir: Optional[str] = None,
 ) -> Optional[str]:
-    """Prompt for a file path, validating existence and (loosely) suffix."""
+    """Browse for an existing file, filtered to ``suffixes``.
+
+    Uses the shared file browser rather than asking for a typed path. Importing
+    means pointing at files the user did not produce in this session -- a prior
+    project, a collaborator, a published set -- so these are the paths they are
+    least likely to have memorised. Typing one still works: the browser's path
+    jump accepts a full path, and a directory navigates there.
+    """
+    from proprep.utils.file_browser import SKIP, default_size_detail, file_browser
+
     while True:
-        raw = prompt_with_context(
-            processor, label, default="",
-            module=_MODULE, description=label,
-        ).strip()
-        if not raw:
-            if required:
-                console.print("[yellow]A path is required.[/yellow]")
-                if not confirm_with_context(processor, "Try again?", default=True,
-                                            module=_MODULE,
-                                            description="Retry file entry"):
-                    return None
-                continue
+        selection = file_browser(
+            directory=start_dir or os.getcwd(),
+            extensions=list(suffixes) if suffixes else None,
+            console=console,
+            processor=processor,
+            label=label,
+            entry_detail=default_size_detail,
+            allow_path_jump=True,
+            optional=not required,
+            module=_MODULE,
+        )
+
+        if selection is SKIP:
             return None
-        path = Path(raw).expanduser()
-        if not path.is_file():
-            console.print(f"[yellow]No such file: {path}[/yellow]")
+        if selection is None:
+            if not required:
+                return None
+            console.print("[yellow]A file is required.[/yellow]")
             if not confirm_with_context(processor, "Try again?", default=True,
                                         module=_MODULE,
-                                        description="Retry file entry"):
+                                        description="Retry file selection"):
                 return None
             continue
+
+        path = Path(str(selection)).expanduser()
+        if not path.is_file():
+            console.print(f"[yellow]No such file: {path}[/yellow]")
+            continue
+
+        # A typed path bypasses the browser's extension filter, so keep the
+        # loose suffix check for that route.
         if suffixes and path.suffix.lower() not in suffixes:
             if not confirm_with_context(
                 processor,
@@ -450,4 +721,5 @@ def _prompt_existing_file(
                 default=False, module=_MODULE, description="Confirm unusual suffix",
             ):
                 continue
+
         return str(path.resolve())

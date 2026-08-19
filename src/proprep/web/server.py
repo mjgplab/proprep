@@ -102,10 +102,18 @@ async def shell_theme() -> dict:
     Distinct from the proxied ``/config`` route (which belongs to the viewer).
     The browser (web/static/app.js) fetches this once and applies the xterm
     theme + contrast. Read live from the environment the launcher populated.
+
+    ``fontSize`` is None unless ``--font-size`` was passed; the browser then
+    keeps its own remembered size instead of being overridden on every load.
     """
+    try:
+        font_size = int(os.environ.get("PROPREP_WEB_FONT_SIZE", "") or 0) or None
+    except ValueError:
+        font_size = None
     return {
         "theme": os.environ.get("PROPREP_WEB_THEME", "dark"),
         "highContrast": os.environ.get("PROPREP_WEB_HIGH_CONTRAST", "0") == "1",
+        "fontSize": font_size,
     }
 
 

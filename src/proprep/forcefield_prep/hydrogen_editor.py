@@ -453,6 +453,74 @@ class HydrogenEditor:
         return {'pdb_file': self.pdb_file, 'h_count': h_count, 'total': total_count,
                 'summary': f'Hydrogen analysis complete ({h_count}/{total_count} atoms are H)'}
 
+    # Opening angle used when the parent heavy atom has a SINGLE neighbour and
+    # the H direction is therefore underdetermined. Tetrahedral is the ordinary
+    # starting guess for a hydroxo/thiol/amine hydrogen; the QM optimization
+    # that follows refines it. Overridable at the prompt.
+    DEFAULT_BEND_DEGREES = 109.5
+
+    @staticmethod
+    def _place_hydrogen(heavy_pos, bond_vectors, other_positions,
+                        bond_length, bend_degrees):
+        """Direction for a new H on ``heavy_pos``.
+
+        With two or more neighbours the position is determined: the H completes
+        the coordination, opposite the sum of the existing bond directions.
+
+        With ONE neighbour it is not. Taking "opposite the bonds" there gives a
+        LINEAR X-O-H, which no hydroxo, thiol or amine adopts. The H is instead
+        opened to ``bend_degrees`` from the existing bond, and the rotation
+        about that bond is chosen to put the H as far as possible from every
+        other atom in the model — the one degree of freedom left is genuinely
+        free, so it is spent on avoiding a clash rather than picked arbitrarily.
+
+        Args:
+            other_positions: Atoms to stay clear of. Must EXCLUDE the parent's
+                own bonded neighbours: they sit at the same distance from every
+                azimuth, so including them makes the minimum identical all the
+                way round and the scan degenerates to picking the first angle.
+
+        Returns:
+            Unit direction vector, or None if the neighbours cancel out.
+        """
+        import numpy as np
+
+        if len(bond_vectors) >= 2:
+            direction = -np.sum(bond_vectors, axis=0)
+            norm = np.linalg.norm(direction)
+            if norm < 1e-6:
+                return None
+            return direction / norm
+
+        # Single neighbour: bend, then rotate to the least-crowded azimuth.
+        axis = bond_vectors[0]                      # heavy -> neighbour, unit
+        theta = np.radians(bend_degrees)
+
+        # Any unit vector perpendicular to the bond seeds the rotation.
+        seed = np.array([1.0, 0.0, 0.0])
+        if abs(np.dot(seed, axis)) > 0.9:
+            seed = np.array([0.0, 1.0, 0.0])
+        perp = seed - np.dot(seed, axis) * axis
+        perp_norm = np.linalg.norm(perp)
+        if perp_norm < 1e-6:
+            return None
+        perp = perp / perp_norm
+        binormal = np.cross(axis, perp)
+
+        best_dir, best_clearance = None, -1.0
+        for step in range(36):                       # 10 degree azimuthal scan
+            phi = np.radians(step * 10.0)
+            radial = np.cos(phi) * perp + np.sin(phi) * binormal
+            direction = np.cos(theta) * axis + np.sin(theta) * radial
+            candidate = heavy_pos + direction * bond_length
+            if other_positions.size:
+                clearance = float(np.min(np.linalg.norm(other_positions - candidate, axis=1)))
+            else:
+                clearance = float("inf")
+            if clearance > best_clearance:
+                best_clearance, best_dir = clearance, direction
+        return best_dir
+
     def add_interactive(self) -> bool:
         """Add a hydrogen atom bonded to a specified heavy atom.
 
@@ -552,15 +620,47 @@ class HydrogenEditor:
                 self.console.print("[red]Could not compute bond direction.[/red]")
                 continue
 
-            # H direction is opposite the sum of normalized bond vectors
-            direction = -np.sum(bond_vectors, axis=0)
-            norm = np.linalg.norm(direction)
-            if norm < 1e-6:
-                self.console.print("[red]Bond vectors cancel out — cannot determine H placement.[/red]")
-                continue
-            direction = direction / norm
+            # One neighbour leaves the H direction underdetermined, so ask for
+            # the opening angle rather than silently producing a linear X-O-H.
+            bend = self.DEFAULT_BEND_DEGREES
+            if len(bond_vectors) == 1:
+                only_neighbor = neighbor_names[0]
+                self.console.print(
+                    f"[grey50]{heavy_name} has one bond ({only_neighbor}), so the H "
+                    f"direction is not fixed by geometry. Placing it at an angle to "
+                    f"that bond — a hydroxo/thiol H is bent, not linear — and rotating "
+                    f"it to the least crowded side.[/grey50]"
+                )
+                raw_bend = prompt_with_context(
+                    self.processor,
+                    f"{only_neighbor}-{heavy_name}-H angle in degrees",
+                    default=f"{self.DEFAULT_BEND_DEGREES}",
+                    module=self.module,
+                    description="Opening angle for the added hydrogen",
+                ).strip()
+                try:
+                    bend = float(raw_bend)
+                except ValueError:
+                    self.console.print(
+                        f"[yellow]Not a number; using {self.DEFAULT_BEND_DEGREES}°[/yellow]")
+                    bend = self.DEFAULT_BEND_DEGREES
 
             bond_length = BOND_LENGTHS.get(element, DEFAULT_BOND_LENGTH)
+
+            # Atoms to stay clear of: everything except the parent and its own
+            # bonded neighbours (see _place_hydrogen — a neighbour is equidistant
+            # from every azimuth and would flatten the comparison).
+            skip = {heavy_name, *neighbor_names}
+            others = np.array([[x, y, z] for lbl, (x, y, z, _e, _l) in atoms.items()
+                               if lbl not in skip]).reshape(-1, 3)
+
+            direction = self._place_hydrogen(
+                heavy_pos, bond_vectors, others, bond_length, bend)
+            if direction is None:
+                self.console.print(
+                    "[red]Bond vectors cancel out — cannot determine H placement.[/red]")
+                continue
+
             h_pos = heavy_pos + direction * bond_length
 
             # Generate unique H name

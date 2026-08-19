@@ -8421,6 +8421,103 @@ def _import_from_json(json_file: str) -> Tuple[List[RedoxSite], Dict[str, str]]:
     return sites, transformer_mappings
 
 
+CLUSTER_INTERNAL = "cluster_internal"
+
+
+def perceive_cluster_internal_bonds(redox_site, tolerance: float = None) -> int:
+    """Add a withheld cluster's own bonds to the site. Returns how many.
+
+    A pure inorganic cluster (FES, MOS) is withheld from the force-field pass
+    as a whole residue, so its INTERNAL bonds -- Fe-S within FES, Mo-S/O within
+    MOS, and the O-H of a hydroxo -- reach neither of the two sources the
+    Seminario step draws on:
+
+    - LINK records, which are ``chemical_type == 'coordinate'`` bonds on this
+      site, i.e. metal-to-ligand across residues
+    - the prmtop, which never saw the withheld residue
+
+    So no force constant was ever derived for them. tleap builds the residue
+    from the deposited library's connectivity table, finds those bonds, and
+    reports a missing parameter for each -- ``M3-YB``, ``YA-H``.
+
+    Perceiving them here rather than asking keeps the geometry as the source of
+    truth. They are tagged ``cluster_internal``, NOT ``coordinate``, which
+    matters in three places that all key on that exact string:
+
+    - the tleap generator emits ``bond`` commands for coordinate bonds; an
+      intra-residue bond would be redundant with the library unit
+    - the auto-transformer's WL fingerprint walks coordinate bonds; an
+      intra-residue bond is a self-edge there
+    - the LINK writer, which is widened deliberately to include these
+
+    Metal-metal pairs are excluded: two metals in a cluster are bridged through
+    the ligands, and MCPB derives no M-M force constant.
+    """
+    from proprep.forcefield_prep.mcpb.mol2_writer import Mol2Writer
+
+    if tolerance is None:
+        tolerance = Mol2Writer._COVALENT_TOLERANCE
+    radii, metals = Mol2Writer._COVALENT_RADII, Mol2Writer._METALS
+
+    by_residue = {}
+    for atom in redox_site.atoms or []:
+        by_residue.setdefault((atom.chain, atom.resid), []).append(atom)
+
+    # PURE INORGANIC residues only: contains a metal, contains no carbon. That
+    # is the triage category withheld whole from the force-field pass, so it is
+    # exactly the set with no other source of internal bonds.
+    #
+    # Selecting on redox_site.centers does NOT work here. For a cluster the
+    # center describes the RESIDUE -- its element is None and its coords are a
+    # centroid matching no atom -- so a center-based test matches nothing for
+    # the very residues this exists for.
+    #
+    # The carbon test is what keeps an organometallic cofactor out. A heme's
+    # internal bonds come from its own library; perceiving forty of them here
+    # would hand Seminario bonds it has no business parameterizing.
+    cluster_residues = []
+    for atoms in by_residue.values():
+        elements = {(a.element or "").strip().upper() for a in atoms}
+        if elements & metals and "C" not in elements:
+            cluster_residues.append(atoms)
+
+    existing = {
+        frozenset((b.atom1_coords, b.atom2_coords))
+        for b in (redox_site.bonds or [])
+    }
+
+    added = 0
+    for atoms in cluster_residues:
+        for i, a in enumerate(atoms):
+            elem_a = (a.element or "").strip().upper()
+            for b in atoms[i + 1:]:
+                elem_b = (b.element or "").strip().upper()
+                if elem_a in metals and elem_b in metals:
+                    continue
+                if frozenset((a.coords, b.coords)) in existing:
+                    continue
+                cutoff = (radii.get(elem_a, Mol2Writer._COVALENT_DEFAULT)
+                          + radii.get(elem_b, Mol2Writer._COVALENT_DEFAULT)
+                          + tolerance)
+                distance = math.dist(a.coords, b.coords)
+                if distance >= cutoff:
+                    continue
+                redox_site.bonds.append(RedoxSiteBond(
+                    atom1_coords=a.coords,
+                    atom2_coords=b.coords,
+                    bond_type="intraresidue",
+                    chemical_type=CLUSTER_INTERNAL,
+                    distance=distance,
+                    atom1_element=elem_a,
+                    atom2_element=elem_b,
+                    atom1_residue_info=redox_site.coord_to_pdb.get(a.coords, {}) or {},
+                    atom2_residue_info=redox_site.coord_to_pdb.get(b.coords, {}) or {},
+                ))
+                existing.add(frozenset((a.coords, b.coords)))
+                added += 1
+    return added
+
+
 def dict_to_redox_site(site_data):
     """Reconstruct a RedoxSite from its JSON/dict serialization.
 
@@ -8434,6 +8531,33 @@ def dict_to_redox_site(site_data):
     if not isinstance(site_data, dict):
         return site_data
 
+    # Two dict shapes reach here. The exporters write a flat one; checklist
+    # state writes {"__type__": "RedoxSite", "value": {...}}, and reading that
+    # back gives the wrapper. Unwrapping first makes both work — without it a
+    # resumed run raised KeyError: 'site_id' on the line below, which surfaced
+    # as an opaque "tLEaP error: 'site_id'" during structure recombination.
+    from proprep.utils.workspace import unwrap_serialized
+    site_data = unwrap_serialized(site_data)
+    if not isinstance(site_data, dict):
+        return site_data
+
+    # The two shapes also spell three fields differently: the exporters write
+    # "coordinates"/"atom1_coordinates"/"atom1", while a dataclass dump keeps
+    # the field names "coords"/"atom1_coords"/"atom1_residue_info". Accept both
+    # rather than only the exporter's, which is what limited this function to
+    # imported JSON.
+    def _xyz(d, *names, default=(0.0, 0.0, 0.0)):
+        for name in names:
+            if name in d and d[name] is not None:
+                return tuple(round(float(x), 3) for x in d[name])
+        return default
+
+    def _first(d, *names, default=None):
+        for name in names:
+            if name in d and d[name] is not None:
+                return d[name]
+        return default
+
     site = RedoxSite(site_data["site_id"], site_data.get("structure_id", "imported"))
     site.site_type = site_data.get("site_type", "unknown")
 
@@ -8445,8 +8569,9 @@ def dict_to_redox_site(site_data):
             atom_name=center_data.get("atom_name"),
             insertion_code=center_data.get("insertion_code", ""),
             altloc=center_data.get("altloc", ""),
-            coords=tuple(round(x, 3) for x in center_data["coordinates"]),
-            center_type=CenterType(center_data["center_type"]),
+            coords=_xyz(center_data, "coordinates", "coords"),
+            center_type=CenterType(_first(center_data, "center_type",
+                                          default="metal_ion")),
             element=center_data.get("element")
         )
         site.add_center(center)
@@ -8457,22 +8582,24 @@ def dict_to_redox_site(site_data):
             resname=atom_data["resname"],
             resid=atom_data["resid"],
             atom_name=atom_data["atom_name"],
-            coords=tuple(round(x, 3) for x in atom_data["coordinates"]),
-            element=atom_data["element"]
+            coords=_xyz(atom_data, "coordinates", "coords"),
+            element=atom_data.get("element", "")
         )
         site.add_atom(atom)
 
     for bond_data in site_data.get("bonds", []):
         bond = RedoxSiteBond(
-            atom1_coords=tuple(round(x, 3) for x in bond_data["atom1_coordinates"]),
-            atom2_coords=tuple(round(x, 3) for x in bond_data["atom2_coordinates"]),
-            bond_type=bond_data["bond_type"],
+            atom1_coords=_xyz(bond_data, "atom1_coordinates", "atom1_coords"),
+            atom2_coords=_xyz(bond_data, "atom2_coordinates", "atom2_coords"),
+            bond_type=bond_data.get("bond_type", "unknown"),
             chemical_type=bond_data.get("chemical_type", "unknown"),
-            distance=bond_data["distance"],
+            distance=bond_data.get("distance", 0.0),
             atom1_element=bond_data.get("atom1_element", ""),
             atom2_element=bond_data.get("atom2_element", ""),
-            atom1_residue_info=bond_data["atom1"],
-            atom2_residue_info=bond_data["atom2"],
+            atom1_residue_info=_first(bond_data, "atom1", "atom1_residue_info",
+                                      default={}),
+            atom2_residue_info=_first(bond_data, "atom2", "atom2_residue_info",
+                                      default={}),
             treatment=bond_data.get("treatment", "bonded")
         )
         site.bonds.append(bond)
@@ -8565,6 +8692,35 @@ def _export_to_json(sites: List[RedoxSite], pdb_file: str, console=None,
         print(f"Exported redox sites to {output_file}")
 
 
+def _pdb_atom_line(serial: int, atom) -> str:
+    """One ATOM record with the columns the PDB format actually specifies.
+
+    Two fields were off by one, and the atom-name one is not cosmetic. A
+    two-letter element must START in column 13; a one-letter element is
+    right-justified into column 14 so the remaining columns can hold a
+    remoteness indicator. Writing every name from column 14 emitted `` FE1``,
+    which any standards-compliant reader resolves to element F — BioPython
+    reads the site files' iron as fluorine and their molybdenum as X. The
+    element field was likewise written at columns 78-79 instead of 77-78, so
+    the explicit symbol that would have corrected the guess was missed too.
+
+    Columns: 1-6 record · 7-11 serial · 13-16 name · 17 altLoc · 18-20 resName
+    · 22 chainID · 23-26 resSeq · 31-54 xyz · 55-60 occupancy · 61-66 tempFactor
+    · 77-78 element.
+    """
+    from proprep.utils.pdb_format import atom_name_field
+
+    element = (atom.element or "").strip()
+    name_field = atom_name_field(atom.atom_name, element)
+
+    return (
+        f"ATOM  {serial:5d} {name_field} "
+        f"{(atom.resname or ''):>3.3s} {atom.chain}{atom.resid:>4d}    "
+        f"{atom.coords[0]:8.3f}{atom.coords[1]:8.3f}{atom.coords[2]:8.3f}"
+        f"  1.00 99.00          {element.title():>2s}\n"
+    )
+
+
 def _export_to_pdb_single(sites: List[RedoxSite], pdb_file: str, console=None) -> None:
     """Export all redox sites to a single PDB file"""
     import os
@@ -8583,7 +8739,7 @@ def _export_to_pdb_single(sites: List[RedoxSite], pdb_file: str, console=None) -
             
             # Write atoms for this site
             for atom in site.atoms:
-                f.write(f"ATOM  {atom_num:5d}  {atom.atom_name:<4s}{atom.resname:>3s} {atom.chain}{atom.resid:>4d}    {atom.coords[0]:8.3f}{atom.coords[1]:8.3f}{atom.coords[2]:8.3f}  1.00 99.00           {atom.element:>2s}\n")
+                f.write(_pdb_atom_line(atom_num, atom))
                 atom_num += 1
             
             f.write(f"TER\n")
@@ -8616,7 +8772,7 @@ def _export_to_pdb_separate(sites: List[RedoxSite], pdb_file: str, console=None)
             # Write atoms
             atom_num = 1
             for atom in site.atoms:
-                f.write(f"ATOM  {atom_num:5d}  {atom.atom_name:<4s}{atom.resname:>3s} {atom.chain}{atom.resid:>4d}    {atom.coords[0]:8.3f}{atom.coords[1]:8.3f}{atom.coords[2]:8.3f}  1.00 99.00           {atom.element:>2s}\n")
+                f.write(_pdb_atom_line(atom_num, atom))
                 atom_num += 1
             
             f.write("END\n")

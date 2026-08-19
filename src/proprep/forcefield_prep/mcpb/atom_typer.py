@@ -10,9 +10,58 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, TYPE_CHECKING
 from enum import Enum
 import logging
+import math
 
 from proprep.structure_prep.comprehensive_redox_detector import RedoxSite, RedoxSiteAtom, METALS
 from .terminal_classifier import TerminalClassifier, TerminalType
+
+
+# Amber names a hydrogen for the atom it is bonded to, not for hydrogen
+# generally. 'H' is specifically the amide/amine hydrogen and carries
+# r* = 0.6000 / eps = 0.0157; 'HO', the hydroxyl hydrogen, is 0.0000 / 0.0000
+# by convention. Identical in parm10.dat and parm19.dat, so this is not tied to
+# one protein force field, and GAFF mirrors it lowercase (ho/hn/hs/hc).
+#
+#   H   1.008  0.161  H bonded to nitrogen atoms
+#   HO  1.008  0.135  hydroxyl group
+#   HS  1.008  0.135  hydrogen bonded to sulphur
+#
+# Typing an inferred hydrogen from its element alone gave a metal-bound hydroxo
+# proton a 0.6 A vdW sphere that the hydroxyl convention deliberately removes.
+H_TYPE_BY_NEIGHBOR = {'O': 'HO', 'S': 'HS', 'N': 'H', 'C': 'HC'}
+
+
+def hydrogen_type_from_neighbors(coords, neighbors, default: str = 'H') -> str:
+    """Amber type for a hydrogen, from the heavy atom it is bonded to.
+
+    Args:
+        coords: the hydrogen's (x, y, z)
+        neighbors: iterable of ``(coords, element)`` for OTHER atoms in the same
+            residue. Same-residue filtering is the caller's job; hydrogens in it
+            are ignored here.
+        default: type when no bonded heavy atom is found.
+
+    Bond test is the covalent-radius one the cluster bond perception uses, so
+    the typer and the bond perceiver cannot disagree about what is bonded.
+    """
+    from proprep.forcefield_prep.mcpb.mol2_writer import Mol2Writer
+
+    radii, fallback = Mol2Writer._COVALENT_RADII, Mol2Writer._COVALENT_DEFAULT
+    r_h = radii.get('H', fallback)
+
+    best, best_distance = None, None
+    for other_coords, element in neighbors:
+        element = (element or '').strip().upper()
+        if element in ('H', ''):
+            continue
+        if other_coords == coords:
+            continue
+        cutoff = r_h + radii.get(element, fallback) + Mol2Writer._COVALENT_TOLERANCE
+        distance = math.dist(coords, other_coords)
+        if distance < cutoff and (best_distance is None or distance < best_distance):
+            best, best_distance = element, distance
+
+    return H_TYPE_BY_NEIGHBOR.get(best, default)
 
 if TYPE_CHECKING:
     from proprep.forcefield_prep.forcefield_data import ForceFieldData
@@ -221,7 +270,7 @@ class MCPBAtomTyper:
             library_source = self.ff_data.get_source_file(ff_resname, atom.atom_name) or "force_field"
         else:
             # Fallback: infer from element
-            original_type = self._infer_type_from_element(atom.element)
+            original_type = self._infer_type_from_element(atom.element, atom, site)
             charge = None
             library_source = "inferred"
             self.logger.debug(
@@ -248,16 +297,71 @@ class MCPBAtomTyper:
             charge=charge
         )
 
-    def _infer_type_from_element(self, element: str) -> str:
+    # Amber names a hydrogen for the atom it is bonded to, not for hydrogen
+    # generally. 'H' is specifically the amide/amine hydrogen and carries
+    # r* = 0.6000 / eps = 0.0157; 'HO', the hydroxyl hydrogen, is 0.0000 /
+    # 0.0000 by convention. Identical in parm10.dat and parm19.dat, so this is
+    # not tied to one protein force field.
+    #
+    #   H   1.008  0.161  H bonded to nitrogen atoms
+    #   HO  1.008  0.135  hydroxyl group
+    #   HS  1.008  0.135  hydrogen bonded to sulphur
+    #
+    # Typing every inferred hydrogen 'H' gave a metal-bound hydroxo proton a
+    # 0.6 A vdW sphere that the hydroxyl convention deliberately removes.
+    _H_TYPE_BY_NEIGHBOR = {'O': 'HO', 'S': 'HS', 'N': 'H ', 'C': 'HC'}
+
+    def _bonded_heavy_neighbor(self, atom, site) -> Optional[str]:
+        """Element of the heavy atom this one is bonded to, within its residue.
+
+        Same covalent-radius test the cluster bond perception uses, so the two
+        cannot disagree about what is bonded to what.
+        """
+        from proprep.forcefield_prep.mcpb.mol2_writer import Mol2Writer
+
+        if site is None or atom is None:
+            return None
+
+        radii, default = Mol2Writer._COVALENT_RADII, Mol2Writer._COVALENT_DEFAULT
+        r_h = radii.get((atom.element or '').strip().upper(), default)
+
+        best, best_distance = None, None
+        for other in getattr(site, 'atoms', None) or []:
+            if other is atom or other.coords == atom.coords:
+                continue
+            if (other.chain, other.resid) != (atom.chain, atom.resid):
+                continue
+            element = (other.element or '').strip().upper()
+            if element in ('H', ''):
+                continue
+            cutoff = r_h + radii.get(element, default) + Mol2Writer._COVALENT_TOLERANCE
+            distance = math.dist(atom.coords, other.coords)
+            if distance < cutoff and (best_distance is None or distance < best_distance):
+                best, best_distance = element, distance
+        return best
+
+    def _infer_type_from_element(self, element: str, atom=None, site=None) -> str:
         """
         Fallback: infer atom type from element symbol.
 
+        A hydrogen is typed from the atom it is bonded to when that can be
+        determined; see _H_TYPE_BY_NEIGHBOR. Everything else is by element.
+
         Args:
             element: Element symbol (e.g., 'C', 'N', 'Zn')
+            atom: The atom being typed, for hydrogen neighbour lookup
+            site: Parent RedoxSite, for hydrogen neighbour lookup
 
         Returns:
             Generic 2-character atom type
         """
+        if (element or '').strip().upper() == 'H' and atom is not None and site is not None:
+            same_residue = [
+                (a.coords, a.element) for a in (getattr(site, 'atoms', None) or [])
+                if (a.chain, a.resid) == (atom.chain, atom.resid)
+            ]
+            inferred = hydrogen_type_from_neighbors(atom.coords, same_residue)
+            return inferred if len(inferred) == 2 else inferred + ' '
         # Pad to 2 characters (AMBER requirement)
         element_types = {
             'C': 'CT', 'N': 'N ', 'O': 'O ', 'S': 'S ',

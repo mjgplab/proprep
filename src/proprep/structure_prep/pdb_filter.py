@@ -1001,9 +1001,9 @@ class PDBFilterModule(ProcessingModule):
                             pass
 
                         self.processor.console.print("\n[bold]Options:[/bold]")
-                        self.processor.console.print("[k] Keep current selection (breaks redox sites)")
-                        self.processor.console.print("[a] Add required chains to maintain redox sites")
-                        self.processor.console.print("[b] Go back and reselect chains")
+                        self.processor.console.print("\\[k] Keep current selection (breaks redox sites)")
+                        self.processor.console.print("\\[a] Add required chains to maintain redox sites")
+                        self.processor.console.print("\\[b] Go back and reselect chains")
 
                         conflict_choice = prompt_with_context(
                             processor=self.processor,

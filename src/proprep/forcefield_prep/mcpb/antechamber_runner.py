@@ -156,12 +156,20 @@ class AntechamberRunner:
             atoms: List of RedoxSiteAtom objects
             output_file: Path to output PDB file
         """
+        from proprep.utils.pdb_format import atom_name_field
+
         with open(output_file, 'w') as f:
             for i, atom in enumerate(atoms, start=1):
                 # PDB ATOM record format
                 # ATOM   serial name resName chainID resSeq   x      y      z     occ   bfac element
+                #
+                # The name goes in columns 13-16 with the justification that
+                # encodes the element: two-letter elements start at 13, one
+                # letter elements are indented to 14. antechamber reads these
+                # columns, so a name written from 14 misidentifies the atom.
                 line = (
-                    f"ATOM  {i:5d}  {atom.atom_name:<4s}{atom.resname:>3s} "
+                    f"ATOM  {i:5d} {atom_name_field(atom.atom_name, atom.element)} "
+                    f"{atom.resname:>3s} "
                     f"{atom.chain:1s}{atom.resid:4d}    "
                     f"{atom.coords[0]:8.3f}{atom.coords[1]:8.3f}{atom.coords[2]:8.3f}"
                     f"{atom.occupancy or 1.0:6.2f}{atom.bfactor or 0.0:6.2f}          "

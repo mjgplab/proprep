@@ -112,6 +112,11 @@ class PDBWriter:
         self.console = console or Console()
         self.logger = logging.getLogger(__name__)
 
+        # Coordinate-keyed assignments, re-keyed to a rounded tuple. Rebuilt
+        # when a different dict arrives. See _coord_key.
+        self._assignment_index = None
+        self._assignment_index_src = None
+
         # Parse PDB structure
         parser = PDBParser(QUIET=True)
         self.structure = parser.get_structure('structure', str(self.pdb_file))
@@ -708,6 +713,45 @@ class PDBWriter:
 
         return atoms
 
+    @staticmethod
+    def _coord_key(coords, ndigits: int = 3):
+        """A coordinate tuple that compares equal across float widths.
+
+        BioPython hands back float32; assignments that have been through JSON
+        (a resumed session, a saved atom_type_assignments.json) come back as
+        float64. The two are not equal and do not hash alike, yet numpy prints
+        the shortest repr that round-trips in float32, so both display as
+        ``(-41.416, -16.455, -50.088)`` while ``==`` is False.
+
+        That made every metal-site charge lookup miss silently: the writer
+        summed 0.0 for all 44 site atoms, the small model's suggested QM charge
+        came out 0 instead of -2, and nothing in the output looked wrong --
+        a table of 0.0000 is what a withheld cluster atom legitimately shows.
+
+        3 decimals is the precision a PDB file carries, so rounding there is
+        lossless for coordinates that came from one.
+        """
+        try:
+            return tuple(round(float(c), ndigits) for c in coords)
+        except (TypeError, ValueError):
+            return None
+
+    def _assignment_by_coord_key(self, atom_type_assignments: Dict, coords):
+        """Look up an assignment by rounded coordinate, indexing on first use."""
+        if self._assignment_index_src is not atom_type_assignments:
+            index = {}
+            for key, value in atom_type_assignments.items():
+                normalized = self._coord_key(key)
+                if normalized is not None:
+                    index[normalized] = value
+            self._assignment_index = index
+            self._assignment_index_src = atom_type_assignments
+
+        normalized = self._coord_key(coords)
+        if normalized is None:
+            return None
+        return self._assignment_index.get(normalized)
+
     def _get_charge_from_coords(self, coords: Tuple[float, float, float],
                                 atom_type_assignments: Dict) -> float:
         """
@@ -715,9 +759,14 @@ class PDBWriter:
 
         Strategy #7: Used for real atoms that were atom-typed during MCPB Step 1.
         Returns 0.0 if atom not in assignments (caller should fall back to force field).
+
+        Falls back to a rounded-coordinate match when the exact tuple misses;
+        see _coord_key for why an exact match is not reliable here.
         """
-        if coords in atom_type_assignments:
-            assignment = atom_type_assignments[coords]
+        assignment = atom_type_assignments.get(coords)
+        if assignment is None:
+            assignment = self._assignment_by_coord_key(atom_type_assignments, coords)
+        if assignment is not None:
             # Support both dataclass and dict. Guard None explicitly: a withheld
             # cluster atom (e.g. an Fe-S bridging sulfide, removed from the prmtop
             # with the rest of its cluster) has an assignment whose 'charge' key

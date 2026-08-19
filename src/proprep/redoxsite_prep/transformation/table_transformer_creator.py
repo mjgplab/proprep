@@ -555,10 +555,21 @@ _MODULE = "Table Transformer Creator"
 class TableTransformerCreator:
     """Interactive, table-driven authoring of a JSON transformer spec."""
 
-    def __init__(self, processor, redox_site):
+    def __init__(self, processor, redox_site, forcefield_default=None):
+        """
+        Args:
+            processor: ProPrep processor.
+            redox_site: The detected site whose atoms the editor edits.
+            forcefield_default: Optional ``{"path", "redox_state", "spin_state"}``
+                for a library the caller already knows this transformer should
+                point at — the entry just deposited by the import wizard, say.
+                It pre-fills the force-field link prompt, so the path is
+                confirmed rather than retyped from memory.
+        """
         self.processor = processor
         self.redox_site = redox_site
         self.console = processor.console
+        self.forcefield_default = forcefield_default or {}
 
     def create(self) -> Optional[str]:
         if self.redox_site is None or not getattr(self.redox_site, "atoms", None):
@@ -605,12 +616,126 @@ class TableTransformerCreator:
             except (RecipeError, ValueError) as e:
                 self.console.print(f"  [red]! {e}[/red]")
 
+    # ---- force-field selection ------------------------------------------
+    def _pick_forcefield_path(self, default=None):
+        """Choose a deposited library, listing what exists.
+
+        The path used to be typed blind against a one-line example. It is the
+        directory layout of a library the user may never have looked at, and
+        getting it wrong produces a transformer that silently resolves no
+        parameters.
+        """
+        try:
+            from proprep.forcefield_params.loader import get_available_cofactor_types
+            available = sorted(get_available_cofactor_types())
+        except Exception as exc:  # noqa: BLE001 — fall back to typing
+            logger.debug("Could not list library entries: %s", exc)
+            available = []
+
+        if not available:
+            return prompt_with_context(
+                self.processor, "Forcefield path (e.g. heme/bis_his_c_type)",
+                default=default or None, module=_MODULE).strip()
+
+        self.console.print("\n[bold]Deposited force-field libraries:[/bold]")
+        for i, entry in enumerate(available, 1):
+            marker = " [green](just deposited)[/green]" if entry == default else ""
+            self.console.print(f"  {i:>2}. {entry}{marker}")
+        self.console.print("  [grey50]or type a path not listed[/grey50]")
+
+        default_choice = (str(available.index(default) + 1)
+                          if default in available else None)
+        answer = prompt_with_context(
+            self.processor, "Library (number or path)",
+            default=default_choice or default or None,
+            module=_MODULE, description="Force-field library for transformer",
+        ).strip()
+        if answer.isdigit() and 1 <= int(answer) <= len(available):
+            return available[int(answer) - 1]
+        return answer
+
+    def _pick_forcefield_state(self, path, default_redox=None, default_spin=None):
+        """Choose the redox/spin leaf, listing what the entry actually has.
+
+        The directory layout is ``<family>/<name>/<redox>/<spin>``, so a
+        single-state small molecule sits at ``single_state/default`` -- not the
+        ``default`` a reasonable person guesses for the redox slot.
+        """
+        try:
+            from proprep.forcefield_params.loader import load_forcefield_metadata
+            states = (load_forcefield_metadata(path) or {}).get("redox_states", {})
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Could not read states for %s: %s", path, exc)
+            states = {}
+
+        if not states:
+            redox = prompt_with_context(
+                self.processor, "redox_state (blank to skip)", module=_MODULE,
+                default=default_redox or "").strip()
+            spin = prompt_with_context(
+                self.processor, "spin_state (blank to skip)", module=_MODULE,
+                default=default_spin or "").strip()
+            return redox, spin
+
+        leaves = [(r, sp) for r, rv in sorted(states.items())
+                  for sp in sorted((rv or {}).get("spin_states", {}) or {})]
+        if not leaves:
+            return default_redox or "", default_spin or ""
+        if len(leaves) == 1:
+            redox, spin = leaves[0]
+            self.console.print(
+                f"[grey50]{path} has one state: {redox}/{spin} — using it[/grey50]")
+            return redox, spin
+
+        self.console.print(f"\n[bold]States available in {path}:[/bold]")
+        for i, (redox, spin) in enumerate(leaves, 1):
+            self.console.print(f"  {i:>2}. {redox} / {spin}")
+        wanted = (default_redox, default_spin)
+        default_choice = (str(leaves.index(wanted) + 1)
+                          if wanted in leaves else "1")
+        answer = prompt_with_context(
+            self.processor, "State (number)", default=default_choice,
+            choices=[str(i) for i in range(1, len(leaves) + 1)],
+            module=_MODULE, description="Redox/spin state for transformer",
+        ).strip()
+        return leaves[int(answer) - 1] if answer.isdigit() else leaves[0]
+
     def _save(self, builder: RecipeBuilder) -> Optional[str]:
-        if not builder.operations:
-            self.console.print("[yellow]No operations recorded; nothing to save.[/yellow]")
-            return None
-        self.console.print("\n[bold]Operation sequence:[/bold]")
-        self.console.print(render_summary(builder))
+        # A transformer with no edits is still worth saving when it carries a
+        # force-field link. Renaming and parameter-binding are separate jobs:
+        # MCPB output needs both (CYS -> CM1, plus the library), an externally
+        # parameterized cofactor already named correctly needs only the second.
+        # Without this, "needs no renaming" and "has parameters" were mutually
+        # exclusive -- the built-in no_transformation pass-through declares
+        # FORCEFIELD_PATH = None -- and such a cofactor had nowhere to live.
+        #
+        # Roles are seeded from the site at construction, so a spec with no
+        # operations still identifies WHICH site it applies to. That is what
+        # keeps it from behaving like no_transformation, which matches every
+        # site and therefore could never safely carry parameters.
+        pass_through = not builder.operations
+        if pass_through:
+            if not builder.role_meta:
+                self.console.print(
+                    "[yellow]No operations and no residues to match on; "
+                    "nothing to save.[/yellow]")
+                return None
+            residues = ", ".join(
+                sorted({meta["resname"] for meta in builder.role_meta.values()}))
+            self.console.print(
+                f"\n[bold]No edits recorded.[/bold] A transformer can still be "
+                f"saved to bind a force-field library to this site "
+                f"([cyan]{residues}[/cyan]) without renaming anything.")
+            if not confirm_with_context(
+                self.processor,
+                "Save as a pass-through that only links parameters?",
+                module=_MODULE, default=True,
+                description="Save a pass-through transformer",
+            ):
+                return None
+        else:
+            self.console.print("\n[bold]Operation sequence:[/bold]")
+            self.console.print(render_summary(builder))
         name = prompt_with_context(self.processor, "Template name",
                                    module=_MODULE, description="transformer name").strip()
         if not name:
@@ -618,23 +743,44 @@ class TableTransformerCreator:
             return None
         token = _sanitize(name)
         ff = None
+        seed = self.forcefield_default
+        if seed.get("path"):
+            self.console.print(
+                f"[grey50]Parameters just deposited at "
+                f"[cyan]{seed['path']}[/cyan] — linking them makes this "
+                f"transformer apply them, not just rename atoms.[/grey50]")
+        # Default to yes when the caller already knows which library this is
+        # for: a transformer with no library link renames a site but leaves it
+        # without parameters, which is half the job. For a PASS-THROUGH the
+        # link is the whole job -- without it the spec does nothing the built-in
+        # no_transformation does not already do.
         if confirm_with_context(self.processor,
                                 "Link a deposited force-field library (path under "
-                                "specialized_residues)?", module=_MODULE, default=False):
-            path = prompt_with_context(self.processor, "Forcefield path (e.g. heme/bis_his_c_type)",
-                                       module=_MODULE).strip()
+                                "specialized_residues)?", module=_MODULE,
+                                default=bool(seed.get("path")) or pass_through):
+            path = self._pick_forcefield_path(seed.get("path"))
             if path:
                 ff = {"path": path}
-                redox = prompt_with_context(self.processor, "redox_state (blank to skip)",
-                                            module=_MODULE, default="").strip()
-                spin = prompt_with_context(self.processor, "spin_state (blank to skip)",
-                                           module=_MODULE, default="").strip()
+                redox, spin = self._pick_forcefield_state(
+                    path, seed.get("redox_state"), seed.get("spin_state"))
                 if redox:
                     ff["redox_state"] = redox
                 if spin:
                     ff["spin_state"] = spin
 
+        if pass_through and not ff:
+            # Without a link this spec renames nothing and binds nothing, which
+            # the built-in no_transformation already covers -- and unlike that
+            # one it would claim only this composition, so it is strictly less
+            # useful. Refuse rather than write an inert file.
+            self.console.print(
+                "[yellow]A pass-through with no force-field link does nothing "
+                "that 'no_transformation' does not already do; not saved.[/yellow]")
+            return None
+
         recipe = builder.to_recipe(token, description=name, forcefield=ff)
+        if pass_through:
+            recipe["pass_through"] = True
         DEFAULT_USER_TRANSFORMER_DIR.mkdir(parents=True, exist_ok=True)
         out_path = DEFAULT_USER_TRANSFORMER_DIR / f"{token}.json"
         with open(out_path, "w") as f:

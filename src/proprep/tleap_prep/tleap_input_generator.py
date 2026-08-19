@@ -8951,8 +8951,11 @@ quit"""
                 continue
             if not groups:
                 continue
+            chain = site_info.get("chain")
+            resid = site_info.get("residue_id")
             cofactors.append({
                 "residue_name": site_info.get("residue_name") or "?",
+                "location": f"{chain}.{resid}" if chain and resid is not None else "",
                 "cofactor_path": cofactor_path,
                 "groups": groups,
             })
@@ -9058,124 +9061,48 @@ quit"""
 
     # Compact, user-facing labels for the cofactors carried by the v1.1
     # fragment-typed library. Used by the cofactor-requirements panel below.
-    _COFACTOR_PANEL_LABELS = {
-        "FMN": "oxidized flavin",
-        "FMS": "neutral semiquinone flavin",
-        "FMR": "anionic semiquinone flavin",
-        "FMH": "anionic hydroquinone flavin",
-        "FMQ": "neutral hydroquinone flavin",
-        "FAD": "oxidized flavin (adenine dinucleotide)",
-        "FAS": "neutral semiquinone flavin (adenine dinucleotide)",
-        "FAR": "anionic semiquinone flavin (adenine dinucleotide)",
-        "FAH": "anionic hydroquinone flavin (adenine dinucleotide)",
-        "FAQ": "neutral hydroquinone flavin (adenine dinucleotide)",
-        "NAP": "oxidized nicotinamide / NADP+",
-        "NDP": "reduced nicotinamide / NADPH",
-        "NAD": "oxidized nicotinamide / NAD+",
-        "NDH": "reduced nicotinamide / NADH",
-        "H4B": "tetrahydrobiopterin",
-        "H4C": "biopterin cation radical",
-        "H3R": "biopterin N5 radical",
-        "H2Q": "quinonoid dihydrobiopterin",
-        "H2B": "7,8-dihydrobiopterin",
-        "BIO": "fully oxidized biopterin",
-    }
-
-    _FLAVIN_RESIDUES = {"FMN", "FMS", "FMR", "FMH", "FMQ",
-                        "FAD", "FAS", "FAR", "FAH", "FAQ"}
-
     def _show_cofactor_ff_prerequisites_panel(self) -> None:
-        """Layer 1 — one-shot info panel shown right before the standard-FF
-        picker. Lists the cofactors the user just selected and explains in
-        plain chemistry language what standard FFs need to be sourced so
-        their parameter sets resolve cleanly.
+        """One-shot summary shown before the standard-FF picker: which leaprcs
+        the selected cofactors' parameter sets require.
+
+        This used to be an essay. It asserted that every cofactor needs a
+        protein force field (only zinc/cys4 declares one), pattern-matched
+        residue NAMES to decide GAFF2 was needed (while flavin/fad declares
+        exactly that in its metadata, unread), and explained the requirement in
+        terms of a ribitol tail and which bond would fail -- none of which is
+        known about an arbitrary parameter set, and all of which was wrong for
+        an imported one.
+
+        What is knowable is what the sets declare, so that is what is shown.
+        Requirements are enforced after selection by
+        _resolve_cofactor_prereq_mismatches against the same declarations; this
+        exists only so the requirement is visible BEFORE picking.
         """
-        from rich.panel import Panel
+        from rich.table import Table
 
         console = self.processor.console
-        transformer_info = self.get_from_workspace("transformer_info", []) or []
-
-        # Gather every cofactor-bearing site (skip pass-throughs).
-        cofactors = []
-        for site_info in transformer_info:
-            if not site_info.get("has_transformer"):
-                continue
-            if not site_info.get("cofactor_path"):
-                continue
-            if site_info.get("transformer_type") == "no_transformation":
-                continue
-            cofactors.append(site_info)
-
+        cofactors = self._collect_cofactor_prereq_groups()
         if not cofactors:
             return
 
-        # Did any flavin sneak in? GAFF2 only matters for those.
-        flavin_residues = sorted({
-            s["residue_name"] for s in cofactors
-            if s.get("residue_name") in self._FLAVIN_RESIDUES
-        })
-        needs_gaff2 = bool(flavin_residues)
+        table = Table(title="Cofactor force-field prerequisites", expand=False)
+        table.add_column("Cofactor", style="cyan")
+        table.add_column("Requires", style="green")
 
-        # Build the lines.
-        n = len(cofactors)
-        body = [
-            f"You selected [bold]{n}[/bold] redox-active cofactor"
-            + ("s" if n != 1 else "")
-            + ":",
-            "",
-        ]
-        for s in cofactors:
-            resname = s.get("residue_name", "?")
-            chain = s.get("chain", "?")
-            resid = s.get("residue_id", "?")
-            label = self._COFACTOR_PANEL_LABELS.get(resname)
-            label_str = f" ({label})" if label else ""
-            body.append(f"  • [bold]{resname}[/bold] at {chain}.{resid}{label_str}")
-        body.append("")
-        body.extend([
-            "These cofactors come with custom parameters for their redox-active",
-            "core, but they ALSO rely on a standard AMBER protein force field for",
-            "the rest of the molecule -- the non-redox atoms and the bonds that",
-            "attach the cofactor to the protein. ProPrep needs the following",
-            "prerequisite" + ("s" if needs_gaff2 else "") + " to be set:",
-            "",
-            "  [bold]①[/bold] A protein force field "
-            "(any of [bold]ff19SB[/bold], [bold]ff14SB[/bold], ...)",
-            "      Supplies the standard atom types your cofactors reuse for their",
-            "      non-redox-active atoms and their points of attachment to the",
-            "      protein. Required even if you aren't simulating a protein --",
-            "      we'll set this in the [bold]PROTEIN[/bold] section below.",
-        ])
-        if needs_gaff2:
-            triggers = " or ".join(flavin_residues) if len(flavin_residues) <= 2 \
-                else ", ".join(flavin_residues[:-1]) + ", or " + flavin_residues[-1]
-            body.extend([
-                "",
-                f"  [bold]②[/bold] [bold]GAFF2[/bold] -- only because "
-                f"you selected {triggers}",
-                "      The flavin ribitol tail (the 5-carbon sugar chain that",
-                "      connects the flavin ring to the phosphate) uses GAFF2",
-                "      types for its CH2/CH/OH atoms. Without GAFF2, the bond",
-                "      connecting the ribitol to the flavin ring system would",
-                "      have no force field parameters, and your simulation",
-                "      would fail. ProPrep will pre-select GAFF2 for you in",
-                "      the [bold]SMALL MOLECULE[/bold] section.",
-            ])
-        body.extend([
-            "",
-            "You don't need to do anything special -- just don't pick [bold]None[/bold]",
-            "for the protein force field"
-            + (", and accept the GAFF2 recommendation below" if needs_gaff2 else "")
-            + ". The defaults will work.",
-        ])
+        for entry in cofactors:
+            residue = entry.get("residue_name", "?")
+            location = entry.get("location") or ""
+            label = f"{residue} {location}".strip()
+            for i, group in enumerate(entry["groups"]):
+                # One row per AND-group; members are alternatives.
+                requirement = " or ".join(group)
+                table.add_row(label if i == 0 else "", requirement)
 
         console.print()
-        console.print(Panel(
-            "\n".join(body),
-            title="[bold blue]Cofactor Requirements[/bold blue]",
-            border_style="blue",
-            expand=False,
-        ))
+        console.print(table)
+        console.print(
+            "[grey50]Every line must be satisfied by the force fields selected "
+            "below. Anything unmet is flagged after selection.[/grey50]")
 
     def _resolve_cofactor_prereq_mismatches(
         self, selected: dict, cofactor_prereq_groups: list, category_order: list
@@ -9238,14 +9165,6 @@ quit"""
                             return category, opt, satisfier
             return None, None, None
 
-        # GAFF2 gets a chemistry-level panel for flavins; cache the flavin
-        # set once for all groups (only used when the group is {leaprc.gaff2}).
-        transformer_info = self.get_from_workspace("transformer_info", []) or []
-        flavin_residues = sorted({
-            si.get("residue_name") for si in transformer_info
-            if si.get("residue_name") in self._FLAVIN_RESIDUES
-        })
-
         confirmed_extras: list = []
         forced_skips: list = []
         for group_info in unsatisfied:
@@ -9267,69 +9186,39 @@ quit"""
             is_or_group = len(satisfied_by) > 1
             primary_label = primary_satisfier or satisfied_by[0]
 
-            if (set(satisfied_by) == {"leaprc.gaff2"}) and flavin_residues:
-                flavins_str = " / ".join(flavin_residues)
-                cat_title = self.FORCEFIELD_OPTIONS.get(category, {}).get(
-                    "title", category_label.upper()
-                )
-                panel_body = [
-                    "The flavin ribitol tail (the sugar chain linking the",
-                    "flavin ring to the phosphate) uses GAFF2 atom types.",
-                    f"ProPrep noticed you picked [yellow]{current_pick_name}[/yellow]",
-                    f"for [bold]{cat_title}[/bold], which means these GAFF2 types",
-                    "will be undefined when the cofactor frcmod is loaded.",
-                    "",
-                    "[bold]What will happen if we proceed without GAFF2?[/bold]",
-                    "  tleap will refuse to build the topology, because it",
-                    "  doesn't know how to parametrize the bond between the",
-                    "  flavin ring N10 and the first ribitol carbon. You'll",
-                    "  see an error like:",
-                    "    [grey50]Could not find bond parameter for: <type> - c3[/grey50]",
-                    "",
-                    "[bold]Options:[/bold]",
-                    "  [bold]1[/bold]. Add GAFF2 to my forcefield set  [Recommended]",
-                    "  [bold]2[/bold]. Go back to the SMALL MOLECULE menu",
-                    "  [bold]3[/bold]. Proceed anyway (tleap will fail — only useful if",
-                    "     you're editing the tleap.in by hand)",
-                ]
-                panel_title = (
-                    f"[bold yellow]GAFF2 was not selected, but "
-                    f"{flavins_str} need it[/bold yellow]"
+            if is_or_group:
+                requirement_line = (
+                    f"Your standard-FF picks did not include any of: {satisfiers_str}."
                 )
             else:
-                if is_or_group:
-                    requirement_line = (
-                        f"Your standard-FF picks did not include any of: {satisfiers_str}."
-                    )
-                else:
-                    requirement_line = (
-                        f"Your standard-FF picks did not include [bold]{primary_label}[/bold]."
-                    )
-                panel_body = [
-                    requirement_line,
-                    "",
-                    f"  Category: {category_label}",
-                    f"  Your pick: [yellow]{current_pick_name}[/yellow]",
-                    "",
-                    "But the following selected redox-site cofactor(s) require it:",
-                ]
-                for req in requesters:
-                    panel_body.append(f"  • {req}")
-                panel_body.extend([
-                    "",
-                    "Without it, tleap will fail at saveAmberParm with errors",
-                    "like \"atom type X for atom Y in residue Z was not found\".",
-                    "",
-                    "Options:",
-                    f"  [bold]1[/bold]. Add [bold]{primary_label}[/bold] to my forcefield set    [Recommended]",
-                    f"  [bold]2[/bold]. Go back and reconsider my pick for this category",
-                    "  [bold]3[/bold]. Proceed without it (tleap will fail; useful only for debugging",
-                    "      or if you plan to edit the tleap.in manually)",
-                ])
-                panel_title = (
-                    "[bold yellow]Forcefield prerequisite mismatch — "
-                    f"{primary_label}[/bold yellow]"
+                requirement_line = (
+                    f"Your standard-FF picks did not include [bold]{primary_label}[/bold]."
                 )
+            panel_body = [
+                requirement_line,
+                "",
+                f"  Category: {category_label}",
+                f"  Your pick: [yellow]{current_pick_name}[/yellow]",
+                "",
+                "But the following selected redox-site cofactor(s) require it:",
+            ]
+            for req in requesters:
+                panel_body.append(f"  • {req}")
+            panel_body.extend([
+                "",
+                "Without it, tleap will fail at saveAmberParm with errors",
+                "like \"atom type X for atom Y in residue Z was not found\".",
+                "",
+                "Options:",
+                f"  [bold]1[/bold]. Add [bold]{primary_label}[/bold] to my forcefield set    [Recommended]",
+                f"  [bold]2[/bold]. Go back and reconsider my pick for this category",
+                "  [bold]3[/bold]. Proceed without it (tleap will fail; useful only for debugging",
+                "      or if you plan to edit the tleap.in manually)",
+            ])
+            panel_title = (
+                "[bold yellow]Forcefield prerequisite mismatch — "
+                f"{primary_label}[/bold yellow]"
+            )
 
             console.print()
             console.print(Panel(

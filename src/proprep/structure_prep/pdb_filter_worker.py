@@ -4986,9 +4986,9 @@ class PDBFilterTool(PDBFilterWorker):
             return super()._get_component_retention_choice(chain_id, display_type)
 
         self.console.print(f"\n[bold]Chain {chain_id} - {display_type}[/bold]")
-        self.console.print("[r] Retain entire component")
-        self.console.print("[s] Select specific residues")
-        self.console.print("[d] Discard entire component")
+        self.console.print("\\[r] Retain entire component")
+        self.console.print("\\[s] Select specific residues")
+        self.console.print("\\[d] Discard entire component")
 
         from proprep.utils.prompts import prompt_with_context
 

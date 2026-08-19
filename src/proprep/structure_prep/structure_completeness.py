@@ -2119,8 +2119,8 @@ class RepairOrchestrator:
                 )
                 return RepairAction.TER
 
-            self.console.print("  [f] Fill with MODELLER")
-            self.console.print("  [t] Insert TER (chain break, no fill)")
+            self.console.print("  \\[f] Fill with MODELLER")
+            self.console.print("  \\[t] Insert TER (chain break, no fill)")
             choice = prompt_with_context(
                 processor=self.processor,
                 prompt="Action",
@@ -2154,7 +2154,7 @@ class RepairOrchestrator:
         # List the choices explicitly: prompt_with_context suppresses the inline
         # choice list whenever options_map is passed (it assumes the caller
         # printed them), so without this the prompt would show only "Action (f):".
-        self.console.print("  [f] Fill    [p] Partial fill    [c] Cap    [s] Skip")
+        self.console.print("  \\[f] Fill    \\[p] Partial fill    \\[c] Cap    \\[s] Skip")
 
         # Focus the viewer on this segment's flanking residues (yellow
         # ball+stick) and halo the chain (blue) so the user sees both

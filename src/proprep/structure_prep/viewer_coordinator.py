@@ -167,6 +167,33 @@ class ViewerCoordinator:
         with self._lock:
             self._safely(lambda: self._show_structures_impl(paths, force=force))
 
+    def refresh_structure(self) -> None:
+        """Re-read the current structure file from disk.
+
+        ``show_structure(path)`` is a no-op when the path has not changed,
+        which is right for idempotent callers but wrong once the FILE has been
+        edited in place — a hydrogen added to a cluster residue, coordinates
+        rewritten by an orientation step. The viewer then keeps rendering the
+        superseded contents.
+
+        Re-serving means relaunching: the underlying ``http.server`` binds its
+        structure-file list at construction. The iframe re-sources itself via
+        app.js's cache-buster, and ``/structure/<index>`` is already sent
+        ``no-store`` for exactly this reason.
+
+        No browser tab is opened and no viewer is started — this only refreshes
+        a viewer that is already up, so it is safe to call unconditionally.
+        Annotations survive, since the structure list is unchanged.
+        """
+        with self._lock:
+            self._safely(self._refresh_structure_impl)
+
+    def _refresh_structure_impl(self) -> None:
+        if not self.is_running():
+            return
+        self._ensure_viewer()._launch_viewer(open_browser=False)
+        logger.debug("ViewerCoordinator: refreshed structure from disk")
+
     def highlight(
         self,
         selection: str,

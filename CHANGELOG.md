@@ -13,6 +13,252 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.16.0] — 2026-08-19
+
+### Added
+
+- Externally obtained parameters can be imported and used. The import wizard
+  browses for the `.frcmod`, `.lib`/`.off` and optional `.prep` with the same
+  file browser the rest of ProPrep uses, shows what each parameter category
+  means and where it will be stored, and reads any atom types the frcmod
+  declares so they reach tLEaP as `addAtomTypes` entries. Generated parameters
+  cannot introduce new types, which is why the wizard never asked; imported
+  ones can.
+- A transformer can be saved that only binds a force-field library, with no
+  renaming. Renaming and parameter-binding are separate jobs: MCPB output needs
+  both, while a cofactor already named as its library names it needs only the
+  binding. There was no way to express the second, so an imported cofactor's
+  library was unreachable. The library and its redox/spin state are chosen from
+  lists of what exists rather than typed as a path.
+- Deposits record which force fields their parameters require, derived from the
+  atom types in the files. The Topology Generator already enforced declared
+  prerequisites, but almost nothing declared any.
+
+- Pure inorganic metal clusters can be given hydrogens before parameterization.
+  Hydrogen addition covered protein and organic residues only, and `reduce` has
+  no chemistry for a Mo-S-O or Fe-S core, so a cofactor whose resting state
+  carries a hydroxo — `Mo(=O)(=S)(OH)` in a molybdenum cofactor — reached the QM
+  model as a bare oxo with the wrong electron count and charge, and there was no
+  way to correct it. Editing the Gaussian input by hand is not an alternative:
+  it and the model PDB are matched by index, so an atom added to one shifts the
+  Seminario force-constant indices and leaves the deposited residue template
+  without the hydrogen its charges were fitted with. Offered for every cluster,
+  defaulting to no.
+- The structure viewer focuses on a cluster while its hydrogen-addition prompt
+  is on screen, and re-reads the file once a hydrogen is added so the new atom
+  is visible. `ViewerCoordinator.refresh_structure()` re-serves the current
+  path, which `show_structure` deliberately will not do — it treats a repeated
+  path as a no-op, correct until the file is edited in place. It never starts a
+  viewer or opens a tab.
+- A hydrogen added to an atom with only one bond is now placed at an angle to
+  that bond, rotated to the least crowded side, instead of directly opposite it
+  — a hydroxo, thiol or amine hydrogen is bent, never linear. The opening angle
+  can be set at the prompt.
+
+### Changed
+
+- The cofactor prerequisites panel reports what the selected parameter sets
+  declare instead of describing their chemistry. It asserted that every
+  cofactor needs a protein force field and inferred GAFF2 from residue names,
+  while explaining the requirement in terms of a ribitol tail and which bond
+  would fail — none of which is knowable about an arbitrary parameter set.
+- MCPB step results are stored per site. A single shared record meant `step_1`
+  belonged to whichever site ran last, which cross-wired one site's atom-type
+  fingerprint and RESP charge constraint onto another.
+
+- The session editor table labels its status column `Status` instead of `St`.
+
+- The parameterization prompt selects **sites**, and each selected site goes to
+  the parameterizer its own category implies. It no longer groups residues:
+  that was for a modified amino acid covalently bound to a cofactor, which is
+  now expressed by defining the pair as a site in the Redox Site Detector, so
+  the combine/separate and category-conflict prompts are gone. A mixed
+  selection is ordinary rather than a conflict.
+- Selecting metal sites now parameterizes those sites and no others. MCPB
+  previously re-detected and parameterized every metal site in the structure
+  regardless of the selection, so a structure with two equivalent Fe2S2
+  clusters could not have one derived and the other served by the reuse
+  transformer. Sites left out are named, with a note that every metal site
+  needs parameters before the topology build will succeed.
+
+### Fixed
+
+- A Gaussian output that describes a different model than the input beside it
+  is refused rather than fitted. Re-running the atom-typing step rebuilds the
+  models but Gaussian is run by hand, so a leftover log gives the Hessian or
+  ESP of a superseded model — and the result still looks like force constants
+  or charges. Compared by content: atom count, elements, then coordinates.
+- A withheld metal cluster's own bonds get force constants. Fe-S inside an
+  Fe2S2, Mo-S/Mo-O inside a Mo cofactor and the O-H of a hydroxo reached
+  neither the coordination bond list nor the prmtop, so nothing derived a
+  parameter for them and tLEaP reported one missing for each.
+- Metal covalent radii are used when perceiving a cluster's bonds. Molybdenum
+  fell to a carbon-like default, so a Mo cofactor was deposited with two of its
+  four bonds; Fe-S was passing only because it sat just under that accidental
+  cutoff. Metal-metal pairs are excluded — a cluster's metals are bridged
+  through their ligands.
+- An inferred hydrogen is typed for the atom it is bonded to. Amber names a
+  hydrogen after its neighbour, so a metal-bound hydroxo proton typed `H` took
+  the amide hydrogen's van der Waals radius where the hydroxyl convention `HO`
+  is zero.
+- RESP scaffolding residues are constrained to their own charge rather than to
+  zero. Keeping a real ARG as a gap bridge left its +1 nowhere to go but the
+  neighbouring coordinating residues, one of which came out positive.
+- Charges are found for metal-site atoms again. The lookup is keyed by
+  coordinate tuple, and BioPython's float32 does not compare equal to the
+  float64 a resumed session restores, so every site atom summed as zero and a
+  −2 site was proposed as 0.
+- Atom types are read from a library once. The section test also matched
+  `atomspertinfo`, whose rows repeat every name, so an 84-atom residue was
+  reported as 168.
+- A supplied library is matched on heavy atoms when the structure has no
+  hydrogens, instead of demanding a hand-written mapping for a library that
+  fits.
+- Caps stay in the chain when the PDB is reordered for tLEaP. Caps bracketing
+  an unfilled internal gap were moved to opposite ends of the chain, leaving a
+  70 Å peptide bond and the gap they had guarded open.
+- The PDB written back from a topology keeps the topology's atom names. They
+  were translated to PDB v3 conventions, so a library using older names — `O1P`
+  rather than `OP1`, say — built once and then failed against the file it had
+  just produced.
+- Triage categories survive a resume. They lived only on the instance, so a
+  resumed run found no organic residues, no clusters and no isolated metals,
+  and ticked those steps off as complete.
+- Resuming a pending small-molecule or modified-amino-acid parameterization
+  works; both dispatched to methods that were never written.
+- Force Field Integration names a deposited frcmod for its library entry rather
+  than the working directory's `site_N`.
+
+- Implicit solvation for the large model is now asked for rather than
+  inherited. The prompt sat entirely under an anion check, so an anionic large
+  model silently adopted the small model's SCRF (announced only after the fact)
+  while a neutral or cationic one dropped it with no message at all, leaving the
+  two calculations at different levels of theory for no stated reason. It is now
+  offered in every case, defaulting to yes whenever the small model was solvated,
+  and declining says plainly that the models will differ.
+- The Merz-Kollman ESP radius is taken from MCPB.py's own `vdwRadiiDict2023`
+  (Smith et al. JCTC 2023, 19, 2064) rather than from the force-field IOD
+  parameters. They are different quantities — the MK value decides how close to
+  the nucleus ESP grid points may fall, the IOD value is a Lennard-Jones term —
+  and the IOD tables stop at tetravalent, so a Mo(VI) cofactor could not resolve
+  one at all and fell back to a generic 1.5 A with no cited source. Force-field
+  parameters are unchanged. `tools/patch_readradii.py` adds the block to
+  `large_resp.gjf` files generated before this, so they need not be rebuilt.
+- Checklist state stores numbers as numbers. The serializer recognised only
+  Python `int`/`float`, and a numpy scalar is neither — `np.float32` fails
+  `isinstance(v, float)` and has no `__dict__` — so every coordinate read from
+  BioPython was written as `{"__type__": "str", "value": "-46.078"}`. On resume,
+  metal reinsertion then handed PDBIO a dict where it wanted a number and the
+  step failed with "must be real number, not dict". numpy scalars now serialize
+  as plain numbers, and `MetalInfo.from_dict` unwraps and coerces so a state
+  file written before this still resumes.
+- Resuming a metal-site run from saved checklist state no longer fails at
+  structure recombination with `tLEaP error: 'site_id'`. Checklist state stores
+  objects wrapped as `{"__type__", "value"}` and uses the dataclass field names,
+  while the exporters write a flat dict with three fields spelled differently
+  (`coordinates` for `coords`, and so on). `dict_to_redox_site`, the documented
+  normalizer for exactly this case, understood only the exported shape; it now
+  accepts both.
+- A checklist step that reports a failure without raising is recorded as failed
+  rather than completed. Structure recombination printed "tLEaP failed" and was
+  ticked off, so the following step ran and died on the prepared structure it
+  had never produced, hiding the real cause. Handlers signal this by returning
+  `success: False`.
+- RESP is constrained to the charge its own ESP was computed with. Per-site
+  results are restored from a single shared workspace key, so in a multi-site
+  run the charge came from whichever site ran last: a -1 Fe2S2 model was fitted
+  against a -3 constraint and RESP spread the missing two electrons over the
+  site, reaching +5.6 on a metal. It does not fail on a mismatched total — it
+  fits a different molecule. Charge and multiplicity now come from the site's
+  own Gaussian log (falling back to its input file), which cannot be another
+  site's, and a disagreement with the stored step-1 value is reported.
+- The large model's Gaussian input carries the metal van der Waals radii again.
+  They were gathered by looking each `redox_site.centers` entry up in the atom
+  assignments, which only works for a lone metal ion, where the center is the
+  metal atom. For an organometallic cofactor or a pure cluster the center
+  describes the residue instead, so nothing matched and the file was written
+  with a bare `Pop=MK` and no radii block — the Merz-Kollman ESP then sampled
+  the metals with Gaussian's defaults. The radii now come from the metal atoms
+  themselves, and a site that resolves none says so instead of quietly falling
+  back.
+- The large model's ESP calculation now defaults to the same level of theory as
+  the small model rather than `HF/6-31G*`. The MCPB.py tutorial states it
+  directly: "we used the B3LYP/6-31G* level of theory to perform the
+  calculations for both the small and large models". `HF/6-31G*` is the generic
+  RESP convention for organics, and it silently differed from the functional
+  just chosen for the small model.
+- A hydrogen inside a metal cluster is no longer typed as a metal ligand. Every
+  non-metal atom of a pure cluster was given a unique `Y*` type on the grounds
+  that such a residue has no non-core atoms — true until a cluster could carry
+  a hydroxo hydrogen, which bonds the oxygen rather than the metal.
+
+- Session replay is strict again: a recorded answer is used only when it is the
+  next unconsumed interaction and matches the prompt exactly. The forward scan
+  that replaced it could not tell a recorded prompt the run skips apart from the
+  same question asked at a different point in the workflow, and leapt for the
+  latter — a hydrogen-editor prompt now asked during step 8 matched its
+  recording from step 12 sixty-five interactions later, consuming three
+  checklist decisions on the way, after which replay ran step 13 while the
+  checklist sat at step 9. A prompt that does not match now announces the
+  divergence once, falls through to live input, and leaves the position alone,
+  so replay resynchronises as soon as the recorded question comes round again.
+- Integer and decimal prompts are replayed by question rather than by position.
+  `IntPrompt` and `FloatPrompt` are not subclasses of `Prompt`, so patching
+  `Prompt.ask` never covered them: they fell through to the built-in input
+  interception, where Rich has already printed the question itself, and every
+  numeric answer was recorded with an empty prompt string. Any numeric question
+  would then take the next numeric answer in the file, so adding one silently
+  shifted the rest — a newly added atom-type offset prompt was answered with a
+  Gaussian memory value recorded for something else. Existing logs record these
+  answers anonymously and cannot be matched; those prompts now ask rather than
+  supply a number from an unrelated question.
+- A leftover `workflow_state.json` no longer blocks replay of a session log.
+
+  The checklist asked "Resume from saved state?" whenever the file was present,
+  a question the recorded run never faced and the log therefore cannot answer.
+  Replay now starts such a workflow fresh instead of asking. Underneath, an
+  unmatched prompt no longer consumes the rest of the log: the replayer scans
+  forward to tolerate a recorded prompt the current run does not ask, but it
+  now rewinds when nothing matches, so a single unexpected question costs only
+  itself rather than ending the replay and dropping every later prompt to live
+  input.
+- Force Field Integration (checklist step 15) deposits one library entry per
+  metal site instead of merging every site into a single entry. A merged entry
+  was keyed by one site type, so it could not be reused on a structure carrying
+  only one of the sites, and the reuse transformer it emitted matched neither
+  site: transformer matching requires every residue in the rename table to be
+  present in a *single* site, which a table spanning two sites never satisfies.
+  Site type, redox state and spin state are now asked per site (the previous
+  site's answers carry forward as defaults), and reusing one identity for two
+  sites is refused rather than silently overwriting the first. Residue naming
+  is unchanged: it still runs across all sites so names cannot collide.
+
+- Metal-site parameterization now asks for the formal charge of a withheld
+  cluster's non-metal core atoms (the bridging sulfides of an Fe-S cluster, the
+  S/O core of a Mo cofactor), not only of its metals. A pure inorganic cluster
+  is withheld from the force-field pass as a whole residue, so none of its atoms
+  arrive with a charge; the core atoms were left unset and counted as zero, so
+  the suggested QM charge came out short by their formal charge. An Fe2S2 site
+  with four cysteinates proposed +2 where `[Fe2S2(SCys)4]2-` is -2. Correcting
+  that by inflating a metal's charge was worse than it appeared, because the
+  metal's formal charge is also the van der Waals radius key and is stored in
+  the deposited library; a charge the radius database cannot resolve is now
+  flagged as it is entered.
+
+- The M\*/Y\* atom-type numbering no longer restarts at M1/Y1 when metal sites
+  are parameterized in more than one pass, which would collide with types
+  already deposited once every site's files load into one tLEaP session. The
+  starting point comes from the workspace within a session and from earlier
+  runs' fingerprint files in a fresh one; what was found is shown and can be
+  overridden. Re-running a site offers to reuse the names it had before, so
+  correcting one site replaces its entry instead of stranding its old types.
+- Metal-site nuclearity counts metal atoms rather than metal-bearing residues,
+  so an Fe2S2 cluster reads as binuclear instead of mononuclear.
+- Metal-site and small-molecule counts in the menu suggestion and the status
+  view count sites rather than residues; a site's coordinating ligand no longer
+  inflates the total. The option numbers those messages cite now match the
+  menu, which had gained an entry without them being updated.
+
 ## [1.15.0] — 2026-08-02
 
 ### Added

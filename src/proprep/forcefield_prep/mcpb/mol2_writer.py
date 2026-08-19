@@ -90,6 +90,22 @@ class Mol2Writer:
         # Parse fingerprint for atom types
         atom_types = self._parse_fingerprint(fingerprint_file)
 
+        # The fingerprint has to describe THIS model. Both are keyed by PDB
+        # serial, so a fingerprint belonging to another site shares no serials
+        # and every lookup below falls to the 'XX' placeholder -- which is not
+        # an Amber type, so tleap reports a missing parameter for every bond and
+        # angle in the residue. Silent until then: the mol2 files are written,
+        # the libraries are deposited, and nothing complains until the build.
+        overlap = {a['serial'] for a in pdb_atoms} & set(atom_types)
+        if atom_types and not overlap:
+            raise ValueError(
+                f"Fingerprint {Path(fingerprint_file).name} describes a different "
+                f"model: none of its {len(atom_types)} atom serials appear in "
+                f"{Path(pdb_file).name} ({len(pdb_atoms)} atoms). Atom types would "
+                f"all be written as the 'XX' placeholder. This usually means a "
+                f"fingerprint from another metal site was picked up."
+            )
+
         # Load bond topology
         bonds_all = self._load_bond_topology(bond_topology_file)
 
@@ -341,12 +357,33 @@ class Mol2Writer:
 
     # Covalent radii (Cordero 2008, Å) for intra-residue bond perception.
     # A default covers anything unlisted.
+    # Cordero et al., Dalton Trans., 2008, 2832 (low-spin values where the
+    # reference gives both). Metals are here because a metal cluster's own
+    # bonds are INTRA-residue and must be perceived: MOS is Mo plus its
+    # sulfido, oxo and hydroxo, all one residue.
+    #
+    # Without them Mo fell to _COVALENT_DEFAULT and only its shortest bond was
+    # found -- Mo-O2 at 1.72 A cleared the 1.88 A cutoff while Mo-O1 (1.96 A)
+    # and Mo-S (2.33 A, cutoff 2.27 A) did not, so the deposited library held a
+    # 5-atom residue with 2 of its 4 bonds. Fe-S at ~2.2-2.3 A was passing only
+    # because it sat just under that accidental cutoff.
     _COVALENT_RADII = {
         'H': 0.31, 'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.57,
         'P': 1.07, 'S': 1.05, 'CL': 1.02, 'BR': 1.20, 'I': 1.39,
         'SE': 1.20, 'B': 0.84,
+        # 3d
+        'NA': 1.66, 'MG': 1.41, 'K': 2.03, 'CA': 1.76,
+        'V': 1.53, 'CR': 1.39, 'MN': 1.39, 'FE': 1.32, 'CO': 1.26,
+        'NI': 1.24, 'CU': 1.32, 'ZN': 1.22,
+        # 4d/5d
+        'MO': 1.54, 'RU': 1.46, 'RH': 1.42, 'PD': 1.39, 'AG': 1.45,
+        'CD': 1.44, 'W': 1.62, 'PT': 1.36, 'AU': 1.36, 'HG': 1.32,
     }
     _COVALENT_DEFAULT = 0.77
+    _METALS = frozenset({
+        'NA', 'MG', 'K', 'CA', 'V', 'CR', 'MN', 'FE', 'CO', 'NI', 'CU', 'ZN',
+        'MO', 'RU', 'RH', 'PD', 'AG', 'CD', 'W', 'PT', 'AU', 'HG',
+    })
     _COVALENT_TOLERANCE = 0.45
 
     def _derive_intraresidue_bonds(self,
@@ -374,13 +411,23 @@ class Mol2Writer:
             id_a = serial_to_mol2_id.get(a['serial'])
             if id_a is None:
                 continue
-            ra = self._COVALENT_RADII.get((a.get('element') or '').strip().upper(), self._COVALENT_DEFAULT)
+            elem_a = (a.get('element') or '').strip().upper()
+            ra = self._COVALENT_RADII.get(elem_a, self._COVALENT_DEFAULT)
             for j in range(i + 1, len(atoms)):
                 b = atoms[j]
                 id_b = serial_to_mol2_id.get(b['serial'])
                 if id_b is None:
                     continue
-                rb = self._COVALENT_RADII.get((b.get('element') or '').strip().upper(), self._COVALENT_DEFAULT)
+                elem_b = (b.get('element') or '').strip().upper()
+                # No metal-metal bonds. Two metals in one cluster are bridged
+                # through the ligands -- the Fe...Fe contact in Fe2S2 is ~2.7 A
+                # and would clear any radius-based cutoff, but MCPB does not
+                # bond them: there is no M1-M2 force constant to give it, and
+                # the bond would fabricate a 3-membered ring that angle and
+                # dihedral generation then walk.
+                if elem_a in self._METALS and elem_b in self._METALS:
+                    continue
+                rb = self._COVALENT_RADII.get(elem_b, self._COVALENT_DEFAULT)
                 cutoff = ra + rb + self._COVALENT_TOLERANCE
                 d2 = (a['x'] - b['x']) ** 2 + (a['y'] - b['y']) ** 2 + (a['z'] - b['z']) ** 2
                 if d2 < cutoff * cutoff:

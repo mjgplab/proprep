@@ -38,10 +38,36 @@ from .pdb_writer import PDBWriter
 from proprep.structure_prep.comprehensive_redox_detector import RedoxSite, METALS
 
 # Import new three-tier parameterization components
-from .mcpb.metal_ion_database import MetalIonDatabase, MetalConfig
+from .mcpb.metal_ion_database import (
+    MetalIonDatabase, MetalConfig, water_model_from_leaprc,
+)
 from .mcpb.ligand_grouping import LigandGroupingInterface, LigandGroup
 from .mcpb.antechamber_runner import AntechamberRunner, LigandParameters
 from .ff_types import MassParameter, BondParameter, AngleParameter, NonbondedParameter
+
+
+# MCPB systematic atom-type names: M1-M9 then MA-MZ for metals, Y1-Y9 then
+# YA-YZ for their ligating atoms. The Y prefix matches MCPB conventions and
+# GlobalAtomTypeRegistry. Module level because the numbering has to be
+# continued across sites and across runs, so the preprocessor reads back names
+# that a previous run wrote and has to resolve them to the same positions.
+MCPB_METAL_TYPE_NAMES = [f"M{i}" for i in range(1, 10)] + [f"M{chr(65 + i)}" for i in range(26)]
+MCPB_LIGAND_TYPE_NAMES = [f"Y{i}" for i in range(1, 10)] + [f"Y{chr(65 + i)}" for i in range(26)]
+
+
+def mcpb_type_index(name: str) -> Optional[int]:
+    """Position of an M*/Y* type name in its sequence, or None.
+
+    Note the sequence is not the digit: ``Y9`` is position 8 and ``YA`` is 9,
+    so the count of ligating atoms used stops matching the label past nine.
+    """
+    if not name:
+        return None
+    name = name.strip().upper()
+    for names in (MCPB_METAL_TYPE_NAMES, MCPB_LIGAND_TYPE_NAMES):
+        if name in names:
+            return names.index(name)
+    return None
 
 
 def _collect_restrained_ligands(site):
@@ -343,6 +369,42 @@ class PrmtopParameterProvider:
         }
 
 
+DEFAULT_SITE_KEY = "__default__"
+
+
+def _site_results_key(site) -> str:
+    """Workspace slot for a site's MCPB step results."""
+    site_id = getattr(site, "site_id", None)
+    if not site_id and isinstance(site, dict):
+        site_id = site.get("site_id")
+    return str(site_id) if site_id else DEFAULT_SITE_KEY
+
+
+def _is_legacy_flat_results(stored: dict) -> bool:
+    """True for the pre-partition shape: step keys at the top level."""
+    return any(str(k).startswith("step_") for k in stored)
+
+
+def _inferred_element_type(global_assignment, residue_atoms) -> str:
+    """Placeholder type for an atom with no library entry.
+
+    The element symbol, except for hydrogen, which is typed from the heavy atom
+    it is bonded to. 'MO'/'FE'/'S' are not Amber types so they read as
+    placeholders and are renamed to M*/Y*; 'H' IS one -- the amide/amine
+    hydrogen -- so leaving it there silently gives a hydroxo or thiol proton the
+    wrong nonbonded terms rather than failing.
+    """
+    element = (global_assignment.element or "").strip()
+    if element.upper() != "H":
+        return element
+
+    from .mcpb.atom_typer import hydrogen_type_from_neighbors
+
+    key = (global_assignment.chain, global_assignment.resid)
+    neighbors = residue_atoms.get(key, [])
+    return hydrogen_type_from_neighbors(global_assignment.coords, neighbors)
+
+
 class MetalSiteWorkflowManager:
     """
     Metal site parameterization step implementations.
@@ -366,17 +428,68 @@ class MetalSiteWorkflowManager:
         self.processor = processor
         self.original_working_dir = Path.cwd()
         self.logger = logging.getLogger(self.__class__.__name__)
-        # Restore step_results from workspace if available (resume case)
+        # step_results is PER SITE. It used to be restored here from a single
+        # workspace key that every site shared, so step_1 belonged to whichever
+        # site ran last. That cross-wired site 1 to site 2's standard.fingerprint
+        # (every atom typed 'XX', ~150 tleap errors), fitted site 1's RESP
+        # against site 2's charge constraint, and still shows up as "Step-1
+        # records charge -3 for this site but its ESP was computed at -1".
+        #
+        # The site is not known at construction -- callers assign
+        # provided_redox_site immediately afterwards -- so the restore happens
+        # in that setter. Until then this is the standalone workflow's bucket.
         self.step_results: Dict[str, Any] = {}
+        self._provided_redox_site = None
+        self._site_key = DEFAULT_SITE_KEY
         if processor:
-            try:
-                workspace = processor._get_workspace()
-                saved = workspace.get("mcpb_step_results", {})
-                if saved and isinstance(saved, dict):
-                    self.step_results = saved
-                    self.logger.debug(f"Restored step_results: {list(saved.keys())}")
-            except Exception:
-                pass
+            self._restore_step_results()
+
+    # ------------------------------------------------------------------ #
+    # per-site step_results
+    # ------------------------------------------------------------------ #
+
+    @property
+    def provided_redox_site(self):
+        """The site this manager is working on, or None."""
+        return self._provided_redox_site
+
+    @provided_redox_site.setter
+    def provided_redox_site(self, site):
+        """Assigning the site selects which site's step_results to use.
+
+        This is the only point where the manager learns its identity, and
+        every caller assigns it right after construction.
+        """
+        self._provided_redox_site = site
+        site_key = _site_results_key(site)
+        if site_key != self._site_key:
+            self._site_key = site_key
+            self._restore_step_results()
+
+    def _restore_step_results(self):
+        """Load THIS site's step_results from the workspace."""
+        if not self.processor:
+            return
+        try:
+            workspace = self.processor._get_workspace()
+            saved = workspace.get("mcpb_step_results", {})
+        except Exception:
+            return
+        if not isinstance(saved, dict):
+            return
+
+        bucket = saved.get(self._site_key)
+        if bucket is None and _is_legacy_flat_results(saved):
+            # Written before results were partitioned: one site's results with
+            # no label. Usable only for the standalone workflow, where there is
+            # just one site; a labelled site must not adopt them.
+            bucket = saved if self._site_key == DEFAULT_SITE_KEY else None
+
+        self.step_results = dict(bucket) if isinstance(bucket, dict) else {}
+        if self.step_results:
+            self.logger.debug(
+                f"Restored step_results for {self._site_key}: "
+                f"{list(self.step_results.keys())}")
 
     def _save_step_results(self):
         """Persist step_results to workspace for resume support."""
@@ -406,7 +519,13 @@ class MetalSiteWorkflowManager:
                         serializable[key] = filtered
                     else:
                         serializable[key] = value
-                workspace.set("mcpb_step_results", serializable)
+                # Merge into this site's slot, leaving other sites alone.
+                stored = workspace.get("mcpb_step_results", {})
+                if not isinstance(stored, dict) or _is_legacy_flat_results(stored):
+                    stored = {}
+                stored = dict(stored)
+                stored[self._site_key] = serializable
+                workspace.set("mcpb_step_results", stored)
             except Exception as e:
                 self.logger.debug(f"Could not save step_results: {e}")
 
@@ -760,7 +879,7 @@ class MetalSiteWorkflowManager:
                         missing_residues.add(res_name)
 
                 # Initialize MetalIonDatabase to identify metal-containing residues
-                metal_db = MetalIonDatabase(water_model='tip3p', logger=self.logger)
+                metal_db = MetalIonDatabase(water_model=self._water_model(), logger=self.logger)
 
                 # Identify residues that will be handled by three-tier approach
                 # These include: metal-containing residues and inorganic ligands
@@ -951,6 +1070,20 @@ class MetalSiteWorkflowManager:
             # 10. Generate fingerprint files (must match PDB files)
             # ================================================================
             self.console.print("\n[bold]Generating MCPB fingerprint files...[/bold]")
+
+            # A withheld cluster's own bonds (Fe-S inside FES, Mo-S/O inside
+            # MOS, the O-H of a hydroxo) are in neither source the Seminario
+            # step draws on, so nothing ever derived a force constant for them.
+            # Perceive them from the geometry and record them on the site; the
+            # LINK writer below is what carries them forward.
+            from proprep.structure_prep.comprehensive_redox_detector import (
+                perceive_cluster_internal_bonds,
+            )
+            n_internal = perceive_cluster_internal_bonds(redox_site)
+            if n_internal:
+                self.console.print(
+                    f"[grey50]Perceived {n_internal} bond(s) inside the metal "
+                    f"cluster residue(s); these get force constants too[/grey50]")
 
             # Create fingerprint generator with suppressed logging
             import logging
@@ -1379,62 +1512,104 @@ class MetalSiteWorkflowManager:
                 description="Large model multiplicity"
             )
 
-            # Anion solvation check for large model
+            # Implicit solvation for the large model.
+            #
+            # Asked outright rather than inherited. The two models are separate
+            # calculations, and copying the small model's SCRF silently meant
+            # the large model's solvation was never a visible decision — the
+            # run only announced it after the fact.
+            #
+            # Also asked regardless of charge. The whole block used to sit
+            # under `large_charge < 0`, so a neutral or cationic large model
+            # dropped the small model's SCRF without comment, leaving the two
+            # calculations at different levels of theory for no stated reason.
             large_scrf = ""
-            if large_charge < 0:
-                # If small model already uses SCRF, recommend consistency
-                if small_scrf:
-                    self.console.print(
-                        f"[grey50]Small model uses {small_scrf} — applying same solvation for consistency.[/grey50]"
-                    )
-                    large_scrf = small_scrf
-                else:
-                    self.console.print(Panel(
-                        f"[bold yellow]Anion detected (charge = {large_charge}):[/bold yellow]\n\n"
-                        "HF is less susceptible than DFT to self-interaction error, but\n"
-                        "implicit solvation still improves SCF convergence and charge\n"
-                        "distribution for anionic systems.",
-                        title="Anion Solvation Warning",
-                        border_style="yellow",
-                        expand=False,
-                    ))
+            if large_charge < 0 and not small_scrf:
+                self.console.print(Panel(
+                    f"[bold yellow]Anion detected (charge = {large_charge}):[/bold yellow]\n\n"
+                    "Implicit solvation improves SCF convergence and the charge\n"
+                    "distribution for anionic systems, which is what the ESP is\n"
+                    "fitted to here.",
+                    title="Anion Solvation Warning",
+                    border_style="yellow",
+                    expand=False,
+                ))
 
-                    if confirm_with_context(
-                        self.processor,
-                        "Add implicit solvation (SCRF)?",
-                        default=True,
-                        module="Metal Site Parameterizer",
-                        description="Add implicit solvation for anion (large model)",
-                    ):
-                        self.console.print("\n[cyan]Common solvents:[/cyan]")
-                        self.console.print("  Water (ε=78.4), DiMethylSulfoxide (ε=46.8), Acetonitrile (ε=35.7),")
-                        self.console.print("  Methanol (ε=32.6), Ethanol (ε=24.9), Dichloromethane (ε=8.9),")
-                        self.console.print("  TetraHydroFuran (ε=7.4), Chloroform (ε=4.7), Toluene (ε=2.4)")
-                        self.console.print("[grey50]Full list: see Gaussian SCRF documentation[/grey50]")
+            if small_scrf:
+                self.console.print(
+                    f"[grey50]Small model uses {small_scrf}.[/grey50]")
 
-                        solvent_name = prompt_with_context(
-                            self.processor, "Solvent name (Gaussian keyword)",
-                            default="Water",
-                            module="Metal Site Parameterizer",
-                            description="SCRF solvent selection (large model)",
-                        )
-                        large_scrf = f"SCRF=(Solvent={solvent_name})"
-                        self.console.print(f"[green]Will add {large_scrf} to route[/green]")
-
+            # Default: match the small model when it used solvation, else
+            # recommend it only for an anion.
             if confirm_with_context(
                 self.processor,
-                "Use recommended method (HF/6-31G*)?",
+                "Add implicit solvation (SCRF) to the large model?",
+                default=self._default_large_model_solvation(small_scrf, large_charge),
+                module="Metal Site Parameterizer",
+                description="Add implicit solvation (large model)",
+            ):
+                use_same = False
+                if small_scrf:
+                    use_same = confirm_with_context(
+                        self.processor,
+                        f"Use the same solvent as the small model ({small_scrf})?",
+                        default=True,
+                        module="Metal Site Parameterizer",
+                        description="Match the small model's solvent (large model)",
+                    )
+
+                if use_same:
+                    large_scrf = small_scrf
+                else:
+                    self.console.print("\n[cyan]Common solvents:[/cyan]")
+                    self.console.print("  Water (ε=78.4), DiMethylSulfoxide (ε=46.8), Acetonitrile (ε=35.7),")
+                    self.console.print("  Methanol (ε=32.6), Ethanol (ε=24.9), Dichloromethane (ε=8.9),")
+                    self.console.print("  TetraHydroFuran (ε=7.4), Chloroform (ε=4.7), Toluene (ε=2.4)")
+                    self.console.print("[grey50]Full list: see Gaussian SCRF documentation[/grey50]")
+
+                    solvent_name = prompt_with_context(
+                        self.processor, "Solvent name (Gaussian keyword)",
+                        default="Water",
+                        module="Metal Site Parameterizer",
+                        description="SCRF solvent selection (large model)",
+                    )
+                    large_scrf = f"SCRF=(Solvent={solvent_name})"
+
+                self.console.print(f"[green]Will add {large_scrf} to route[/green]")
+            elif small_scrf:
+                # Declining after the small model used solvation is a real
+                # divergence between the two calculations; say so once.
+                self.console.print(
+                    "[yellow]Large model will run without solvation while the "
+                    "small model used it — the two models will be at different "
+                    "levels of theory.[/yellow]")
+
+            # Default to the small model's level of theory. The MCPB.py tutorial
+            # (ambermd.org/tutorials/advanced/tutorial20) states it plainly:
+            # "we used the B3LYP/6-31G* level of theory to perform the
+            # calculations for both the small and large models". The previous
+            # HF/6-31G* default was the generic RESP convention for organics,
+            # not what MCPB.py does for a metal site — and it silently differed
+            # from the functional the user had just chosen for the small model.
+            self.console.print(
+                f"[grey50]Small model uses {small_functional}/{small_basis} — "
+                f"MCPB.py uses one level of theory for both models.[/grey50]"
+            )
+            if confirm_with_context(
+                self.processor,
+                f"Use the same method as the small model "
+                f"({small_functional}/{small_basis})?",
                 default=True,
                 module="Metal Site Parameterizer",
                 description="Use recommended large model method"
             ):
-                large_functional = "HF"
-                large_basis = "6-31G*"
+                large_functional = small_functional
+                large_basis = small_basis
             else:
                 large_functional = prompt_with_context(
                     self.processor,
-                    "Method for ESP (HF recommended for RESP)",
-                    default="HF",
+                    "Method for ESP",
+                    default=small_functional,
                     module="Metal Site Parameterizer",
                     description="Large model method"
                 )
@@ -1442,41 +1617,12 @@ class MetalSiteWorkflowManager:
                 large_basis = prompt_with_context(
                     self.processor,
                     "Basis set",
-                    default="6-31G*",
+                    default=small_basis,
                     module="Metal Site Parameterizer",
                     description="Large model basis set"
                 )
 
-            # Collect metal radii for ESP calculation
-            # ReadRadii tells Gaussian to read custom VDW radii for MK ESP fitting
-            metal_radii = {}
-            metal_db = MetalIonDatabase(water_model='tip3p', logger=self.logger)
-            for center in redox_site.centers:
-                # Get element from center
-                element = None
-                charge_val = None
-                if hasattr(center, 'element') and center.element:
-                    element = center.element
-                # Look up charge from type_assignments
-                if center.coords in type_assignments:
-                    assignment = type_assignments[center.coords]
-                    if isinstance(assignment, dict):
-                        charge_val = assignment.get('charge')
-                        if not element:
-                            element = assignment.get('element')
-                    elif hasattr(assignment, 'charge'):
-                        charge_val = assignment.charge
-                        if not element:
-                            element = getattr(assignment, 'element', None)
-
-                if element and charge_val is not None:
-                    # Normalize element symbol (e.g., 'ZN' -> 'Zn')
-                    element_norm = element[0].upper() + element[1:].lower() if len(element) > 1 else element.upper()
-                    radius = metal_db.get_vdw_radius(element_norm, int(charge_val))
-                    if radius:
-                        metal_radii[element_norm] = radius
-                        self.console.print(f"[grey50]  Metal radius: {element_norm} = {radius:.3f} Å[/grey50]")
-
+            metal_radii = self._collect_metal_radii(type_assignments)
             # Frozen atoms option for geometry optimization (same as small model)
             self.console.print("\n[bold]Atom Freezing Options[/bold]")
             self.console.print("[grey50]Choose which atoms to freeze during geometry optimization.[/grey50]")
@@ -1825,7 +1971,7 @@ class MetalSiteWorkflowManager:
         inorganic_ligands = []  # Tier 3: Antechamber
 
         # Initialize MetalIonDatabase
-        metal_db = MetalIonDatabase(water_model='tip3p', logger=self.logger)
+        metal_db = MetalIonDatabase(water_model=self._water_model(), logger=self.logger)
 
         # Classify atoms into tiers
         for atom in redox_site.atoms:
@@ -2193,6 +2339,20 @@ class MetalSiteWorkflowManager:
         """
         type_assignments = {}
 
+        # A withheld cluster atom has no library type, so original_type below
+        # falls back to the raw ELEMENT. For a metal or a bridging sulfide that
+        # is harmless -- 'MO'/'FE'/'S' are not Amber types, and those atoms are
+        # renamed to M*/Y* anyway. For a HYDROGEN it is not: 'H' IS a valid
+        # Amber type, the amide/amine one, so a hydroxo proton silently
+        # acquired its 0.6 A vdW radius instead of the hydroxyl 0.0.
+        #
+        # Index the residues so an inferred hydrogen can be typed from the atom
+        # it is bonded to.
+        residue_atoms: Dict[Tuple, List[Tuple]] = {}
+        for coords, ga in global_types.items():
+            residue_atoms.setdefault((ga.chain, ga.resid), []).append(
+                (coords, ga.element))
+
         # Restrained coordinating ligands (e.g. nonbonded waters) must not be
         # Y-renamed even though the global registry flagged them as ligands.
         restrained_coords, _ = _collect_restrained_ligands(
@@ -2226,8 +2386,14 @@ class MetalSiteWorkflowManager:
                 'resid': global_assignment.resid,
                 'atom_name': global_assignment.atom_name,
                 'element': global_assignment.element,
-                'original_type': global_assignment.original_type or global_assignment.element or "",
-                'renamed_type': global_assignment.global_renamed_type or global_assignment.element or "",
+                'original_type': (
+                    global_assignment.original_type
+                    or _inferred_element_type(global_assignment, residue_atoms)
+                    or ""),
+                'renamed_type': (
+                    global_assignment.global_renamed_type
+                    or _inferred_element_type(global_assignment, residue_atoms)
+                    or ""),
                 'charge': charge,
                 'terminal_type': 'internal',  # GlobalTypes are typically internal
                 'is_center': global_assignment.is_metal,
@@ -2260,10 +2426,14 @@ class MetalSiteWorkflowManager:
         bonded parameters and are inconsistent with the Y-typed external
         ligands. A pure cluster residue (multi-atom, contains a metal, contains
         no carbon → no organic scaffold) has no non-core atoms, so every one of
-        its non-metal atoms is metal-coordinating core. Return their coords so
-        the caller can mark them as ligands (→ unique Y* types).
+        its non-metal HEAVY atoms is metal-coordinating core. Return their
+        coords so the caller can mark them as ligands (→ unique Y* types).
 
-        Metals themselves are excluded (they stay is_center / M*).
+        Metals themselves are excluded (they stay is_center / M*), and so are
+        hydrogens: a hydroxo H added to a Mo-O core is bonded to the oxygen,
+        not to the metal, so typing it as a metal ligand would be wrong. The
+        "no non-core atoms" assumption held only while a cluster could not
+        carry a hydrogen at all.
         """
         # Group the site's atoms by residue.
         by_res: Dict[Tuple, list] = {}
@@ -2278,8 +2448,11 @@ class MetalSiteWorkflowManager:
             has_carbon = any((a.element or '').strip().upper() == 'C' for a in atoms)
             if has_metal and not has_carbon:
                 for a in atoms:
-                    if a.coords not in metal_coords:  # non-metal core atoms only
-                        coords.add(a.coords)
+                    if a.coords in metal_coords:      # metals stay M*
+                        continue
+                    if (a.element or '').strip().upper() == 'H':
+                        continue                      # bonded to a core atom, not the metal
+                    coords.add(a.coords)
         return coords
 
     def _convert_preprocessing_types(
@@ -2393,6 +2566,134 @@ class MetalSiteWorkflowManager:
         self.console.print(f"[grey50]Converted {len(type_assignments)} types for RedoxSite atoms[/grey50]")
         return type_assignments
 
+    def _site_models_dir(self) -> Path:
+        """THIS site's ``models/`` directory.
+
+        ``step_results`` is restored in ``__init__`` from ``mcpb_step_results``,
+        a single workspace key every site shares, so ``step_1`` belongs to
+        whichever site wrote it last. The checklist sets ``step_3a`` per site,
+        so prefer that and fall back to step_1 only for the standalone workflow.
+
+        Reading step_1 unconditionally is what cross-wired site 1 to site 2's
+        standard.fingerprint: their PDB serial ranges do not overlap, every
+        atom-type lookup missed, and the mol2 files -- and the libraries built
+        from them -- were written with the ``XX`` placeholder type. tleap then
+        had no parameter for anything in that site.
+        """
+        out_dir = (self.step_results.get("step_3a") or {}).get("output_dir")
+        if out_dir:
+            return Path(out_dir)
+
+        output_files = (self.step_results.get("step_1") or {}).get("output_files") or {}
+        for key in ("standard_fingerprint", "large_pdb"):
+            recorded = output_files.get(key)
+            if recorded:
+                return Path(recorded).parent
+
+        raise ValueError("Cannot locate this site's models directory")
+
+    def _water_model(self) -> str:
+        """The LJ-table water model for the system being prepared.
+
+        Metal Lennard-Jones parameters are fitted against a specific water
+        model, so the frcmod has to use the set matching the model the system
+        is solvated in. This was hardcoded to tip3p, which quietly gave every
+        non-TIP3P system the wrong metal LJ terms.
+        """
+        leaprc = ""
+        workspace = getattr(self, 'workspace', None)
+        if workspace is None and getattr(self, 'processor', None) is not None:
+            try:
+                workspace = self.processor._get_workspace()
+            except Exception:  # noqa: BLE001 — no workspace is not an error here
+                workspace = None
+        if workspace is not None:
+            try:
+                leaprc = workspace.get("preprocessing_water_model", "") or ""
+            except Exception:  # noqa: BLE001
+                leaprc = ""
+
+        return water_model_from_leaprc(leaprc, logger=self.logger)
+
+    def _collect_metal_radii(self, type_assignments: Dict) -> Dict[str, float]:
+        """``{element: vdW radius}`` for the site's metals, for MK ReadRadii.
+
+        ReadRadii tells Gaussian to read custom van der Waals radii for the
+        Merz-Kollman ESP fit; without them a metal gets no radius of its own and
+        its ESP sampling falls back to Gaussian's defaults.
+
+        Sourced from the METAL ATOMS in ``type_assignments``, not from
+        ``redox_site.centers``. A center's ``coords`` is the metal atom only for
+        a lone ``metal_ion``; for an organometallic cofactor or a pure cluster
+        (FES, MOS) the center describes the RESIDUE — its ``element`` is None
+        and its ``coords`` are not any atom's — so the old center-based lookup
+        matched nothing and every cluster site silently emitted a bare
+        ``Pop=MK``. ``type_assignments`` already marks each metal atom
+        ``is_center``, carrying its element and the charge the user entered.
+        """
+        metal_radii: Dict[str, float] = {}
+        radius_charges: Dict[str, int] = {}
+        metal_db = MetalIonDatabase(water_model=self._water_model(), logger=self.logger)
+
+        for _coords, assignment in type_assignments.items():
+            if isinstance(assignment, dict):
+                if not assignment.get('is_center'):
+                    continue
+                element = assignment.get('element')
+                charge_val = assignment.get('charge')
+            else:
+                if not getattr(assignment, 'is_center', False):
+                    continue
+                element = getattr(assignment, 'element', None)
+                charge_val = getattr(assignment, 'charge', None)
+
+            if not element or charge_val is None:
+                continue
+
+            # Normalize element symbol (e.g., 'ZN' -> 'Zn')
+            element_norm = (element[0].upper() + element[1:].lower()
+                            if len(element) > 1 else element.upper())
+            radius = metal_db.get_vdw_radius(element_norm, int(charge_val))
+            if not radius:
+                continue
+
+            # Gaussian's ReadRadii block is per ELEMENT, so two metals of the
+            # same element in different oxidation states cannot each carry
+            # their own radius. Keep the first and say so.
+            if element_norm in metal_radii:
+                if radius_charges.get(element_norm) != int(charge_val):
+                    self.console.print(
+                        f"[yellow]  {element_norm} appears at charge "
+                        f"{radius_charges[element_norm]:+d} and {int(charge_val):+d}; "
+                        f"ReadRadii is per element, so "
+                        f"{metal_radii[element_norm]:.3f} Å is used for both.[/yellow]")
+                continue
+
+            metal_radii[element_norm] = radius
+            radius_charges[element_norm] = int(charge_val)
+            self.console.print(
+                f"[grey50]  Metal radius: {element_norm} = {radius:.3f} Å[/grey50]")
+
+        if not metal_radii:
+            self.console.print(
+                "[yellow]  No metal radii resolved — the ESP will use Gaussian's "
+                "defaults (Pop=MK without ReadRadii).[/yellow]")
+        return metal_radii
+
+    @staticmethod
+    def _default_large_model_solvation(small_scrf: str, large_charge: int) -> bool:
+        """Whether to pre-answer yes to solvating the large model.
+
+        Yes when the small model was solvated — running the two models at
+        different levels of theory should be a deliberate act, not the result
+        of pressing Enter. Otherwise yes only for an anion, where implicit
+        solvation improves SCF convergence and the charge distribution the ESP
+        is fitted to.
+
+        The user is still asked either way; this only sets the default.
+        """
+        return bool(small_scrf) or large_charge < 0
+
     def _collect_metal_charges(
         self,
         type_assignments: Dict,
@@ -2400,11 +2701,24 @@ class MetalSiteWorkflowManager:
         interactive: bool
     ) -> Dict:
         """
-        Collect charges and spins for metal atoms from user.
+        Collect formal charges (and metal spins) for atoms with no prmtop charge.
 
-        Metals aren't in the prmtop (they were removed before tLEaP and
-        reinserted after), so we need to prompt the user for their
-        formal charge and spin state.
+        Two groups need this, both because they were removed before tLEaP:
+
+        - Metals, which are reinserted afterwards. They need a formal charge and
+          a spin state; the charge also keys the van der Waals radius lookup.
+        - A withheld cluster's non-metal core atoms — the bridging sulfides of
+          an Fe-S cluster, the S/O core of a Mo cofactor. A pure inorganic
+          cluster is withheld from the force-field pass as a whole residue, so
+          these carry no partial charge either.
+
+        Both are marked the same way: ``charge is None`` on a site atom, with
+        ``is_center`` separating the metals from the rest. Collecting only the
+        metals left the core atoms at None, which the PDB writer counts as 0.0,
+        so the suggested QM charge came out high by their formal charge — an
+        Fe2S2 site proposed +2 where ``[Fe2S2(SCys)4]2-`` is -2. Correcting that
+        by inflating a metal's charge is worse than it looks: the metal charge is
+        also the vdW-radius key and is stored in the deposited library.
 
         Args:
             type_assignments: Dict of coord -> assignment dict
@@ -2412,27 +2726,34 @@ class MetalSiteWorkflowManager:
             interactive: Whether to prompt interactively
 
         Returns:
-            Updated type_assignments with metal charges/spins filled in
+            Updated type_assignments with charges/spins filled in
         """
-        # Find metals (atoms with charge=None that are marked as centers)
+        # Split the charge-less site atoms: centers are metals (charge + spin +
+        # vdW), everything else is withheld-cluster core (formal charge only).
         metals_needing_charge = []
+        core_atoms_needing_charge = []
         for coords, assignment in type_assignments.items():
-            if assignment.get('charge') is None and assignment.get('is_center'):
+            if assignment.get('charge') is not None:
+                continue
+            if assignment.get('is_center'):
                 metals_needing_charge.append((coords, assignment))
+            else:
+                core_atoms_needing_charge.append((coords, assignment))
 
-        if not metals_needing_charge:
+        if not metals_needing_charge and not core_atoms_needing_charge:
             return type_assignments
 
         n_metals = len(metals_needing_charge)
-        self.console.print(f"\n[bold]Metal Charge Collection[/bold]")
-        self.console.print(f"[grey50]Metals aren't in prmtop - need user input for charge/spin[/grey50]")
-        if n_metals > 1:
-            self.console.print(
-                f"[grey50]{n_metals} metals in this site are set one at a time; "
-                f"the residue ID below identifies which one.[/grey50]"
-            )
+        if n_metals:
+            self.console.print("\n[bold]Metal Charge Collection[/bold]")
+            self.console.print("[grey50]Metals aren't in prmtop - need user input for charge/spin[/grey50]")
+            if n_metals > 1:
+                self.console.print(
+                    f"[grey50]{n_metals} metals in this site are set one at a time; "
+                    f"the residue ID below identifies which one.[/grey50]"
+                )
 
-        metal_db = MetalIonDatabase(water_model='tip3p', logger=self.logger)
+        metal_db = MetalIonDatabase(water_model=self._water_model(), logger=self.logger)
 
         for metal_idx, (coords, assignment) in enumerate(metals_needing_charge, 1):
             element = assignment.get('element', '')
@@ -2457,10 +2778,16 @@ class MetalSiteWorkflowManager:
             if interactive:
                 # Prompt for charge — include the residue so the input line is
                 # self-identifying even when scrolled back.
+                # Name the ATOM, not just the residue. A cluster residue holds
+                # several metals, so "formal charge for FES residue 1311" is
+                # asked twice, identically, for FE1 and then FE2 — and the two
+                # can legitimately differ (a mixed-valence Fe(III)/Fe(II) pair).
+                # The core-atom prompts below already name their atom.
                 while True:
                     charge_input = prompt_with_context(
                         self.processor,
-                        f"Enter formal charge for {resname} {location} (e.g., +2, +3, -1)",
+                        f"Enter formal charge for {resname} {location} atom "
+                        f"{atom_name} ({element}) (e.g., +2, +3, -1)",
                         module="Metal Site Parameterizer",
                         description="Metal formal charge",
                     ).strip()
@@ -2474,7 +2801,8 @@ class MetalSiteWorkflowManager:
                 while True:
                     spin_input = prompt_with_context(
                         self.processor,
-                        f"Enter unpaired electrons for {resname} {location} (e.g., 0, 1, 5)",
+                        f"Enter unpaired electrons for {resname} {location} atom "
+                        f"{atom_name} ({element}) (e.g., 0, 1, 5)",
                         module="Metal Site Parameterizer",
                         description="Metal unpaired electrons",
                     ).strip()
@@ -2515,12 +2843,116 @@ class MetalSiteWorkflowManager:
                 assignment['vdw_params'] = {
                     'radius': metal_config.vdw_radius,
                     'epsilon': metal_config.vdw_epsilon,
-                    'source': 'MetalIonDatabase'
+                    'source': metal_config.vdw_source or 'MetalIonDatabase'
                 }
+                # These become the metal's Lennard-Jones terms in the frcmod
+                # NONB section. When the database had no parameters for this
+                # (element, charge) it returns a generic placeholder and logs
+                # "VERIFY MANUALLY" — easy to miss next to the ESP radius,
+                # which is a DIFFERENT quantity from a different table and may
+                # well have resolved. Say plainly which one is a placeholder.
+                if 'fallback' in str(metal_config.vdw_source or '').lower():
+                    self.console.print(
+                        f"  [yellow]⚠ {element} {charge:+d} has no tabulated "
+                        f"Lennard-Jones parameters; the frcmod will carry a "
+                        f"generic placeholder (r={metal_config.vdw_radius}, "
+                        f"eps={metal_config.vdw_epsilon}). This is the force-field "
+                        f"vdW term, not the ESP radius — supply a value before "
+                        f"using these parameters.[/yellow]")
+            else:
+                # No radius for this (element, charge). Usually the charge is not
+                # a real oxidation state for the element — which is what happens
+                # when someone compensates on the metal for a core atom that
+                # contributed nothing to the total. Say so here rather than
+                # silently leaving the site without a metal radius: this charge
+                # is also stored in the deposited library.
+                self.console.print(
+                    f"  [yellow]⚠ No van der Waals radius for {element or '?'} "
+                    f"at charge {charge:+d}. Check that this is the intended "
+                    f"oxidation state — the formal charge of a cluster's "
+                    f"bridging/core atoms is asked separately below.[/yellow]"
+                )
 
-            self.console.print(f"  [green]✓ {resname} {location}: charge={charge:+d}, spin={spin}[/green]")
+            self.console.print(
+                f"  [green]✓ {resname} {location} {atom_name}: "
+                f"charge={charge:+d}, spin={spin}[/green]")
+
+        # ------------------------------------------------------------------
+        # Withheld-cluster core atoms (bridging sulfides, Mo-S/O core)
+        # ------------------------------------------------------------------
+        # These have no prmtop charge for the same reason the metals don't: the
+        # cluster is withheld from the force-field pass as a whole residue. They
+        # need only a formal charge — no spin, no vdW, and nothing downstream
+        # reads them as partial charges (step 3B's RESP restraints take their
+        # charges from preprocessing_atom_data, not from here).
+        if core_atoms_needing_charge:
+            self._collect_cluster_core_charges(core_atoms_needing_charge, interactive)
 
         return type_assignments
+
+    def _collect_cluster_core_charges(self, core_atoms: List, interactive: bool) -> None:
+        """Ask for the formal charge of each withheld-cluster core atom.
+
+        Mutates each assignment in place. Left at None, these atoms are summed
+        as 0.0 by the PDB writer and the suggested QM charge comes out short by
+        their formal charge.
+
+        Args:
+            core_atoms: List of (coords, assignment) with charge still None.
+            interactive: Whether to prompt. Non-interactive runs leave the
+                charges at 0.0 and say so — there is no defensible default
+                across a sulfide, an oxo and a hydroxo.
+        """
+        n_core = len(core_atoms)
+        self.console.print("\n[bold]Cluster Core Atom Charges[/bold]")
+        self.console.print(
+            f"[grey50]{n_core} atom(s) belong to a withheld cluster residue, so they "
+            f"carry no prmtop charge. Their formal charge completes the QM total "
+            f"(a bridging sulfide is S2-, a terminal oxo O2-).[/grey50]"
+        )
+
+        if not interactive:
+            for _coords, assignment in core_atoms:
+                assignment['charge'] = 0.0
+            self.console.print(
+                "[yellow]  Non-interactive: left at 0. The suggested QM charge "
+                "will be short by these atoms' formal charge.[/yellow]"
+            )
+            return
+
+        for _coords, assignment in core_atoms:
+            resname = assignment.get('resname', '')
+            atom_name = assignment.get('atom_name', '')
+            element = assignment.get('element', '')
+            chain = assignment.get('chain', '')
+            resid = assignment.get('resid', '')
+
+            if chain and str(chain).strip():
+                location = f"{chain}:{resid}"
+            elif resid not in (None, ''):
+                location = f"residue {resid}"
+            else:
+                location = atom_name
+
+            while True:
+                raw = prompt_with_context(
+                    self.processor,
+                    f"Formal charge for {resname} {location} atom {atom_name} "
+                    f"({element}) (e.g., -2, -1, 0)",
+                    module="Metal Site Parameterizer",
+                    description="Withheld-cluster core atom formal charge",
+                ).strip()
+                try:
+                    core_charge = int(raw.replace('+', ''))
+                    break
+                except ValueError:
+                    self.console.print("[red]Invalid charge format[/red]")
+
+            assignment['charge'] = float(core_charge)
+            self.console.print(
+                f"  [green]✓ {resname} {location} {atom_name}: "
+                f"charge={core_charge:+d}[/green]"
+            )
 
     def _manual_metal_entry(self, atom, charge: int, spin: int) -> MetalConfig:
         """
@@ -2564,20 +2996,24 @@ class MetalSiteWorkflowManager:
             vdw_radius=1.5,
             vdw_epsilon=0.01,
             vdw_source=f"Manual entry for {element}{charge:+d} (VERIFY)",
-            water_model='tip3p'
+            water_model=self._water_model()
         )
 
     def _print_withheld_cluster_charge_note(self, redox_site, type_assignments) -> None:
-        """Warn that the suggested QM charge omits withheld-cluster atoms.
+        """Warn that the suggested QM charge omits atoms with no charge at all.
 
         A pure metal cluster (Fe-S, etc.) is removed from the prmtop as a whole
-        residue, so its non-metal atoms (the bridging sulfides) carry no partial
-        charge and contribute 0 to the suggested total. The user-entered metal
-        charges ARE counted, but the bridging atoms' formal charge is not — so
-        the suggestion runs high and must be corrected to the real net charge of
-        the target oxidation/spin state. Coordinates key type_assignments and
-        are stable across tLEaP renumbering, so a None charge on a site atom is a
-        reliable marker of a withheld cluster atom.
+        residue, so neither its metals nor its non-metal core atoms (the bridging
+        sulfides, a Mo-S-O core) arrive with a charge. Both are now asked for in
+        _collect_metal_charges, so in the normal path nothing is left at None and
+        this prints nothing.
+
+        It remains as a safety net for an atom that reaches the model without
+        passing through that collection — a gap residue merged in later, or a
+        non-interactive run that left the core atoms at 0. Anything still None
+        contributes 0.0 to the suggested total, so the suggestion runs high.
+        Coordinates key type_assignments and are stable across tLEaP
+        renumbering, so a None charge on a site atom is a reliable marker.
         """
         names = []
         for atom in getattr(redox_site, 'atoms', []) or []:
@@ -2603,14 +3039,12 @@ class MetalSiteWorkflowManager:
 
         shown = ", ".join(names[:6]) + (" ..." if len(names) > 6 else "")
         self.console.print(
-            f"[yellow]⚠ This suggestion omits {len(names)} withheld cluster atom(s) "
-            f"({shown}) that have no prmtop charge — e.g. the bridging sulfides of "
-            f"an Fe-S cluster.[/yellow]"
+            f"[yellow]⚠ This suggestion omits {len(names)} atom(s) ({shown}) that "
+            f"still carry no charge and were counted as 0.[/yellow]"
         )
         self.console.print(
-            "[yellow]  Their formal charge is not in the sum, so the true net charge "
-            "is likely more negative. Set the value for your target oxidation/spin "
-            "state.[/yellow]"
+            "[yellow]  Their formal charge is not in the sum, so correct the value "
+            "to the real net charge of your target oxidation/spin state.[/yellow]"
         )
 
     def _apply_systematic_renaming(self, redox_site: RedoxSite, type_assignments: Dict,
@@ -2637,10 +3071,8 @@ class MetalSiteWorkflowManager:
         Returns:
             Updated type assignments with renamed atoms
         """
-        # Systematic renaming: M1-M9, MA-MZ for metals; Y1-Y9, YA-YZ for ligands
-        # NOTE: Using Y prefix to match MCPB conventions and GlobalAtomTypeRegistry
-        metal_names = [f"M{i}" for i in range(1, 10)] + [f"M{chr(65+i)}" for i in range(26)]
-        ligand_names = [f"Y{i}" for i in range(1, 10)] + [f"Y{chr(65+i)}" for i in range(26)]
+        metal_names = MCPB_METAL_TYPE_NAMES
+        ligand_names = MCPB_LIGAND_TYPE_NAMES
 
         metal_index = metal_start
         ligand_index = ligand_start
@@ -5219,14 +5651,16 @@ class MetalSiteWorkflowManager:
             return {"success": False, "message": "Step 1 not completed"}
 
         # Get output directory from models
-        step1_dir = Path(self.step_results["step_1"]["output_files"]["large_pdb"]).parent
+        step1_dir = self._site_models_dir()
 
         # Create charge_fit directory
         step3_dir = step1_dir.parent / "charge_fit"
         step3_dir.mkdir(parents=True, exist_ok=True)
 
         # Locate large.pdb from Step 1 (NOT optimized from Step 2B)
-        large_pdb = Path(self.step_results["step_1"]["output_files"]["large_pdb"])
+        large_pdb = step1_dir / "large.pdb"
+        if not large_pdb.exists():
+            large_pdb = Path(self.step_results["step_1"]["output_files"]["large_pdb"])
 
         if not large_pdb.exists():
             self.console.print(f"[red]Error: large.pdb not found: {large_pdb}[/red]")
@@ -5408,10 +5842,19 @@ transferability and prevent charge overfitting.""",
             type_assignments = {}
             if "step_1" in self.step_results:
                 ff_data = self.step_results["step_1"].get("force_field_info", {}).get("ff_data")
-                type_assignments = self.step_results["step_1"].get("type_assignments", {})
+                # Copied: the prmtop merge below adds keys, and this dict is
+                # the live one in step_results.
+                type_assignments = dict(
+                    self.step_results["step_1"].get("type_assignments", {}))
             workspace = self.processor._get_workspace() if self.processor else None
-            if not type_assignments and workspace:
-                # Rebuild type_assignments from preprocessing_atom_data (prmtop data)
+            if workspace:
+                # Merge in preprocessing_atom_data (prmtop charges) ALWAYS, not
+                # only when type_assignments is empty. step_1 stores the
+                # site-only assignments, so a gap residue bridging the model —
+                # the ARG between two coordinating CYS — is absent from them,
+                # and its group constraint would fall back to 0 and neutralize
+                # a +1 residue that the ESP was computed with.
+                #
                 # atom_data keys are ('', resid, resname, atom_name) -> {'type', 'charge'}
                 # type_assignments needs coord -> {'resname', 'atom_name', 'charge'}
                 # Since we don't have coords, use a dummy key — the RESP generator
@@ -5422,6 +5865,8 @@ transferability and prevent charge overfitting.""",
                         if isinstance(key, (tuple, list)) and len(key) >= 4:
                             _, resid, resname, atom_name = key[:4]
                             dummy_key = (resid, resname, atom_name)  # unique enough
+                            if dummy_key in type_assignments:
+                                continue  # site assignments win
                             type_assignments[dummy_key] = {
                                 'resname': resname,
                                 'atom_name': atom_name,
@@ -5639,7 +6084,7 @@ transferability and prevent charge overfitting.""",
             return {"success": False, "message": "Step 3C not completed"}
 
         # Check for bond topology from bonded parameter generation
-        step1_dir = Path(self.step_results["step_1"]["output_files"]["standard_fingerprint"]).parent
+        step1_dir = self._site_models_dir()
         step2_dir = step1_dir.parent / "bonded_params"
         bond_topology_file = step2_dir / "bond_topology.json"
 
@@ -5656,7 +6101,12 @@ transferability and prevent charge overfitting.""",
             # Get paths
             output_dir = Path(self.step_results["step_3a"]["output_dir"])
             large_pdb = Path(self.step_results["step_3a"]["large_pdb"])
-            standard_fp = Path(self.step_results["step_1"]["output_files"]["standard_fingerprint"])
+            # Must be THIS site's fingerprint: the shared step_1 points at
+            # whichever site ran last, whose PDB serials do not overlap.
+            standard_fp = step1_dir / "standard.fingerprint"
+            if not standard_fp.exists():
+                standard_fp = Path(
+                    self.step_results["step_1"]["output_files"]["standard_fingerprint"])
             charges = self.step_results["step_3c"]["fitted_charges"]
 
             # Get metal-site residue IDs for mol2 filtering
@@ -5923,7 +6373,7 @@ Generator.
         selected = []
         for chain, resid, resname, coord_atoms in coordinating:
             atoms_str = ", ".join(coord_atoms)
-            self.console.print(f"  [x] {chain}:{resid} {resname:3s}  ({atoms_str} coordinate to metal)")
+            self.console.print(f"  \\[x] {chain}:{resid} {resname:3s}  ({atoms_str} coordinate to metal)")
             selected.append((chain, resid))
 
         # Always include metal ions
@@ -5932,7 +6382,7 @@ Generator.
                 # Find residue name
                 for atom in redox_site.atoms:
                     if atom.chain == chain and atom.resid == resid:
-                        self.console.print(f"  [x] {chain}:{resid} {atom.resname:3s}  (metal center)")
+                        self.console.print(f"  \\[x] {chain}:{resid} {atom.resname:3s}  (metal center)")
                         selected.append((chain, resid))
                         break
 
@@ -5965,12 +6415,40 @@ Generator.
         use_gly = True
         if interactive and small_model.has_single_residue_gaps(selected):
             from proprep.utils.prompts import confirm_with_context
+
+            # Name the residue GLY would displace and what that does to the
+            # charge. The small model exists for the Seminario force constants,
+            # so a bridging residue is there to keep the backbone contiguous --
+            # answering no pulls in its full sidechain and its charge.
+            gap_note = "Use GLY to bridge small-model 1-residue gaps"
+            gap_preview = small_model.preview_gap_residues(selected, max_gap=1)
+            if gap_preview:
+                self.console.print("\n[bold]Residues in these gaps:[/bold]")
+                for chain, resid, resname, charge in gap_preview:
+                    suffix = f" (formal charge {charge:+d})" if charge else ""
+                    style = "yellow" if charge else "white"
+                    self.console.print(
+                        f"  {chain}:{resid} [{style}]{resname}[/{style}]{suffix}")
+
+                delta = sum(c for *_rest, c in gap_preview)
+                if delta:
+                    charged = ", ".join(f"{ch}:{ri} {rn} ({c:+d})"
+                                        for ch, ri, rn, c in gap_preview if c)
+                    self.console.print(
+                        f"  [yellow]⚠ Answering no keeps {charged} in the small "
+                        f"model, changing its net charge by {delta:+d} and "
+                        f"adding a flexible sidechain to the frequency "
+                        f"calculation.[/yellow]")
+                    gap_note = (f"Use GLY to bridge small-model 1-residue gaps; "
+                                f"keeping {charged} changes the model charge by "
+                                f"{delta:+d}")
+
             use_gly = confirm_with_context(
                 self.processor,
                 "Bridge 1-residue gaps with neutral GLY (vs the actual PDB residue)?",
                 default=True,
                 module="MCPB Step 1",
-                description="Use GLY to bridge small-model 1-residue gaps",
+                description=gap_note,
             )
 
         # Build model
@@ -6015,7 +6493,7 @@ Generator.
                 if c == chain and r == resid:
                     resname = n
                     atoms_str = ", ".join(atoms)
-                    self.console.print(f"  [x] {chain}:{resid} {resname:3s}  ({atoms_str})")
+                    self.console.print(f"  \\[x] {chain}:{resid} {resname:3s}  ({atoms_str})")
                     break
 
         # Gap filling options
@@ -6030,9 +6508,39 @@ Generator.
                     self.processor, "Fill gaps up to how many residues?", default=5,
                     module="MCPB Step 1", description="Maximum gap size"
                 )
+
+                # Name the residues GLY would displace, and what that does to
+                # the model's charge. Substituting a charged residue shifts the
+                # total, which then propagates into the QM charge and the RESP
+                # constraint; without this the two answers look interchangeable.
+                gap_preview = large_model.preview_gap_residues(selected, max_gap)
+                gly_note = "Use GLY for gap filling"
+                if gap_preview:
+                    self.console.print("\n[bold]Residues in these gaps:[/bold]")
+                    for chain, resid, resname, charge in gap_preview:
+                        if charge:
+                            self.console.print(
+                                f"  {chain}:{resid} [yellow]{resname}[/yellow] "
+                                f"(formal charge {charge:+d})")
+                        else:
+                            self.console.print(f"  {chain}:{resid} {resname}")
+
+                    delta = sum(c for *_rest, c in gap_preview)
+                    if delta:
+                        charged = ", ".join(
+                            f"{ch}:{ri} {rn} ({c:+d})"
+                            for ch, ri, rn, c in gap_preview if c)
+                        self.console.print(
+                            f"  [yellow]⚠ Answering yes replaces {charged} with "
+                            f"neutral GLY, changing the large model's net charge "
+                            f"by {-delta:+d}.[/yellow]")
+                        gly_note = (f"Use GLY for gap filling; substituting "
+                                    f"{charged} changes the model charge by "
+                                    f"{-delta:+d}")
+
                 use_gly = confirm_with_context(
                     self.processor, "Use GLY for gap filling (vs actual PDB residues)?", default=True,
-                    module="MCPB Step 1", description="Use GLY for gap filling"
+                    module="MCPB Step 1", description=gly_note
                 )
 
                 # Build with gap filling

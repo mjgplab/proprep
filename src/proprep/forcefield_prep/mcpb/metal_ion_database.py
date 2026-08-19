@@ -17,6 +17,47 @@ from dataclasses import dataclass
 import logging
 
 
+# Water models with their own metal LJ set. Anything else has to borrow one.
+SUPPORTED_WATER_MODELS = ('tip3p', 'spce', 'tip4pew', 'opc3', 'opc', 'fb3', 'fb4')
+
+# Models ProPrep offers that have no LJ set of their own, and the closest one
+# that does. tip5p has no counterpart at all, so it takes the tip3p default.
+_WATER_MODEL_SUBSTITUTES = {
+    'opc3pol': 'opc3',   # polarizable OPC3
+    'spceb': 'spce',     # SPC/E-b
+}
+
+
+def water_model_from_leaprc(leaprc: str, logger=None) -> str:
+    """The LJ-table water model named by a ``leaprc.water.<model>`` string.
+
+    Metal LJ parameters are fitted per water model -- Fe3+ is (1.386, 0.01357)
+    against TIP3P but (1.400, 0.01571) against OPC -- so the model the system
+    will actually be solvated in decides which set is correct.
+
+    Matched on the exact leaprc suffix. A substring test would send
+    ``leaprc.water.opc3`` to the OPC set, since "opc" is inside "opc3".
+    """
+    log = logger or logging.getLogger(__name__)
+    name = (leaprc or '').strip().lower().rsplit('.', 1)[-1]
+
+    if not name:
+        return 'tip3p'
+    if name in SUPPORTED_WATER_MODELS:
+        return name
+    if name in _WATER_MODEL_SUBSTITUTES:
+        substitute = _WATER_MODEL_SUBSTITUTES[name]
+        log.warning(
+            f"No metal Lennard-Jones set is published for the {name} water "
+            f"model; using the {substitute} set.")
+        return substitute
+
+    log.warning(
+        f"No metal Lennard-Jones set is published for the {name} water model; "
+        f"using tip3p parameters.")
+    return 'tip3p'
+
+
 @dataclass
 class MetalConfig:
     """Complete configuration for a metal ion"""
@@ -302,7 +343,7 @@ class MetalIonDatabase:
         self.logger = logger or logging.getLogger(__name__)
 
         # Validate water model
-        if self.water_model not in ['tip3p', 'spce', 'tip4pew', 'opc3', 'opc', 'fb3', 'fb4']:
+        if self.water_model not in SUPPORTED_WATER_MODELS:
             self.logger.warning(
                 f"Water model '{water_model}' not fully supported. "
                 f"Falling back to tip3p parameters."
@@ -471,26 +512,96 @@ class MetalIonDatabase:
                 if iod_key in params:
                     return params[iod_key]
 
-        # No IOD parameters available for this element/charge combination
+        # The IOD tables above cover ions with a measured ion-oxygen distance,
+        # which excludes metals that do not exist as free aqueous ions. MCPB.py
+        # carries a wider table that fills those in from UFF -- Mo(VI), for one,
+        # is there as 'Mo6' and would otherwise reach the placeholder below.
+        mcpb = self._mcpb_lj_params(element, charge)
+        if mcpb:
+            return mcpb
+
+        # No parameters available for this element/charge combination
         self.logger.warning(
             f"No IOD parameters found for {element} with charge {charge:+d}. "
             f"Using generic fallback values (VERIFY MANUALLY)."
         )
         return (1.5, 0.01, f'Generic fallback for {element}{charge:+d} (VERIFY MANUALLY)')
 
+    # MCPB.py's LJ table, per water model. Keyed by water model because the
+    # IOD entries in it differ between models; the UFF-derived ones do not.
+    _LJ_TABLES: Dict[str, Dict[str, tuple]] = {}
+
+    @classmethod
+    def _mcpb_lj_table(cls, water_model: str) -> Dict[str, tuple]:
+        """MCPB.py's IonLJParaDict for one water model, or {} without pymsmt."""
+        if water_model not in cls._LJ_TABLES:
+            try:
+                from pymsmt.mol.element import get_ionljparadict
+                # Table keys are padded to a fixed width ('K1 ', 'Mg2').
+                cls._LJ_TABLES[water_model] = {
+                    k.strip(): v for k, v in get_ionljparadict(water_model).items()
+                }
+            except Exception:  # noqa: BLE001 — AmberTools may not be installed
+                cls._LJ_TABLES[water_model] = {}
+        return cls._LJ_TABLES[water_model]
+
+    def _mcpb_lj_params(self, element: str, charge: int):
+        """(radius, epsilon, source) from MCPB.py's table, or None.
+
+        Keys are the element symbol followed by the charge magnitude, with a
+        leading minus for anions: 'Fe3', 'Mo6', 'Cl-1'.
+        """
+        if not element:
+            return None
+        symbol = element.strip().capitalize()
+        key = f"{symbol}-{abs(charge)}" if charge < 0 else f"{symbol}{charge}"
+        return self._mcpb_lj_table(self.water_model).get(key)
+
+    # MCPB.py's own MK radius table, loaded once. Class-level so the import is
+    # attempted a single time per process.
+    _MK_RADII: Optional[Dict[str, tuple]] = None
+
+    @classmethod
+    def _mcpb_mk_radii(cls) -> Dict[str, tuple]:
+        """MCPB.py's vdwRadiiDict2023, or {} if pymsmt is not importable."""
+        if cls._MK_RADII is None:
+            try:
+                from pymsmt.mol.element import vdwRadiiDict2023
+                cls._MK_RADII = dict(vdwRadiiDict2023)
+            except Exception:  # noqa: BLE001 — AmberTools may not be installed
+                cls._MK_RADII = {}
+        return cls._MK_RADII
+
     def get_vdw_radius(self, element: str, charge: int) -> Optional[float]:
         """
-        Get VDW radius for a metal ion.
+        Radius for Gaussian's Merz-Kollman ESP fit, Pop(MK,ReadRadii).
 
-        Used for Gaussian ESP calculations with Pop(MK,ReadRadii).
+        This is NOT the force-field Lennard-Jones radius. It is the sampling
+        radius that decides how close to the nucleus ESP grid points may fall,
+        so it is looked up separately from the IOD parameters that feed the
+        frcmod NONBON section (``_get_vdw_params``, unchanged).
+
+        Preferred source is MCPB.py's own ``vdwRadiiDict2023`` — the table
+        MCPB.py writes into its ReadRadii block, from Smith et al. JCTC 2023,
+        19, 2064, with 267 entries carrying their provenance. The IOD tables
+        used for force-field parameters only run to tetravalent, so a Mo(VI)
+        cofactor could never resolve there and fell to a generic 1.5 A with no
+        cited source.
 
         Args:
             element: Element symbol (e.g., 'Zn', 'Cu', 'Fe')
             charge: Formal charge (e.g., 2 for Zn2+)
 
         Returns:
-            VDW radius in Angstroms, or None if not found
+            Radius in Angstroms, or None if neither source has one.
         """
+        entry = self._mcpb_mk_radii().get(f"{element}{charge}")
+        if entry:
+            try:
+                return float(entry[0])
+            except (TypeError, ValueError, IndexError):
+                pass
+
         radius, _, _ = self._get_vdw_params(element, charge)
         return radius
 

@@ -506,6 +506,27 @@ def _convert_mol2_to_lib(
         return []
 
 
+def _inferred_prerequisites(paths) -> dict:
+    """``{"prerequisites": {...}}`` for a deposit, or ``{}`` when undeterminable."""
+    try:
+        from proprep.forcefield_params.prerequisites import infer_leaprc_groups
+        groups = infer_leaprc_groups(list(paths))
+    except Exception as exc:  # noqa: BLE001 - a deposit must not fail on this
+        logger.debug("Could not infer prerequisites: %s", exc)
+        return {}
+    return {"prerequisites": {"leaprc_groups": groups}} if groups else {}
+
+
+def _slug(text: str) -> str:
+    """A filesystem-safe stem from a library entry name.
+
+    Entry names are already slug-like (``4hux_fe2s2``); this only guards a
+    name typed with spaces or punctuation from producing an awkward filename.
+    """
+    cleaned = "".join(c if (c.isalnum() or c in "-_") else "_" for c in (text or ""))
+    return cleaned.strip("_")
+
+
 def create_ff_library(
     site_type: str,
     description: str,
@@ -611,8 +632,21 @@ def create_ff_library(
         # in frcmod_files isn't staged twice.
         staged_frcmod = []
         seen_frcmod_names = set()
+        bonded_seen = 0
         for frcmod_path in [*frcmod_files, *(extra_frcmod_files or [])]:
             name = Path(frcmod_path).name
+
+            # The MCPB bonded frcmod is named after the working directory's
+            # site_N, which says nothing once the file is in the library and
+            # collides in meaning across structures. Name it for the entry it
+            # belongs to. Ligand GAFF frcmods keep their own names -- those
+            # identify the ligand and are shared between entries.
+            if frcmod_path in frcmod_files and name.endswith("_bonded.frcmod"):
+                bonded_seen += 1
+                stem = _slug(site_type) or Path(frcmod_path).stem
+                suffix = f"_{bonded_seen}" if bonded_seen > 1 else ""
+                name = f"{stem}{suffix}_bonded.frcmod"
+
             if name in seen_frcmod_names:
                 continue
             seen_frcmod_names.add(name)
@@ -644,7 +678,15 @@ def create_ff_library(
             lib_srcs=lib_srcs,
             redox_state=redox_state,
             spin_state=spin_state,
-            residue_meta={"description": description, "references": []},
+            residue_meta={
+                "description": description,
+                "references": [],
+                # MCPB output uses protein-FF types (N, CT, XC) alongside its
+                # M*/Y*, and an organic ligand's frcmod adds GAFF ones. Record
+                # what must be sourced; nothing declared it before, so the
+                # Topology Generator's prerequisite check had nothing to check.
+                **_inferred_prerequisites([*staged_frcmod, *lib_srcs]),
+            },
             spin_meta={
                 "residue_name": residue_label_map,
                 "atom_types": atom_type_entries,

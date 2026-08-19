@@ -268,6 +268,50 @@ class ModelBuilder:
             for cap_type, count in sorted(cap_counts.items(), key=lambda x: x[0].value):
                 self.console.print(f"    • {cap_type.value}: {count}")
 
+    # Formal charge at neutral pH of the residues a GLY substitution can
+    # neutralize. HIS is left out: HIE/HID are neutral, and HIP is named.
+    _CHARGED_RESIDUES = {
+        'ARG': +1, 'LYS': +1, 'HIP': +1,
+        'ASP': -1, 'GLU': -1, 'ASH': 0, 'GLH': 0, 'LYN': 0,
+    }
+
+    def preview_gap_residues(self, selected_residues: List[Tuple[str, int]],
+                             max_gap: int) -> List[Tuple[str, int, str, int]]:
+        """What ``_fill_gaps`` would bridge: ``(chain, resid, resname, charge)``.
+
+        Answering "use GLY" replaces each of these with a neutral glycine,
+        which changes the large model's net charge by the sum of the charges
+        below. That is easy to miss and it moves the RESP fit: a run that
+        bridged an ARG with the real residue and a run that used GLY differ by
+        one unit of charge on the same site.
+
+        Mirrors ``_fill_gaps``, so anything reported here is a residue that
+        would actually be substituted.
+        """
+        by_chain: Dict[str, List[int]] = {}
+        for chain, resid in selected_residues:
+            by_chain.setdefault(chain, []).append(resid)
+        for chain in by_chain:
+            by_chain[chain].sort()
+
+        preview: List[Tuple[str, int, str, int]] = []
+        for chain, resids in by_chain.items():
+            for resi, resj in zip(resids, resids[1:]):
+                gap_size = resj - resi - 1
+                if not (0 < gap_size <= max_gap):
+                    continue
+                if not (self.is_proteogenic(chain, resi)
+                        and self.is_proteogenic(chain, resj)):
+                    continue
+                for gap_resid in range(resi + 1, resj):
+                    residue = self.residue_map.get((chain, gap_resid))
+                    if residue is None:
+                        continue
+                    resname = residue.get_resname()
+                    preview.append((chain, gap_resid, resname,
+                                    self._CHARGED_RESIDUES.get(resname, 0)))
+        return preview
+
     def _fill_single_residue_gaps(self, selected_residues: List[Tuple[str, int]],
                                   use_gly: bool = False) -> int:
         """

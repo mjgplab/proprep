@@ -52,6 +52,66 @@ def _modaa_output_dirname(residue_name):
     return f"modified_aa_params_{residue_name}"
 
 
+def _imported_library_atom_names(result: dict) -> set:
+    """Non-hydrogen atom names in the library that was just deposited."""
+    from proprep.forcefield_prep.library_promotion import library_atom_names
+
+    state_dir = result.get("state_dir") or result.get("library_path")
+    if not state_dir:
+        return set()
+    names = set()
+    root = Path(state_dir)
+    for lib in sorted(root.glob("*.lib")) + sorted(root.glob("*.off")):
+        names |= library_atom_names(lib)
+    return names
+
+
+def _rank_sites_for_library(redox_sites, residue_name, lib_atom_names):
+    """Detected sites ranked by how well they match an imported library.
+
+    Returns ``[(site, matched_resname, overlap_fraction), ...]``, best first.
+
+    Matching on the library's RESIDUE NAME alone is wrong in the very case a
+    transformer exists for. Parameters for an oxidized FAD might be named FAO
+    while the structure says FAD -- renaming FAD -> FAO is the transformer's
+    whole purpose -- so looking for a site containing FAO finds nothing and
+    would send the user off to define a site that cannot exist.
+
+    Atom names survive the rename. An FAO library derived from FAD still
+    carries FAD's atom names, so composition identifies the target residue
+    whatever it is called. Verified on a real import: the deposited FAD
+    library's 53 non-hydrogen names matched the structure's FAD residue exactly.
+
+    An outright name match short-circuits, being the strongest signal when the
+    names do agree.
+    """
+    wanted = str(residue_name).strip().upper() if residue_name else None
+    ranked = []
+
+    for site in redox_sites:
+        by_residue = {}
+        for atom in getattr(site, "atoms", None) or []:
+            key = (getattr(atom, "resname", "") or "").strip().upper()
+            if key:
+                by_residue.setdefault(key, set()).add(
+                    (getattr(atom, "atom_name", "") or "").strip().upper())
+
+        best_name, best_score = None, 0.0
+        for resname, atom_names in by_residue.items():
+            if wanted and resname == wanted:
+                best_name, best_score = resname, 1.0
+                break
+            if lib_atom_names and atom_names:
+                score = len(atom_names & lib_atom_names) / max(len(atom_names), 1)
+                if score > best_score:
+                    best_name, best_score = resname, score
+        if best_name and best_score > 0:
+            ranked.append((site, best_name, best_score))
+
+    ranked.sort(key=lambda item: item[2], reverse=True)
+    return ranked
+
+
 @register_module
 class ForcefieldParameterizer(ProcessingModule):
     """Module for parameterizing non-standard residues for MD simulations"""
@@ -686,23 +746,33 @@ class ForcefieldParameterizer(ProcessingModule):
         pending_count = len(pending_parameterizations)
 
         # Check for pending work to resume (highest priority)
+        # Option numbers below must track get_menu_options: 1 analyze,
+        # 2 import, 3 parameterize, 4 status, 5 help. They were left at the
+        # pre-"import" numbering and pointed one option short of each action.
         if pending_count > 0:
-            return f"⚠ Found {pending_count} pending parameterization{'s' if pending_count != 1 else ''} to resume. Use option 2 to continue, or view status with option 3"
+            return f"⚠ Found {pending_count} pending parameterization{'s' if pending_count != 1 else ''} to resume. Use option 3 to continue, or view status with option 4"
 
         if not has_analysis:
             if not self.can_process(workspace):
                 return f"{self.availability_note(workspace) or 'A structure is required'}. Load one via the Structure Loader."
             return "Start by analyzing residue classifications (option 1) to identify non-standard residues"
         else:
-            # Count categories
-            metal_sites = sum(1 for res in non_standard_residues if getattr(res, 'category', None) == "metal_site")
-            modified_aas = sum(1 for res in non_standard_residues if getattr(res, 'category', None) == "modified_amino_acid")
-            small_molecules = sum(1 for res in non_standard_residues if getattr(res, 'category', None) == "small_molecule")
+            # Count PARAMETERIZATION UNITS, not residues. Every member of a
+            # metal-site unit is stamped "metal_site", the coordinating ligand
+            # included, so counting residues reported 4UHX's three metal sites
+            # as four (its MoCo site contributes both MOS and its MTE ligand).
+            def _units(category):
+                return len({self._unit_key(res) for res in non_standard_residues
+                            if getattr(res, 'category', None) == category})
+
+            metal_sites = _units("metal_site")
+            modified_aas = _units("modified_amino_acid")
+            small_molecules = _units("small_molecule")
 
             total = metal_sites + modified_aas + small_molecules
 
             if total == 0:
-                return "✓ No non-standard residues requiring parameterization. View help (option 4) or press [m] to return to the main menu"
+                return "✓ No non-standard residues requiring parameterization. View help (option 5) or press [m] to return to the main menu"
 
             # Build breakdown
             parts = []
@@ -714,7 +784,7 @@ class ForcefieldParameterizer(ProcessingModule):
                 parts.append(f"{small_molecules} small molecule{'s' if small_molecules != 1 else ''}")
 
             breakdown = ", ".join(parts)
-            return f"Found {breakdown}. Parameterize with option 2, view status with option 3, or get help with option 4"
+            return f"Found {breakdown}. Parameterize with option 3, view status with option 4, or get help with option 5"
 
     def handle_menu_option(self, option: str) -> bool:
         """Handle menu option selection using command pattern."""
@@ -736,11 +806,154 @@ class ForcefieldParameterizer(ProcessingModule):
         """Standalone import of previously-developed parameters into the library."""
         try:
             from proprep.forcefield_prep.library_promotion import run_import_wizard
-            run_import_wizard(self.console, self.processor)
+            result = run_import_wizard(self.console, self.processor)
         except Exception as e:  # noqa: BLE001 — keep the menu alive on any error
             logger.debug("Import wizard error: %s", e)
             self.console.print(f"[red]Could not import parameters: {e}[/red]")
+            return True
+
+        if result:
+            self._offer_transformer_for_import(result)
         return True
+
+    @staticmethod
+    def _import_forcefield_seed(result: dict) -> dict:
+        """Turn a promotion result into a transformer force-field link.
+
+        ``path`` is relative to ``specialized_residues``, which is how a
+        transformer names a deposited library; ``state_dir`` ends
+        ``.../<redox>/<spin>``.
+        """
+        seed = {}
+        lib_path = result.get("library_path")
+        if lib_path:
+            parts = Path(lib_path).parts
+            if "specialized_residues" in parts:
+                idx = parts.index("specialized_residues")
+                rel = "/".join(parts[idx + 1:])
+                if rel:
+                    seed["path"] = rel
+        state_dir = result.get("state_dir")
+        if state_dir:
+            state_parts = Path(state_dir).parts
+            if len(state_parts) >= 2:
+                seed["redox_state"] = state_parts[-2]
+                seed["spin_state"] = state_parts[-1]
+        # For a small molecule or modified AA the entry name IS the residue the
+        # library parameterizes, so a detected site holding that residue can be
+        # identified. For a METAL SITE it is a site identifier ("4hux_fe2s2"),
+        # naming no residue -- every detected metal site stays a plausible
+        # target there, so no residue name is recorded.
+        residue_name = result.get("residue_name")
+        if not residue_name and seed.get("path"):
+            family, _, entry = seed["path"].partition("/")
+            if family in ("small_molecules", "modified_aa") and entry:
+                residue_name = entry.split("/")[0]
+        if residue_name:
+            seed["residue_name"] = residue_name
+        return seed
+
+    def _offer_transformer_for_import(self, result: dict) -> None:
+        """Offer to build the transformer the imported parameters need.
+
+        Deposited parameters are inert on their own. A transformer is what
+        BINDS them to a site: the Topology Generator resolves parameters
+        through ``transformer.FORCEFIELD_PATH``, so without one the library is
+        unreachable no matter how it is named.
+
+        Renaming is a separate job the same object happens to do. MCPB output
+        needs both (CYS -> CM1, plus the library); a cofactor already named as
+        the library names it needs only the binding, and saves as a
+        pass-through with no edits. Describing the transformer as "the thing
+        that renames" made that second case look like it needed nothing, when
+        it needs a transformer just as much.
+
+        The editor works on a DETECTED redox site, and the import wizard runs
+        without a structure loaded, so this can only be offered when sites are
+        present. When they are not, say what is needed rather than launching
+        into a failure.
+        """
+        seed = self._import_forcefield_seed(result)
+
+        workspace = self.processor._get_workspace() if self.processor else None
+        redox_sites = (workspace.get("detected_redox_sites") if workspace else None) or []
+
+        self.console.print(
+            "\n[bold]Imported parameters need a transformer[/bold]")
+        self.console.print(
+            "[grey50]A transformer is what binds a deposited library to a site: "
+            "the Topology Generator finds parameters through it. If the residues "
+            "also need renaming to the library's names it does that too, and if "
+            "they are already named correctly it is saved as a pass-through with "
+            "no edits — either way the binding is what makes the library "
+            "reachable.[/grey50]")
+
+        # Rank the detected sites by how well they match what was imported
+        # and SAY so, but never refuse on it. Whether a structure residue
+        # should be treated as this library's residue is user knowledge: the
+        # FAD in a structure may well be the FAO these parameters describe, and
+        # that rename is exactly what the transformer is for.
+        if redox_sites:
+            ranked = _rank_sites_for_library(
+                redox_sites, seed.get("residue_name"),
+                _imported_library_atom_names(result))
+            strong = [r for r in ranked if r[2] >= 0.8]
+            if strong:
+                for site, matched, score in strong:
+                    self.console.print(
+                        f"[grey50]  {getattr(site, 'site_id', '?')} contains "
+                        f"{matched} - {score:.0%} of its atoms match the "
+                        f"imported library[/grey50]")
+            else:
+                self.console.print(
+                    "[yellow]  No detected site resembles these parameters."
+                    "[/yellow]")
+                self.console.print(
+                    "[grey50]  If the residue they describe is not a site yet: "
+                    "run the Redox Site Detector to define one, then Redox Site "
+                    "Preparer -> 'Create transformer'. With nothing to rename, "
+                    "type 'save' straight away and accept the pass-through."
+                    + (f"\n  Link it to: {seed['path']}" if seed.get("path") else "")
+                    + "[/grey50]")
+
+        if not redox_sites:
+            self.console.print(
+                "[yellow]No detected redox sites in this session, and the "
+                "transformer editor works on one.[/yellow]")
+            self.console.print(
+                "[grey50]  To add it later: load the structure, run the Redox "
+                "Site Detector, then Redox Site Preparer -> "
+                "'Create transformer (interactive PDB editor)'. With nothing to "
+                "rename, type 'save' straight away and accept the pass-through."
+                + (f"\n  Link it to: {seed['path']}" if seed.get("path") else "")
+                + "[/grey50]")
+            return
+
+        if not confirm_with_context(
+            self.processor,
+            "Create the transformer for these parameters now?",
+            default=True,
+            module="Force Field Parameterizer",
+            description="Create a transformer for imported parameters",
+        ):
+            self.console.print(
+                "[grey50]Skipped. Redox Site Preparer → 'Create transformer' "
+                "when you are ready"
+                + (f"; link it to {seed['path']}" if seed.get("path") else "")
+                + ".[/grey50]")
+            return
+
+        try:
+            module = self.processor.get_module_instance("Redox Site Preparer")
+            if module is None:
+                raise RuntimeError("Redox Site Preparer module unavailable")
+            module.create_custom_transformer(forcefield_default=seed)
+        except Exception as e:  # noqa: BLE001 — the import already succeeded
+            logger.debug("Transformer creation after import failed: %s", e)
+            self.console.print(
+                f"[yellow]Could not open the transformer creator ({e}). The "
+                f"parameters are imported; create the transformer from the "
+                f"Redox Site Preparer menu.[/yellow]")
 
     def configure_classifications_submenu(self) -> bool:
         """Sub-menu for analyzing and configuring residue classifications."""
@@ -2238,8 +2451,12 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
             if ligands:
                 name_desc += "\n  ligand: " + ", ".join(
                     f"{l.name} ({l.chain_id}:{l.resid})" for l in ligands)
-            n = len(metals)
-            nuclearity = {1: "mononuclear", 2: "binuclear", 3: "trinuclear"}.get(n, f"{n}-nuclear")
+            # Nuclearity counts metal ATOMS, not metal-bearing residues: an
+            # Fe2S2 cluster is one FES residue holding two Fe, and counting
+            # residues labelled it mononuclear.
+            n = sum(self._count_metal_atoms(m) for m in metals) or len(metals)
+            nuclearity = {1: "mononuclear", 2: "binuclear", 3: "trinuclear",
+                          4: "tetranuclear"}.get(n, f"{n}-nuclear")
             return (name_desc, "Metal Site",
                     f"[green]MCPB ({nuclearity}{', +ligand' if ligands else ''})[/green]")
 
@@ -2534,6 +2751,66 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
                         metal_elements_found.append(element_upper)
 
         return (len(metal_elements_found) > 0, metal_elements_found)
+
+    def _count_metal_atoms(self, res) -> int:
+        """Number of metal ATOMS in a residue.
+
+        Nuclearity is a property of the metal centre, not of how many residues
+        carry one: an Fe2S2 cluster is a single FES residue holding two Fe, and
+        counting residues calls it mononuclear. _contains_metal_atoms cannot
+        answer this — it returns the distinct metal ELEMENTS, so FES yields
+        ['FE'] whether it holds one iron or four.
+
+        Sources in order: the RedoxSite's atom list (exact, and available
+        without a structure), then the BioPython residue, then a floor of 1 for
+        a residue known to hold a metal but whose atoms we cannot enumerate.
+        """
+        site = getattr(res, "source_redox_site", None)
+        if site is not None:
+            try:
+                want = (res.chain_id, int(res.resid), (res.name or "").strip())
+            except (TypeError, ValueError):
+                want = None
+            if want is not None:
+                count = 0
+                for atom in getattr(site, "atoms", []) or []:
+                    try:
+                        key = (atom.chain, int(atom.resid), (atom.resname or "").strip())
+                    except (TypeError, ValueError):
+                        continue
+                    if key == want and atom.element and atom.element.upper() in METALS:
+                        count += 1
+                if count:
+                    return count
+
+        bp = getattr(res, "biopython_residue", None)
+        if bp is not None:
+            count = 0
+            for atom in bp.get_atoms():
+                element = getattr(atom, "element", None)
+                if element is None:
+                    name = atom.get_name().strip()
+                    element = name[0:2].strip() if len(name) >= 2 else name[0:1]
+                if element and element.upper().strip() in METALS:
+                    count += 1
+            if count:
+                return count
+
+        return 1 if self._member_has_metal(res) else 0
+
+    def _unit_key(self, res) -> str:
+        """Key identifying the parameterization unit a residue belongs to.
+
+        Every member of a metal-site unit is stamped ``category="metal_site"``,
+        the coordinating ligand included, so counting residues by category
+        overcounts sites — 4UHX reported "4 metal sites" for three (its MoCo
+        site contributes both MOS and its MTE ligand). Residues extracted from
+        a RedoxSite share its id; a standalone residue is its own unit.
+        """
+        site_id = getattr(res, "redox_site_id", None)
+        if site_id:
+            return f"site:{site_id}"
+        return f"res:{self._residue_key(res)}"
 
     def _is_small_molecule_from_ccd(self, ccd_data, atom_count):
         """Check if residue is a small molecule based on settings and CCD data"""
@@ -2925,58 +3202,100 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
 
         self.console.print(table)
 
-        # Get selection (allow combinations like "3+6" or "1,2,3")
-        self.console.print("\n[cyan]You can select a single residue (e.g., '3') or combine multiple residues (e.g., '3+6' or '1,2,3')[/cyan]")
+        # The selection names the SITES to parameterize. It does not group them:
+        # residues are grouped into sites by the Redox Site Detector, which is
+        # the authority on what a unit is. Each selected site goes to the
+        # parameterizer its own category implies, so a mixed selection is
+        # ordinary rather than a conflict.
+        self.console.print(
+            "\n[cyan]Select the sites to parameterize — one (e.g. '3') or "
+            "several (e.g. '1,2,3'). Each goes to its own parameterizer.[/cyan]")
         choice = prompt_with_context(
             self.processor,
-            "Enter residue number(s) to parameterize (or 'q' to cancel)",
+            "Enter site number(s) to parameterize (or 'q' to cancel)",
             default="q",
             module="Force Field Parameterizer",
-            description="Select residue number(s) to parameterize",
+            description="Select site number(s) to parameterize",
         )
 
         if choice.lower() == "q":
             self.console.print("[yellow]Parameterization cancelled[/yellow]")
             return
 
-        # Parse the choice - handle both single and combined selections
-        # Normalize separators: accept both + and , (and combinations)
-        if "+" in choice or "," in choice:
-            # Combined selection - normalize to use + as separator
-            normalized_choice = choice.replace(",", "+")
-            self._handle_combined_residue_selection(normalized_choice, options)
-        else:
-            # Single selection
+        # '+' is still accepted as a separator: it was the combine syntax, and
+        # old session logs replay through here.
+        indices = []
+        for token in choice.replace("+", ",").split(","):
+            token = token.strip()
+            if not token:
+                continue
             try:
-                selected_idx = int(choice.strip()) - 1
-                if selected_idx < 0 or selected_idx >= len(options):
-                    self.console.print("[red]Invalid selection[/red]")
-                    return
-                selected_option = options[selected_idx]
-                self._route_single_residue_to_parameterizer(selected_option)
+                idx = int(token) - 1
             except ValueError:
-                self.console.print("[red]Invalid input. Please enter a number or combination like '3+6' or '1,2,3'[/red]")
+                self.console.print(
+                    f"[red]Invalid input: '{token}'. Enter site numbers like "
+                    f"'3' or '1,2,3'[/red]")
                 return
+            if idx < 0 or idx >= len(options):
+                self.console.print(f"[red]Invalid selection: {token} is out of range[/red]")
+                return
+            if idx not in indices:
+                indices.append(idx)
 
-    def _route_single_residue_to_parameterizer(self, selected_option):
-        """Route a selected unit to its parameterizer by content category."""
-        _, unit = selected_option
-        self._route_unit(unit)
+        if not indices:
+            self.console.print("[yellow]Nothing selected[/yellow]")
+            return
+
+        self._parameterize_selected_units([options[i][1] for i in indices], units)
+
+    def _parameterize_selected_units(self, selected_units, all_units):
+        """Send each selected site to the parameterizer its category implies.
+
+        Metal sites are handled as a group because MCPB has to number their
+        M*/Y* atom types against each other; everything else is independent, so
+        it is routed one unit at a time. Nothing is combined here — a unit is
+        already whole.
+
+        Args:
+            selected_units: The units the user chose.
+            all_units: Every displayed unit, so unselected metal sites can be
+                named (the topology build needs every metal site to have
+                parameters, whether derived here or reused).
+        """
+        metal_units = [u for u in selected_units
+                       if u["category"] in ("metal_site", "metal_ion")]
+        other_units = [u for u in selected_units if u not in metal_units]
+
+        if metal_units:
+            self._parameterize_metal_sites(metal_units, all_units)
+
+        for unit in other_units:
+            label = ", ".join(f"{m.name} ({m.chain_id}:{m.resid})"
+                              for m in unit["members"])
+            self.console.print(f"\n[bold cyan]Parameterizing: {label}[/bold cyan]")
+            try:
+                self._route_unit(unit)
+            except Exception as exc:
+                # One site failing must not cancel the sites selected after it.
+                self.console.print(
+                    f"[red]Parameterization of {label} failed: {exc}[/red]")
 
     def _route_unit(self, unit):
         """Dispatch one parameterization unit to the correct parameterizer.
 
         HANDOFF INVARIANT: once a unit reaches a parameterizer, behavior is
-        exactly as it is today — this method only chooses the door. Metal sites
-        seed MCPB with the first metal (preprocessing re-detects the full site);
-        de-novo modified AAs and small molecules use the same calls as before;
-        the only new door is the from-structure modified-AA conjugate.
+        exactly as it is today — this method only chooses the door. A unit is
+        already whole (the Redox Site Detector grouped it), so nothing is
+        combined or split here. A metal site goes through _parameterize_metal_sites
+        so its site id is recorded and MCPB parameterizes it and no others.
         """
         category = unit["category"]
         members = unit["members"]
 
         if category == "metal_site":
-            self._parameterize_metal_site(unit["metals"][0])
+            # Through the same door as a multi-site selection, so the site id is
+            # recorded and MCPB parameterizes this site and no others.
+            self._parameterize_metal_sites([unit])
 
         elif category == "modified_amino_acid":
             if unit.get("procedure") == "from_structure":
@@ -3050,182 +3369,6 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
             frcmod_file=frcmod_file, lib_search_dir=lib_search_dir,
             prep_file=prep_file, lib_file=lib_file, atom_types=atom_types,
         )
-
-    def _handle_combined_residue_selection(self, choice: str, options: List[Tuple]):
-        """Handle selection of multiple residues to combine (e.g., '3+6')"""
-        try:
-            # Parse the indices
-            indices_str = choice.split("+")
-            indices = [int(idx.strip()) - 1 for idx in indices_str]
-
-            # Validate all indices
-            for idx in indices:
-                if idx < 0 or idx >= len(options):
-                    self.console.print(f"[red]Invalid selection: {idx + 1} is out of range[/red]")
-                    return
-
-            # Get the selected options
-            selected_options = [options[idx] for idx in indices]
-
-            # Extract residue lists and names
-            combined_residues = []
-            residue_names = []
-            categories = set()
-
-            for opt in selected_options:
-                # Every option is ("unit", unit). Expand each unit's members
-                # (metals first, so a metal selection seeds the MCPB checklist
-                # with a metal) and collect the unit's category.
-                _, unit = opt
-                ordered = unit.get("metals", []) + [
-                    m for m in unit["members"] if m not in unit.get("metals", [])
-                ]
-                combined_residues.extend(ordered)
-                residue_names.append(unit.get("site_id") or unit["members"][0].name)
-                categories.add(unit["category"])
-
-            combined_name = "+".join(residue_names)
-
-            # Check for category conflicts
-            final_category = self._resolve_category_conflict(categories, combined_name)
-            if not final_category:
-                return  # User cancelled
-
-            # Route based on category
-            # Metal sites: the MCPB checklist already detects and parameterizes
-            # EVERY metal site in the structure in one pass, assigning globally
-            # unique M*/Y* atom types across sites (see structure_preprocessor
-            # _checklist_mcpb_1_typing). So a combined metal selection routes to
-            # that same single entry point rather than a separate per-site loop.
-            if final_category in ("metal_site", "metal_ion"):
-                self.console.print(f"\n[bold cyan]Multi-Site Metal Parameterization: {len(combined_residues)} sites[/bold cyan]")
-                self.console.print("[grey50]The MCPB checklist parameterizes all metal sites in the structure together, with globally coordinated atom types.[/grey50]")
-                # combined_residues[0] just seeds the checklist; preprocessing
-                # (Step 0f) re-detects all redox sites, so every selected metal
-                # site is covered regardless of which one seeds it.
-                self._parameterize_metal_site(combined_residues[0])
-
-            # Non-metals: Ask whether to combine (for covalent conjugates) or separate
-            else:
-                should_combine = self._ask_combine_or_separate(
-                    combined_residues, combined_name, final_category
-                )
-
-                if should_combine is None:
-                    return  # User cancelled
-
-                if should_combine:
-                    # Combine into single PDB and parameterize together
-                    self.console.print(f"\n[bold]Combining residues: {combined_name}[/bold]")
-
-                    if final_category == "modified_amino_acid":
-                        # Covalent AA↔ligand adduct: build an ACE/NME-capped model
-                        # compound from real coordinates (ligand stays attached),
-                        # honour the covalent bond, and curate hydrogens.
-                        capped = self._build_capped_conjugate_pdb(combined_residues, combined_name)
-                        if not capped:
-                            return
-                        conformer_pdbs, mod_resname = capped
-                        self.console.print(f"[cyan]Launching modified AA parameterization for combined {combined_name} (residue {mod_resname})...[/cyan]")
-                        self.parameterize_modified_amino_acid(mod_resname, combined_residues, combined_pdb=conformer_pdbs)
-                    elif final_category == "small_molecule":
-                        pdb_path = self._save_combined_residues_to_pdb(combined_residues, combined_name)
-                        if not pdb_path:
-                            return
-                        self.console.print(f"[cyan]Launching small molecule parameterization for combined {combined_name}...[/cyan]")
-                        self.parameterize_small_molecule(combined_name, combined_residues, combined_pdb=pdb_path)
-                    else:
-                        self.console.print(f"[red]Cannot parameterize combined residues with category: {final_category}[/red]")
-                else:
-                    # Parameterize each separately: reclassify each residue as
-                    # its own unit and route it.
-                    self.console.print(f"\n[bold]Parameterizing {len(combined_residues)} residues separately...[/bold]")
-                    for res in combined_residues:
-                        self._route_unit({"members": [res], **self._classify_unit([res])})
-
-        except ValueError as e:
-            self.console.print(f"[red]Invalid input format: {e}[/red]")
-            self.console.print("[red]Please use format like '3+6' to combine residues[/red]")
-
-    def _ask_combine_or_separate(
-        self, residues: List, combined_name: str, category: str
-    ) -> Optional[bool]:
-        """
-        Ask user whether to combine residues or parameterize separately.
-
-        Only called for non-metal categories (small molecules, modified AAs).
-        Metal sites always go through the MCPB checklist (_parameterize_metal_site).
-
-        Args:
-            residues: List of residues to parameterize
-            combined_name: Display name for the combination
-            category: The resolved category for these residues
-
-        Returns:
-            True = combine into single unit
-            False = parameterize separately
-            None = user cancelled
-        """
-        from rich.panel import Panel
-
-        panel_content = (
-            f"[bold]You selected {len(residues)} residue(s): {combined_name}[/bold]\n\n"
-            "[cyan]Option 1: Combine into Single Unit (Recommended)[/cyan]\n"
-            "  All instances are parameterized together as one molecule.\n"
-            "  Use this for: Same molecule in multiple chains, or covalent conjugates\n\n"
-            "[cyan]Option 2: Parameterize Separately[/cyan]\n"
-            "  Each residue is parameterized independently.\n"
-            "  Use this for: Different molecules that happen to share a residue name"
-        )
-
-        self.console.print(Panel(panel_content, title="Parameterization Mode"))
-
-        choice = prompt_with_context(
-            self.processor,
-            "Select mode",
-            choices=["1", "2", "q"],
-            default="1",
-            module="Force Field Parameterizer",
-            description="Select parameterization mode",
-        )
-
-        if choice == "q":
-            self.console.print("[yellow]Cancelled[/yellow]")
-            return None
-
-        return choice == "1"  # True if combine
-
-    def _resolve_category_conflict(self, categories: Set[str], combined_name: str) -> Optional[str]:
-        """Resolve category conflicts when combining residues of different types"""
-        if len(categories) == 0:
-            self.console.print("[red]No residues selected[/red]")
-            return None
-
-        if len(categories) == 1:
-            # No conflict - all same category
-            return list(categories)[0]
-
-        # Conflict - ask user
-        self.console.print(f"\n[yellow]The selected residues have different classifications:[/yellow]")
-        for cat in categories:
-            self.console.print(f"  • {cat.replace('_', ' ').title()}")
-
-        self.console.print(f"\n[bold]How should the combined residue ({combined_name}) be classified?[/bold]")
-        cat_list = list(categories)
-        for i, cat in enumerate(cat_list, 1):
-            self.console.print(f"  {i}. {cat.replace('_', ' ').title()}")
-
-        choice = prompt_with_context(None,
-            "Select classification",
-            choices=[str(i) for i in range(1, len(cat_list) + 1)] + ["q"],
-            default="1"
-        )
-
-        if choice == "q":
-            self.console.print("[yellow]Cancelled[/yellow]")
-            return None
-
-        return cat_list[int(choice) - 1]
 
     def _save_combined_residues_to_pdb(self, residues: List[NonStandardResidue], combined_name: str) -> Optional[str]:
         """Extract combined residues from structure and save to PDB file"""
@@ -4520,7 +4663,63 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
             traceback.print_exc()
             self.console.print(f"[red]Error during metal site parameterization: {str(e)}[/red]")
 
-    def _parameterize_metal_site(self, metal_site_residue):
+    def _parameterize_metal_sites(self, metal_units, all_units=None):
+        """Parameterize exactly the selected metal sites, in one MCPB pass.
+
+        MCPB numbers M*/Y* atom types across sites, so the selected sites go
+        through a single checklist run rather than one run each. Only the
+        selected sites are parameterized: the site ids are recorded in the
+        workspace and mcpb-1 filters its redox-site list to them.
+
+        Args:
+            metal_units: The selected metal-site units.
+            all_units: Every displayed unit, used to name the metal sites that
+                were NOT selected.
+        """
+        def _site_label(unit):
+            metals = unit.get("metals") or unit["members"]
+            label = ", ".join(f"{m.name} ({m.chain_id}:{m.resid})" for m in metals)
+            ligands = unit.get("ligands") or []
+            if ligands:
+                label += " + ligand " + ", ".join(
+                    f"{l.name} ({l.chain_id}:{l.resid})" for l in ligands)
+            return label
+
+        n = len(metal_units)
+        self.console.print(
+            f"\n[bold cyan]Metal Site Parameterization: "
+            f"{n} site{'s' if n != 1 else ''} selected[/bold cyan]")
+        for unit in metal_units:
+            self.console.print(f"  [green]will run:[/green] {_site_label(unit)}")
+
+        # Name the metal sites left out. They are not an error — reusing one
+        # site's parameters on an equivalent site is the point of the reuse
+        # transformer mcpb-4 emits — but the topology build needs every metal
+        # site to have parameters from somewhere.
+        skipped = [u for u in (all_units or [])
+                   if u["category"] in ("metal_site", "metal_ion")
+                   and u not in metal_units]
+        if skipped:
+            for unit in skipped:
+                self.console.print(f"  [grey50]not run: [/grey50] {_site_label(unit)}")
+            self.console.print(
+                "\n[yellow]Every metal site needs parameters before the topology "
+                "build will succeed.[/yellow]")
+            self.console.print(
+                "[grey50]  For a site equivalent to one being run, apply the reuse "
+                "transformer emitted at the end of this run instead of "
+                "re-deriving it.[/grey50]")
+
+        # Record the selection so mcpb-1 parameterizes these sites and no others.
+        selected_ids = [u.get("site_id") for u in metal_units if u.get("site_id")]
+        self.update_workspace("mcpb_selected_site_ids", selected_ids)
+
+        # The seed residue names the output directory and anchors the run.
+        seed_unit = metal_units[0]
+        metal_site_residue = (seed_unit.get("metals") or seed_unit["members"])[0]
+        self._parameterize_metal_site(metal_site_residue, announce=False)
+
+    def _parameterize_metal_site(self, metal_site_residue, announce: bool = True):
         """
         Handle parameterization of an individual metal site.
 
@@ -4528,24 +4727,35 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
         1. Uses the source RedoxSite (if available) or finds matching one from workspace
         2. Runs MCPB atom typing and fingerprint generation
         3. (Future) Runs RESP charge fitting and parameter building
+
+        Args:
+            metal_site_residue: The seed residue; names the output directory.
+            announce: False when _parameterize_metal_sites has already listed
+                every selected site, so the seed is not re-announced as though
+                it were the only one.
         """
 
-        self.console.print(f"\n[bold cyan]Parameterizing Metal Site: {metal_site_residue.name}[/bold cyan]")
-        self.console.print(f"[grey50]Location: {metal_site_residue.chain_id}:{metal_site_residue.resid}[/grey50]")
+        if announce:
+            self.console.print(f"\n[bold cyan]Parameterizing Metal Site: {metal_site_residue.name}[/bold cyan]")
+            self.console.print(f"[grey50]Location: {metal_site_residue.chain_id}:{metal_site_residue.resid}[/grey50]")
 
         # Check if we have a direct RedoxSite reference (preferred)
         source_redox_site = getattr(metal_site_residue, 'source_redox_site', None)
 
         if source_redox_site:
-            self.console.print(f"[green]✅ Using RedoxSite: {source_redox_site.site_id}[/green]")
+            # Only when this is the whole story. On a multi-site selection the
+            # caller has already listed every site, and describing the seed's
+            # RedoxSite here made it look like the only one being run.
+            if announce:
+                self.console.print(f"[green]✅ Using RedoxSite: {source_redox_site.site_id}[/green]")
 
-            # Show what's included in this RedoxSite
-            if hasattr(source_redox_site, 'centers') and source_redox_site.centers:
-                self.console.print("[cyan]This RedoxSite includes:[/cyan]")
-                for center in source_redox_site.centers:
-                    marker = "→" if (center.chain == metal_site_residue.chain_id and
-                                     center.resid == metal_site_residue.resid) else " "
-                    self.console.print(f"  {marker} {center.resname} ({center.chain}:{center.resid})")
+                # Show what's included in this RedoxSite
+                if hasattr(source_redox_site, 'centers') and source_redox_site.centers:
+                    self.console.print("[cyan]This RedoxSite includes:[/cyan]")
+                    for center in source_redox_site.centers:
+                        marker = "→" if (center.chain == metal_site_residue.chain_id and
+                                         center.resid == metal_site_residue.resid) else " "
+                        self.console.print(f"  {marker} {center.resname} ({center.chain}:{center.resid})")
         else:
             # Fallback: try to find matching RedoxSite from workspace
             detected_redox_sites = self.get_from_workspace("detected_redox_sites")
@@ -4864,51 +5074,156 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
         else:
             self.console.print(f"[red]Unknown parameterization type: {param_type}[/red]")
 
-    def _resume_metal_site_workflow(self, residue_name: str, workflow_data: dict):
-        """Resume a metal site parameterization workflow"""
+    def _get_site_attribute(self, site, attribute, default=None):
+        """Read an attribute off a site that may be an object or a dict.
+
+        Defined on PDBProcessor, and called here seven times without existing
+        on this class -- every call an AttributeError waiting for the metal-site
+        summary to render. Delegates when the processor has it, so the two
+        cannot drift, and falls back to the same behaviour when it does not.
+        """
+        processor_impl = getattr(self.processor, "_get_site_attribute", None)
+        if callable(processor_impl):
+            return processor_impl(site, attribute, default)
+
+        if isinstance(site, dict):
+            return site.get(attribute, default)
+        return getattr(site, attribute, default)
+
+    def _resume_modified_amino_acid_workflow(self, residue_name: str,
+                                             workflow_data: dict):
+        """Resume a paused modified-amino-acid parameterization.
+
+        This method did not exist while being dispatched to, so choosing
+        "Resume pending workflow" for a modAA entry raised AttributeError.
+        ``resume_paused_workflow`` is the real entry point: it checks whether
+        the awaited QM logs have appeared and re-enters the workflow if so.
+        """
         output_dir = workflow_data.get("output_dir")
-        
         if not output_dir:
-            self.console.print("[red]No output directory found for workflow[/red]")
+            self.console.print("[red]No output directory recorded for this workflow[/red]")
             return
-        
+
         try:
-            from proprep.ff_prep.metal_site_parameterizer.metal_site_parameterizer import (
-                MetalSiteParameterizationWorkflow,
-                get_workflow_status
+            from proprep.forcefield_prep.modified_amino_acid_parameterizer import (
+                resume_paused_workflow,
             )
-            
-            # Check workflow status
-            status = get_workflow_status(output_dir)
-            self.console.print(f"[cyan]Workflow status: {status.get('status', 'unknown')}[/cyan]")
-            
-            # Resume the workflow
-            workflow = MetalSiteParameterizationWorkflow()
-            
-            self.console.print(f"[cyan]Resuming metal site workflow in {output_dir}...[/cyan]")
-            
-            result = workflow.resume_workflow(output_dir)
-            
-            if result and result.get("success", False):
-                self.console.print("[green]✅ Workflow resumed successfully[/green]")
-                
-                # Update workspace with new results
-                self._update_parameterization_results(residue_name, result, "metal_site")
-                
-                # Remove from pending if completed
-                if result.get("status") == "completed":
-                    pending = self.get_from_workspace("pending_parameterizations", {})
-                    if residue_name in pending:
-                        del pending[residue_name]
-                        self.update_workspace("pending_parameterizations", pending)
-            else:
-                error_msg = result.get("message", "Unknown error") if result else "Resume failed"
-                self.console.print(f"[red]❌ Failed to resume workflow: {error_msg}[/red]")
-                
         except ImportError as e:
-            self.console.print(f"[red]❌ Metal site parameterizer not available: {str(e)}[/red]")
-        except Exception as e:
-            self.console.print(f"[red]❌ Error resuming workflow: {str(e)}[/red]")
+            self.console.print(
+                f"[red]Modified amino acid parameterizer not available: {e}[/red]")
+            return
+
+        self.console.print(
+            f"[cyan]Resuming modified amino acid workflow in {output_dir}...[/cyan]")
+        try:
+            result = resume_paused_workflow(residue_name, output_dir)
+        except Exception as e:  # noqa: BLE001 - keep the menu alive
+            logger.debug("modAA resume failed: %s", e)
+            self.console.print(f"[red]Error resuming workflow: {e}[/red]")
+            return
+
+        self._record_resume_result(residue_name, result, "modified_amino_acid")
+
+    def _resume_small_molecule_workflow(self, residue_name: str,
+                                        workflow_data: dict):
+        """Resume a paused small-molecule parameterization.
+
+        This method did not exist while being dispatched to, so choosing
+        "Resume pending workflow" for a small molecule -- the case that pauses
+        for Gaussian and is therefore the most likely to be resumed -- raised
+        AttributeError.
+
+        The parameterizer is checklist-driven and keeps its own state in the
+        output directory, so re-entering ``run_workflow`` there resumes rather
+        than restarts. ``regenerate`` is left False so completed steps are
+        reused; that is what resuming means.
+        """
+        output_dir = workflow_data.get("output_dir")
+        if not output_dir:
+            self.console.print("[red]No output directory recorded for this workflow[/red]")
+            return
+
+        try:
+            from proprep.forcefield_prep.small_molecule_parameterizer import (
+                run_workflow,
+            )
+        except ImportError as e:
+            self.console.print(
+                f"[red]Small molecule parameterizer not available: {e}[/red]")
+            return
+
+        self.console.print(
+            f"[cyan]Resuming small molecule workflow in {output_dir}...[/cyan]")
+        try:
+            result = run_workflow(
+                residue_name=residue_name,
+                residues=workflow_data.get("residues", []) or [],
+                output_dir=output_dir,
+                interactive=True,
+                processor=self.processor,
+            )
+        except Exception as e:  # noqa: BLE001 - keep the menu alive
+            logger.debug("small molecule resume failed: %s", e)
+            self.console.print(f"[red]Error resuming workflow: {e}[/red]")
+            return
+
+        self._record_resume_result(residue_name, result, "small_molecule")
+
+    def _record_resume_result(self, residue_name: str, result, param_type: str):
+        """Report a resume outcome and clear the entry once it completes."""
+        if not isinstance(result, dict):
+            self.console.print("[yellow]Workflow returned no result[/yellow]")
+            return
+
+        if result.get("success"):
+            self.console.print("[green]Workflow resumed successfully[/green]")
+            self._update_parameterization_results(residue_name, result, param_type)
+            if result.get("status") == "completed":
+                pending = self.get_from_workspace("pending_parameterizations", {})
+                if residue_name in pending:
+                    del pending[residue_name]
+                    self.update_workspace("pending_parameterizations", pending)
+        else:
+            message = result.get("message", "Resume failed")
+            self.console.print(f"[yellow]{message}[/yellow]")
+            for missing in result.get("missing_files", []) or []:
+                self.console.print(f"  [red]missing:[/red] {missing}")
+
+    def _resume_metal_site_workflow(self, residue_name: str, workflow_data: dict):
+        """Point at where a metal site actually resumes.
+
+        This used to import ``proprep.ff_prep.metal_site_parameterizer``, a
+        path that predates the rename to ``forcefield_prep`` and no longer
+        exists -- along with MetalSiteParameterizationWorkflow and
+        get_workflow_status, which exist nowhere. The ImportError was caught
+        and reported as "parameterizer not available", so the branch has been
+        dead rather than working.
+
+        A metal site resumes through the parameterization checklist, which
+        keeps its own workflow_state.json in the site directory and offers to
+        resume on entry. Say so instead of re-implementing it.
+        """
+        output_dir = workflow_data.get("output_dir")
+        if not output_dir:
+            self.console.print("[red]No output directory recorded for this workflow[/red]")
+            return
+
+        self.console.print(
+            "[cyan]Metal site parameterization resumes through its checklist."
+            "[/cyan]")
+        try:
+            state_file = Path(output_dir) / "workflow_state.json"
+            if state_file.exists():
+                self.console.print(f"[grey50]  Saved state: {state_file}[/grey50]")
+            else:
+                self.console.print(
+                    f"[grey50]  No saved state found in {output_dir}[/grey50]")
+        except Exception as e:  # noqa: BLE001 - a path problem must not crash the menu
+            logger.debug("Could not check metal-site state file: %s", e)
+
+        self.console.print(
+            "[grey50]  Choose 'Parameterize residues (new or resume)' from this "
+            "menu; the checklist offers to resume from that state.[/grey50]")
 
     def _update_parameterization_results(self, residue_name: str, results: dict, param_type: str):
         """Update workspace with parameterization results"""
@@ -5152,28 +5467,36 @@ atoms/residues) due to the sensitivity of metal coordination geometry.[/grey50]
         # Add actionable guidance
         self.console.print("\n[bold cyan]Quick Actions:[/bold cyan]")
         
-        # Count categories
-        metal_sites = sum(1 for res in self.non_standard_residues if res.category == "metal_site")
-        modified_aas = sum(1 for res in self.non_standard_residues if res.category == "modified_amino_acid")
-        small_molecules = sum(1 for res in self.non_standard_residues if res.category == "small_molecule")
-        unknown = sum(1 for res in self.non_standard_residues if res.category == "unknown")
-        
+        # Count PARAMETERIZATION UNITS, not residues: a metal site stamps the
+        # category onto its ligand members too, so counting residues overcounts
+        # sites. Option numbers track get_menu_options (1 analyze, 2 import,
+        # 3 parameterize/resume, 4 status, 5 help) — they had drifted, and the
+        # resume line pointed at an option 6 that does not exist.
+        def _units(category):
+            return len({self._unit_key(res) for res in self.non_standard_residues
+                        if res.category == category})
+
+        metal_sites = _units("metal_site")
+        modified_aas = _units("modified_amino_acid")
+        small_molecules = _units("small_molecule")
+        unknown = _units("unknown")
+
         if metal_sites > 0:
-            self.console.print(f"[green]• Use option 2 to parameterize any of {metal_sites} metal site(s)[/green]")
-            
+            self.console.print(f"[green]• Use option 3 to parameterize any of {metal_sites} metal site(s)[/green]")
+
         if modified_aas > 0:
-            self.console.print(f"[green]• Use option 2 to parameterize any of {modified_aas} modified amino acid(s)[/green]")
-            
+            self.console.print(f"[green]• Use option 3 to parameterize any of {modified_aas} modified amino acid(s)[/green]")
+
         if small_molecules > 0:
-            self.console.print(f"[green]• Use option 2 to parameterize any of {small_molecules} small molecule(s)[/green]")
-            
+            self.console.print(f"[green]• Use option 3 to parameterize any of {small_molecules} small molecule(s)[/green]")
+
         if unknown > 0:
-            self.console.print(f"[yellow]• Use option 3 to classify {unknown} unknown residue(s)[/yellow]")
-        
+            self.console.print(f"[yellow]• Use option 1 to classify {unknown} unknown residue(s)[/yellow]")
+
         # Check for pending work
         pending = self.get_from_workspace("pending_parameterizations", {})
         if pending:
-            self.console.print(f"[yellow]• Use option 6 to resume {len(pending)} pending parameterization(s)[/yellow]")
+            self.console.print(f"[yellow]• Use option 3 to resume {len(pending)} pending parameterization(s)[/yellow]")
 
     # Enhanced error handling wrapper
     def safe_execute_with_context(self, operation_name: str, operation_func, *args, **kwargs):

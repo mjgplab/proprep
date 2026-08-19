@@ -42,6 +42,8 @@ By the end of preprocessing:
 Author: ProPrep Development Team
 """
 
+import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Set, TYPE_CHECKING
@@ -66,6 +68,28 @@ if TYPE_CHECKING:
     from proprep.structure_prep.comprehensive_redox_detector import RedoxSite
 
 from proprep.utils.workflow_checklist import WorkflowStep, WorkflowChecklist
+
+# Two except-handlers already called logger.debug without one being defined,
+# which would have raised NameError instead of reporting the thing they caught.
+logger = logging.getLogger(__name__)
+
+# ``!entry.<unit>.unit.atoms table`` only. The naive ``'.unit.atoms' in line``
+# also matches ``.unit.atomspertinfo``, whose rows repeat every atom name.
+_LIB_ATOMS_TABLE_RE = re.compile(r"!entry\.[^.]+\.unit\.atoms\s+table", re.IGNORECASE)
+
+
+def _is_hydrogen_name(atom_name: str) -> bool:
+    """Whether a PDB/library atom name denotes a hydrogen.
+
+    PDB names may lead with the digit of a branch index (``1HB``), so the first
+    ALPHABETIC character decides.
+    """
+    for char in (atom_name or "").strip():
+        if char.isalpha():
+            return char.upper() == "H"
+    return False
+
+
 
 
 def _unwrap_serialized(value):
@@ -244,15 +268,36 @@ class MetalInfo:
 
     @classmethod
     def from_dict(cls, d: dict) -> 'MetalInfo':
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Tolerates checklist-state serialization. Coordinates come from
+        BioPython as numpy floats; older state files stored each one as
+        ``{"__type__": "str", "value": "-46.078"}`` because the serializer had
+        no case for a numpy scalar, so ``coords`` arrived as a list of dicts of
+        strings and PDBIO refused to write the atom. Unwrap and coerce, so a
+        state file written before that fix still resumes.
+        """
+        from proprep.utils.workspace import unwrap_serialized
+
+        d = unwrap_serialized(d)
+
+        def _xyz(raw):
+            out = []
+            for component in (raw or ()):
+                try:
+                    out.append(float(component))
+                except (TypeError, ValueError):
+                    out.append(0.0)
+            return tuple(out)
+
         return cls(
             atom_name=d['atom_name'],
             element=d['element'],
-            coords=tuple(d['coords']),
+            coords=_xyz(d.get('coords')),
             original_chain=d['original_chain'],
-            original_resid=d['original_resid'],
+            original_resid=int(d['original_resid']),
             original_resname=d['original_resname'],
-            is_isolated=d['is_isolated'],
+            is_isolated=bool(d['is_isolated']),
             cluster_id=d.get('cluster_id'),
         )
 
@@ -621,6 +666,40 @@ class StructurePreprocessor:
         self._pdb_file = result  # Update for subsequent steps
         return {"summary": f"Using {Path(result).name}"}
 
+    def _ensure_triage_results(self) -> Dict[str, str]:
+        """Triage categories, restoring them after a resume.
+
+        ``triage_results`` is populated by step 3 and lives on the instance. A
+        resumed run builds a new preprocessor with step 3 already marked
+        complete, so it never runs and the attribute stays empty -- and every
+        step that reads it concludes the structure has no such residues.
+
+        Restores from the workspace, falling back to re-running triage, which
+        is deterministic and needs only the structure.
+        """
+        if self.triage_results:
+            return self.triage_results
+
+        if self.workspace:
+            saved = self.workspace.get("preprocessing_triage", None)
+            if isinstance(saved, dict) and saved:
+                self.triage_results = dict(saved)
+                self.console.print(
+                    f"[grey50]Restored triage for {len(self.triage_results)} "
+                    f"residue(s) from workspace[/grey50]")
+                return self.triage_results
+
+        if self._pdb_file:
+            self.console.print(
+                "[grey50]Triage results unavailable; re-running "
+                "categorization[/grey50]")
+            try:
+                self.triage_results = self._run_triage_only(self._pdb_file)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Could not re-run triage: %s", exc)
+
+        return self.triage_results
+
     def _checklist_prep_2_triage(self) -> dict:
         """Checklist handler for prep-2: Structure Triage (categorization only)."""
         # Run triage without FF selection (FF selection moved to param steps)
@@ -653,7 +732,7 @@ class StructurePreprocessor:
 
     def _checklist_param_1_protein(self) -> dict:
         """Checklist handler for param-1: Protein FF Selection + Protonation Analysis."""
-        protein_residues = [k for k, v in self.triage_results.items() if v == 'A']
+        protein_residues = [k for k, v in self._ensure_triage_results().items() if v == 'A']
         if not protein_residues:
             return {"summary": "No protein residues - skipped"}
 
@@ -711,7 +790,7 @@ class StructurePreprocessor:
         2. Water model choice affects ion parameters
         3. Must be compatible with protein forcefield
         """
-        water_residues = [k for k, v in self.triage_results.items() if v == 'E']
+        water_residues = [k for k, v in self._ensure_triage_results().items() if v == 'E']
 
         if water_residues:
             self.console.print(Panel(
@@ -742,7 +821,7 @@ class StructurePreprocessor:
 
     def _checklist_param_3_organic(self) -> dict:
         """Checklist handler for param-3: Organic Small Molecules."""
-        organic_keys = [k for k, v in self.triage_results.items() if v == 'B']
+        organic_keys = [k for k, v in self._ensure_triage_results().items() if v == 'B']
         if not organic_keys:
             self.console.print("[grey50]No organic small molecules in structure - skipping[/grey50]")
             return {"summary": "No organic small molecules - skipped"}
@@ -769,7 +848,7 @@ class StructurePreprocessor:
 
     def _checklist_param_4_organometallic(self) -> dict:
         """Checklist handler for param-4: Organometallic Small Molecules."""
-        orgmet_keys = [k for k, v in self.triage_results.items() if v == 'C']
+        orgmet_keys = [k for k, v in self._ensure_triage_results().items() if v == 'C']
         if not orgmet_keys:
             self.console.print("[grey50]No organometallic residues in structure - skipping[/grey50]")
             return {"summary": "No organometallic residues - skipped"}
@@ -796,7 +875,7 @@ class StructurePreprocessor:
 
     def _checklist_param_5_isolated_metals(self) -> dict:
         """Checklist handler for param-5: Isolated Metal Ions."""
-        metal_keys = [k for k, v in self.triage_results.items() if v == 'D']
+        metal_keys = [k for k, v in self._ensure_triage_results().items() if v == 'D']
         if not metal_keys:
             self.console.print("[grey50]No isolated metal ions in structure - skipping[/grey50]")
             return {"summary": "No isolated metal ions - skipped"}
@@ -832,7 +911,7 @@ class StructurePreprocessor:
         MCPB owns the cluster's internal and coordinating parameters via the
         detected redox site, so no per-fragment FF is collected here.
         """
-        cluster_keys = [k for k, v in self.triage_results.items() if v == 'F']
+        cluster_keys = [k for k, v in self._ensure_triage_results().items() if v == 'F']
         if not cluster_keys:
             self.console.print("[grey50]No pure metal clusters in structure - skipping[/grey50]")
             return {"summary": "No metal clusters - skipped"}
@@ -844,6 +923,11 @@ class StructurePreprocessor:
             border_style="cyan",
             expand=False
         ))
+
+        # Offer hydrogens BEFORE the atoms are collected: everything downstream
+        # (withholding, reinsertion, redox re-detection, typing, the QM models)
+        # reads self._pdb_file, so an H added there needs no special casing.
+        self._offer_cluster_hydrogens(cluster_keys)
 
         metal_clusters = {}
         for res_key in cluster_keys:
@@ -929,7 +1013,10 @@ class StructurePreprocessor:
         tleap_success = self._run_tleap_assembly()
 
         if not tleap_success:
-            return {"summary": "tLEaP failed"}
+            # Mark the step FAILED, not completed: the steps after this one read
+            # the prepared structure it did not produce, and would otherwise
+            # fail on a missing file instead of on the real cause.
+            return {"summary": "tLEaP failed", "success": False}
 
         # 7. Get tLEaP output and convert to PDB
         parm7 = self.workspace.get("parm7_file") if self.workspace else None
@@ -939,7 +1026,13 @@ class StructurePreprocessor:
             return {"summary": "tLEaP did not produce output files"}
 
         tleap_pdb = self._output_dir / "tleap_output.pdb"
-        self._convert_amber_to_pdb(parm7, rst7, tleap_pdb)
+        try:
+            self._convert_amber_to_pdb(parm7, rst7, tleap_pdb)
+        except RuntimeError as exc:
+            # Everything after this reads the file that was not written.
+            self.console.print(f"[red]{exc}[/red]")
+            return {"summary": f"Could not convert tLEaP output: {exc}",
+                    "success": False}
 
         # 8. Insert metals back
         if metals_to_remove:
@@ -979,6 +1072,188 @@ class StructurePreprocessor:
     # -------------------------------------------------------------------------
     # METAL SITE PARAMETERIZATION
     # -------------------------------------------------------------------------
+
+    def _scan_prior_mcpb_types(self) -> Dict[str, Dict[str, List[int]]]:
+        """M*/Y* type positions already used, per prior site directory.
+
+        The fingerprint files an earlier run wrote are the record of which
+        names it consumed (``202-MN-MN  1  MN -> M1``). Reading them makes the
+        numbering recoverable in a fresh ProPrep session, where the workspace
+        is empty — without asking anyone to count Y types across sites, which
+        is error-prone precisely because the labels stop matching the count at
+        ``Y9``/``YA``.
+
+        Scans sibling ``metal_site_params_*`` directories, so it sees work done
+        for this structure under a different site's output directory.
+        """
+        from proprep.forcefield_prep.metal_site_parameterizer import mcpb_type_index
+
+        used: Dict[str, Dict[str, List[int]]] = {}
+        roots = []
+        if self._output_dir:
+            roots.append(Path(self._output_dir))
+            parent = Path(self._output_dir).parent
+            roots.extend(sorted(parent.glob("metal_site_params_*")))
+
+        seen_dirs = set()
+        for root in roots:
+            for fp in sorted(Path(root).glob("site_*/models/standard.fingerprint")):
+                key = str(fp.parent.parent)
+                if key in seen_dirs:
+                    continue
+                seen_dirs.add(key)
+                metals, ligands = [], []
+                try:
+                    for line in fp.read_text().splitlines():
+                        if "->" not in line:
+                            continue
+                        name = line.split("->")[-1].strip()
+                        pos = mcpb_type_index(name)
+                        if pos is None:
+                            continue
+                        (metals if name.upper().startswith("M") else ligands).append(pos)
+                except OSError:
+                    continue
+                if metals or ligands:
+                    used[key] = {"metal": sorted(set(metals)),
+                                 "ligand": sorted(set(ligands))}
+        return used
+
+    def _offer_prior_type_reuse(self, site_output_dir: Path, site_id: str):
+        """Offer to reuse the M*/Y* names a previous run gave THIS site.
+
+        Returns the (metal_start, ligand_start) that reproduces the earlier
+        naming, or None to allocate fresh names after the high-water mark.
+        """
+        from proprep.forcefield_prep.metal_site_parameterizer import (
+            mcpb_type_index, MCPB_METAL_TYPE_NAMES, MCPB_LIGAND_TYPE_NAMES,
+        )
+
+        fp = Path(site_output_dir) / "models" / "standard.fingerprint"
+        if not fp.exists():
+            return None
+
+        metals, ligands = [], []
+        try:
+            for line in fp.read_text().splitlines():
+                if "->" not in line:
+                    continue
+                name = line.split("->")[-1].strip()
+                pos = mcpb_type_index(name)
+                if pos is None:
+                    continue
+                (metals if name.upper().startswith("M") else ligands).append(pos)
+        except OSError:
+            return None
+
+        if not metals and not ligands:
+            return None
+
+        def _names(positions, table):
+            picked = sorted(set(positions))
+            return ", ".join(table[p] for p in picked if p < len(table)) or "-"
+
+        self.console.print(
+            f"\n[yellow]{site_id} was parameterized before, in "
+            f"{Path(site_output_dir).name}:[/yellow]")
+        self.console.print(
+            f"  [grey50]metals {_names(metals, MCPB_METAL_TYPE_NAMES)} · "
+            f"ligating atoms {_names(ligands, MCPB_LIGAND_TYPE_NAMES)}[/grey50]")
+
+        if not self._interactive:
+            return None
+
+        if confirm_with_context(
+            self.processor,
+            "Reuse those atom-type names (replaces the earlier entry)?",
+            default=True,
+            module="MCPB Atom Typing",
+            description="Reuse a re-run site's previous M*/Y* names",
+        ):
+            return (min(metals) if metals else 0,
+                    min(ligands) if ligands else 0)
+        return None
+
+    def _seed_mcpb_type_offsets(self) -> Tuple[int, int]:
+        """Starting M*/Y* positions for this run.
+
+        Precedence: the workspace high-water mark (sites parameterized earlier
+        in this ProPrep session), then the fingerprints of prior runs on disk (a
+        fresh session), then zero. What was found is shown and can be
+        overridden, so the number is confirmed rather than computed by hand.
+        """
+        from proprep.forcefield_prep.metal_site_parameterizer import (
+            MCPB_METAL_TYPE_NAMES, MCPB_LIGAND_TYPE_NAMES,
+        )
+
+        metal_next = ligand_next = 0
+        source = None
+
+        stored = self.workspace.get("mcpb_type_offsets") if self.workspace else None
+        if isinstance(stored, dict) and (stored.get("metal") or stored.get("ligand")):
+            metal_next = int(stored.get("metal") or 0)
+            ligand_next = int(stored.get("ligand") or 0)
+            source = "this session"
+
+        prior = self._scan_prior_mcpb_types()
+        if prior:
+            scan_metal = max((max(v["metal"]) + 1 for v in prior.values() if v["metal"]),
+                             default=0)
+            scan_ligand = max((max(v["ligand"]) + 1 for v in prior.values() if v["ligand"]),
+                              default=0)
+            if scan_metal > metal_next or scan_ligand > ligand_next:
+                metal_next = max(metal_next, scan_metal)
+                ligand_next = max(ligand_next, scan_ligand)
+                source = "earlier parameterization on disk"
+
+        if not source or (metal_next == 0 and ligand_next == 0):
+            return 0, 0
+
+        def _describe(positions, names):
+            if not positions:
+                return "-"
+            picked = [names[p] for p in positions if p < len(names)]
+            return f"{picked[0]}-{picked[-1]}" if len(picked) > 1 else picked[0]
+
+        self.console.print("\n[bold]Metal atom-type numbering[/bold]")
+        self.console.print(f"[grey50]Found {source}:[/grey50]")
+        for site_dir, v in sorted(prior.items()):
+            self.console.print(
+                f"  [grey50]{Path(site_dir).parent.name}/{Path(site_dir).name}   "
+                f"{_describe(v['metal'], MCPB_METAL_TYPE_NAMES)}   "
+                f"{_describe(v['ligand'], MCPB_LIGAND_TYPE_NAMES)}[/grey50]")
+
+        next_metal = (MCPB_METAL_TYPE_NAMES[metal_next]
+                      if metal_next < len(MCPB_METAL_TYPE_NAMES) else "exhausted")
+        next_ligand = (MCPB_LIGAND_TYPE_NAMES[ligand_next]
+                       if ligand_next < len(MCPB_LIGAND_TYPE_NAMES) else "exhausted")
+        self.console.print(
+            f"  Continuing from: metals at [bold]{next_metal}[/bold], "
+            f"ligating atoms at [bold]{next_ligand}[/bold]")
+
+        if self._interactive and confirm_with_context(
+            self.processor,
+            "Override these atom-type offsets?",
+            default=False,
+            module="MCPB Atom Typing",
+            description="Override the M*/Y* starting offsets",
+        ):
+            metal_next = int_prompt_with_context(
+                self.processor,
+                "Metal types already used (M positions to skip)",
+                default=metal_next,
+                module="MCPB Atom Typing",
+                description="Metal atom-type offset",
+            )
+            ligand_next = int_prompt_with_context(
+                self.processor,
+                "Ligating-atom types already used (Y positions to skip)",
+                default=ligand_next,
+                module="MCPB Atom Typing",
+                description="Ligand atom-type offset",
+            )
+
+        return max(0, metal_next), max(0, ligand_next)
 
     def _checklist_mcpb_1_typing(self) -> dict:
         """
@@ -1032,15 +1307,30 @@ class StructurePreprocessor:
         # site that has no metal.
         metal_site_count = sum(1 for s in redox_sites if _redox_site_has_metal(s))
 
-        # Running M*/Y* atom-type offsets so multiple metal sites get globally
-        # unique type names (site 1 -> M1/Y1..Yn, site 2 -> M2/Y(n+1)..). Without
-        # this every site would restart at M1/Y1 and collide when all sites'
-        # frcmod/mol2 are loaded into one tLEaP session.
-        metal_type_offset = 0
-        ligand_type_offset = 0
+        # Only the selected sites are parameterized. The selection is recorded
+        # by the Force Field Parameterizer; an empty/absent list means every
+        # site, which is what a resumed run and any other entry point get.
+        selected_ids = set()
+        if self.workspace:
+            selected_ids = {s for s in (self.workspace.get("mcpb_selected_site_ids") or []) if s}
+
+        # Running M*/Y* atom-type offsets so metal sites get globally unique
+        # type names (site 1 -> M1/Y1..Yn, site 2 -> M2/Y(n+1)..). Restarting at
+        # zero would collide once every site's frcmod/mol2 loads into one tLEaP
+        # session. Because sites can now be parameterized in separate runs, the
+        # starting point is seeded rather than assumed to be zero.
+        metal_type_offset, ligand_type_offset = self._seed_mcpb_type_offsets()
 
         for idx, site in enumerate(redox_sites):
             site_id = get_site_id(site, idx)
+
+            # Skip rather than filter the list: the site_N output directory is
+            # named from this index, so a site keeps the same directory whether
+            # or not its neighbours were selected this run.
+            if selected_ids and site_id not in selected_ids:
+                self.console.print(
+                    f"\n[grey50]Skipping {site_id}: not selected for this run[/grey50]")
+                continue
 
             # Skip non-metal sites (parameterized separately by the small-molecule path)
             if not _redox_site_has_metal(site):
@@ -1068,6 +1358,14 @@ class StructurePreprocessor:
             site_output_dir = self._output_dir / f"site_{idx + 1}"
             site_output_dir.mkdir(parents=True, exist_ok=True)
 
+            # Re-running a site already parameterized (to correct its charges,
+            # say) should replace its entry rather than allocate a second set of
+            # types on top of the high-water mark and strand the first.
+            site_metal_start, site_ligand_start = metal_type_offset, ligand_type_offset
+            reused = self._offer_prior_type_reuse(site_output_dir, site_id)
+            if reused is not None:
+                site_metal_start, site_ligand_start = reused
+
             # Run Step 1 — thread the running M*/Y* offsets so this site's
             # types don't collide with prior sites'.
             result = workflow._run_step1(
@@ -1075,14 +1373,21 @@ class StructurePreprocessor:
                 residues=[],  # Not used when provided_redox_site is set
                 output_dir=site_output_dir,
                 interactive=self._interactive,
-                metal_type_start=metal_type_offset,
-                ligand_type_start=ligand_type_offset,
+                metal_type_start=site_metal_start,
+                ligand_type_start=site_ligand_start,
             )
 
             # Advance the offsets by however many types this site consumed so
             # the next metal site continues the numbering instead of restarting.
-            metal_type_offset = getattr(workflow, "type_offset_metal_end", metal_type_offset)
-            ligand_type_offset = getattr(workflow, "type_offset_ligand_end", ligand_type_offset)
+            # max(), not assignment: a site that REUSED its earlier names ends
+            # below the high-water mark, and taking its end verbatim would hand
+            # the next site names that are already spoken for.
+            metal_type_offset = max(
+                metal_type_offset,
+                getattr(workflow, "type_offset_metal_end", metal_type_offset))
+            ligand_type_offset = max(
+                ligand_type_offset,
+                getattr(workflow, "type_offset_ligand_end", ligand_type_offset))
 
             results.append(result)
 
@@ -1093,6 +1398,14 @@ class StructurePreprocessor:
             else:
                 self.console.print(f"[red]✗ Site {idx + 1} failed: {result.get('message', 'Unknown error')}[/red]")
 
+        # Carry the high-water mark, so a metal site parameterized later in this
+        # same ProPrep session continues the numbering instead of restarting.
+        # A fresh session recovers it from the fingerprints on disk instead.
+        if self.workspace:
+            self.workspace.set("mcpb_type_offsets",
+                               {"metal": metal_type_offset,
+                                "ligand": ligand_type_offset})
+
         # Summarize
         successful = sum(1 for r in results if r.get("success"))
         total_renamed = sum(r.get("atom_summary", {}).get("renamed_atoms", 0) for r in results)
@@ -1100,8 +1413,17 @@ class StructurePreprocessor:
         if not results:
             self.console.print("[yellow]No metal sites required MCPB atom typing.[/yellow]")
 
+        # Count against what was actually attempted: with a selection in play,
+        # "2/2 sites" is the honest denominator, not the structure's total.
+        attempted = len(results) or metal_site_count
+        selection_note = ""
+        if selected_ids and attempted < metal_site_count:
+            selection_note = (f" ({metal_site_count - attempted} site(s) not "
+                              f"selected for this run)")
+
         return {
-            "summary": f"{successful}/{metal_site_count} metal site(s) processed, {total_renamed} atoms renamed to M*/Y*",
+            "summary": (f"{successful}/{attempted} metal site(s) processed, "
+                        f"{total_renamed} atoms renamed to M*/Y*{selection_note}"),
             "results": results
         }
 
@@ -1194,8 +1516,28 @@ class StructurePreprocessor:
                     original_type = atom_info['type']
                     charge = atom_info['charge']
                 else:
-                    # Fallback for metals or missing atoms
-                    original_type = atom.element
+                    # Fallback for metals or missing atoms: a withheld cluster
+                    # residue is not in the prmtop at all.
+                    #
+                    # The element symbol is a fine placeholder for a metal or a
+                    # bridging sulfide -- 'MO'/'FE'/'S' are not Amber types, so
+                    # they read as provisional and those atoms are renamed to
+                    # M*/Y* anyway. HYDROGEN is the exception: 'H' IS a valid
+                    # Amber type, the amide/amine one (r* 0.6000), so a hydroxo
+                    # proton silently acquired the wrong nonbonded terms where
+                    # the hydroxyl convention 'HO' is 0.0000. Type it from the
+                    # atom it is bonded to.
+                    if (atom.element or '').strip().upper() == 'H':
+                        from proprep.forcefield_prep.mcpb.atom_typer import (
+                            hydrogen_type_from_neighbors,
+                        )
+                        original_type = hydrogen_type_from_neighbors(
+                            atom.coords,
+                            [(a.coords, a.element) for a in site.atoms
+                             if (a.chain, a.resid) == (atom.chain, atom.resid)],
+                        )
+                    else:
+                        original_type = atom.element
                     charge = None  # Will be set by user for metals
 
                 # Determine is_center and is_metal_ligand from our computed sets
@@ -1294,6 +1636,7 @@ class StructurePreprocessor:
 
         results = []
         all_complete = True
+        stale_sites = []
 
         # Helper to get site_id whether site is a dict or RedoxSite object
         def get_site_id(site, idx):
@@ -1323,6 +1666,28 @@ class StructurePreprocessor:
 
             site_id = get_site_id(site, idx)
             self.console.print(f"\n[bold cyan]Processing site {idx + 1}/{len(redox_sites)}: {site_id}[/bold cyan]")
+
+            # Step 12 rebuilds the small model too, and Gaussian is run on it
+            # manually; a leftover .log gives force constants for the old one.
+            stale = self._stale_gaussian_output(step1_dir, stem="small_freq")
+            if stale:
+                self.console.print(
+                    f"[red]✗ Site {idx + 1}: the Gaussian output is for a "
+                    f"different model than the input beside it[/red]")
+                self.console.print(f"  {stale}")
+                self.console.print(
+                    f"  The Hessian in that log is for the earlier model, so "
+                    f"the Seminario force constants would not describe this "
+                    f"site.")
+                self.console.print(
+                    f"  [yellow]Re-run Gaussian on {step1_dir}/small_freq.gjf, "
+                    f"then run this step again.[/yellow]")
+                results.append({"success": False, "site_id": site_id,
+                                "message": f"stale Gaussian output ({stale})"})
+                stale_sites.append(idx + 1)
+                all_complete = False
+                continue
+
             self.console.print(f"[green]✓ Found Gaussian output: small_freq.fchk, small_freq.log[/green]")
 
             # Create MetalSiteWorkflowManager
@@ -1369,11 +1734,211 @@ class StructurePreprocessor:
                 self.console.print(f"[red]✗ Site {idx + 1} failed: {result.get('message', 'Unknown error')}[/red]")
 
         if not all_complete:
+            if stale_sites:
+                listed = ", ".join(str(n) for n in stale_sites)
+                self.console.print(
+                    f"\n[yellow]Site(s) {listed}: the Gaussian output describes "
+                    f"a different model than the input beside it. Re-run "
+                    f"Gaussian for those sites, then resume.[/yellow]")
+                return {"summary": f"Stale Gaussian output for site(s) {listed}",
+                        "checkpoint": True}
             self.console.print("\n[yellow]Some sites missing Gaussian output. Run Gaussian, then resume.[/yellow]")
             return {"summary": "Waiting for Gaussian output", "checkpoint": True}
 
         successful = sum(1 for r in results if r.get("success"))
         return {"summary": f"{successful}/{len(redox_sites)} sites parameterized"}
+
+    @staticmethod
+    def _parse_gaussian_geometry(lines) -> List[Tuple[str, float, float, float]]:
+        """``(element, x, y, z)`` per atom from Gaussian Cartesian input lines.
+
+        Both the .gjf geometry block and the log's ``Symbolic Z-matrix`` echo
+        use the same layout, with an optional frozen-atom flag between the
+        element and the coordinates::
+
+            N   -1  -36.96000000  -14.48000000  -45.92400000
+            N       -36.96        -14.48        -45.924
+        """
+        geometry = []
+        for line in lines:
+            parts = line.split()
+            if len(parts) == 5:
+                symbol, coords = parts[0], parts[2:5]
+            elif len(parts) == 4:
+                symbol, coords = parts[0], parts[1:4]
+            else:
+                continue
+            try:
+                x, y, z = (float(c) for c in coords)
+            except ValueError:
+                continue
+            geometry.append((symbol.upper(), x, y, z))
+        return geometry
+
+    @classmethod
+    def _gjf_geometry(cls, gjf: Path):
+        """The model a Gaussian input describes, or None if unreadable.
+
+        Layout: route, blank, title, blank, "<charge> <mult>", the geometry,
+        then a blank line. The ReadRadii entries after that blank line look
+        exactly like atom lines ("Fe 1.383"), so the block has to end there.
+        """
+        try:
+            blanks = 0
+            in_geometry = False
+            body = []
+            with open(gjf, errors="ignore") as fh:
+                for line in fh:
+                    if not line.strip():
+                        if in_geometry:
+                            break
+                        blanks += 1
+                        continue
+                    if blanks < 2:
+                        continue
+                    if not in_geometry:
+                        # The charge/multiplicity line opens the geometry.
+                        if len(line.split()) == 2:
+                            in_geometry = True
+                        continue
+                    body.append(line)
+            return cls._parse_gaussian_geometry(body) or None
+        except OSError:
+            return None
+
+    @classmethod
+    def _log_input_geometry(cls, log: Path):
+        """The model Gaussian was given, from its ``Symbolic Z-matrix`` echo.
+
+        This is the input verbatim. The ``Input orientation`` table further
+        down is NOT interchangeable with it -- Gaussian re-centers and
+        reorients the molecule there, so comparing it against the .gjf reports
+        differences that are pure rigid-body motion.
+        """
+        try:
+            body = []
+            found = False
+            with open(log, errors="ignore") as fh:
+                for line in fh:
+                    if not found:
+                        if "Symbolic Z-matrix:" in line:
+                            found = True
+                        continue
+                    if not line.strip():
+                        break
+                    if "Charge" in line and "Multiplicity" in line:
+                        continue
+                    body.append(line)
+            return cls._parse_gaussian_geometry(body) or None
+        except OSError:
+            return None
+
+    @classmethod
+    def _stale_gaussian_output(cls, models_dir: Path, stem: str = "large_resp",
+                               tolerance: float = 1e-3):
+        """Why ``<stem>.log`` is superseded by ``<stem>.gjf``, or None.
+
+        Compares the model in the input against the one the log says Gaussian
+        was given. Content, not timestamps: mtimes are not evidence about what
+        a file contains, and they are rewritten by copying a log back from a
+        cluster or checking files out again. Re-running step 12 also rewrites
+        an input that is byte-identical to the one that ran, which a timestamp
+        test reports as stale when nothing has changed.
+
+        Applies to both QM models, which go stale for the same reason -- step
+        12 rebuilds them together, and Gaussian is run manually on each:
+
+        - ``small_freq`` feeds the Seminario force constants (mcpb-2)
+        - ``large_resp`` feeds the RESP charges (mcpb-3)
+
+        The failure this prevents is quiet. A superseded log describes the old
+        model, so the Hessian or ESP taken from it belongs to a different
+        molecule, and the output still looks like force constants or charges.
+        Re-running Gaussian is the only repair, so the step refuses.
+        """
+        models_dir = Path(models_dir)
+        log = models_dir / f"{stem}.log"
+        gjf = models_dir / f"{stem}.gjf"
+        if not log.exists() or not gjf.exists():
+            return None
+
+        want = cls._gjf_geometry(gjf)
+        got = cls._log_input_geometry(log)
+        if want is None or got is None:
+            return None
+
+        if len(want) != len(got):
+            return (f"large_resp.gjf has {len(want)} atoms but large_resp.log "
+                    f"was run on {len(got)}")
+
+        want_elements = [a[0] for a in want]
+        got_elements = [a[0] for a in got]
+        if want_elements != got_elements:
+            changed = sum(1 for a, b in zip(want_elements, got_elements) if a != b)
+            return (f"{stem}.gjf and {stem}.log agree on {len(want)} "
+                    f"atoms but {changed} differ in element")
+
+        worst = 0.0
+        for (_e, *a), (_f, *b) in zip(want, got):
+            worst = max(worst, max(abs(p - q) for p, q in zip(a, b)))
+        if worst > tolerance:
+            return (f"{stem}.gjf and {stem}.log describe the same atoms "
+                    f"at different coordinates (up to {worst:.3f} A apart)")
+
+        return None
+
+    @staticmethod
+    def _esp_charge_multiplicity(models_dir: Path):
+        """(charge, multiplicity) the ESP was actually computed with, or (None, 1).
+
+        RESP fits point charges to a specific electrostatic potential, so its
+        total-charge constraint has to be the charge that potential was computed
+        under. Any other value is not a worse fit — it is a fit to a different
+        molecule, and RESP will spread the difference over the atoms rather than
+        fail.
+
+        Read from the Gaussian log first (what the calculation actually used),
+        then the .gjf (what it was asked to use). Both live beside the model, so
+        neither can be confused with another site's.
+
+        That preference only holds while the log corresponds to the .gjf beside
+        it; call ``_stale_gaussian_output`` first, or an obsolete log will hand
+        back the charge of a model that has since been regenerated.
+        """
+        log = Path(models_dir) / "large_resp.log"
+        if log.exists():
+            try:
+                pattern = re.compile(r"Charge\s*=\s*(-?\d+)\s+Multiplicity\s*=\s*(\d+)")
+                with open(log, errors="ignore") as fh:
+                    for line in fh:
+                        m = pattern.search(line)
+                        if m:
+                            return int(m.group(1)), int(m.group(2))
+            except OSError:
+                pass
+
+        gjf = Path(models_dir) / "large_resp.gjf"
+        if gjf.exists():
+            try:
+                # Route, blank, title, blank, then "<charge> <multiplicity>".
+                blanks = 0
+                with open(gjf, errors="ignore") as fh:
+                    for line in fh:
+                        if not line.strip():
+                            blanks += 1
+                            continue
+                        if blanks >= 2:
+                            parts = line.split()
+                            if len(parts) == 2:
+                                try:
+                                    return int(parts[0]), int(parts[1])
+                                except ValueError:
+                                    return None, 1
+                            return None, 1
+            except OSError:
+                pass
+
+        return None, 1
 
     def _checklist_mcpb_3_resp(self) -> dict:
         """
@@ -1403,6 +1968,7 @@ class StructurePreprocessor:
 
         results = []
         all_complete = True
+        stale_sites = []
 
         # Helper to get site_id whether site is a dict or RedoxSite object
         def get_site_id(site, idx):
@@ -1431,6 +1997,28 @@ class StructurePreprocessor:
 
             site_id = get_site_id(site, idx)
             self.console.print(f"\n[bold cyan]Processing site {idx + 1}/{len(redox_sites)}: {site_id}[/bold cyan]")
+
+            # Present is not the same as current: step 1 may have been re-run
+            # since Gaussian last was, leaving a log for a superseded model.
+            stale = self._stale_gaussian_output(step1_dir)
+            if stale:
+                self.console.print(
+                    f"[red]✗ Site {idx + 1}: the Gaussian output is for a "
+                    f"different model than the input beside it[/red]")
+                self.console.print(f"  {stale}")
+                self.console.print(
+                    f"  The ESP in that log was computed for the earlier model, "
+                    f"so fitting to it would produce charges for a molecule "
+                    f"this site no longer describes.")
+                self.console.print(
+                    f"  [yellow]Re-run Gaussian on {step1_dir}/large_resp.gjf, "
+                    f"then run this step again.[/yellow]")
+                results.append({"success": False, "site_id": site_id,
+                                "message": f"stale Gaussian output ({stale})"})
+                stale_sites.append(idx + 1)
+                all_complete = False
+                continue
+
             self.console.print(f"[green]✓ Found Gaussian ESP output: large_resp.log[/green]")
 
             # Create MetalSiteWorkflowManager
@@ -1445,24 +2033,58 @@ class StructurePreprocessor:
                     state = json.load(f)
                     workflow.step_results = state.get("step_results", {})
 
-            # Get QM parameters from step 1 results
+            # Charge and multiplicity for the RESP fit MUST be the ones the ESP
+            # was computed with, so they are read from THIS site's Gaussian
+            # artifacts rather than from step_results.
+            #
+            # step_results is now partitioned per site, so step_1 is this
+            # site's. Reading the Gaussian artifacts stays the primary source
+            # anyway: they record what the calculation ACTUALLY used, which
+            # step_1 cannot know if the .gjf was edited by hand or the run was
+            # repeated at a different charge.
+            #
+            # Kept also because it is what caught the original defect, when
+            # mcpb_step_results was one dict every site shared: a -1 Fe2S2
+            # model fitted against site 2's -3 constraint put +5.6 on a metal.
+            large_charge, large_mult = self._esp_charge_multiplicity(step1_dir)
+
             step1_results = workflow.step_results.get("step_1", {})
             qm_params = step1_results.get("qm_parameters", {}).get("large_model", {})
-            large_charge = qm_params.get("charge", None)
-            large_mult = qm_params.get("multiplicity", 1)
 
-            # Fallback: read charge from large.pdb REMARK if not in step1 results
             if large_charge is None:
-                large_charge = 0
-                try:
-                    with open(large_pdb) as f:
-                        for line in f:
-                            if line.startswith("REMARK") and "Total charge:" in line:
-                                charge_str = line.split("Total charge:")[1].strip()
-                                large_charge = round(float(charge_str))
-                                break
-                except Exception:
-                    pass
+                # No Gaussian artifact to read: fall back to step_1, then to the
+                # large.pdb REMARK (the SUGGESTED charge, which the user may
+                # have overridden at the prompt).
+                large_charge = qm_params.get("charge", None)
+                large_mult = qm_params.get("multiplicity", 1)
+                if large_charge is None:
+                    large_charge = 0
+                    try:
+                        with open(large_pdb) as f:
+                            for line in f:
+                                if line.startswith("REMARK") and "Total charge:" in line:
+                                    charge_str = line.split("Total charge:")[1].strip()
+                                    large_charge = round(float(charge_str))
+                                    break
+                    except Exception:
+                        pass
+                self.console.print(
+                    f"[yellow]  Could not read the charge from this site's Gaussian "
+                    f"input/output; using {large_charge:+d} from "
+                    f"{'step 1' if qm_params else 'the large.pdb REMARK'}. Verify it "
+                    f"matches the ESP calculation.[/yellow]")
+            else:
+                stored = qm_params.get("charge")
+                if stored is not None and stored != large_charge:
+                    # Exactly the symptom above — worth naming rather than
+                    # silently preferring the right one.
+                    self.console.print(
+                        f"[yellow]  Step-1 records charge {stored:+d} for this site "
+                        f"but its ESP was computed at {large_charge:+d}; using "
+                        f"{large_charge:+d} to match the ESP.[/yellow]")
+                self.console.print(
+                    f"[grey50]  ESP charge {large_charge:+d}, multiplicity "
+                    f"{large_mult} (from this site's Gaussian files)[/grey50]")
 
             # Synthesize step_3a results from step1 data
             # (In integrated workflow, ESP input is generated in step1, not step3)
@@ -1523,6 +2145,14 @@ class StructurePreprocessor:
             self.console.print(f"[green]✓ Site {idx + 1}: RESP charges fitted and mol2 files generated[/green]")
 
         if not all_complete:
+            if stale_sites:
+                listed = ", ".join(str(n) for n in stale_sites)
+                self.console.print(
+                    f"\n[yellow]Site(s) {listed}: the Gaussian output describes "
+                    f"a different model than the input beside it. Re-run "
+                    f"Gaussian for those sites, then resume.[/yellow]")
+                return {"summary": f"Stale Gaussian output for site(s) {listed}",
+                        "checkpoint": True}
             self.console.print("\n[yellow]Some sites missing Gaussian ESP output. Run Gaussian, then resume.[/yellow]")
             return {"summary": "Waiting for Gaussian ESP output", "checkpoint": True}
 
@@ -1716,12 +2346,18 @@ class StructurePreprocessor:
         """Checklist handler for mcpb-4: Force Field Integration.
 
         Automates the MCPB integration workflow:
-        1. Collects mol2/frcmod deliverables from step 1-3
-        2. Prompts user for site type name, redox state, spin state
-        3. Generates unique residue names (MCPB convention)
-        4. Creates FF parameter library at ~/.proprep/forcefield_params/
-        5. Renames residues in the prepared PDB
-        6. Stores workspace data for tLEaP consumption
+        1. Collects mol2/frcmod deliverables from step 1-3, per metal site
+        2. Generates residue names unique across ALL sites (MCPB convention)
+        3. Per site: prompts for site type / redox state / spin state and
+           deposits one FF parameter library entry under
+           ~/.proprep/forcefield_params/, plus one reuse transformer
+        4. Renames residues in the prepared PDB
+        5. Stores every site's files and types for tLEaP consumption
+
+        Naming is structure-wide (site 2's Cys must not collide with site 1's)
+        but the deposit is per-site: a library entry describes one site type,
+        and a merged entry can be reused only on a structure that happens to
+        carry every site it was built from.
         """
         from rich.panel import Panel
         from rich.table import Table
@@ -1735,100 +2371,115 @@ class StructurePreprocessor:
         )
 
         # ================================================================
-        # A. Collect MCPB output files
+        # A. Collect MCPB output files, one record per metal site
         # ================================================================
-        site_dirs = sorted(self._output_dir.glob("site_*"))
+        # A library entry describes ONE site type, so the deliverables are kept
+        # partitioned by site_* directory rather than flattened. Only residue
+        # NAMING needs a cross-site view (section D), and it takes its union
+        # from these records.
+        def _site_index(path: Path) -> int:
+            """Numeric suffix of a ``site_N`` directory.
+
+            Sorting the glob lexically puts ``site_10`` between ``site_1`` and
+            ``site_2``, which would misalign the dir->RedoxSite mapping below.
+            """
+            suffix = path.name.split("_", 1)[-1]
+            return int(suffix) if suffix.isdigit() else 0
+
+        site_dirs = sorted(self._output_dir.glob("site_*"), key=_site_index)
         if not site_dirs:
             return {"summary": "No site directories found"}
 
-        all_mol2_files = []
-        all_frcmod_files = []
-
+        site_records = []
         for site_dir in site_dirs:
-            for mol2 in sorted((site_dir / "models").glob("*.mol2")):
-                all_mol2_files.append(mol2)
-            for frcmod in (site_dir / "bonded_params").glob("*_bonded.frcmod"):
-                all_frcmod_files.append(frcmod)
+            mol2_files = sorted((site_dir / "models").glob("*.mol2"))
+            frcmod_files = sorted((site_dir / "bonded_params").glob("*_bonded.frcmod"))
+            if not mol2_files and not frcmod_files:
+                continue
+            fingerprint = site_dir / "models" / "standard.fingerprint"
+            assignments = site_dir / "models" / "atom_type_assignments.json"
+            site_records.append({
+                "dir": site_dir,
+                "index": _site_index(site_dir),
+                "mol2_files": mol2_files,
+                "frcmod_files": frcmod_files,
+                "fingerprint": str(fingerprint) if fingerprint.exists() else None,
+                "assignments": str(assignments) if assignments.exists() else None,
+            })
 
-        if not all_mol2_files and not all_frcmod_files:
+        if not site_records:
             return {"summary": "No MCPB parameter files found"}
+
+        # Label each record with the site it came from. mcpb-1 names the
+        # directory ``site_{idx+1}`` over the FULL redox-site list and skips
+        # non-metal sites without creating a directory, so the numeric suffix
+        # indexes redox_sites — enumeration order would drift past any skipped
+        # organic cofactor.
+        labelling_sites = self.redox_sites
+        if not labelling_sites and self.workspace:
+            labelling_sites = self.workspace.get("detected_redox_sites", [])
+        for record in site_records:
+            site_obj = None
+            pos = record["index"] - 1
+            if labelling_sites and 0 <= pos < len(labelling_sites):
+                site_obj = labelling_sites[pos]
+            site_id = None
+            if isinstance(site_obj, dict):
+                site_id = site_obj.get("site_id")
+            elif site_obj is not None:
+                site_id = getattr(site_obj, "site_id", None)
+            record["site_obj"] = site_obj
+            record["label"] = site_id or record["dir"].name
 
         # ================================================================
         # B. Display deliverables table
         # ================================================================
         table = Table(title="MCPB Deliverables", expand=False)
+        table.add_column("Site", style="bold cyan")
         table.add_column("Type", style="cyan")
         table.add_column("File", style="green")
         table.add_column("Location", style="grey50")
 
-        for mol2 in all_mol2_files:
-            table.add_row("mol2 (RESP charges)", mol2.name, str(mol2.parent))
-        for frcmod in all_frcmod_files:
-            table.add_row("frcmod (bonded params)", frcmod.name, str(frcmod.parent))
+        for record in site_records:
+            for mol2 in record["mol2_files"]:
+                table.add_row(record["label"], "mol2 (RESP charges)",
+                              mol2.name, str(mol2.parent))
+            for frcmod in record["frcmod_files"]:
+                table.add_row(record["label"], "frcmod (bonded params)",
+                              frcmod.name, str(frcmod.parent))
 
         self.console.print(table)
 
         # ================================================================
-        # C. Prompt for site type, redox state, spin state
+        # C. Site identity — deferred to section E
         # ================================================================
-        self.console.print()
-        site_type = prompt_with_context(
-            self.processor,
-            "Name this site type (snake_case, e.g., zinc_his3_cys)",
-            module="MCPB Integration",
-            description="Unique identifier for this metal site type",
-        )
-
-        redox_state = prompt_with_context(
-            self.processor,
-            "Redox state name (e.g., oxidized, reduced)",
-            default="default",
-            module="MCPB Integration",
-            description="Redox/oxidation state of the metal center",
-        )
-
-        spin_state = prompt_with_context(
-            self.processor,
-            "Spin state name (e.g., high_spin, low_spin)",
-            default="default",
-            module="MCPB Integration",
-            description="Electronic spin state of the metal center",
-        )
+        # type/redox/spin are per-site questions (two sites in one protein can
+        # legitimately differ in both), and they are easier to answer once the
+        # residue names are settled. Asked in the per-site deposit loop.
 
         # ================================================================
         # D. Parse EVERY site's fingerprint and generate unique residue names
         # ================================================================
-        # A multi-site protein has one fingerprint per site_* directory. We must
-        # merge residues AND M*/Y* atom-type entries across all of them, or only
-        # site 1's residues get named/parameterized and the rest are silently
-        # dropped. Re-pair fingerprint<->assignments per site_dir so the two
-        # lists can't desync (a site may lack the assignments json).
-        fp_assign_pairs = []
-        for site_dir in site_dirs:
-            fp = site_dir / "models" / "standard.fingerprint"
-            if not fp.exists():
-                continue
-            assignments = site_dir / "models" / "atom_type_assignments.json"
-            fp_assign_pairs.append((str(fp), str(assignments) if assignments.exists() else None))
-
-        if not fp_assign_pairs:
+        # A multi-site protein has one fingerprint per site_* directory. Each
+        # site's residues and M*/Y* atom-type entries are parsed onto its own
+        # record — that slice is what gets deposited. The union of the residue
+        # keys is kept alongside for the one job that is genuinely
+        # structure-wide: generating residue names unique across all sites.
+        parsed_records = [r for r in site_records if r["fingerprint"]]
+        if not parsed_records:
             self.console.print("[red]No fingerprint files found in site directories[/red]")
             return {"summary": "Failed — no fingerprint files"}
 
         combined_residue_keys = []
-        combined_atom_type_entries = []
         seen_keys = set()
-        seen_entries = set()
-        for fp_path, assign_path in fp_assign_pairs:
-            fp_data = parse_fingerprint(fp_path, assign_path)
-            for key in fp_data["residues"].keys():
+        for record in parsed_records:
+            fp_data = parse_fingerprint(record["fingerprint"], record["assignments"])
+            record["residue_keys"] = list(fp_data["residues"].keys())
+            record["atom_type_entries"] = list(fp_data["atom_type_entries"])
+            for key in record["residue_keys"]:
                 if key not in seen_keys:
                     seen_keys.add(key)
                     combined_residue_keys.append(key)
-            for entry in fp_data["atom_type_entries"]:
-                if entry not in seen_entries:
-                    seen_entries.add(entry)
-                    combined_atom_type_entries.append(entry)
 
         if not combined_residue_keys:
             self.console.print("[red]No residues found in fingerprint(s)[/red]")
@@ -1856,6 +2507,9 @@ class StructurePreprocessor:
         if restrained_resids:
             dropped = [k for k in combined_residue_keys if k[0] in restrained_resids]
             combined_residue_keys = [k for k in combined_residue_keys if k[0] not in restrained_resids]
+            for record in parsed_records:
+                record["residue_keys"] = [k for k in record["residue_keys"]
+                                          if k[0] not in restrained_resids]
             for (resid, resname) in dropped:
                 self.console.print(
                     f"  [grey50]Keeping {resname} {resid} as-is "
@@ -1868,16 +2522,26 @@ class StructurePreprocessor:
 
         # First site's fingerprint still passed for logging/back-compat; the
         # merged atom_type_entries below are what create_ff_library actually uses.
-        fp_path, assign_path = fp_assign_pairs[0]
+        # Display proposed names, attributed to the site each residue belongs
+        # to. A residue coordinating two metals (a bridging Cys) is listed
+        # under both, and is deposited into both sites' libraries — each entry
+        # has to stand alone to be reusable.
+        sites_for_key = {}
+        for record in parsed_records:
+            for key in record["residue_keys"]:
+                sites_for_key.setdefault(key, []).append(record["label"])
 
-        # Display proposed names
         name_table = Table(title="Proposed Residue Names", expand=False)
+        name_table.add_column("Site", style="cyan")
         name_table.add_column("Original", style="yellow")
         name_table.add_column("New Name", style="green bold")
         name_table.add_column("ResID", style="grey50")
 
         for (resid, resname), new_name in residue_name_map.items():
-            name_table.add_row(resname, new_name, str(resid))
+            name_table.add_row(
+                ", ".join(sites_for_key.get((resid, resname), ["-"])),
+                resname, new_name, str(resid),
+            )
 
         self.console.print(name_table)
 
@@ -1892,38 +2556,159 @@ class StructurePreprocessor:
             return {"summary": "Cancelled by user"}
 
         # ================================================================
-        # E. Create FF parameter library
+        # E. Create one FF parameter library entry per site
         # ================================================================
-        description = f"MCPB-parameterized {site_type} metal site"
-
-        # The MCPB bonded frcmod covers only the metal shell (M*/Y* types). Any
-        # organic ligand in the site (e.g. E4Z) needs its own GAFF frcmod
-        # deposited too, or its atoms type at reuse with no vdW/torsion params.
-        site_resnames = {resname for (_resid, resname) in residue_name_map}
-        ligand_frcmods = self._collect_ligand_frcmods(site_resnames)
-        if ligand_frcmods:
+        # Each site is deposited on its own so it can be reused on its own. A
+        # single merged entry keyed by one site_type cannot be applied to a
+        # structure that has only one of these sites without dragging in the
+        # other's residues, atom types and frcmod.
+        if len(parsed_records) > 1:
             self.console.print(
-                f"  [grey50]Including {len(ligand_frcmods)} ligand GAFF frcmod(s): "
-                f"{', '.join(sorted(ligand_frcmods))}[/grey50]"
+                f"\n[bold]{len(parsed_records)} metal sites — each is named and "
+                f"deposited to the library separately.[/bold]"
             )
 
-        self.console.print(f"\n[bold]Creating FF parameter library...[/bold]")
-        lib_result = create_ff_library(
-            site_type=site_type,
-            description=description,
-            mol2_files=[str(m) for m in all_mol2_files],
-            frcmod_files=[str(f) for f in all_frcmod_files],
-            fingerprint_path=fp_path,
-            assignments_path=assign_path,
-            residue_name_map=residue_name_map,
-            redox_state=redox_state,
-            spin_state=spin_state,
-            atom_type_entries=combined_atom_type_entries,
-            extra_frcmod_files=list(ligand_frcmods.values()),
-        )
+        claimed_identities = {}   # (type, redox, spin) -> site label that took it
+        last_answers = {}         # carried forward as the next site's defaults
+        deposits = []
+        failed_sites = []
 
-        self.console.print(f"  [green]✓[/green] Library: [grey50]{lib_result['library_path']}[/grey50]")
-        self.console.print(f"  [green]✓[/green] Metadata: [grey50]{lib_result['metadata_path']}[/grey50]")
+        for record in parsed_records:
+            label = record["label"]
+            site_keys = record["residue_keys"]
+            if not site_keys:
+                self.console.print(
+                    f"  [yellow]Skipping {label}: no residues left to deposit "
+                    f"(all restrained ligands).[/yellow]"
+                )
+                continue
+
+            site_residue_map = {k: residue_name_map[k] for k in site_keys
+                                if k in residue_name_map}
+            if not site_residue_map:
+                self.console.print(
+                    f"  [yellow]Skipping {label}: no named residues.[/yellow]"
+                )
+                continue
+
+            self.console.print()
+            resnames_here = ", ".join(sorted({rn for (_r, rn) in site_residue_map}))
+            self.console.print(
+                f"[bold cyan]Site {label}[/bold cyan] "
+                f"[grey50]({record['dir'].name}: {resnames_here})[/grey50]"
+            )
+
+            # Previous site's answers become this one's defaults: sites in one
+            # protein are often the same type and state, and a 6-site run
+            # should not mean 18 cold prompts.
+            while True:
+                site_type = prompt_with_context(
+                    self.processor,
+                    f"Name this site type for {label} (snake_case, e.g., zinc_his3_cys)",
+                    default=last_answers.get("site_type"),
+                    module="MCPB Integration",
+                    description=f"Unique identifier for the metal site type in {record['dir'].name}",
+                )
+                redox_state = prompt_with_context(
+                    self.processor,
+                    f"Redox state name for {label} (e.g., oxidized, reduced)",
+                    default=last_answers.get("redox_state", "default"),
+                    module="MCPB Integration",
+                    description="Redox/oxidation state of this metal center",
+                )
+                spin_state = prompt_with_context(
+                    self.processor,
+                    f"Spin state name for {label} (e.g., high_spin, low_spin)",
+                    default=last_answers.get("spin_state", "default"),
+                    module="MCPB Integration",
+                    description="Electronic spin state of this metal center",
+                )
+
+                identity = (site_type, redox_state, spin_state)
+                if identity not in claimed_identities:
+                    break
+                # Two sites cannot share a library key even when they are
+                # chemically equivalent: residue names are unique across the
+                # whole structure, so site 1 holds CY1 where site 2 holds CY5.
+                # promote_state overwrites a repeated key, which would silently
+                # drop the earlier site's residue names from the entry.
+                self.console.print(
+                    f"  [yellow]{site_type}/{redox_state}/{spin_state} was already "
+                    f"used for site {claimed_identities[identity]}. Each site needs "
+                    f"its own library key — the residue names differ between "
+                    f"sites, so depositing both here would lose one.[/yellow]"
+                )
+
+            claimed_identities[identity] = label
+            last_answers = {"site_type": site_type, "redox_state": redox_state,
+                            "spin_state": spin_state}
+
+            description = f"MCPB-parameterized {site_type} metal site"
+
+            # The MCPB bonded frcmod covers only the metal shell (M*/Y* types).
+            # Any organic ligand in the site (e.g. E4Z) needs its own GAFF
+            # frcmod deposited too, or its atoms type at reuse with no
+            # vdW/torsion params. Scoped to this site's own ligands.
+            site_resnames = {resname for (_resid, resname) in site_residue_map}
+            ligand_frcmods = self._collect_ligand_frcmods(site_resnames)
+            if ligand_frcmods:
+                self.console.print(
+                    f"  [grey50]Including {len(ligand_frcmods)} ligand GAFF frcmod(s): "
+                    f"{', '.join(sorted(ligand_frcmods))}[/grey50]"
+                )
+
+            self.console.print("  [bold]Creating FF parameter library...[/bold]")
+            # Deposits are per-site now, so each can fail on its own — a site
+            # whose bonded frcmod is missing raises here. Report it and keep
+            # going, or one incomplete site would cost every other site its
+            # already-computed parameters.
+            try:
+                lib_result = create_ff_library(
+                    site_type=site_type,
+                    description=description,
+                    mol2_files=[str(m) for m in record["mol2_files"]],
+                    frcmod_files=[str(f) for f in record["frcmod_files"]],
+                    fingerprint_path=record["fingerprint"],
+                    assignments_path=record["assignments"],
+                    residue_name_map=site_residue_map,
+                    redox_state=redox_state,
+                    spin_state=spin_state,
+                    # This site's own M*/Y* types only. Per-site type offsets
+                    # already keep them disjoint, so an entry reused on its own
+                    # carries exactly the types its own parameters reference.
+                    atom_type_entries=record["atom_type_entries"],
+                    extra_frcmod_files=list(ligand_frcmods.values()),
+                )
+            except Exception as exc:
+                self.console.print(
+                    f"  [red]✗ Could not deposit {label}: {exc}[/red]"
+                )
+                failed_sites.append(label)
+                continue
+
+            record["site_type"] = site_type
+            record["redox_state"] = redox_state
+            record["spin_state"] = spin_state
+            record["lib_result"] = lib_result
+            record["residue_name_map"] = site_residue_map
+            deposits.append(record)
+
+            self.console.print(f"  [green]✓[/green] Library: [grey50]{lib_result['library_path']}[/grey50]")
+            self.console.print(f"  [green]✓[/green] Metadata: [grey50]{lib_result['metadata_path']}[/grey50]")
+
+        if not deposits:
+            self.console.print("[red]No sites were deposited to the library[/red]")
+            if failed_sites:
+                return {"summary": f"Failed — no site deposited "
+                                   f"({', '.join(failed_sites)})"}
+            return {"summary": "Failed — nothing to deposit"}
+
+        if failed_sites:
+            self.console.print(
+                f"\n[yellow]Deposited {len(deposits)} of "
+                f"{len(deposits) + len(failed_sites)} sites. Not deposited: "
+                f"{', '.join(failed_sites)}.[/yellow]"
+            )
 
         # ================================================================
         # F. Rename residues in the prepared PDB
@@ -2008,66 +2793,106 @@ class StructurePreprocessor:
                 _atom_maps_by_resname = self._collect_ligand_atom_maps(
                     {old for (_, _, old) in pdb_rename_map})
 
-                rename_table = []
-                for (chain, resid, old_resname), new_name in pdb_rename_map.items():
-                    entry = {"resname": old_resname, "target": new_name}
-                    host = _site_containing(chain, resid)
-                    if host is not None:
-                        wl = _labels_for(host).get((chain, resid))
-                        if wl is not None:
-                            entry["signature"] = wl
-                    atom_renames = _atom_maps_by_resname.get(old_resname)
-                    if atom_renames:
-                        entry["atom_renames"] = atom_renames
-                    rename_table.append(entry)
+                # One transformer per deposited site, built from that site's
+                # renames only. A table spanning several sites cannot match
+                # anything: evaluate_redox_site (auto_rename.py) counts the
+                # table's resnames against a SINGLE redox site and requires
+                # met == total, so a merged table fails on every site it was
+                # built from — each supplies only its own share of the residues.
+                emitted = 0
+                for record in deposits:
+                    site_keys = set(record["residue_name_map"])
+                    site_renames = {
+                        (chain, resid, old): new
+                        for (chain, resid, old), new in pdb_rename_map.items()
+                        if (resid, old) in site_keys
+                    }
+                    if not site_renames:
+                        continue
 
-                # Derive the relative cofactor path (under specialized_residues)
-                # so the Topology Generator can discover the deposited FF the same
-                # way built-in transformers do. library_path is the absolute
-                # ~/.proprep/.../specialized_residues/<cofactor_path> dir.
-                forcefield_path = None
-                lib_path = lib_result.get("library_path")
-                if lib_path:
-                    parts = Path(lib_path).parts
-                    if "specialized_residues" in parts:
-                        idx = parts.index("specialized_residues")
-                        forcefield_path = "/".join(parts[idx + 1:]) or None
+                    try:
+                        rename_table = []
+                        for (chain, resid, old_resname), new_name in site_renames.items():
+                            entry = {"resname": old_resname, "target": new_name}
+                            host = _site_containing(chain, resid)
+                            if host is not None:
+                                wl = _labels_for(host).get((chain, resid))
+                                if wl is not None:
+                                    entry["signature"] = wl
+                            atom_renames = _atom_maps_by_resname.get(old_resname)
+                            if atom_renames:
+                                entry["atom_renames"] = atom_renames
+                            rename_table.append(entry)
 
-                resnames = sorted({old for (_, _, old) in pdb_rename_map})
-                tname = f"mcpb_{site_type}_{'_'.join(resnames)}_{redox_state}_{spin_state}"
-                tdesc = (
-                    f"Reuse MCPB {site_type} parameters "
-                    f"(residues: {', '.join(resnames)}; "
-                    f"redox={redox_state}, spin={spin_state})"
-                )
-                t_path = emit_rename_transformer(
-                    rename_table,
-                    name=tname,
-                    description=tdesc,
-                    redox_state=str(redox_state),
-                    spin_state=str(spin_state),
-                    forcefield_path=forcefield_path,
-                    provenance={
-                        "source": "mcpb_metal_site",
-                        "site_type": site_type,
-                        "redox_state": str(redox_state),
-                        "spin_state": str(spin_state),
-                        "library_path": lib_path,
-                        "metadata_path": lib_result.get("metadata_path"),
-                    },
-                    site_types=[site_type],
-                )
-                self.console.print(
-                    f"  [green]✓[/green] Reuse transformer saved: "
-                    f"[grey50]{t_path}[/grey50]"
-                )
-                self.console.print(
-                    "  [grey50]Apply it in the Redox Site Preparer to reuse "
-                    "these params on another instance of this site.[/grey50]"
-                )
+                        site_type = record["site_type"]
+                        redox_state = record["redox_state"]
+                        spin_state = record["spin_state"]
+                        lib_result = record["lib_result"]
+
+                        # Derive the relative cofactor path (under
+                        # specialized_residues) so the Topology Generator can
+                        # discover the deposited FF the same way built-in
+                        # transformers do. library_path is the absolute
+                        # ~/.proprep/.../specialized_residues/<cofactor_path> dir.
+                        forcefield_path = None
+                        lib_path = lib_result.get("library_path")
+                        if lib_path:
+                            parts = Path(lib_path).parts
+                            if "specialized_residues" in parts:
+                                idx = parts.index("specialized_residues")
+                                forcefield_path = "/".join(parts[idx + 1:]) or None
+
+                        resnames = sorted({old for (_, _, old) in site_renames})
+                        tname = (f"mcpb_{site_type}_{'_'.join(resnames)}"
+                                 f"_{redox_state}_{spin_state}")
+                        tdesc = (
+                            f"Reuse MCPB {site_type} parameters "
+                            f"(residues: {', '.join(resnames)}; "
+                            f"redox={redox_state}, spin={spin_state})"
+                        )
+                        t_path = emit_rename_transformer(
+                            rename_table,
+                            name=tname,
+                            description=tdesc,
+                            redox_state=str(redox_state),
+                            spin_state=str(spin_state),
+                            forcefield_path=forcefield_path,
+                            provenance={
+                                "source": "mcpb_metal_site",
+                                "site_type": site_type,
+                                "site_label": record["label"],
+                                "redox_state": str(redox_state),
+                                "spin_state": str(spin_state),
+                                "library_path": lib_path,
+                                "metadata_path": lib_result.get("metadata_path"),
+                            },
+                            site_types=[site_type],
+                        )
+                        record["transformer_path"] = str(t_path)
+                        emitted += 1
+                        self.console.print(
+                            f"  [green]✓[/green] Reuse transformer for "
+                            f"{record['label']}: [grey50]{t_path}[/grey50]"
+                        )
+                    except Exception as exc:
+                        # The parameters are already deposited, so one site's
+                        # transformer failing must not cost the others theirs.
+                        self.console.print(
+                            f"  [yellow]Note: could not auto-create reuse "
+                            f"transformer for {record['label']} ({exc}); "
+                            f"parameters are still saved.[/yellow]"
+                        )
+
+                if emitted:
+                    self.console.print(
+                        f"  [grey50]Apply {'them' if emitted > 1 else 'it'} in the "
+                        f"Redox Site Preparer to reuse these params on another "
+                        f"instance of {'these sites' if emitted > 1 else 'this site'}."
+                        f"[/grey50]"
+                    )
             except Exception as exc:
                 self.console.print(
-                    f"  [yellow]Note: could not auto-create reuse transformer "
+                    f"  [yellow]Note: could not auto-create reuse transformers "
                     f"({exc}); parameters are still saved.[/yellow]"
                 )
 
@@ -2125,53 +2950,100 @@ class StructurePreprocessor:
         # ================================================================
         # G. Store workspace data for tLEaP
         # ================================================================
+        # The library entries are per-site, but the tLEaP run is one session
+        # over the whole structure, so every site's files and types are
+        # registered together here. Deduped: two sites sharing a bridging
+        # residue deposit the same .lib, and a repeated loadoff/addAtomTypes
+        # is at best noise in the generated input.
+        all_lib_files = []
+        all_frcmod_paths = []
+        all_atom_types = []
+        for record in deposits:
+            result = record["lib_result"]
+            all_lib_files.extend(result["renamed_mol2_files"])
+            all_frcmod_paths.extend(result["frcmod_files"])
+            all_atom_types.extend(result.get("atom_type_entries", []))
+
+        def _dedupe(seq):
+            seen = set()
+            out = []
+            for item in seq:
+                if item not in seen:
+                    seen.add(item)
+                    out.append(item)
+            return out
+
+        all_lib_files = _dedupe(all_lib_files)
+        all_frcmod_paths = _dedupe(all_frcmod_paths)
+        all_atom_types = _dedupe(all_atom_types)
+
         if self.workspace:
             # Append renamed mol2 paths to preprocessing_lib_files
             # (tLEaP generator handles .mol2 -> loadmol2 automatically)
             lib_files = self.workspace.get("preprocessing_lib_files", [])
             if not isinstance(lib_files, list):
                 lib_files = []
-            lib_files.extend(lib_result["renamed_mol2_files"])
+            lib_files.extend(all_lib_files)
             self.workspace.set("preprocessing_lib_files", lib_files)
 
             # Append frcmod paths to preprocessing_frcmod_files
             frcmod_files = self.workspace.get("preprocessing_frcmod_files", [])
             if not isinstance(frcmod_files, list):
                 frcmod_files = []
-            frcmod_files.extend(lib_result["frcmod_files"])
+            frcmod_files.extend(all_frcmod_paths)
             self.workspace.set("preprocessing_frcmod_files", frcmod_files)
 
             # Store custom atom types for tLEaP addAtomTypes block
-            atom_types = lib_result.get("atom_type_entries", [])
-            if atom_types:
+            if all_atom_types:
                 existing = self.workspace.get("preprocessing_atom_types", [])
                 if not isinstance(existing, list):
                     existing = []
-                existing.extend(atom_types)
+                existing.extend(all_atom_types)
                 self.workspace.set("preprocessing_atom_types", existing)
 
         # ================================================================
         # H. Show advice panel
         # ================================================================
+        deposit_table = Table(title="Deposited Library Entries", expand=False)
+        deposit_table.add_column("Site", style="cyan")
+        deposit_table.add_column("Type / Redox / Spin", style="green bold")
+        deposit_table.add_column("Path", style="grey50")
+        for record in deposits:
+            deposit_table.add_row(
+                record["label"],
+                f"{record['site_type']} / {record['redox_state']} / {record['spin_state']}",
+                str(record["lib_result"]["library_path"]),
+            )
+        self.console.print()
+        self.console.print(deposit_table)
+
+        n_transformers = sum(1 for r in deposits if r.get("transformer_path"))
+        plural = "s" if len(deposits) > 1 else ""
         self.console.print(Panel(
             f"[bold green]Force Field Integration Complete[/bold green]\n\n"
-            f"[bold]FF parameter library:[/bold] {lib_result['library_path']}\n"
-            f"[bold]Renamed mol2 files:[/bold] {len(lib_result['renamed_mol2_files'])}\n"
-            f"[bold]Frcmod files:[/bold] {len(lib_result['frcmod_files'])}\n\n"
+            f"[bold]Library entries:[/bold] {len(deposits)} "
+            f"(one per metal site)\n"
+            f"[bold]Renamed mol2 files:[/bold] {len(all_lib_files)}\n"
+            f"[bold]Frcmod files:[/bold] {len(all_frcmod_paths)}\n\n"
             f"[bold]Next steps:[/bold]\n"
             f"  1. Go to the [cyan]Topology Generator[/cyan] to build prmtop/inpcrd\n"
             f"     (mol2 and frcmod files are already registered for tLEaP)\n"
-            f"  2. A [cyan]reuse transformer[/cyan] was auto-created from these renames —\n"
-            f"     apply it in the [cyan]Redox Site Preparer[/cyan] to reuse these\n"
-            f"     parameters on another instance of this site (no re-parameterization)",
+            f"  2. {n_transformers} [cyan]reuse transformer{plural}[/cyan] "
+            f"auto-created from these renames —\n"
+            f"     apply in the [cyan]Redox Site Preparer[/cyan] to reuse a site's\n"
+            f"     parameters on another instance of it (no re-parameterization)",
             title="Force Field Integration",
             border_style="green",
             expand=False,
         ))
 
-        n_mol2 = len(lib_result["renamed_mol2_files"])
-        n_frcmod = len(lib_result["frcmod_files"])
-        return {"summary": f"Integrated {n_mol2} mol2, {n_frcmod} frcmod as '{site_type}'"}
+        site_names = ", ".join(f"'{r['site_type']}'" for r in deposits)
+        summary = (f"Integrated {len(all_lib_files)} mol2, "
+                   f"{len(all_frcmod_paths)} frcmod into {len(deposits)} library "
+                   f"entr{'ies' if len(deposits) > 1 else 'y'}: {site_names}")
+        if failed_sites:
+            summary += f" (not deposited: {', '.join(failed_sites)})"
+        return {"summary": summary}
 
     def _find_chain_for_residue(self, resid: int, resname: str,
                                 redox_sites) -> str:
@@ -2322,35 +3194,61 @@ class StructurePreprocessor:
         if len(atoms) == 1:
             # Check element field (normalize to title case for METAL_ELEMENTS)
             element = atoms[0].element.strip().title() if atoms[0].element else ""
-            if element in METAL_ELEMENTS:
-                return True
+            if element:
+                # Authoritative when present — the name-based guesses below
+                # exist for the blank-field case and must not override it.
+                return element in METAL_ELEMENTS
             # Fallback: check residue name (many metal ions have resname = element symbol)
             resname = residue.resname.strip().title()
             if resname in METAL_ELEMENTS:
                 return True
-            # Fallback: check atom name
-            atom_name = atoms[0].name.strip().title()
-            if atom_name in METAL_ELEMENTS:
+            # Fallback: check atom name, honouring the PDB column convention
+            if self._element_from_atom_name(atoms[0]) in METAL_ELEMENTS:
                 return True
         return False
+
+    @staticmethod
+    def _element_from_atom_name(atom) -> str:
+        """Element implied by an atom NAME, honouring the PDB column convention.
+
+        A two-letter element starts in column 13 (``FE1 `` is iron); a
+        one-letter element is right-justified into column 14, leaving room for
+        a remoteness indicator (`` PA `` is phosphorus, `` CA `` an alpha
+        carbon). Reading the stripped name instead turns FAD's phosphates PA
+        and PB into protactinium and lead, and a protein's CA into calcium.
+
+        Only for atoms whose element field is missing; BioPython keeps the raw
+        four-character field in ``fullname``.
+        """
+        from proprep.utils.pdb_format import element_from_name_field
+
+        full = getattr(atom, "fullname", None) or ""
+        if len(full) >= 4:
+            return element_from_name_field(full)
+        return atom.name.strip().title()
 
     def _has_embedded_metal(self, residue) -> bool:
         """Check if residue contains an embedded metal (multi-atom with metal).
 
         For multi-atom residues, checks if any atom is a metal element.
-        Falls back to atom name if element field is empty.
+        Falls back to atom name only when the element field is empty.
         """
         atoms = list(residue.get_atoms())
         if len(atoms) <= 1:
             return False  # Single atom residues handled by _is_isolated_metal
         for atom in atoms:
-            # Check element field
             element = atom.element.strip().title() if atom.element else ""
-            if element in METAL_ELEMENTS:
-                return True
-            # Fallback: check atom name (e.g., "FE" in heme)
-            atom_name = atom.name.strip().title()
-            if atom_name in METAL_ELEMENTS:
+            if element:
+                # The element field is authoritative when present. Consulting
+                # the atom name anyway classified FAD as organometallic: its
+                # two phosphate atoms are named PA and PB, which title-case to
+                # Pa (protactinium) and Pb (lead).
+                if element in METAL_ELEMENTS:
+                    return True
+                continue
+            # No element field (common in older/hand-edited PDBs, and the
+            # reason this fallback exists — e.g. "FE" in a heme).
+            if self._element_from_atom_name(atom) in METAL_ELEMENTS:
                 return True
         return False
 
@@ -2631,6 +3529,190 @@ class StructurePreprocessor:
                                         is_isolated=is_isolated,
                                     )
         return None
+
+    def _offer_cluster_hydrogens(self, cluster_keys: List[str]) -> None:
+        """Offer to add hydrogens to each withheld inorganic cluster.
+
+        Nothing else in the pipeline can put a hydrogen on a cluster: hydrogen
+        addition covers protein (category A) and organic residues (category B),
+        and ``reduce`` has no chemistry for a Mo-S-O or Fe-S core anyway. So a
+        cofactor whose resting state carries a hydroxo — Mo(=O)(=S)(OH) in a
+        molybdenum cofactor — reaches the QM model as a bare oxo, with the wrong
+        electron count and the wrong charge.
+
+        Editing the generated .gjf by hand is not an alternative. The Gaussian
+        input and the model PDB are matched by index: the PDB generates the
+        fingerprint, the RESP input and the final mol2, while the Gaussian
+        output supplies the Hessian and the ESP. Adding an atom to one of them
+        shifts Seminario's atom indices (silently — it validates the Hessian
+        only against its own coordinates) and leaves the deposited residue
+        template without the hydrogen its charges were fitted with.
+
+        Offered for every cluster rather than guessing which ones want a
+        hydrogen; an Fe-S cluster simply declines. The default is no.
+        """
+        if not self._interactive or not cluster_keys:
+            return
+
+        from proprep.forcefield_prep.hydrogen_editor import HydrogenEditor
+
+        for res_key in cluster_keys:
+            parts = res_key.split(':')
+            if len(parts) < 3:
+                continue
+            chain_id, resid, resname = parts[0], int(parts[1]), parts[2]
+
+            existing = self._extract_cluster_atoms_from_key(res_key)
+            if not existing:
+                continue
+            composition = ", ".join(sorted({a.element for a in existing}))
+            names = ", ".join(a.atom_name for a in existing)
+
+            self.console.print(
+                f"\n[bold]{resname} {chain_id}:{resid}[/bold] "
+                f"[grey50]({len(existing)} atoms — {names}; elements {composition})[/grey50]")
+            self.console.print(
+                "[grey50]  A cluster is not hydrogenated anywhere else in the "
+                "pipeline. Add one here if this cofactor's resting state carries "
+                "a hydroxo/protonated ligand (e.g. Mo-OH); an Fe-S cluster does "
+                "not need one.[/grey50]")
+
+            # Put the cluster on screen while it is the subject of the prompt —
+            # "which oxygen" is a question about geometry.
+            selection = f":{chain_id} and {resid}"
+            self._focus_viewer_on_cluster(selection)
+
+            if not confirm_with_context(
+                self.processor,
+                f"Add hydrogen(s) to {resname} {chain_id}:{resid}?",
+                default=False,
+                module="Structure Preprocessor",
+                description="Add hydrogens to an inorganic cluster",
+            ):
+                continue
+
+            work_dir = Path(self._output_dir) if self._output_dir else Path.cwd()
+            work_dir.mkdir(parents=True, exist_ok=True)
+            residue_pdb = work_dir / f"cluster_{resname}_{chain_id}_{resid}.pdb"
+            try:
+                self._extract_single_residue_to_pdb(
+                    self._pdb_file, chain_id, resid, resname, residue_pdb)
+            except Exception as exc:  # noqa: BLE001
+                self.console.print(
+                    f"[yellow]Could not extract {res_key} for editing ({exc}); "
+                    f"skipping.[/yellow]")
+                continue
+
+            editor = HydrogenEditor(
+                str(residue_pdb), f"{resname}_{chain_id}_{resid}",
+                console=self.console, processor=self.processor,
+                interactive=True, residue_name=resname,
+                module="Structure Preprocessor",
+            )
+            try:
+                if editor.add_interactive():
+                    added = self._merge_cluster_hydrogens(
+                        str(residue_pdb), chain_id, resid, resname)
+                    self.console.print(
+                        f"  [green]✓ {added} hydrogen(s) merged into the "
+                        f"structure[/green]")
+                    # The file changed on disk; re-serve it so the viewer shows
+                    # the hydrogen that was just added rather than the state
+                    # before it.
+                    self._focus_viewer_on_cluster(selection, refresh=True)
+                    self.console.print(
+                        "[grey50]  Their formal charge is asked for with the rest "
+                        "of the cluster's core atoms during MCPB atom typing (a "
+                        "hydroxo O is -1 where an oxo O is -2).[/grey50]")
+            except Exception as exc:  # noqa: BLE001
+                self.console.print(
+                    f"[yellow]Hydrogen editing failed for {res_key} ({exc}); "
+                    f"the cluster is unchanged.[/yellow]")
+
+    def _focus_viewer_on_cluster(self, selection: str, *, refresh: bool = False) -> None:
+        """Show the cluster residue in the viewer, optionally re-reading the file.
+
+        ``show_structure`` points the viewer at the structure being edited (a
+        no-op if it is already the one displayed). ``refresh`` is what makes an
+        added hydrogen visible: the file was rewritten in place, and re-issuing
+        the same path alone would not re-read it.
+
+        Best-effort throughout — the viewer is an aid, and a headless or closed
+        one must not interrupt the prompt flow.
+        """
+        try:
+            from proprep.structure_prep.viewer_coordinator import viewer as _viewer
+
+            if self._pdb_file:
+                _viewer.show_structure(str(self._pdb_file))
+            if refresh:
+                _viewer.refresh_structure()
+
+            _viewer.unhighlight("cluster_h_focus")
+            _viewer.highlight(selection, style="ball+stick", color="element",
+                              label="cluster_h_focus")
+            _viewer.focus_on(selection)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Viewer focus for %s unavailable: %s", selection, exc)
+
+    def _merge_cluster_hydrogens(self, residue_pdb: str, chain_id: str,
+                                 resid: int, resname: str) -> int:
+        """Copy hydrogens from an edited residue PDB back into the structure.
+
+        Inserted directly after that residue's existing atoms so the residue
+        stays contiguous, then every serial in the file is renumbered. Returns
+        the number of hydrogens merged.
+        """
+        from proprep.utils.pdb_format import atom_name_field
+
+        def _is_atom(line):
+            return line.startswith(("ATOM", "HETATM"))
+
+        with open(residue_pdb) as fh:
+            edited = [ln for ln in fh if _is_atom(ln)]
+        new_h = [ln for ln in edited
+                 if (ln[76:78].strip().upper() == "H"
+                     or (not ln[76:78].strip() and ln[12:16].strip().startswith("H")))]
+        if not new_h:
+            return 0
+
+        with open(self._pdb_file) as fh:
+            lines = fh.readlines()
+
+        # Rewrite each H onto the target residue's identity, so it belongs to
+        # the cluster rather than to whatever the extracted file called it.
+        rebuilt = []
+        for ln in new_h:
+            name = ln[12:16].strip()
+            rebuilt.append(
+                f"HETATM{0:5d} {atom_name_field(name, 'H')} "
+                f"{resname:>3.3s} {chain_id}{resid:>4d}    "
+                f"{ln[30:54]}"
+                f"  1.00  0.00          {'H':>2s}\n"
+            )
+
+        last_idx = -1
+        for i, ln in enumerate(lines):
+            if _is_atom(ln) and ln[21] == chain_id:
+                try:
+                    if int(ln[22:26]) == resid:
+                        last_idx = i
+                except ValueError:
+                    continue
+        if last_idx < 0:
+            return 0
+
+        lines[last_idx + 1:last_idx + 1] = rebuilt
+
+        serial = 0
+        for i, ln in enumerate(lines):
+            if _is_atom(ln):
+                serial += 1
+                lines[i] = f"{ln[:6]}{serial:5d}{ln[11:]}"
+
+        with open(self._pdb_file, "w") as fh:
+            fh.writelines(lines)
+        return len(rebuilt)
 
     def _extract_cluster_atoms_from_key(self, res_key: str) -> List[MetalInfo]:
         """Extract every atom of a pure-cluster residue as MetalInfo.
@@ -3066,7 +4148,12 @@ class StructurePreprocessor:
                 return False
 
         except Exception as e:
+            # The message alone can be a bare KeyError key — "tLEaP error:
+            # 'site_id'" says nothing about where it came from, and the step
+            # that follows then fails on the missing output instead. Keep the
+            # traceback so the origin is recoverable.
             self.console.print(f"[red]tLEaP error: {e}[/red]")
+            logger.exception("Topology Generator raised during structure recombination")
             return False
         finally:
             self.workspace.set("_preprocessing_tleap_active", False)
@@ -3510,18 +4597,16 @@ class StructurePreprocessor:
 
         # Import MetalIonDatabase
         try:
-            from proprep.forcefield_prep.mcpb.metal_ion_database import MetalIonDatabase, MetalConfig
+            from proprep.forcefield_prep.mcpb.metal_ion_database import (
+                MetalIonDatabase, MetalConfig, water_model_from_leaprc,
+            )
 
-            # Get water model from workspace (if selected)
-            water_model = "tip3p"
-            if self.workspace:
-                wm = self.workspace.get("preprocessing_water_model", "")
-                if "opc" in wm.lower():
-                    water_model = "opc"
-                elif "spce" in wm.lower():
-                    water_model = "spce"
-                elif "tip4p" in wm.lower():
-                    water_model = "tip4pew"
+            # Get water model from workspace (if selected). Matched on the
+            # leaprc suffix: a substring test sent opc3 to the OPC set.
+            water_model = water_model_from_leaprc(
+                self.workspace.get("preprocessing_water_model", "") if self.workspace else "",
+                logger=logger,
+            )
 
             db = MetalIonDatabase(water_model=water_model)
 
@@ -3913,12 +4998,17 @@ class StructurePreprocessor:
         interactive: bool
     ) -> str:
         """
-        Step 0a: Optional structure filtering via the PDB Filter module.
+        Step 0a: Structure filtering via the PDB Filter module.
 
         Allows the user to select specific chains and remove unwanted
         components (e.g., extra chains, small molecules, waters) before
         the rest of preprocessing.  Redox site detection is skipped here
         because Step 0f will run fresh detection on the final structure.
+
+        Goes straight into the filter: running this step IS the request to
+        filter. The step is optional at the checklist level, where ``<num>s``
+        marks it skipped, so a confirmation here only asked the same question
+        a second time.
 
         Args:
             pdb_file: Path to input PDB file
@@ -3933,19 +5023,6 @@ class StructurePreprocessor:
 
         if not self.processor:
             self.console.print("[yellow]Processor not available, skipping filtering[/yellow]")
-            return pdb_file
-
-        should_filter = confirm_with_context(
-            self.processor,
-            "Filter the structure before preprocessing? "
-            "(select chains, remove unwanted components)",
-            default=True,
-            module="Structure Preprocessor",
-            description="Run structure filter before preprocessing",
-        )
-
-        if not should_filter:
-            self.console.print("[grey50]Proceeding with unfiltered structure[/grey50]")
             return pdb_file
 
         # Launch PDB Filter with redox detection disabled
@@ -4062,16 +5139,19 @@ class StructurePreprocessor:
             )
             return pdb_file
 
-        # 2) Bail point between analysis and repair.
+        # 2) Bail point between analysis and repair. This opens the repair
+        # session, where the per-segment and altloc choices are still to be
+        # made — "apply" described a decision that has not been taken yet.
         apply_repairs = confirm_with_context(
             self.processor,
-            "Apply the repairs / altloc selections now?",
+            "Repair missing segments and resolve alternate conformations now?",
             default=True,
             module="Structure Preprocessor",
-            description="Apply structure completeness repairs",
+            description="Enter the structure completeness repair session",
         )
         if not apply_repairs:
-            self.console.print("[grey50]Analysis kept; repairs not applied.[/grey50]")
+            self.console.print(
+                "[grey50]Analysis kept; structure left unrepaired.[/grey50]")
             return pdb_file
 
         # 3) Apply -- same as the main menu's "Apply repairs/mutations/caps".
@@ -4980,9 +6060,42 @@ class StructurePreprocessor:
             self.console.print(f"  [green]Atom names match - no mapping needed[/green]")
             return {}
 
+        # A crystal structure usually has no hydrogens while a library always
+        # does, so comparing raw name sets reports a mismatch for a library
+        # that fits perfectly -- and then asks the user to hand-map 53 atoms
+        # against 84. tLEaP adds the missing hydrogens from the template, so
+        # only the heavy atoms have to correspond.
+        pdb_heavy = {n for n in pdb_names if not _is_hydrogen_name(n)}
+        lib_heavy = {n for n in lib_names if not _is_hydrogen_name(n)}
+
+        if pdb_heavy and pdb_heavy == lib_heavy and not (
+                pdb_names - pdb_heavy):
+            missing = len(lib_names) - len(lib_heavy)
+            self.console.print(
+                f"  [green]Heavy-atom names match ({len(pdb_heavy)}/{len(pdb_heavy)}) "
+                f"- no mapping needed[/green]")
+            if missing:
+                self.console.print(
+                    f"  [grey50]The PDB has no hydrogens; tLEaP will add the "
+                    f"{missing} in the library template.[/grey50]")
+            return {}
+
         # Names don't match - prompt for manual mapping
         self.console.print(f"\n  [yellow]Atom name mismatch detected![/yellow]")
         self.console.print(f"  PDB has {len(pdb_atoms)} atoms, lib has {len(lib_atoms)} atoms")
+        if pdb_heavy != lib_heavy:
+            only_pdb = sorted(pdb_heavy - lib_heavy)
+            only_lib = sorted(lib_heavy - pdb_heavy)
+            if only_pdb:
+                self.console.print(
+                    f"  [grey50]heavy atoms only in the PDB: "
+                    f"{', '.join(only_pdb[:8])}"
+                    f"{' ...' if len(only_pdb) > 8 else ''}[/grey50]")
+            if only_lib:
+                self.console.print(
+                    f"  [grey50]heavy atoms only in the lib: "
+                    f"{', '.join(only_lib[:8])}"
+                    f"{' ...' if len(only_lib) > 8 else ''}[/grey50]")
 
         mapping = self._prompt_manual_atom_mapping(pdb_atoms, lib_atoms, resname, lib_dir)
         return mapping
@@ -5000,7 +6113,12 @@ class StructurePreprocessor:
         try:
             with open(lib_path, 'r') as f:
                 for line in f:
-                    if '!entry.' in line.lower() and '.unit.atoms' in line.lower():
+                    # ``.unit.atoms table`` and not ``.unit.atomspertinfo``:
+                    # the substring test matched both, and atomspertinfo has one
+                    # row per atom carrying the same names, so every library was
+                    # read at double length. An 84-atom FAD reported 168, its
+                    # listing repeating from index 85.
+                    if _LIB_ATOMS_TABLE_RE.search(line):
                         in_atoms_section = True
                         continue
                     if in_atoms_section:
@@ -7727,39 +8845,55 @@ class StructurePreprocessor:
         rst7: str,
         output_pdb: Path
     ) -> None:
-        """Convert AMBER parm7/rst7 to PDB using ambpdb or cpptraj."""
+        """Convert AMBER parm7/rst7 to PDB, preserving the topology's names.
+
+        ``-aatm`` writes atom names as the topology holds them, which is how
+        the libraries named them. Without it ambpdb translates to PDB v3
+        conventions on the way out -- O1P/O2P become OP1/OP2 and so on.
+
+        That matters because this file is an INTERNAL artifact: the next tLEaP
+        pass reloads it against the very libraries whose names were just
+        rewritten. An externally supplied FAD library using the v2 phosphate
+        names built cleanly on the first pass and then failed on the second
+        with "Atom .R<FAD 1311>.A<OP2 85> does not have a type", because by
+        then the structure and the library disagreed. The topology was correct
+        throughout; only the PDB in between was translated.
+
+        On the reported system the flag changes 2 atoms out of 20479 -- exactly
+        the two that broke -- with byte-identical column layout and the element
+        column preserved.
+
+        Raises:
+            RuntimeError: if the conversion fails. The caller writes this file
+                and then reads it back, so continuing would fail later on a
+                missing file rather than here on the real cause.
+        """
         import subprocess
 
-        # Try ambpdb first
+        # No cpptraj fallback: both ship with AmberTools, so if ambpdb is
+        # absent cpptraj is too, and it would write a third naming convention
+        # for no benefit.
         try:
-            cmd = ['ambpdb', '-p', parm7, '-c', rst7]
             result = subprocess.run(
-                cmd, capture_output=True, text=True, check=True
+                ['ambpdb', '-aatm', '-p', parm7, '-c', rst7],
+                capture_output=True, text=True, check=True,
             )
-            output_pdb.write_text(result.stdout)
-            self.console.print(f"[green]Converted to PDB: {output_pdb}[/green]")
-            return
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "ambpdb not found. AmberTools must be installed and on PATH."
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or "").strip().splitlines()
+            raise RuntimeError(
+                "ambpdb failed to convert the tLEaP output"
+                + (f": {detail[-1]}" if detail else "")
+            ) from exc
 
-        # Try cpptraj
-        try:
-            cpptraj_input = f"""
-parm {parm7}
-trajin {rst7}
-trajout {output_pdb} pdb
-go
-"""
-            result = subprocess.run(
-                ['cpptraj'],
-                input=cpptraj_input,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            self.console.print(f"[green]Converted to PDB: {output_pdb}[/green]")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.console.print("[red]Could not convert AMBER files to PDB[/red]")
+        if not result.stdout.strip():
+            raise RuntimeError("ambpdb produced no output")
+
+        output_pdb.write_text(result.stdout)
+        self.console.print(f"[green]Converted to PDB: {output_pdb}[/green]")
 
     def _parse_mol2_types(self, mol2_file: str) -> Dict[str, str]:
         """Parse atom types from mol2 file."""

@@ -60,6 +60,12 @@ body {
 .topbtn:active { transform: translateY(1px); }
 .topbtn[disabled] { opacity: 0.5; cursor: default; }
 
+/* Terminal font-size stepper. The readout is tabular-nums (.status) and
+ * fixed-width so stepping 9px -> 10px does not shift the buttons. */
+.fontsize { display: flex; align-items: center; gap: 6px; margin-right: 4px; }
+.fontsize .topbtn { padding: 3px 8px; }
+#font-readout { min-width: 34px; text-align: center; }
+
 .layout {
   --term-frac: 0.5;     /* portion of width given to the terminal pane */
   --splitter-w: 6px;

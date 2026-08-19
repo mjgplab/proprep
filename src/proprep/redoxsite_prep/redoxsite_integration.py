@@ -261,13 +261,19 @@ class RedoxSitePreparationModule(ProcessingModule):
             self.processor.console.print(f"[red]Error: {e}[/red]")
             return False
     
-    def create_custom_transformer(self) -> bool:
+    def create_custom_transformer(self, forcefield_default=None) -> bool:
         """Create a transformer with the interactive, table-driven PDB editor.
 
         Shows the atoms of a detected redox site grouped by residue and applies
         one edit at a time, saving a reusable JSON transformer spec. This is the
         transformer-creation path exposed by the menu; it replaces the earlier
         guided v3 creator in place.
+
+        Args:
+            forcefield_default: Optional ``{"path", "redox_state", "spin_state"}``
+                identifying a library the transformer should point at. Passed by
+                the Force Field Parameterizer straight after an import, so the
+                new transformer links the parameters that were just deposited.
         """
         try:
             from .transformation.table_transformer_creator import TableTransformerCreator
@@ -307,7 +313,8 @@ class RedoxSitePreparationModule(ProcessingModule):
                     self.processor.console.print("[red]Invalid selection.[/red]")
                     return False
 
-            TableTransformerCreator(self.processor, redox_site).create()
+            TableTransformerCreator(self.processor, redox_site,
+                                    forcefield_default=forcefield_default).create()
             return True
 
         except Exception as e:

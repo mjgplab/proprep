@@ -23,7 +23,14 @@ def _write_fingerprint(path, lines):
 
 
 def _merge(fp_paths):
-    """Replicates the inline merge in _checklist_mcpb_4_integration section D."""
+    """The cross-site union mcpb-4 builds in section D.
+
+    Section D still unions the residue keys, because residue NAMING has to be
+    unique across the whole structure. The library deposit no longer uses a
+    union — it is partitioned per site, covered by
+    test_mcpb4_per_site_deposit.py. The atom-type union is asserted here only
+    as the set tLEaP receives for the single addAtomTypes block.
+    """
     combined_residue_keys = []
     combined_atom_type_entries = []
     seen_keys, seen_entries = set(), set()

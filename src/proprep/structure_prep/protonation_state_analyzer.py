@@ -1301,6 +1301,10 @@ class ProtonationStateModule(ProcessingModule):
                 "[yellow]No residues excluded from protonation analysis[/yellow]"
             )
 
+        # Record which redox-site residues remain IN the analysis, so the
+        # per-type tables can mark them.
+        self._store_redox_site_flags(excluded_residues)
+
         # Get selected chains and residues from filter selections
         selected_chains = []
         selected_residues = {}
@@ -4759,6 +4763,41 @@ class ProtonationStateModule(ProcessingModule):
     # =#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#+#+#+#
     # RedoxSite Integration Methods
     # =#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#+#+#+#
+
+    def _store_redox_site_flags(self, excluded_residues) -> None:
+        """Record the redox-site residues that ARE being analyzed.
+
+        Excluding a residue keeps it out of the analysis entirely, so it never
+        reaches a protonation table; the ones that remain are the ones worth
+        marking. A cysteine ligating an Fe-S cluster otherwise appears in the
+        CYS table indistinguishable from a free cysteine — and it is exactly
+        the one that has to be set to CYM.
+
+        Stored as a list of plain dicts rather than a dict keyed by tuples: the
+        workspace is snapshotted to JSON for checklist resume, which would turn
+        tuple keys into strings. Keyed on (chain, resid) at read time because
+        the tables carry no insertion code.
+        """
+        flags = []
+        try:
+            sites = self.get_from_workspace("detected_redox_sites", []) or []
+            if sites:
+                catalog = self._extract_residues_from_redox_sites(sites)
+                excluded = set(excluded_residues or ())
+                for site_id, info in catalog.items():
+                    for residue in info.get("residues", []):
+                        if residue.get("residue_key") in excluded:
+                            continue
+                        flags.append({
+                            "chain": residue.get("chain_id"),
+                            "resid": residue.get("res_num"),
+                            "site_id": site_id,
+                        })
+        except Exception as exc:  # noqa: BLE001 — a label must never break analysis
+            logger.debug("Could not map redox-site residues for tables: %s", exc)
+            flags = []
+
+        self.update_workspace("protonation_redox_site_residues", flags)
 
     def _get_redox_site_residues_for_exclusion(self):
         """

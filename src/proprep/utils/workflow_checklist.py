@@ -19,6 +19,7 @@ Author: ProPrep Development Team
 """
 
 import json
+import numbers
 import os
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
@@ -149,6 +150,17 @@ def _serialize_value(value) -> Any:
         return None
     if isinstance(value, (str, int, float, bool)):
         return value
+    # numpy scalars are NOT Python int/float — np.float32 fails
+    # isinstance(v, float) and has no __dict__, so it used to reach the
+    # str() fallback at the bottom and come back as
+    # {"__type__": "str", "value": "-46.078"}. Coordinates read from
+    # BioPython are numpy floats, so a resumed run got dicts-of-strings
+    # where it expected numbers and PDBIO refused to write the atom
+    # ("must be real number, not dict"). Both ABCs are registered by numpy.
+    if isinstance(value, numbers.Integral):
+        return int(value)          # bool is Integral, but caught above
+    if isinstance(value, numbers.Real):
+        return float(value)
     if isinstance(value, Path):
         return {"__type__": "Path", "value": str(value)}
     if isinstance(value, dict):
@@ -296,7 +308,18 @@ class WorkflowChecklist:
         """
         # Check for existing state
         state_file = self._get_state_file_path()
-        if state_file.exists():
+        if state_file.exists() and self._is_replaying():
+            # A replay reproduces a recorded run, and that run began with no
+            # state file — so its log holds no answer for "Resume from saved
+            # state?". Asking anyway falls through to live input, which stalls an
+            # unattended batch replay. Start fresh; the run overwrites the stale
+            # file on its first save.
+            self.console.print(
+                f"[grey50]Replay: ignoring the saved {self.STATE_FILENAME} and "
+                f"starting this workflow fresh (no resume prompt).[/grey50]"
+            )
+            self._initialize_state(pdb_file)
+        elif state_file.exists():
             if self._offer_resume(state_file):
                 # State loaded, continue from where we left off
                 pass
@@ -868,8 +891,17 @@ class WorkflowChecklist:
                 elif isinstance(result, str):
                     output_summary = result
 
+                # A handler that detected a failure but did not raise used to be
+                # recorded as completed: structure recombination reported
+                # "tLEaP failed" and was ticked off, so the next step ran and
+                # died on the output it never produced. Returning success=False
+                # now marks the step failed, which is what the checklist and any
+                # dependent step read.
+                failed = (isinstance(result, dict)
+                          and result.get('success') is False)
+
                 status = StepStatus(
-                    status="completed",
+                    status="failed" if failed else "completed",
                     started_at=status.started_at,
                     completed_at=datetime.now().isoformat(),
                     output_summary=output_summary
@@ -880,6 +912,10 @@ class WorkflowChecklist:
             self._auto_save()
 
             self.console.print()
+            if status.status == "failed":
+                self.console.print(
+                    f"[red]✗ {step_label} failed: {status.output_summary}[/red]")
+                return False
             self.console.print(f"[green]✓ {step_label} completed[/green]")
             return True
 
@@ -936,6 +972,21 @@ class WorkflowChecklist:
         # Initialize all steps as pending
         for step in self.steps:
             self.state.set_step_status(step.id, StepStatus())
+
+    def _is_replaying(self) -> bool:
+        """True when a recorded session is answering the prompts.
+
+        Best-effort: a processor without a session manager, or a manager that
+        cannot report, is treated as live input so the resume offer still
+        reaches an interactive user.
+        """
+        manager = getattr(self.processor, "session_manager", None) if self.processor else None
+        if manager is None:
+            return False
+        try:
+            return bool(manager.is_replaying())
+        except Exception:
+            return False
 
     def _offer_resume(self, state_file: Path) -> bool:
         """Offer to resume from existing state."""

@@ -161,13 +161,22 @@ class FingerprintGenerator:
             site: RedoxSite object
             coord_to_id: Coordinate to atom ID mapping
         """
-        # Find all coordinate bonds (metal-ligand)
+        # Bonds that need a derived force constant: metal-ligand coordination
+        # across residues, plus a withheld cluster's own internal bonds.
+        #
+        # The second kind reaches the Seminario step ONLY through here. It is
+        # not in the prmtop (the cluster residue was withheld whole) and it is
+        # not a 'coordinate' bond (both atoms are in one residue), so before
+        # this it had no source at all and Mo's sulfido/oxo/hydroxo bonds went
+        # unparameterized -- tleap built them from the library's connectivity
+        # table and then reported a missing parameter for each.
+        LINKED_TYPES = ('coordinate', 'cluster_internal')
         link_count = 0
 
         for bond in site.bonds:
             # A restrained contact (nonbonded water held by an MD restraint) emits
             # no LINK record, so MCPB creates no metal-ligand bonded term for it.
-            if bond.chemical_type == 'coordinate' and getattr(bond, 'treatment', 'bonded') == 'bonded':
+            if bond.chemical_type in LINKED_TYPES and getattr(bond, 'treatment', 'bonded') == 'bonded':
                 # Get atom IDs
                 atom1_id = coord_to_id.get(bond.atom1_coords)
                 atom2_id = coord_to_id.get(bond.atom2_coords)

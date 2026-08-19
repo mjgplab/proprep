@@ -15,7 +15,7 @@ from io import StringIO
 import threading
 import queue
 
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt, Confirm, IntPrompt, FloatPrompt
 
 
 def detect_and_recover_json_corruption(file_path: str, backup: bool = True) -> Optional[Dict[str, Any]]:
@@ -373,6 +373,9 @@ class SessionReplayer:
         # filename) so they can re-resolve indices that have shifted since
         # the log was recorded.
         self.last_returned_interaction: Optional[Dict[str, Any]] = None
+        # True once the log and the run have parted company, so the divergence
+        # is announced once rather than at every subsequent prompt.
+        self._diverged = False
         self._load_session()
         
     def _load_session(self):
@@ -480,32 +483,69 @@ class SessionReplayer:
 
         interactions = self.session_data.get("interactions", [])
 
-        # Look for the next matching interaction
-        while self.interaction_index < len(interactions):
-            interaction = interactions[self.interaction_index]
+        # STRICT by default: a recorded answer is used only if it is the very
+        # NEXT unconsumed interaction and it matches this prompt exactly.
+        #
+        # The alternative — scanning forward for a match — was meant to tolerate
+        # a recorded prompt the current run does not ask. It cannot tell that
+        # apart from the same question asked at a DIFFERENT point in the
+        # workflow, and then it leaps. In the run that prompted this, a hydrogen
+        # editor prompt now asked during step 8 matched its recording from step
+        # 12, sixty-five interactions later; the scan consumed three "Select
+        # action" checklist decisions on the way and replay went on to run step
+        # 13 while the checklist was sitting at step 9.
+        #
+        # Strict matching also gives divergence recovery for free. A prompt that
+        # does not match leaves the position untouched and falls through to live
+        # input, so once the run asks something the head DOES match — the
+        # checklist's next action, say — replay simply resumes there.
+        if self.interaction_index >= len(interactions):
+            self.last_returned_interaction = None
+            return None
 
-            # Check if this interaction matches what we're looking for
-            if (interaction["type"] == interaction_type and
-                interaction["prompt"] == prompt):
-                self.interaction_index += 1
-                response = interaction["response"]
-                # A response that still holds an unresolved {{ variable }}
-                # placeholder (lenient resume of a template with no value for
-                # that variable) is not a usable recorded answer. Fall through
-                # to live input so the user supplies it in context; in hybrid
-                # mode the value they type is then recorded into the session.
-                import re
-                if isinstance(response, str) and re.search(r'\{\{\s*\w+\s*\}\}', response):
-                    self.last_returned_interaction = None
-                    return None
-                self.last_returned_interaction = interaction
-                return response
+        interaction = interactions[self.interaction_index]
+        if (interaction["type"] != interaction_type or
+                interaction["prompt"] != prompt):
+            if not self._diverged:
+                self._diverged = True
+                self._report_divergence(interaction, interaction_type, prompt)
+            self.last_returned_interaction = None
+            return None
 
-            self.interaction_index += 1
+        self.interaction_index += 1
+        response = interaction["response"]
+        # A response that still holds an unresolved {{ variable }} placeholder
+        # (lenient resume of a template with no value for that variable) is not
+        # a usable recorded answer. Fall through to live input so the user
+        # supplies it in context; in hybrid mode the value they type is then
+        # recorded into the session.
+        import re
+        if isinstance(response, str) and re.search(r'\{\{\s*\w+\s*\}\}', response):
+            self.last_returned_interaction = None
+            return None
 
-        # No matching interaction found
-        self.last_returned_interaction = None
-        return None
+        if self._diverged:
+            self._diverged = False
+            print("[Replay resynchronised — continuing from the recorded session]")
+
+        self.last_returned_interaction = interaction
+        return response
+
+    def _report_divergence(self, expected: Dict[str, Any],
+                           asked_type: str, asked_prompt: str) -> None:
+        """Say once that the log and the run have parted company."""
+        exp_prompt = (expected.get("prompt") or "").splitlines()
+        exp_prompt = exp_prompt[0] if exp_prompt else ""
+        asked = (asked_prompt or "").splitlines()
+        asked = asked[0] if asked else ""
+        print(
+            f"\n[Replay diverged at interaction {self.interaction_index}]\n"
+            f"    recorded next: ({expected.get('type')}) {exp_prompt!r}"
+            f" -> {expected.get('response')!r}\n"
+            f"    asked now:     ({asked_type}) {asked!r}\n"
+            f"    Answer this one yourself; replay resumes when the recorded "
+            f"question comes up again."
+        )
         
     def has_more_interactions(self) -> bool:
         """Check if there are more interactions to replay."""
@@ -585,6 +625,14 @@ class InterceptedPrompt:
         self.strict_replay = strict_replay
         self._original_prompt_ask = Prompt.ask
         self._original_confirm_ask = Confirm.ask
+        # IntPrompt/FloatPrompt are NOT subclasses of Prompt -- they inherit
+        # PromptBase.ask -- so patching Prompt.ask never covered them. They fell
+        # through to the builtin input() interception, where Rich has already
+        # printed the question itself and passes nothing on, so every numeric
+        # answer was recorded as type='input' with an EMPTY prompt string and
+        # replayed positionally against any other numeric answer.
+        self._original_int_ask = IntPrompt.ask
+        self._original_float_ask = FloatPrompt.ask
         self._original_input = input
         self._in_rich_prompt = False  # Guard: True while inside Prompt/Confirm.ask
 
@@ -593,6 +641,8 @@ class InterceptedPrompt:
         # Monkey-patch the Rich prompt methods
         Prompt.ask = self._intercepted_prompt_ask
         Confirm.ask = self._intercepted_confirm_ask
+        IntPrompt.ask = self._intercepted_int_ask
+        FloatPrompt.ask = self._intercepted_float_ask
         
         # Monkey-patch the built-in input function
         import builtins
@@ -602,6 +652,8 @@ class InterceptedPrompt:
         """Restore the original prompt methods."""
         Prompt.ask = self._original_prompt_ask
         Confirm.ask = self._original_confirm_ask
+        IntPrompt.ask = self._original_int_ask
+        FloatPrompt.ask = self._original_float_ask
         
         # Restore the built-in input function
         import builtins
@@ -656,6 +708,49 @@ class InterceptedPrompt:
             )
 
         return response
+
+    def _intercepted_numeric_ask(self, kind, original, cast, prompt: str, **kwargs):
+        """Shared path for IntPrompt.ask / FloatPrompt.ask.
+
+        Recorded as a ``"prompt"`` interaction carrying the real question text
+        so it is matched by TEXT. Reaching the builtin-input interception
+        instead recorded an empty prompt string (Rich prints the question
+        itself), which made every numeric answer in a log interchangeable.
+        """
+        default = kwargs.get('default', None)
+
+        response = self._replayed_response("prompt", prompt)
+        if response is not None:
+            try:
+                value = cast(response)
+                print(f"{prompt} [{response}]")
+                return value
+            except (TypeError, ValueError):
+                # A recorded answer that is not a number belongs to another
+                # question; fall through and ask rather than guess.
+                print(f"{prompt} [{response!r} is not a {kind} — asking]")
+
+        self._in_rich_prompt = True
+        try:
+            value = original(prompt, **kwargs)
+        finally:
+            self._in_rich_prompt = False
+
+        if self.recorder and self.recorder.recording:
+            self.recorder.record_interaction(
+                "prompt", prompt, str(value), context={"default": default},
+            )
+        return value
+
+    def _intercepted_int_ask(self, prompt: str, **kwargs) -> int:
+        """Intercepted version of IntPrompt.ask."""
+        return self._intercepted_numeric_ask(
+            "integer", self._original_int_ask, int, prompt, **kwargs)
+
+    def _intercepted_float_ask(self, prompt: str, **kwargs) -> float:
+        """Intercepted version of FloatPrompt.ask."""
+        return self._intercepted_numeric_ask(
+            "number", self._original_float_ask, float, prompt, **kwargs)
 
     def _intercepted_confirm_ask(self, prompt: str, **kwargs) -> bool:
         """Intercepted version of Confirm.ask."""
@@ -735,6 +830,14 @@ class HybridInterceptor:
         self.replayer = replayer
         self._original_prompt_ask = Prompt.ask
         self._original_confirm_ask = Confirm.ask
+        # IntPrompt/FloatPrompt are NOT subclasses of Prompt -- they inherit
+        # PromptBase.ask -- so patching Prompt.ask never covered them. They fell
+        # through to the builtin input() interception, where Rich has already
+        # printed the question itself and passes nothing on, so every numeric
+        # answer was recorded as type='input' with an EMPTY prompt string and
+        # replayed positionally against any other numeric answer.
+        self._original_int_ask = IntPrompt.ask
+        self._original_float_ask = FloatPrompt.ask
         self._original_input = input
         self._replay_exhausted = False
         self._in_rich_prompt = False  # Guard: True while inside Prompt/Confirm.ask
@@ -744,6 +847,8 @@ class HybridInterceptor:
         # Monkey-patch the Rich prompt methods
         Prompt.ask = self._intercepted_prompt_ask
         Confirm.ask = self._intercepted_confirm_ask
+        IntPrompt.ask = self._intercepted_int_ask
+        FloatPrompt.ask = self._intercepted_float_ask
 
         # Monkey-patch the built-in input function
         import builtins
@@ -753,6 +858,8 @@ class HybridInterceptor:
         """Restore the original prompt methods."""
         Prompt.ask = self._original_prompt_ask
         Confirm.ask = self._original_confirm_ask
+        IntPrompt.ask = self._original_int_ask
+        FloatPrompt.ask = self._original_float_ask
 
         # Restore the built-in input function
         import builtins
@@ -803,6 +910,59 @@ class HybridInterceptor:
             )
 
         return response
+
+    def _intercepted_numeric_ask(self, kind, original, cast, prompt: str, **kwargs):
+        """Shared replay-record path for IntPrompt.ask / FloatPrompt.ask.
+
+        Recorded as an ordinary ``"prompt"`` interaction carrying the real
+        question text, so it is matched by TEXT like every other prompt. These
+        used to reach the builtin-input interception instead, which sees an
+        empty prompt string (Rich prints the question itself), so every numeric
+        answer in a log was interchangeable with every other one — a newly
+        added numeric question silently consumed the answer meant for a
+        different one.
+        """
+        default = kwargs.get('default', None)
+
+        if self.replayer is not None:
+            self.replayer.last_returned_interaction = None
+
+        if self.replayer and self.replayer.replaying and not self._replay_exhausted:
+            response = self.replayer.get_next_response("prompt", prompt)
+            if response is not None:
+                try:
+                    value = cast(response)
+                    print(f"{prompt} [REPLAY: {response}]")
+                    return value
+                except (TypeError, ValueError):
+                    # A recorded answer that is not a number belongs to some
+                    # other question; ask rather than guess.
+                    print(f"{prompt} [REPLAY: {response!r} is not a {kind} — asking]")
+            elif not self.replayer.has_more_interactions():
+                self._replay_exhausted = True
+                print("\n[Replay complete - now recording new interactions]")
+
+        self._in_rich_prompt = True
+        try:
+            value = original(prompt, **kwargs)
+        finally:
+            self._in_rich_prompt = False
+
+        if self.recorder and self.recorder.recording:
+            self.recorder.record_interaction(
+                "prompt", prompt, str(value), context={"default": default},
+            )
+        return value
+
+    def _intercepted_int_ask(self, prompt: str, **kwargs) -> int:
+        """Intercepted version of IntPrompt.ask with hybrid replay-record."""
+        return self._intercepted_numeric_ask(
+            "integer", self._original_int_ask, int, prompt, **kwargs)
+
+    def _intercepted_float_ask(self, prompt: str, **kwargs) -> float:
+        """Intercepted version of FloatPrompt.ask with hybrid replay-record."""
+        return self._intercepted_numeric_ask(
+            "number", self._original_float_ask, float, prompt, **kwargs)
 
     def _intercepted_confirm_ask(self, prompt: str, **kwargs) -> bool:
         """Intercepted version of Confirm.ask with hybrid replay-record."""

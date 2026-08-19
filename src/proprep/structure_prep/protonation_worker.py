@@ -83,6 +83,30 @@ class ProtonationStateAnalyzer:
         self.propka_max_attempts = 5
         self.processor = processor
 
+    def _redox_site_flags(self) -> dict:
+        """``{(chain, resid): site_id}`` for redox-site residues under analysis.
+
+        Written by ProtonationStateModule._store_redox_site_flags after the
+        exclusion prompt, as a JSON-safe list of dicts. Residues the user
+        excluded are absent by construction — they are not analyzed, so they
+        never appear in a table to be marked.
+
+        Best-effort: an unreadable or absent entry just means no column.
+        """
+        try:
+            workspace = getattr(self.processor, "workspace", None)
+            entries = workspace.get("protonation_redox_site_residues", []) if workspace else []
+        except Exception:  # noqa: BLE001 — a label must never break analysis
+            return {}
+
+        flags = {}
+        for entry in entries or []:
+            try:
+                flags[(entry["chain"], int(entry["resid"]))] = entry.get("site_id", "redox site")
+            except (AttributeError, KeyError, TypeError, ValueError):
+                continue
+        return flags
+
     def setup(
         self,
         structure=None,
@@ -1403,6 +1427,10 @@ class ProtonationStateAnalyzer:
                 residues_by_type[res_type] = []
             residues_by_type[res_type].append((key, res))
         
+        # Read once: which residues belong to a detected redox site and were
+        # kept in the analysis (see _redox_site_flags).
+        redox_flags = self._redox_site_flags()
+
         # Process each residue type
         for res_type in sorted(residues_by_type.keys()):
             if res_type not in amber_residue_map:
@@ -1412,7 +1440,23 @@ class ProtonationStateAnalyzer:
                 continue
             
             residues = residues_by_type[res_type]
-            
+
+            # Mark residues belonging to a detected redox site. Only those kept
+            # in the analysis are recorded (an excluded one is not analyzed and
+            # so is not in this table at all), which is what makes the column
+            # meaningful: it says "this one is a site ligand, and you are being
+            # asked to choose its protonation state".
+            site_of = {}
+            for key, res in residues:
+                try:
+                    lookup = (res["chain"], int(res["number"]))
+                except (TypeError, ValueError, KeyError):
+                    continue
+                site_id = redox_flags.get(lookup)
+                if site_id:
+                    site_of[key] = site_id
+            show_redox = bool(site_of)
+
             # Create a table for this residue type
             table = Table(title=f"\n{res_type} Residues")
             table.add_column("Chain", style="cyan")
@@ -1421,6 +1465,8 @@ class ProtonationStateAnalyzer:
             table.add_column("State at pH {:.1f}".format(self.pH), style="magenta")
             table.add_column("Probability", style="blue")
             table.add_column("Recommended", style="bold green")
+            if show_redox:
+                table.add_column("Redox site", style="bold yellow")
             
             # Determine recommendations for each residue
             default_recommendations = {}
@@ -1466,17 +1512,27 @@ class ProtonationStateAnalyzer:
                 default_recommendations[key] = default_name
                 
                 state_str = "Protonated" if is_protonated else "Deprotonated"
-                
-                table.add_row(
+
+                row = [
                     chain,
                     str(resid),
                     f"{pka:.2f}",
                     state_str,
                     f"{probability:.3f}",
-                    default_name
-                )
-            
+                    default_name,
+                ]
+                if show_redox:
+                    row.append(site_of.get(key, ""))
+                table.add_row(*row)
+
             console.print(table)
+            if show_redox:
+                console.print(
+                    "[grey50]  Residues marked with a redox site coordinate a metal "
+                    "centre. Their PROPKA pKa is shifted by that coordination, so "
+                    "choose the state the coordinated form requires (a metal-bound "
+                    "cysteine is normally CYM).[/grey50]"
+                )
 
             # Per-row reps in the viewer, one ball+stick per residue in
             # this table palette-coloured by row index. The user can

@@ -27,19 +27,21 @@ pyproject=$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'         pyp
 setup=$(sed -nE 's/.*version="([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'             setup.py             | head -1)
 recipe=$(sed -nE 's/.*set version = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'      recipe/meta.yaml     | head -1)
 installer=$(sed -nE 's/^PROPREP_VERSION="([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'  install_proprep.sh   | head -1)
+citation=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p'                CITATION.cff         | head -1)
 
 printf '%-28s %s\n' "pyproject.toml"       "${pyproject:-<not found>}"
 printf '%-28s %s\n' "setup.py"             "${setup:-<not found>}"
 printf '%-28s %s\n' "recipe/meta.yaml"     "${recipe:-<not found>}"
 printf '%-28s %s\n' "install_proprep.sh"   "${installer:-<not found>}"
+printf '%-28s %s\n' "CITATION.cff"         "${citation:-<not found>}"
 
 fail=0
-for v in "$pyproject" "$setup" "$recipe" "$installer"; do
+for v in "$pyproject" "$setup" "$recipe" "$installer" "$citation"; do
     [ -z "$v" ] && fail=1
 done
 
 # All four must be identical.
-if [ "$pyproject" != "$setup" ] || [ "$pyproject" != "$recipe" ] || [ "$pyproject" != "$installer" ]; then
+if [ "$pyproject" != "$setup" ] || [ "$pyproject" != "$recipe" ] || [ "$pyproject" != "$installer" ] || [ "$pyproject" != "$citation" ]; then
     fail=1
 fi
 
@@ -60,8 +62,8 @@ if [ "$#" -ge 1 ]; then
         exit 1
     fi
     echo
-    echo "OK: all four pins agree at $pyproject (== expected $1)."
+    echo "OK: all five pins agree at $pyproject (== expected $1)."
 else
     echo
-    echo "OK: all four version pins agree at $pyproject."
+    echo "OK: all five version pins agree at $pyproject."
 fi

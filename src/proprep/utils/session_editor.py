@@ -184,7 +184,7 @@ class InteractiveSessionEditor:
 
         table = Table(show_header=True, header_style="bold magenta", expand=True)
         table.add_column("#", style="bold bright_blue", width=5, justify="right")
-        table.add_column("St", width=2, justify="center")
+        table.add_column("Status", width=6, justify="center")
         table.add_column("Module", style="#0f7f99", width=22, overflow="ellipsis")
         table.add_column("Question", overflow="fold", no_wrap=False)
         table.add_column("Answer", width=30, overflow="ellipsis")

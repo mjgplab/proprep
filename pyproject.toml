@@ -1,6 +1,6 @@
 [project]
 name = "proprep"
-version = "1.15.0"
+version = "1.16.0"
 description = "Protein Preparation Assistant - A modular workflow manager for processing PDB structures for MD simulations."
 authors = [
     { name="Matthew J. Guberman-Pfeffer", email="mjgp@nmsu.edu" },

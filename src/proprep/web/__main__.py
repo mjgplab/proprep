@@ -65,6 +65,10 @@ def main() -> int:
                           help="Terminal pane color scheme (default: dark). "
                                "'black'/'white' are aliases for dark/light. "
                                "The structure viewer pane always stays dark.")
+    parser.add_argument("--font-size", type=int, default=None, metavar="PX",
+                          help="Terminal pane font size in pixels (default: 13, "
+                               "range 8-32). Useful for screenshots and figures. "
+                               "Also adjustable live with Ctrl/Cmd +/- in the page.")
     parser.add_argument("--high-contrast", action="store_true",
                           help="Boost terminal text contrast for accessibility "
                                "(xterm minimumContrastRatio=7, WCAG AAA).")
@@ -85,6 +89,16 @@ def main() -> int:
     # browser applies them. See web/static/app.js.
     os.environ["PROPREP_WEB_THEME"] = theme
     os.environ["PROPREP_WEB_HIGH_CONTRAST"] = "1" if args.high_contrast else "0"
+    # Empty means "not specified": the browser then keeps whatever size the
+    # user last set in-page (localStorage), falling back to the 13px default.
+    if args.font_size is not None:
+        if not 8 <= args.font_size <= 32:
+            print(f"proprep-web: --font-size must be 8-32 (got {args.font_size})",
+                  file=sys.stderr)
+            return 2
+        os.environ["PROPREP_WEB_FONT_SIZE"] = str(args.font_size)
+    else:
+        os.environ["PROPREP_WEB_FONT_SIZE"] = ""
     os.environ["PROPREP_WEB_NO_TRANSCRIPT"] = "1" if args.no_transcript else "0"
 
     if sys.platform.startswith("win"):

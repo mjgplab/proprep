@@ -5071,90 +5071,92 @@ class RedoxTransformationManager:
         # 3. Update RedoxSite objects with new residue IDs via coordinate matching
         self._update_redox_sites_with_renumbering(residue_mapping)
     
+    # Caps are protein residues recorded as HETATM. That is the only place in
+    # a structure where the record type disagrees with what the residue IS, and
+    # it is what made the old grouping wrong.
+    _CAP_RESNAMES = ("ACE", "NME")
+
     def _reorder_for_tleap(self, pdb_lines):
-        """Reorder PDB lines for TLEaP compatibility: ATOM records before HETATM"""
+        """Reorder PDB lines for tLEaP: real HETATM after the protein chains.
+
+        Caps stay where they are. The previous version binned every ACE into
+        one list and every NME into another, then wrote
+        ``all ACE / all protein / all NME`` per chain -- which assumes a cap can
+        only be terminal.
+
+        An INTERNAL cap breaks that assumption. Capping an unfilled gap puts an
+        NME after the last residue before it and an ACE before the first
+        residue after it, mid-chain. Binning them moved the pair to opposite
+        ends of the chain: the ACE landed before residue 1, where tLEaP bonded
+        it to the N-terminus 70 A away, and the gap it had been guarding was
+        left open for a 20 A peptide bond.
+
+        A TER is emitted after each NME, which is what separates the two
+        fragments a capped gap creates. Without it tLEaP bonds straight across.
+        """
         header_lines = []
-        atom_lines_by_chain = {}
-        cap_lines_by_chain = {}
-        hetatm_lines_by_chain = {}
-        ter_lines = []
+        chain_streams = {}          # chain -> [ATOM and cap lines, in file order]
+        hetatm_lines_by_chain = {}  # chain -> [real HETATM lines]
         end_lines = []
-        
-        # Organize lines by type and chain
+
         for line in pdb_lines:
             if line.startswith("ATOM"):
-                chain_id = line[21]
-                if chain_id not in atom_lines_by_chain:
-                    atom_lines_by_chain[chain_id] = []
-                atom_lines_by_chain[chain_id].append(line)
+                chain_streams.setdefault(line[21], []).append(line)
             elif line.startswith("HETATM"):
                 chain_id = line[21]
-                residue_name = line[17:20].strip()
-                
-                if residue_name in ["ACE", "NME"]:
-                    if chain_id not in cap_lines_by_chain:
-                        cap_lines_by_chain[chain_id] = {"ACE": [], "NME": []}
-                    cap_lines_by_chain[chain_id][residue_name].append(line)
+                if line[17:20].strip() in self._CAP_RESNAMES:
+                    # Part of the peptide chain; keep it in sequence.
+                    chain_streams.setdefault(chain_id, []).append(line)
                 else:
-                    if chain_id not in hetatm_lines_by_chain:
-                        hetatm_lines_by_chain[chain_id] = []
-                    hetatm_lines_by_chain[chain_id].append(line)
+                    hetatm_lines_by_chain.setdefault(chain_id, []).append(line)
             elif line.startswith("TER"):
-                ter_lines.append(line)
+                # Rebuilt below from the cap layout.
+                continue
             elif line.startswith("END"):
                 end_lines.append(line)
             else:
                 header_lines.append(line)
-        
-        # Build reordered structure
-        reordered_lines = header_lines.copy()
-        
-        # Process protein chains first
-        for chain_id in sorted(atom_lines_by_chain.keys()):
-            # Add ACE cap if present
-            if chain_id in cap_lines_by_chain and "ACE" in cap_lines_by_chain[chain_id]:
-                reordered_lines.extend(cap_lines_by_chain[chain_id]["ACE"])
-            
-            # Add protein atoms
-            reordered_lines.extend(atom_lines_by_chain[chain_id])
-            
-            # Add NME cap if present
-            if chain_id in cap_lines_by_chain and "NME" in cap_lines_by_chain[chain_id]:
-                reordered_lines.extend(cap_lines_by_chain[chain_id]["NME"])
-            
-            # Add TER line
+
+        reordered_lines = list(header_lines)
+
+        for chain_id in sorted(chain_streams.keys()):
+            stream = chain_streams[chain_id]
+            for i, line in enumerate(stream):
+                reordered_lines.append(line)
+                # A TER goes after the LAST atom of an NME: that cap ends a
+                # fragment, and whatever follows starts a new one.
+                if line[17:20].strip() == "NME":
+                    nxt = stream[i + 1] if i + 1 < len(stream) else None
+                    same_residue = (
+                        nxt is not None
+                        and nxt[17:20].strip() == "NME"
+                        and nxt[22:27] == line[22:27]
+                    )
+                    if not same_residue:
+                        reordered_lines.append("TER\n")
             reordered_lines.append("TER\n")
-        
-        # Add all HETATM records grouped by residue
+
+        # Real HETATM (ligands, cofactors, waters) after every protein chain,
+        # grouped by residue so tLEaP sees each as one unit.
         for chain_id in sorted(hetatm_lines_by_chain.keys()):
-            # Group HETATM records by residue within each chain
             hetatm_by_residue = {}
             for line in hetatm_lines_by_chain[chain_id]:
+                residue_name = line[17:20].strip()
                 try:
-                    residue_id = int(line[22:26])
-                    residue_name = line[17:20].strip()
-                    res_key = (residue_id, residue_name)
-                    if res_key not in hetatm_by_residue:
-                        hetatm_by_residue[res_key] = []
-                    hetatm_by_residue[res_key].append(line)
+                    res_key = (int(line[22:26]), residue_name)
                 except ValueError:
-                    # Handle lines with non-integer residue IDs
-                    residue_id_str = line[22:26].strip()
-                    residue_name = line[17:20].strip()
-                    res_key = (residue_id_str, residue_name)
-                    if res_key not in hetatm_by_residue:
-                        hetatm_by_residue[res_key] = []
-                    hetatm_by_residue[res_key].append(line)
-            
-            # Sort residues by ID and add atoms for each residue together
-            for res_key in sorted(hetatm_by_residue.keys(), key=lambda x: (x[0] if isinstance(x[0], int) else 9999, x[1])):
+                    res_key = (line[22:26].strip(), residue_name)
+                hetatm_by_residue.setdefault(res_key, []).append(line)
+
+            for res_key in sorted(
+                hetatm_by_residue.keys(),
+                key=lambda x: (x[0] if isinstance(x[0], int) else 9999, x[1]),
+            ):
                 reordered_lines.extend(hetatm_by_residue[res_key])
-        
-        # Add END lines
+
         reordered_lines.extend(end_lines)
-        
         return reordered_lines
-    
+
     def _renumber_residues_sequential(self):
         """Renumber all residues sequentially starting at 1, returns mapping"""
         residue_mapping = {}  # (chain, old_resid, resname) -> new_resid
