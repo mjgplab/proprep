@@ -157,6 +157,13 @@ class PtySession:
             # immediately.
             env["PYTHONUNBUFFERED"] = "1"
             try:
+                if getattr(sys, "frozen", False):
+                    # PyInstaller bundle: ``sys.executable`` is the
+                    # ``proprep-web`` binary itself and ``-m`` would be
+                    # parsed by ProPrep's argparse, so exec the sibling
+                    # ``proprep`` binary that proprep.spec builds alongside.
+                    exe = os.path.join(os.path.dirname(sys.executable), "proprep")
+                    os.execvpe(exe, [exe], env)
                 # ``python -m proprep.main`` matches the existing if-__main__
                 # guard in proprep/main.py. (The package has no __main__.py,
                 # so ``python -m proprep`` would silently no-op.)

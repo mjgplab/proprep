@@ -107,9 +107,16 @@ def run_propka(pdb_path: Path, work_dir: Path) -> Path:
     return pka_path
 
 
-# SUMMARY line, e.g.:  "   ASP  45 A     2.55      3.80"
+# SUMMARY line. ProPKA writes the group column fixed-width, so a 4-digit
+# residue number leaves NO space after the residue name:
+#     "   ASP  45 A     2.55      3.80"     <- 3-digit, space present
+#     "   LYS1150 A    11.83     10.50"     <- 4-digit, space absent
+# The separator must therefore be \s* (not \s+), or every titratable residue
+# numbered >= 1000 is silently dropped from the comparison.
+# \s* stays safe against the ligand rows ("HCO  NB A", "HCOND12 A"): (\d+)
+# still cannot match their non-numeric group column, so they fail as before.
 _SUMMARY_RE = re.compile(
-    r"^\s*([A-Z]{2,3})\s+(\d+)\s+(\S)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)")
+    r"^\s*([A-Z]{2,3})\s*(\d+)\s+(\S)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)")
 
 
 def parse_propka_summary(pka_path: Path) -> Dict[Tuple[str, int], float]:
@@ -134,6 +141,62 @@ def parse_propka_summary(pka_path: Path) -> Dict[Tuple[str, int], float]:
                 resname, resnum, _chain, pka = (
                     m.group(1), int(m.group(2)), m.group(3), float(m.group(4)))
                 out[(resname, resnum)] = pka
+    return out
+
+
+# ProPKA group type -> the residue names for which that type IS the residue's
+# own titratable group. The type alone is not enough to key on: a C-terminal
+# Lys carries BOTH a "LYS" side-chain group and a "COO" C-terminus group on the
+# same residue, so keying "COO" without checking the residue name would
+# overwrite the side-chain pKa with the terminus pKa. None = accept any residue
+# (ligand groups, whose residue name is whatever the ligand is called).
+# Types deliberately absent are not PB sites: "ARG", "N+" (N-terminus), and
+# "NAR" (ProPKA types the iron-coordinated porphyrin nitrogens as titratable
+# aromatic bases, which they are not).
+_GROUP_TYPE_RESNAMES: Dict[str, Optional[set]] = {
+    "COO": {"ASP", "GLU"},
+    "LYS": {"LYS"},
+    "TYR": {"TYR"},
+    "HIS": {"HIS"},
+    "CYS": {"CYS"},
+    "OCO": None,   # ligand carboxylate -- the heme propionate PRN
+}
+
+
+def parse_propka_groups(pdb_path: Path) -> Dict[Tuple[str, int], float]:
+    """ProPKA pKas via its Python API -> {(std_resname, resnum): pKa}.
+
+    Why this exists alongside `parse_propka_summary`: the .pka file identifies
+    LIGAND groups by residue name plus ATOM name and never writes their residue
+    number -- "PRN  CG A     4.54       4.50                OCO" -- in the
+    SUMMARY or in the determinant section. Heme propionates are real PB sites,
+    so parsing the file alone silently drops all of them. The API keeps the
+    owning atom, so residue identity is recoverable there.
+
+    Returns {} if propka is not importable; callers should treat this as an
+    optional enrichment of the .pka parse, not a replacement for it.
+    """
+    try:
+        import propka.run as _propka_run
+    except ImportError:
+        return {}
+    mol = _propka_run.single(str(pdb_path), optargs=["--quiet"], write_pka=False)
+    # "AVR" is the conformation ProPKA reports in the .pka; with a single
+    # conformation it is identical to the sole "1A" entry.
+    conf = mol.conformations.get("AVR")
+    if conf is None:
+        conf = next(iter(mol.conformations.values()))
+    out: Dict[Tuple[str, int], float] = {}
+    for grp in conf.groups:
+        if not grp.use_in_calculations():
+            continue
+        if grp.type not in _GROUP_TYPE_RESNAMES:
+            continue
+        resname = grp.atom.res_name.strip()
+        allowed = _GROUP_TYPE_RESNAMES[grp.type]
+        if allowed is not None and resname not in allowed:
+            continue
+        out[(resname, int(grp.atom.res_num))] = float(grp.pka_value)
     return out
 
 

@@ -32,6 +32,7 @@ single-state shape ``single_state/default`` exactly as the bundled
 ``zinc/cys4`` entry does.
 """
 
+import filecmp
 import json
 import logging
 import shutil
@@ -142,16 +143,25 @@ def promote_state(request: PromotionRequest) -> Dict[str, Any]:
     # Track everything we create so we can undo it on validation failure.
     created_files: List[Path] = []
     created_dirs: List[Path] = []
+    replaced: List[tuple] = []
+    # Names another set in this same state directory already points at, grown
+    # as we go so two sources in THIS deposit cannot collide with each other
+    # either.
+    reserved = _reserved_basenames(metadata, request, set_name)
+
+    def _copy(src: str) -> str:
+        name = _copy_into(src, state_dir, created_files, replaced, reserved)
+        reserved.add(name)
+        return name
+
     try:
         _ensure_dirs(state_dir, created_dirs)
 
-        frcmod_basename = _copy_into(request.frcmod_src, state_dir, created_files)
-        extra_frcmod_basenames = [_copy_into(src, state_dir, created_files)
-                                  for src in request.extra_frcmod_srcs]
-        lib_basenames = [_copy_into(src, state_dir, created_files)
-                         for src in request.lib_srcs]
+        frcmod_basename = _copy(request.frcmod_src)
+        extra_frcmod_basenames = [_copy(src) for src in request.extra_frcmod_srcs]
+        lib_basenames = [_copy(src) for src in request.lib_srcs]
         for src in request.extra_file_srcs:
-            _copy_into(src, state_dir, created_files)
+            _copy(src)
 
         # lib metadata field is a bare string for a single file, a list for
         # the MCPB multi-mol2 case (matches the loader's lib_ref handling).
@@ -173,7 +183,8 @@ def promote_state(request: PromotionRequest) -> Dict[str, Any]:
         _validate_via_loader(cofactor_path, request.redox_state,
                              request.spin_state, set_name)
     except Exception:
-        _rollback(metadata_path, original_bytes, created_files, created_dirs)
+        _rollback(metadata_path, original_bytes, created_files, created_dirs,
+                  replaced)
         raise
 
     logger.debug("Promoted %s/%s [%s/%s/%s] into user library at %s",
@@ -342,17 +353,77 @@ def _ensure_dirs(state_dir: Path, created_dirs: List[Path]) -> None:
     created_dirs.extend(to_make)  # already deepest-first
 
 
-def _copy_into(src: str, dest_dir: Path, created_files: List[Path]) -> str:
-    """Copy a source file into dest_dir; return its basename."""
-    dest = dest_dir / Path(src).name
+def _copy_into(src: str, dest_dir: Path, created_files: List[Path],
+               replaced: List[tuple], reserved: Optional[set] = None) -> str:
+    """Copy a source file into dest_dir; return the basename actually written.
+
+    Sets are metadata KEYS, not directories, so every set in one (redox, spin)
+    state shares a single folder. ``reserved`` holds the basenames other sets
+    there already point at: overwriting one would destroy that set's parameters
+    while its metadata still named the file. A colliding source is given a
+    disambiguated name instead -- unless it is byte-identical, where sharing
+    the file is what the other set already has.
+
+    Files this call overwrites are recorded in ``replaced`` so a rollback can
+    put them back; previously they were deleted outright, which turned a failed
+    re-deposit into the loss of the parameters that were already there.
+    """
+    name = Path(src).name
+    if reserved and name in reserved:
+        existing = dest_dir / name
+        identical = (existing.is_file()
+                     and filecmp.cmp(src, existing, shallow=False))
+        if not identical:
+            stem, suffix = Path(name).stem, Path(name).suffix
+            n = 2
+            while (f"{stem}_{n}{suffix}" in reserved
+                   or (dest_dir / f"{stem}_{n}{suffix}").exists()):
+                n += 1
+            name = f"{stem}_{n}{suffix}"
+
+    dest = dest_dir / name
+    if dest.exists():
+        try:
+            replaced.append((dest, dest.read_bytes()))
+        except OSError:
+            logger.warning("Could not snapshot %s before overwriting it", dest)
+    else:
+        created_files.append(dest)
     shutil.copy2(src, dest)
-    created_files.append(dest)
     return dest.name
 
 
+def _reserved_basenames(metadata: Dict[str, Any], request: "PromotionRequest",
+                        set_name: str) -> set:
+    """Basenames owned by OTHER sets in the same (redox, spin) state."""
+    reserved = set()
+    sets = (metadata.get("redox_states", {})
+            .get(request.redox_state, {})
+            .get("spin_states", {})
+            .get(request.spin_state, {})
+            .get("forcefield_sets", {}))
+    for name, block in sets.items():
+        if name == set_name:
+            continue
+        for value in (block.get("files") or {}).values():
+            if isinstance(value, str):
+                reserved.add(value)
+            elif isinstance(value, list):
+                reserved.update(v for v in value if isinstance(v, str))
+    return reserved
+
+
 def _rollback(metadata_path: Path, original_bytes: Optional[bytes],
-              created_files: List[Path], created_dirs: List[Path]) -> None:
-    """Undo a failed promotion: restore metadata, drop new files + empty dirs."""
+              created_files: List[Path], created_dirs: List[Path],
+              replaced: Optional[List[tuple]] = None) -> None:
+    """Undo a failed promotion: restore metadata + overwritten files, drop new
+    files and empty dirs."""
+    for path, content in (replaced or []):
+        try:
+            path.write_bytes(content)
+        except OSError:
+            logger.warning("Rollback: could not restore %s", path)
+
     for f in created_files:
         try:
             f.unlink(missing_ok=True)

@@ -13,6 +13,495 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.17.0] — 2026-08-31
+
+### Changed
+
+- PDB Filter water analysis, metric 4: burial is now computed from geometry
+  alone instead of an atom count normalised by an uncalibrated constant.
+  Each water oxygen gets its Lee-Richards accessible area against the
+  protein and hetero atoms (1.4 Å probe, Bondi radii; other waters never
+  occlude), a bulk/enclosed flag from a flood fill of probe-accessible
+  space, and its nearest heavy atom. Categories are physical statements:
+  Clash (nearest C/N/O/S/P atom under 2.2 Å, the wwPDB close-contact
+  criterion), Enclosed (no path to bulk solvent), Buried (0 Å² but
+  bulk-connected), Exposed. The count-based `burial_max_expected` and the
+  `40 Å² × (1 − burial)` "estimated SASA" are gone. On 3WL2 the old score
+  put every enclosed cavity water at 46-68%, and nothing above 80%. The
+  multi-radius and directional profiles (metrics 6 and 7) keep the count and
+  now have their own parameter entries.
+
+- The water burial table shows a Covered column (100 × (1 − SASA / the
+  area of a free water)) and prints every category rule with its cutoff,
+  in the order the rules are applied, both in the method panel and in a
+  legend under the table; the panel also explains that SASA is measured on
+  the contact sphere while enclosure is looked for one grid cell beyond it,
+  which is how a water can be untouchable yet bulk-connected. The unit
+  symbol had been U+0172 "Ų" (U with ogonek) and now reads Å².
+
+- Metrics 6 and 7 (multi-radius and directional atom counts) state the
+  conventions behind their labels: the "saturation" radius is the first
+  step with less than 10% growth, the directional "pattern" compares the
+  sector-count range with the mean at 0.5× and 1.5×, and the compass glyphs
+  are quarters of that water's own largest sector. Each label carries its
+  rule, and both tables gained a legend saying so; the menu names them
+  atom-count profiles.
+
+- The structure fixer's alternate-location picker says which viewer colour
+  each alternate is drawn in ("■ red in viewer") beside its occupancy, and
+  the viewer's representation list is labelled "Alt A (red), occ 0.60"
+  instead of "Altloc A", so the colours on screen can be matched to the
+  numbers in the prompt.
+
+- Water analysis viewer halos and the "Ordered" category. The viewer reps
+  were labelled `Water Cat Hbond` / `Water Cat Ordered`; they now say the
+  rule and its cutoff ("Waters: ≥ 3 H-bond partners (≤ 3.5 Å)"). With the
+  burial metric selected the halos follow the burial categories (clash,
+  enclosed, SASA 0, covered ≥ 90 %, covered 50–90 %) instead of the
+  recommendation categories, which hid a buried water behind "Highly
+  connected". "Ordered" was B-factor < 30 Å²; B-factors scale with
+  resolution and refinement, so it is now B below the median of this
+  structure's protein heavy atoms, and the B-factor table shows that ratio
+  and the median instead of 20/40/60 Å² bins.
+
+- Water burial treats a water as one 1.4 Å sphere whether it is the probe
+  or a crystallographic water. The crystallographic water's oxygen had been
+  given Bondi's 1.52 Å, the radius of an oxygen atom inside a molecule, so
+  the same species had two sizes and two waters "touched" at 2.92 Å where
+  real ones touch at 2.80 Å. Contact distance is now 2.80 Å, the isolated
+  water area 98.5 Å², and the enclosure reach 3.30 Å; protein, heteroatom,
+  and metal occluders keep Bondi radii.
+
+- Water hydrogen-bond partners are ranked by distance alone. The previous
+  ranking multiplied an "angle quality" (bins at 150/120/90° scored
+  1.0/0.8/0.6/0.3) by a distance bin and then by 1/distance again. The
+  angle it measured was the one at the partner atom, X–A···O, whose ideal
+  value depends on hybridisation (about 120–160° at a carbonyl oxygen, about
+  110° at an sp³ oxygen or amine), so "linear is best" rated a textbook
+  Ser OG contact "acceptable" and an on-axis approach "excellent"; water
+  partners never got an angle at all. None of the numbers had a source.
+  Candidates within the 3.5 Å heavy-atom cutoff are now listed closest
+  first and truncated to the configured maximum; the unused
+  `hbond_angle_cutoff` parameter is gone.
+
+- The water classification cascade is gone. Every analysed water used to be
+  given one label (Metal-coordinating, Highly connected, Interface, Buried,
+  Ordered, or Bulk solvent) by a first-match-wins rule chain, and the viewer
+  halos followed it, so a metal-bound water that was also enclosed showed
+  only as metal-bound. That is a single score under another name and runs
+  against the rest of the analysis, which reports each metric on its own.
+  The viewer now draws one highlight group per fact each displayed metric
+  establishes (metal within cutoff; 1, 2, 3, or 4 H-bond partners; B below
+  the protein median; the burial categories and coverage bands; interface),
+  each labelled with its rule and cutoff, and a water may appear in several.
+
+- Water burial counts metal ions as occluders by default. Metal ions are
+  their own residue class in the burial code, and the default set was
+  `protein,hetero`, so a coordinated ion neither shielded its water nor
+  blocked the enclosure flood fill. Default is now `protein,hetero,metal`.
+
+### Fixed
+
+- Coordinated waters are part of the transformer connectivity fingerprint.
+  The Weisfeiler-Lehman fingerprint that lets a reused transformer tell
+  same-name residues apart excluded waters entirely, so water renames (say
+  HOH to MW1 and MW2 on a di-metal site) could never auto-resolve and always
+  fell to the manual prompt. Every emitter now bakes two fingerprints per
+  role, the anhydrous one exactly as before and a hydrated one with waters
+  as nodes; matching tries the hydrated bijection first and falls back to
+  the anhydrous one, so transformers emitted before this change, and reuse
+  sites whose water-metal bonds are left undefined (a restraint instead),
+  match exactly as they did, while water roles resolve automatically when
+  the bonds are defined on both sides.
+
+- Structure Viewer: colouring by "Chain ID" coloured a multi-chain
+  structure almost uniformly red. The option used NGL's `chainid` scheme,
+  which keys on the parser's internal chain record (a new one at every TER
+  and every polymer-to-HETATM break), so 9YUQ's 16 chains became 112
+  records and the protein segments, first in the file, all sat at the red
+  end of the scale. The option now uses `chainname`, the chain letter;
+  saved scenes carrying `chainid` are mapped.
+
+- Replaying a session recorded from `proprep --pdbid X` or `--pdbfile F`
+  now reloads that structure first. The argument-driven load happens in
+  `main()` with no prompts, so such a session holds no loader interactions,
+  only `metadata.pdb_id`/`pdb_file`; replay printed that and then started
+  at the main menu with no structure, and the first module diverged. A
+  `pdb_file` recorded on another machine is found by basename in the
+  project directory; if it is absent the replay says which file to copy in.
+
+- Constant-pH/redox namelist variables (icnstph/solvph/ntcnstph, icnste/
+  solve/ntcnste, saltcon) reach every production `simulation.mdin`. Only
+  the live runner injected them; the batch directory writer, the
+  standalone writer, and the three SLURM writers staged the cpin and passed
+  `-cpin -cpout -cprestrt` but wrote the mdin untouched, so sander would
+  have run plain MD with a cpin on the command line. An imported .mdin is
+  now read, given its configured restraints and the titration namelist,
+  and written, instead of being copied verbatim.
+
+- The MD Manager's recommended engine assignment numbered NPT steps across
+  the whole queue, so with several structures only the first structure's
+  density equilibration was treated as early NPT (CPU) and every other
+  structure's went to the GPU with a fixed PME grid. NPT steps are now
+  numbered within each structure's own workflow.
+
+- Every generated microstate tLEaP script starts with `logFile
+  <microstate>_leap.log`, so each build writes its own log instead of all
+  of them (and the info passes before them) appending to one `leap.log`
+  in the working directory. Parallel builds copy that log back beside the
+  inputs; the info passes log to scratch files that are removed with the
+  script. The log parser and the post-run message display read the
+  script's own log.
+
+- The titration-file step accepts several topologies at once (a number, a
+  comma list, a range, or `all`, which is the default). Residue and
+  initial-state choices are made on the first topology and reused for any
+  later one whose titratable residues match it exactly; a topology that
+  differs is prompted on its own. One `titration_configs` entry is kept per
+  topology alongside the legacy single `titration_config`.
+
+- The MD Manager's constant-pH/redox offer looks up each structure's own
+  titration files by prmtop name and lists every structure it applies to
+  before asking once. Previously it read the single most recent config, so
+  a set of five microstates was offered only the fifth's cpin.
+
+- Batch microstate generation offered the constant-E HEH heme library next
+  to the HCO library in the Topology Generator (and only HCR for the
+  reduced state). The batch path recorded no redox treatment, so the set
+  picker had nothing to filter on; choosing HEH loaded a library that
+  defines no HCO, tLEaP built the hemes as untyped, chargeless atoms, and
+  every microstate reported the same net charge. Batch microstates
+  enumerate redox states explicitly, one topology each, so the treatment is
+  fixed_E by construction; it is now recorded as such and the picker offers
+  only the fixed_E sets. The microstate info pass also refuses to continue
+  when tLEaP reports an unknown residue, instead of printing a charge that
+  omits it.
+
+- The per-water FreeSASA value that drove the "Buried" recommendation was
+  always 0.0: `Result.atomArea()` takes an atom index and was given selector
+  strings, and FreeSASA's PDB reader drops HETATM records so the water was
+  not in the structure being queried. Every water not otherwise categorised
+  was recommended as "Buried". The recommendation now uses the burial above.
+
+### Added
+
+- `proprep-library`: snapshot, reset and restore the user library
+  (`~/.proprep/forcefield_params` and `~/.proprep/transformers`) without
+  ever deleting anything. `snapshot [name] -m note` copies the library to
+  `~/.proprep/library_snapshots/<name>/` with a manifest; `reset` writes a
+  `before_reset_<stamp>` snapshot and then empties the library so a
+  practice run starts clean; `restore <name>` writes a `before_restore_`
+  snapshot and brings a snapshot back; `list` and `status` report. Settings,
+  keys, templates, profiles and web sessions are outside the library and
+  untouched. Restart ProPrep after a reset or restore.
+
+- The Structure Viewer can save and reload a scene. **Save Scene** in the
+  viewer's View Controls (or *Save the scene shown in the open viewer* in
+  the Structure Viewer menu) writes `<name>.scene.json` into the project
+  directory: every representation as shown (including ones added by hand
+  in the sidebar), the camera, the camera type, and the background, with
+  structure paths relative to the project so it travels with it. *Load a
+  saved scene* lists the files and restores the view; a scene whose
+  structure files are missing is refused with the paths named. Hand-added
+  representations also now survive an annotation refresh from the CLI,
+  which used to discard them.
+
+- The Topology Generator's cpin step now also generates `cein` and `cpein`
+  files, so a structure prepared for constant-redox MD can actually titrate.
+  It reads the topology and generates one file per titratable family:
+  `cpinutil.py` for the pH-titratable residues, `ceinutil.py` for the redox
+  heme `HEH`, and both files when both families are present. A `constant_E`
+  heme with titratable `PRN` propionates therefore yields a cpin *and* a cein,
+  which are complementary and are passed to sander together, following Amber
+  tutorial 33. Generating only one family is still offered, for holding the
+  heme at a fixed oxidation state or the propionates at fixed protonation.
+  `cpeinutil.py` is used only for a residue that titrates in proton and
+  electron on the same site, which neither of the other two will accept. The
+  MD Manager carries every generated file through to the run scripts, emitting
+  each one's flag triple and chaining each one's restarts independently, and
+  sets `icnstph`/`solvph`/`ntcnstph` and `icnste`/`solve`/`ntcnste` together in
+  one `&cntrl` when both apply. Constant-pH runs are unchanged.
+
+- The initial oxidation state of a redox residue can be set from a target
+  potential, the redox counterpart of setting protonation states from a target
+  pH. A potential above the residue's standard potential starts it oxidized,
+  below starts it reduced; `HEH` has Eo = -0.203 V. In a combined run the
+  propionates still follow pH against their pKa independently.
+
+- The bis-histidine c-type heme can be prepared for constant-redox MD. A new
+  `redox_treatment` choice sits alongside the existing propionate pH treatment
+  and offers `constant_E` beside the existing `fixed_E`. Under `constant_E` the
+  heme residue is named `HEH`, which is what AMBER's `conste.lib` calls it and
+  what `ceinutil.py` matches on, so the heme reaches the cein file with both its
+  ferric and ferrous charge vectors. The oxidation state is then chosen when the
+  cein is generated rather than built into the topology, so one library serves
+  both states, exactly as AMBER ships a single `HEH` unit. The redox-state
+  question is skipped when `constant_E` is chosen, since there is no state to
+  commit to at build time. The two treatments cross with the two propionate
+  treatments, so the cofactor now offers four sets: `HEH` with titratable `PRN`
+  for combined constant-pH/redox runs, `HEH` with static `PRP`/`PRD` for
+  redox-only runs, and the two existing `HCO`/`HCR` sets unchanged.
+
+- Self-contained installers. `constructor/` builds `ProPrep-X.Y.Z-<OS>-<arch>.sh`
+  installers that carry the whole environment: ProPrep, AmberTools, MODELLER,
+  `reduce`, `pdb2pqr` and every other dependency. Attendees and new users run
+  one file and need no conda, no channel solve and no network during the
+  install. MODELLER comes with its placeholder license; users supply their own
+  key at run time (below). Built for Apple-silicon and Intel Macs and for
+  Linux x86-64 (which is also the Windows route through WSL2); see
+  `INSTALL.md`.
+
+- The MODELLER license key can be supplied at run time. ProPrep reads
+  `$KEY_MODELLER` or `~/.proprep/modeller_key` before the first `import modeller`
+  and answers the `modeller.config` import itself, so no distributed artifact
+  ever contains a key and a wrong key is fixed by editing a file rather than
+  reinstalling. Outside a bundle this is a no-op when neither source exists,
+  so keys baked in by `install_proprep.sh` at install time keep working; a
+  runtime key wins over a baked one.
+
+- Web shell: sessions now belong to *seats* that outlive their websockets.
+  A dropped connection, a page reload or a laptop going to sleep no longer
+  kills the ProPrep process; the page reconnects with backoff and receives a
+  replay of the recent output, then carries on in the same session. A second
+  tab opened on the same seat displaces the first (one connection per seat, as
+  before).
+
+- Web shell hosted mode. `proprep-web --seats N [--seats-dir DIR]
+  [--public-url URL]` serves N independent seats from one process, each with
+  its own working directory and a random link token persisted in `seats.json`
+  so links survive restarts. Opening `/?seat=<token>` sets a cookie, after
+  which the terminal, the docked structure viewer and the new **Download
+  project** button (a zip of the seat's directory) are all seat-scoped; a
+  missing or wrong token is refused. Hosted mode never auto-shuts down. The
+  default single-user launch is unchanged apart from reloads resuming instead
+  of restarting.
+
+- `proprep-web` is now also available as a standalone executable next to
+  `proprep` when the PyInstaller bundle is built.
+### Changed
+
+- Depositing parameters and saving a transformer ask for three names in a row
+  — library entry, parameter set, template — whose wording does not say which
+  level of the library each one sits at. The import wizard now shows entry
+  (a directory, one per molecule or site) against set (a key inside it, one per
+  derivation, several per entry) with the path each will occupy, and the
+  transformer creator says the template is the rename recipe rather than the
+  entry holding the parameters, naming the file it writes.
+
+- Web shell: the structure viewer announces itself to the shell over the
+  loopback bind address with a per-seat path, never through the public
+  address the browser used. That callback used to take the browser's `Host`
+  header and broke behind any reverse proxy, TLS terminator or tunnel; it is
+  now also refused from non-loopback callers.
+
+- Structure repair via MODELLER on a headless host (a plain `ssh` session) no
+  longer launches a text browser against the viewer page. `webbrowser` falls
+  back to `lynx`/`w3m` whenever `TERM` is set, which took over the terminal or
+  segfaulted on the WebGL page. Nothing is opened without a display or when
+  the chosen browser is text-mode (an explicit `BROWSER` still wins), and the
+  launch message prints the `ssh -L` line that makes the URL reachable from
+  the user's own machine. `proprep-web` gets the same guard.
+
+- Fe4S4 parameter sets: the Cys C-beta/S-gamma bond is now derived from each
+  solution's own Hessian instead of the ff14SB default that MCPB.py inserts
+  (about 1.9x too stiff and 0.05 A too short; the derived values are
+  bracketed by two independent published derivations). Two of the fifteen
+  broken-symmetry solutions (FO4, FR2) were re-derived from unconstrained
+  Hessians so all fifteen follow the same procedure; the averaged FO0/FR0/FD0
+  sets are recomputed accordingly.
+
+- Release tooling. `docs/RELEASE_PROCEDURE.md` documents every release
+  endpoint in order (source tag, conda channel, public snapshot repository and
+  its GitHub release, Zenodo, constructor installers). `make check-version`
+  now checks all seven version-carrying files, including
+  `update_proprep_in_ambertools.sh` (which had sat at 1.14.0 through two
+  releases) and `constructor/construct.yaml`; `make snapshot` exports the
+  public snapshot reproducibly.
+### Fixed
+
+- The titration step refuses `igb` and `intdiel` combinations that have no
+  reference energies instead of writing a file full of nulls. `ceinutil.py`
+  accepts any of igb 1/2/5/7/8 and intdiel 1/2, but the only redox residue
+  that exists has energies for igb 2/5/7/8 in implicit solvent, 2/5/7 in
+  explicit, and none at all for intdiel 2. The unsupported combinations were
+  accepted silently and produced meaningless output.
+
+- Residues that a titration utility would drop are now reported before the
+  file is written. All three utilities filter chain termini by comparing a
+  residue's atom count against ParmEd's definition and skip any mismatch with
+  no message and a zero exit status. That is the intent for a terminal
+  aspartate, but a cofactor is a different matter: `HEH` is one 87-atom
+  residue spanning the porphyrin and side-chain fragments of two cysteines and
+  two histidines, and a build one atom adrift simply stops titrating. Worse,
+  once any residue is dropped the `-states` list no longer matches the residue
+  count, so every hand-picked initial state is silently discarded in favour of
+  defaults. The count is now checked against ParmEd up front and again against
+  the generated file.
+
+- Explicit-solvent constant-redox runs get the radii-corrected topology they
+  need. `ceinutil.py` imports ParmEd's `changeRadii` and `change` actions and
+  never calls them; it has no `-op` flag at all, unlike `cpinutil.py` and
+  `cpeinutil.py`. When a cpin is generated alongside the cein, `cpinutil.py`
+  writes that topology and both files share it. For a redox-only run ProPrep
+  applies the same two actions directly and records the equivalent `parmed`
+  input in the generated script.
+
+- The titration step no longer asks for a tLEaP input file. It used that file
+  only to look up two paths, a leftover from when residue numbers had to be
+  mapped from the original PDB onto the tleap-renumbered topology; scanning
+  the topology directly removed that need. The topology is now selected
+  straight from the workspace.
+
+- A constant-pH bis-His c-type heme topology no longer hides the heme from
+  AMBER's redox tooling. The library named the residue `HCO` or `HCR`, and both
+  `ceinutil.py` and `cpinutil.py` select residues purely by the name recorded in
+  the topology, so the heme was passed over without comment and never titrated.
+  The parameters themselves were always AMBER's: the shipped unit is identical
+  to `conste.lib`'s `HEH` atom for atom, in name, type and charge. Only the name
+  differed. Choose the `constant_E` treatment to emit `HEH`; the fixed-redox
+  sets keep `HCO`/`HCR`, which is correct for them because their oxidation state
+  really is fixed.
+- The bis-His c-type heme library now carries the four angle and improper terms
+  the titratable `PRN` propionate needs. `PRN` types both propionate oxygens as
+  `OH` and gives each up to two ghost hydrogens, an arrangement no standard
+  residue has, so it needs `HO-OH-HO`, `OH-C-OH` and two impropers that live in
+  `frcmod.constph`. The heme library's own header said it carried them and its
+  methodology said no constant-pH force field need be loaded separately, but
+  neither was true: building `PRN` against the heme library plus `leaprc.conste`
+  alone failed with three missing-parameter errors. The terms are copied
+  verbatim from `frcmod.constph`, and since none of them exist in `parm10` and
+  none can form on an ordinary hydroxyl, adding them leaves every other residue
+  untouched.
+
+- A workflow step that pauses at a checkpoint was recorded as *completed*. The
+  step stops early to wait for a calculation run outside ProPrep and has
+  produced none of its artifacts, but the green tick satisfied the next step's
+  dependency and let the run walk past it — the failure then surfaced two steps
+  later, naming the step that consumed the missing file rather than the one
+  that never wrote it. A checkpoint is now `in_progress`: `[n]ext` offers it
+  again, and a step depending on it warns before running.
+- The modified-amino-acid RESP step reported "Missing ESP or AC file from
+  previous steps" without saying which, immediately after step 7 had announced
+  the AC file. It now names the artifact, the filename it expected, the
+  directory it searched, and the reason step 6 may have produced nothing.
+- The step-5 RESP selection was held only in memory, so a resumed session
+  re-selected from scratch — silently changing which conformers feed the fit
+  and demanding ESP single points the user had not run. It is now recorded in
+  the workspace, keyed by residue, and reused on resume.
+- An imported entry recorded its residue name from the `.lib` FILENAME rather
+  than the unit inside it. `saveoff` names an entry after the tLEaP variable it
+  was given, so a `GDP.lib` can hold unit `gdp` — and tLEaP matches the unit,
+  case-sensitively. The unit name is now read from the library, and a
+  divergence from the filename is reported.
+- Depositing a set could destroy another set's parameter files. Sets are
+  metadata keys, not directories, so every set in one redox/spin state shares a
+  folder, and the copy was an unguarded `shutil.copy2`: two sets whose files
+  shared a basename overwrote each other while both metadata leaves still
+  named the file. A colliding file is now written alongside (unless it is
+  byte-identical, where sharing it is what the other set already has), and a
+  rolled-back deposit restores anything it overwrote instead of deleting it.
+- Saving a transformer silently replaced any existing one of the same name —
+  a plain `open(path, "w")`, with sanitizing that collapses `GDP ff94` and
+  `gdp-ff94` onto the same file. The name is now checked before the
+  force-field questions, showing what is already there.
+- When Amber's parameter files could not be found, the import wizard listed
+  every atom type a frcmod declares as new — standard types like `CT` and `OS`
+  included — with nothing saying why. Widening is the safe direction, but it
+  now says the check could not be made and where it looked, since the usual
+  cause is running ProPrep outside the environment AmberTools is installed in.
+
+- The library-collision prompt asked "How would you like to proceed?" and
+  listed nothing to proceed with. `options_map` is metadata for the session
+  recorder — it never renders, and passing it suppresses Rich's inline choice
+  list — so the three options existed only in the source. They are printed now,
+  and the version-bump option names the set it would actually write. The
+  collision message also lost its `[redox/spin]` coordinates to Rich's markup
+  parser, which read the brackets as a style tag; exception text is escaped
+  before printing.
+
+- The interactive transformer creator could not address any residue in its own
+  table. BioPython reports a residue with no insertion code as a *space*, and
+  that space reached the editor's structure intact, while every command looks a
+  residue up with an empty insertion code; the comparison is exact, so
+  `rename_atom A 302 O5' O5*` answered `No residue A/302 in the site.` for a
+  residue printed one line above. Insertion codes are now normalized where the
+  structure is built and where it is queried.
+- New residue and atom names typed into the transformer creator were
+  force-uppercased, so a library whose tLEaP unit is lowercase could not be
+  matched by a rename — the editor could not perform the edit it exists to
+  perform, and the library had to be hand-edited instead. Names are now
+  recorded exactly as typed. Names being matched *on* may still be typed in any
+  case, and the operation records the structure's own spelling so replay
+  against a PDB still matches.
+
+- The PyInstaller bundle had drifted from the tree: `scipy` was excluded but
+  is a runtime dependency of pb_titrate and trajectory analysis, the
+  pb_titrate model compounds and the cluster profiles were not bundled, and
+  `qmmm_prep` was missing from the hidden imports. The bundle also carried the
+  build machine's `modeller.config`, license key included; it is now excluded.
+
+- ProPKA pKas for heme propionates were dropped entirely. ProPKA's `.pka`
+  file identifies ligand groups by residue name and atom name without a
+  residue number, so the summary parser skipped every `PRN`. The groups are now
+  recovered through ProPKA's Python API, which keeps each group's owning atom,
+  and merged additively (values parsed from the file win). Group type alone is
+  not the key: a C-terminal Lys carries a side-chain and a terminus group on
+  one residue and the terminus pKa was overwriting the side-chain value.
+
+- ProPKA pKas for residues numbered 1000 and above were dropped. The summary
+  column is fixed-width and loses the space between name and number at four
+  digits; on a six-protomer cytochrome filament this silently lost the whole
+  sixth protomer.
+
+- Several steps reported success they did not have: a checkpoint paused for an
+  external calculation was recorded as completed and the failure surfaced two
+  steps later naming the wrong step; the RESP step named two missing files
+  without saying which; a resumed modified-amino-acid session silently
+  re-selected conformers; an imported library entry took its residue name from
+  the file name rather than the unit inside it; depositing a set could
+  overwrite another set's files, and rollback then deleted them; saving a
+  transformer replaced an existing one of the same name without asking; and
+  the import wizard listed every atom type as new when Amber's parameter files
+  could not be found, without saying so.
+
+- Re-importing a parameter set that already exists asked how to proceed
+  without showing the choices (the options were passed only to the session
+  recorder, which also suppressed the inline `[1/2/3]`), and Rich swallowed
+  the bracketed name of the colliding set. The options are printed, the
+  version-bump choice names the set it would write, and exception text is
+  escaped.
+
+- The transformer creator's interactive editor could neither address nor
+  rename residues of an imported library: BioPython reports a missing
+  insertion code as a space, which never matched the empty string the
+  commands supply, and new names were force-uppercased, so the one rename
+  that would match a lowercase tLEaP unit was refused. Insertion codes are
+  normalized at the boundary and names are recorded verbatim.
+
+- MCPB RESP input: elements were inferred from the first letter of the atom
+  name when PDB columns 77-78 were absent, so `ZN` in MCPB.py's own 65-column
+  `*_large.pdb` read as element `Z` and aborted. Column justification,
+  monatomic-ion records and an allowlist of metal/halide names are tried
+  first. Stage 2 also refit every atom under its stronger restraint, damping
+  metal and ligating-atom charges toward zero; only the equivalenced atoms and
+  the heavy atom each hydrogen group hangs off are now freed.
+
+- Metal-site parameterization: a ligand parameterized standalone and again as
+  part of the site (renamed in the process) left both registrations in the
+  preprocessing lists, so tLEaP loaded two definitions of one ligand. Step 4
+  now drops the superseded halves and de-duplicates by real path.
+
+- The MoCo molybdenum ESP radius is pinned; tests that compare against
+  MCPB.py's MK radius table are skipped where AmberTools is absent instead of
+  reading as defects.
+
+- PDB Filter water analysis: choosing metric 4 (proximity-based burial)
+  crashed with `'PDBFilterWorker' object has no attribute 'parameters'`.
+  The burial table read its radius, atom types, and weighting from the
+  filter worker instead of from the `WaterAnalyzer` that owns them; it is
+  now handed the analyzer like the metal and interface tables. Present
+  since the module was written, so burial analysis had never worked.
+
 ## [1.16.0] — 2026-08-19
 
 ### Added

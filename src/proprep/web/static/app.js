@@ -3,6 +3,12 @@
  * Connects an xterm.js terminal to the /ws/term websocket. Server frames
  * are bytes (PTY output) or text JSON control messages; client frames are
  * bytes (stdin) or text JSON for resize.
+ *
+ * Sessions live in server-side seats and survive this socket: on every
+ * (re)connect the server sends {"type":"attached", replay:bool} followed by
+ * a scrollback replay, so a dropped connection is resumed rather than
+ * restarted. Seat selection is a cookie set by GET /?seat=<token>; the
+ * page itself never handles tokens.
  */
 
 (function () {
@@ -110,7 +116,20 @@
   const wsUrl = (location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + "/ws/term";
   let ws = null;
   let reconnectTimer = null;
+  let reconnectDelay = 1000;       // doubles up to RECONNECT_MAX on repeated failures
+  const RECONNECT_MAX = 10000;
+  let sessionEnded = false;        // child exited or we were displaced: no auto-reconnect
   let lastSentSize = { cols: 0, rows: 0 };
+
+  function scheduleReconnect() {
+    if (sessionEnded) return;
+    clearTimeout(reconnectTimer);
+    setStatus("reconnecting…", "err");
+    reconnectTimer = setTimeout(() => {
+      reconnectDelay = Math.min(RECONNECT_MAX, reconnectDelay * 2);
+      connect();
+    }, reconnectDelay);
+  }
 
   function sendResize() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -127,7 +146,8 @@
 
     ws.onopen = () => {
       setStatus("connected", "ok");
-      // Push current size after the server has started the PTY.
+      reconnectDelay = 1000;
+      // Push current size after the server has attached us to the seat.
       lastSentSize = { cols: 0, rows: 0 };
       sendResize();
       term.focus();
@@ -137,24 +157,47 @@
       if (typeof ev.data === "string") {
         let msg;
         try { msg = JSON.parse(ev.data); } catch (_) { return; }
-        if (msg.type === "exit") {
-          term.write(`\r\n\x1b[33m[proprep exited with code ${msg.returncode}]\x1b[0m\r\n`);
+        if (msg.type === "attached") {
+          // The replay (if any) follows as the next binary frame and
+          // reproduces the seat's recent output; clear our own buffer first
+          // so a reconnect doesn't show the session twice.
+          term.reset();
+          sessionEnded = false;
+          if (msg.replay) setStatus("resumed", "ok");
+          if (msg.alive === false && typeof msg.returncode === "number") {
+            sessionEnded = true;
+            setStatus("exited (" + msg.returncode + ")", "err");
+          }
+        } else if (msg.type === "exit") {
+          sessionEnded = true;
+          term.write(`\r\n\x1b[33m[proprep exited with code ${msg.returncode} — reload the page to start a new session]\x1b[0m\r\n`);
           setStatus("exited (" + msg.returncode + ")", "err");
+        } else if (msg.type === "displaced") {
+          sessionEnded = true;
+          term.write(`\r\n\x1b[33m[this seat was opened in another tab or window; this one is now detached]\x1b[0m\r\n`);
+          setStatus("opened elsewhere", "err");
         } else if (msg.type === "error") {
+          sessionEnded = true;
           term.write(`\r\n\x1b[31m[shell error: ${msg.message}]\x1b[0m\r\n`);
           setStatus("error", "err");
         }
         return;
       }
-      // Binary frame from PTY.
+      // Binary frame from PTY (or the scrollback replay).
       const bytes = ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : ev.data;
       term.write(bytes);
     };
 
-    ws.onclose = () => {
-      setStatus("disconnected", "err");
-      // No automatic reconnect in Phase A — a closed shell means the child
-      // exited; reloading the page is the explicit gesture to start fresh.
+    ws.onclose = (ev) => {
+      if (ev && ev.code === 4003) {
+        sessionEnded = true;
+        setStatus("invalid seat link", "err");
+        term.write("\r\n\x1b[31m[this link is not a valid seat — ask the workshop host for yours]\x1b[0m\r\n");
+        return;
+      }
+      if (sessionEnded) { setStatus("disconnected", "err"); return; }
+      // The session is still alive server-side; come back to it.
+      scheduleReconnect();
     };
 
     ws.onerror = () => {
@@ -295,6 +338,27 @@
   });
 
   connect();
+
+  // ---- seat label + project download ------------------------------------
+
+  const seatLabel = document.getElementById("seat-label");
+  fetch("/seat-info")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((info) => {
+      if (!info) return;
+      if (info.hosted) {
+        seatLabel.textContent = "Seat " + info.name;
+        seatLabel.hidden = false;
+        document.title = "ProPrep Web Shell — Seat " + info.name;
+      }
+    })
+    .catch(() => { /* label is cosmetic */ });
+
+  document.getElementById("download-btn").addEventListener("click", () => {
+    // A plain navigation lets the browser handle the Content-Disposition
+    // download without leaving the page.
+    window.location.href = "/download?t=" + Date.now();
+  });
 
   // ---- viewer iframe / detached window via control websocket ------------
 

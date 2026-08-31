@@ -1,0 +1,60 @@
+# conda constructor recipe: a self-contained ProPrep installer that carries the
+# entire resolved environment (proprep, AmberTools, MODELLER, reduce, pdb2pqr,
+# ...). Attendees need NO conda on their machine.
+#
+# Build (on the target platform; constructor cannot cross-build):
+#   conda install -n base -c conda-forge constructor
+#   constructor constructor/          # -> ProPrep-<version>-<OS>-<arch>.sh
+#
+# The MODELLER package is pulled from the salilab channel with the placeholder
+# license 'XXXX' (no key is ever in this artifact). Users supply their own key
+# via ~/.proprep/modeller_key or $KEY_MODELLER at run time (see
+# proprep.utils.modeller_license), or export KEY_MODELLER before running the
+# installer to have the package post-link script bake it in.
+name: ProPrep
+version: 1.17.0
+
+installer_type: sh
+license_file: ../LICENSE
+
+# Where a plain `bash ProPrep-...sh -b` installs. INSTALL.md always passes
+# -p ~/ProPrep explicitly; this makes the default agree with it (constructor's
+# own default would be ${HOME}/proprep, lowercase).
+default_prefix: ${HOME}/ProPrep
+
+channels:
+  - https://conda.anaconda.org/mjgplab
+  - https://conda.anaconda.org/dacase
+  - https://conda.anaconda.org/salilab
+  - https://conda.anaconda.org/bioconda
+  - https://conda.anaconda.org/conda-forge
+
+specs:
+  - python=3.12
+  - proprep=1.17.0
+
+# Don't touch the user's shell rc files; the conclusion text tells them how
+# to run.
+initialize_by_default: false
+initialize_conda: false
+
+post_install: post_install.sh
+
+welcome_text: |
+  ProPrep - Proper Protein Preparation for AMBER
+
+  This installer contains ProPrep together with AmberTools, MODELLER and all
+  other dependencies. No conda installation is required.
+
+conclusion_text: |
+  ProPrep is installed.
+
+  To run:
+      <install-dir>/bin/proprep          terminal interface
+      <install-dir>/bin/proprep-web      browser interface
+      <install-dir>/bin/proprep-library  snapshot / reset / restore the user library
+
+  MODELLER (structure repair) needs your own free academic license key:
+      https://salilab.org/modeller/registration.html
+  then save it once:
+      mkdir -p ~/.proprep && echo 'YOUR_KEY' > ~/.proprep/modeller_key

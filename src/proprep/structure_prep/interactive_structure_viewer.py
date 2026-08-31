@@ -22,6 +22,8 @@ Version: 3.0.0
 import atexit
 import logging
 import os
+import re
+import json
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
@@ -86,6 +88,12 @@ class InteractiveStructureViewer(ProcessingModule):
         self.annotation_config = {}
         self.viewer_config = {}
         self.shape_config = {}
+        # A loaded scene: {'representations': {idx: [rep...]}, 'camera',
+        # 'background', 'camera_type', 'scene_id'}. Replaces the default +
+        # annotation representations in _build_viewer_config while the same
+        # structure set is shown.
+        self.scene_override = None
+        self._last_saved_scene = None
 
     def set_processor(self, processor):
         """Set the processor reference."""
@@ -155,6 +163,8 @@ class InteractiveStructureViewer(ProcessingModule):
         return {
             "launch": "Launch interactive viewer",
             "info": "Show available annotations",
+            "save_scene": "Save the scene shown in the open viewer",
+            "load_scene": "Load a saved scene",
         }
 
     def handle_menu_option(self, option: str) -> bool:
@@ -175,8 +185,187 @@ class InteractiveStructureViewer(ProcessingModule):
             from proprep.structure_prep.viewer_commands import ShowAnnotationInfoCommand
             command = ShowAnnotationInfoCommand(self.processor)
             return command.execute()
+        elif option == "save_scene":
+            from proprep.structure_prep.viewer_commands import SaveSceneCommand
+            return SaveSceneCommand(self.processor).execute()
+        elif option == "load_scene":
+            from proprep.structure_prep.viewer_commands import LoadSceneCommand
+            return LoadSceneCommand(self.processor).execute()
 
         return False
+
+    # ========================================================================
+    # Scenes: save and reload the view as prepared
+    # ========================================================================
+
+    SCENE_SUFFIX = ".scene.json"
+    SCENE_FORMAT = "proprep-scene"
+
+    def _scene_dir(self) -> str:
+        """Scenes live in the project directory beside the structures."""
+        try:
+            ws = self.processor._get_workspace()
+            out = ws.get("output_dir") if ws else None
+            if out:
+                return os.path.abspath(str(out))
+        except Exception:
+            pass
+        return os.getcwd()
+
+    @staticmethod
+    def _scene_name(raw: Optional[str]) -> str:
+        import datetime
+        name = re.sub(r"[^A-Za-z0-9._-]+", "_", (raw or "").strip()).strip("._")
+        return name or datetime.datetime.now().strftime("scene_%Y%m%d_%H%M%S")
+
+    def build_scene(self, payload: Dict[str, Any], scene_dir: str) -> Dict[str, Any]:
+        """The on-disk scene: what the page sent plus which structures it was
+        showing, with paths relative to the scene file so a project moves as
+        a unit."""
+        import datetime
+        structures = []
+        for idx, path in enumerate(self.selected_structures):
+            ap = os.path.abspath(path)
+            try:
+                rel = os.path.relpath(ap, scene_dir)
+            except ValueError:  # different drive on Windows
+                rel = ap
+            structures.append({"index": idx, "name": os.path.basename(path).replace('.pdb', ''),
+                               "path": rel})
+        reps = payload.get("representations") or {}
+        return {
+            "format": self.SCENE_FORMAT,
+            "version": 1,
+            "saved_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "structures": structures,
+            "representations": {str(k): list(v) for k, v in reps.items()},
+            "camera": payload.get("camera"),
+            "camera_type": payload.get("camera_type"),
+            "background": payload.get("background"),
+        }
+
+    def _save_scene_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Sink for POST /scene: write ``<name>.scene.json`` into the project
+        directory and record it in the workspace."""
+        try:
+            scene_dir = self._scene_dir()
+            name = self._scene_name(payload.get("name"))
+            path = os.path.join(scene_dir, name + self.SCENE_SUFFIX)
+            scene = self.build_scene(payload, scene_dir)
+            with open(path, "w") as fh:
+                json.dump(scene, fh, indent=2)
+            self._last_saved_scene = path
+            try:
+                ws = self.processor._get_workspace()
+                scenes = [p for p in (ws.get("viewer_scenes") or []) if p != path]
+                scenes.append(path)
+                ws.set("viewer_scenes", scenes)
+            except Exception:
+                pass
+            n_reps = sum(len(v) for v in scene["representations"].values())
+            self.console.print(f"[green]✓ Scene saved: {path}[/green] "
+                               f"[grey50]({len(scene['structures'])} structure(s), {n_reps} representation(s))[/grey50]")
+            return {"ok": True, "path": path}
+        except Exception as e:
+            logger.error(f"Could not save scene: {e}")
+            return {"ok": False, "error": str(e)}
+
+    def list_scenes(self) -> List[str]:
+        d = self._scene_dir()
+        try:
+            names = sorted(f for f in os.listdir(d) if f.endswith(self.SCENE_SUFFIX))
+        except OSError:
+            return []
+        return [os.path.join(d, f) for f in names]
+
+    def load_scene(self, scene_path: str) -> bool:
+        """Read a scene file and make it the viewer's state: structures,
+        representations, camera, background. Missing structure files are
+        reported and the scene is refused rather than shown incomplete."""
+        with open(scene_path) as fh:
+            scene = json.load(fh)
+        if scene.get("format") != self.SCENE_FORMAT:
+            self.console.print(f"[red]{scene_path} is not a ProPrep scene file[/red]")
+            return False
+        base = os.path.dirname(os.path.abspath(scene_path))
+        paths, missing = [], []
+        for st in sorted(scene.get("structures") or [], key=lambda s: s.get("index", 0)):
+            p = st.get("path", "")
+            ap = p if os.path.isabs(p) else os.path.normpath(os.path.join(base, p))
+            (paths if os.path.exists(ap) else missing).append(ap)
+        if missing:
+            self.console.print("[red]Cannot load scene: structure file(s) missing:[/red]")
+            for m in missing:
+                self.console.print(f"  [red]{m}[/red]")
+            return False
+        if not paths:
+            self.console.print("[red]Scene lists no structures[/red]")
+            return False
+        self.selected_structures = paths
+        self.annotation_config = {}
+        self.shape_config = {}
+        self.viewer_config = {'focused_mode': False}
+        self.scene_override = {
+            "_for": list(paths),
+            "representations": {int(k): v for k, v in (scene.get("representations") or {}).items()},
+            "camera": scene.get("camera"),
+            "camera_type": scene.get("camera_type"),
+            "background": scene.get("background"),
+            "scene_id": os.path.basename(scene_path) + "@" + str(scene.get("saved_at")),
+        }
+        server = getattr(self, "server", None)
+        if server is not None and server.is_running() and list(server.structure_files) == paths:
+            server.update_config(self._build_viewer_config())
+            self.console.print(f"[green]✓ Scene applied to the open viewer: {os.path.basename(scene_path)}[/green]")
+            return True
+        return self._launch_viewer(open_browser=True)
+
+    def _save_scene_workflow(self) -> bool:
+        """Menu: ask the open page to save what it is showing."""
+        from proprep.utils.prompts import prompt_with_context
+        import time
+        server = getattr(self, "server", None)
+        if server is None or not server.is_running():
+            self.console.print("[yellow]No viewer is open. Launch the viewer, arrange the view, "
+                               "then save the scene (or use the Save Scene button in the viewer).[/yellow]")
+            return False
+        name = prompt_with_context(
+            self.processor, "Scene name", default=self._scene_name(None),
+            module="Structure Viewer", description="Name for the saved scene")
+        self._last_saved_scene = None
+        server.request_scene(self._scene_name(name))
+        deadline = time.time() + 6.0   # the page polls every 1.5 s
+        while time.time() < deadline and self._last_saved_scene is None:
+            time.sleep(0.25)
+        server.clear_scene_request()
+        if self._last_saved_scene is None:
+            self.console.print("[yellow]The viewer page did not respond. Is the browser tab open? "
+                               "You can also click Save Scene in the viewer's View Controls.[/yellow]")
+            return False
+        return True
+
+    def _load_scene_workflow(self) -> bool:
+        """Menu: pick a saved scene and show it."""
+        from proprep.utils.prompts import prompt_with_context
+        scenes = self.list_scenes()
+        if not scenes:
+            self.console.print(f"[yellow]No saved scenes ({self.SCENE_SUFFIX} files) in {self._scene_dir()}[/yellow]")
+            return False
+        self.console.print("\n[bold]Saved scenes:[/bold]")
+        for i, p in enumerate(scenes, 1):
+            try:
+                with open(p) as fh:
+                    meta = json.load(fh)
+                n = len(meta.get("structures") or [])
+                when = meta.get("saved_at", "")
+            except Exception:
+                n, when = "?", ""
+            self.console.print(f"  {i}. {os.path.basename(p)}  [grey50]{n} structure(s), {when}[/grey50]")
+        choice = prompt_with_context(
+            self.processor, "Select scene", choices=[str(i) for i in range(1, len(scenes) + 1)],
+            default="1", module="Structure Viewer", description="Saved scene to load",
+            options_map={str(i): os.path.basename(p) for i, p in enumerate(scenes, 1)})
+        return self.load_scene(scenes[int(choice) - 1])
 
     def quick_launch(self, pdb_files: List[str]) -> bool:
         """
@@ -920,7 +1109,8 @@ class InteractiveStructureViewer(ProcessingModule):
             server = ViewerServer(
                 config=viewer_config,
                 structure_files=self.selected_structures,
-                port=8765
+                port=8765,
+                scene_sink=self._save_scene_payload,
             )
 
             # Start server. ViewerServer.start() additionally consults
@@ -938,6 +1128,7 @@ class InteractiveStructureViewer(ProcessingModule):
             self.console.print(
                 f"[green]✓ Structure viewer launched at {url} ({n} structure{'s' if n != 1 else ''})[/green]"
             )
+            self._report_headless_access(server, url)
 
             # Keep reference to server so it doesn't get garbage collected
             self.server = server
@@ -949,6 +1140,36 @@ class InteractiveStructureViewer(ProcessingModule):
             logger.error(f"Error launching viewer: {e}")
             self.console.print(f"[red]Error launching viewer: {e}[/red]")
             return False
+
+    def _report_headless_access(self, server, url: str) -> None:
+        """Explain how to reach the viewer when no browser was opened.
+
+        On a headless host (a plain SSH session, no X/Wayland) the server is
+        bound to localhost and nothing can display it there, so the bare
+        "launched at http://localhost:8765/viewer" line is misleading. Print
+        the ssh -L command that makes that URL work on the user's own machine.
+        """
+        reason = getattr(server, "headless_reason", None)
+        if not reason:
+            return
+
+        from proprep.structure_prep.viewer_server import ssh_forward_hint
+
+        self.console.print(
+            f"[grey50]  No browser opened on this host ({reason}).[/grey50]"
+        )
+        hint = ssh_forward_hint(getattr(server, "port", 8765))
+        if hint:
+            self.console.print(
+                "[grey50]  Forward the port from your own machine, then open "
+                "the URL there:[/grey50]"
+            )
+            self.console.print(f"[grey50]    {hint}[/grey50]")
+        else:
+            self.console.print(
+                f"[grey50]  Open {url} from a machine with a display that can "
+                "reach this host.[/grey50]"
+            )
 
     def update_annotations(
         self,
@@ -1012,9 +1233,20 @@ class InteractiveStructureViewer(ProcessingModule):
         ]
         use_fixed_colors = len(self.selected_structures) > 1
 
+        scene = getattr(self, 'scene_override', None)
+        if scene and list(scene.get('_for', self.selected_structures)) != list(self.selected_structures):
+            scene = None   # a different structure set was launched since the scene was loaded
         structures = []
         for idx, structure_file in enumerate(self.selected_structures):
             structure_name = os.path.basename(structure_file).replace('.pdb', '')
+            if scene is not None:
+                # A loaded scene replaces the default + annotation reps outright.
+                structures.append({
+                    'index': idx,
+                    'name': structure_name,
+                    'representations': [dict(r) for r in scene['representations'].get(idx, [])],
+                })
+                continue
             protein_color = (
                 structure_colors[idx % len(structure_colors)]
                 if use_fixed_colors else 'residueindex'
@@ -1141,11 +1373,16 @@ class InteractiveStructureViewer(ProcessingModule):
                 'opacity': sc.get('opacity', 0.5),
             })
 
-        return {
+        out = {
             'structures': structures,
             'shapes': shapes,
             'focused_mode': focused_mode,
         }
+        if scene is not None:
+            for key in ('camera', 'camera_type', 'background', 'scene_id'):
+                if scene.get(key) is not None:
+                    out[key] = scene[key]
+        return out
 
     # ========================================================================
     # NGL Selection Conversion Helpers

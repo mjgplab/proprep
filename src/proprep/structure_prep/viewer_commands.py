@@ -57,3 +57,27 @@ class ConfigureAnnotationsCommand(ModuleActionCommand):
             action_name="_configure_annotation_display",
             args={},
         )
+
+
+class SaveSceneCommand(ModuleActionCommand):
+    """Ask the open viewer page to save its representations and camera."""
+
+    def __init__(self, processor):
+        super().__init__(
+            processor=processor,
+            module_name="Structure Viewer",
+            action_name="_save_scene_workflow",
+            args={},
+        )
+
+
+class LoadSceneCommand(ModuleActionCommand):
+    """Show a previously saved scene."""
+
+    def __init__(self, processor):
+        super().__init__(
+            processor=processor,
+            module_name="Structure Viewer",
+            action_name="_load_scene_workflow",
+            args={},
+        )

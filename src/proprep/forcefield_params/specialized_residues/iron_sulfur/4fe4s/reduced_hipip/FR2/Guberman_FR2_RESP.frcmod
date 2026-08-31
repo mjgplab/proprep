@@ -14,76 +14,76 @@ Q7 32.060        2.900               same as s
 Q8 32.060        2.900               same as s
  
 BOND
-Q1-Q6   21.2    2.5148      Created by Seminario method using MCPB.py
-Q1-Q7   47.7    2.4017      Created by Seminario method using MCPB.py
-Q1-Q8   10.9    2.6166      Created by Seminario method using MCPB.py
-Q2-Q7   66.3    2.3732      Created by Seminario method using MCPB.py
-Q2-Q8   58.8    2.3613      Created by Seminario method using MCPB.py
-Q2-Q5   61.3    2.3812      Created by Seminario method using MCPB.py
-Q3-Q6   54.9    2.3508      Created by Seminario method using MCPB.py
-Q3-Q8   63.7    2.3204      Created by Seminario method using MCPB.py
-Q3-Q5   60.0    2.3205      Created by Seminario method using MCPB.py
-Q4-Q6   44.5    2.3976      Created by Seminario method using MCPB.py
-Q4-Q7   56.3    2.3710      Created by Seminario method using MCPB.py
-Q4-Q5   48.0    2.3910      Created by Seminario method using MCPB.py
-QA-Q1   76.8    2.3089      Created by Seminario method using MCPB.py
-QB-Q2   87.8    2.3025      Created by Seminario method using MCPB.py
-QC-Q3   91.4    2.2821      Created by Seminario method using MCPB.py
-QD-Q4   88.2    2.3091      Created by Seminario method using MCPB.py
-CT-QA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-QB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-QC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-QD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+Q1-Q6    19.70    2.5004   Created by Seminario method using MCPB.py
+Q1-Q7    46.80    2.4024   Created by Seminario method using MCPB.py
+Q1-Q8    12.10    2.6282   Created by Seminario method using MCPB.py
+Q2-Q7    64.60    2.3695   Created by Seminario method using MCPB.py
+Q2-Q8    61.20    2.3569   Created by Seminario method using MCPB.py
+Q2-Q5    55.10    2.3795   Created by Seminario method using MCPB.py
+Q3-Q6    59.80    2.3441   Created by Seminario method using MCPB.py
+Q3-Q8    67.30    2.3138   Created by Seminario method using MCPB.py
+Q3-Q5    60.90    2.3194   Created by Seminario method using MCPB.py
+Q4-Q6    47.00    2.3988   Created by Seminario method using MCPB.py
+Q4-Q7    57.20    2.3740   Created by Seminario method using MCPB.py
+Q4-Q5    47.70    2.3935   Created by Seminario method using MCPB.py
+QA-Q1    76.90    2.3087   Created by Seminario method using MCPB.py
+QB-Q2    85.30    2.3056   Created by Seminario method using MCPB.py
+QC-Q3    94.90    2.2809   Created by Seminario method using MCPB.py
+QD-Q4    87.80    2.3089   Created by Seminario method using MCPB.py
+CT-QA   129.70    1.8550   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
+CT-QB   130.60    1.8620   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
+CT-QC   130.30    1.8594   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
+CT-QD   127.60    1.8594   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
  
 ANGL
-CT-QA-Q1    49.15     103.77    Created by Seminario method using MCPB.py
-CT-QB-Q2    49.27      98.77    Created by Seminario method using MCPB.py
-CT-QC-Q3    67.18     102.17    Created by Seminario method using MCPB.py
-CT-QD-Q4    43.94      99.87    Created by Seminario method using MCPB.py
-Q1-Q6-Q3    10.41      83.01    Created by Seminario method using MCPB.py
-Q1-Q6-Q4    30.13      76.86    Created by Seminario method using MCPB.py
-Q1-Q7-Q2    37.73      80.70    Created by Seminario method using MCPB.py
-Q1-Q7-Q4    20.98      79.59    Created by Seminario method using MCPB.py
-Q1-Q8-Q2    30.05      76.60    Created by Seminario method using MCPB.py
-Q1-Q8-Q3    26.54      81.38    Created by Seminario method using MCPB.py
-Q2-Q7-Q4    23.45      67.67    Created by Seminario method using MCPB.py
-Q2-Q8-Q3    36.57      77.92    Created by Seminario method using MCPB.py
-Q2-Q5-Q3    44.03      77.52    Created by Seminario method using MCPB.py
-Q2-Q5-Q4    29.11      67.22    Created by Seminario method using MCPB.py
-Q3-Q6-Q4    25.17      77.98    Created by Seminario method using MCPB.py
-Q3-Q5-Q4    31.80      78.70    Created by Seminario method using MCPB.py
-QA-Q1-Q6    38.94     134.06    Created by Seminario method using MCPB.py
-QA-Q1-Q7    29.55     120.01    Created by Seminario method using MCPB.py
-QA-Q1-Q8    39.03     107.18    Created by Seminario method using MCPB.py
-Q6-Q3-Q5    44.08     100.34    Created by Seminario method using MCPB.py
-Q6-Q4-Q5    35.72      97.04    Created by Seminario method using MCPB.py
-Q7-Q1-Q6    28.83      98.63    Created by Seminario method using MCPB.py
-Q7-Q2-Q5    44.94     112.21    Created by Seminario method using MCPB.py
-Q7-Q4-Q6    38.75     102.88    Created by Seminario method using MCPB.py
-Q7-Q4-Q5    10.60     111.94    Created by Seminario method using MCPB.py
-Q8-Q1-Q6    40.99      91.29    Created by Seminario method using MCPB.py
-Q8-Q1-Q7    28.50      95.79    Created by Seminario method using MCPB.py
-Q8-Q2-Q7    48.06     103.81    Created by Seminario method using MCPB.py
-Q8-Q2-Q5    57.18      97.92    Created by Seminario method using MCPB.py
-Q8-Q3-Q6    22.54     103.56    Created by Seminario method using MCPB.py
-Q8-Q3-Q5    45.02     100.84    Created by Seminario method using MCPB.py
-QB-Q2-Q7    28.99     117.64    Created by Seminario method using MCPB.py
-QB-Q2-Q8    36.70     114.72    Created by Seminario method using MCPB.py
-QB-Q2-Q5    24.61     108.82    Created by Seminario method using MCPB.py
-QC-Q3-Q6    31.40     121.08    Created by Seminario method using MCPB.py
-QC-Q3-Q8    36.88     115.64    Created by Seminario method using MCPB.py
-QC-Q3-Q5    38.15     112.53    Created by Seminario method using MCPB.py
-QD-Q4-Q6    31.42     116.64    Created by Seminario method using MCPB.py
-QD-Q4-Q7    14.96     119.46    Created by Seminario method using MCPB.py
-QD-Q4-Q5    27.94     106.75    Created by Seminario method using MCPB.py
-CX-CT-QA    50.0      108.60    AA cys (was CT-CT-SH)
-CX-CT-QB    50.0      108.60    AA cys (was CT-CT-SH)
-CX-CT-QC    50.0      108.60    AA cys (was CT-CT-SH)
-CX-CT-QD    50.0      108.60    AA cys (was CT-CT-SH)
-QA-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
-QB-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
-QC-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
-QD-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
+CT-QA-Q1   49.59  103.1300   Created by Seminario method using MCPB.py
+CT-QB-Q2   57.32   97.9200   Created by Seminario method using MCPB.py
+CT-QC-Q3   70.88   98.8800   Created by Seminario method using MCPB.py
+CT-QD-Q4   66.11   98.5500   Created by Seminario method using MCPB.py
+Q1-Q6-Q3   16.32   82.8300   Created by Seminario method using MCPB.py
+Q1-Q6-Q4   27.00   76.8900   Created by Seminario method using MCPB.py
+Q1-Q7-Q2   36.32   81.1000   Created by Seminario method using MCPB.py
+Q1-Q7-Q4   23.69   79.2700   Created by Seminario method using MCPB.py
+Q1-Q8-Q2   34.46   76.7600   Created by Seminario method using MCPB.py
+Q1-Q8-Q3   30.67   80.6400   Created by Seminario method using MCPB.py
+Q2-Q7-Q4   26.64   67.9000   Created by Seminario method using MCPB.py
+Q2-Q8-Q3   41.23   77.6100   Created by Seminario method using MCPB.py
+Q2-Q5-Q3   44.75   77.0500   Created by Seminario method using MCPB.py
+Q2-Q5-Q4   32.46   67.4300   Created by Seminario method using MCPB.py
+Q3-Q6-Q4   28.03   77.5700   Created by Seminario method using MCPB.py
+Q3-Q5-Q4   35.17   78.1500   Created by Seminario method using MCPB.py
+QA-Q1-Q6   36.57  134.4500   Created by Seminario method using MCPB.py
+QA-Q1-Q7   35.22  119.8200   Created by Seminario method using MCPB.py
+QA-Q1-Q8   40.15  106.3800   Created by Seminario method using MCPB.py
+Q6-Q3-Q5   45.23  100.9300   Created by Seminario method using MCPB.py
+Q6-Q4-Q5   43.28   97.2600   Created by Seminario method using MCPB.py
+Q7-Q1-Q6   26.22   99.1100   Created by Seminario method using MCPB.py
+Q7-Q2-Q5   41.18  112.1700   Created by Seminario method using MCPB.py
+Q7-Q4-Q6   35.31  102.8700   Created by Seminario method using MCPB.py
+Q7-Q4-Q5   21.40  111.5100   Created by Seminario method using MCPB.py
+Q8-Q1-Q6   41.01   91.5100   Created by Seminario method using MCPB.py
+Q8-Q1-Q7   30.30   95.1300   Created by Seminario method using MCPB.py
+Q8-Q2-Q7   48.11  103.6700   Created by Seminario method using MCPB.py
+Q8-Q2-Q5   49.43   98.1900   Created by Seminario method using MCPB.py
+Q8-Q3-Q6   30.10  104.1900   Created by Seminario method using MCPB.py
+Q8-Q3-Q5   41.78  101.1900   Created by Seminario method using MCPB.py
+QB-Q2-Q7   16.11  115.6000   Created by Seminario method using MCPB.py
+QB-Q2-Q8   40.51  114.2400   Created by Seminario method using MCPB.py
+QB-Q2-Q5   31.43  111.4400   Created by Seminario method using MCPB.py
+QC-Q3-Q6   40.68  119.3900   Created by Seminario method using MCPB.py
+QC-Q3-Q8   41.10  114.2100   Created by Seminario method using MCPB.py
+QC-Q3-Q5   16.64  114.5500   Created by Seminario method using MCPB.py
+QD-Q4-Q6   40.46  115.0500   Created by Seminario method using MCPB.py
+QD-Q4-Q7   37.39  118.0900   Created by Seminario method using MCPB.py
+QD-Q4-Q5   23.90  110.0200   Created by Seminario method using MCPB.py
+CX-CT-QA   50.00  108.6000   AA cys (was CT-CT-SH)
+CX-CT-QB   50.00  108.6000   AA cys (was CT-CT-SH)
+CX-CT-QC   50.00  108.6000   AA cys (was CT-CT-SH)
+CX-CT-QD   50.00  108.6000   AA cys (was CT-CT-SH)
+QA-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
+QB-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
+QC-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
+QD-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
  
 DIHE
 CT-QA-Q1-Q6    3       0.00       0.00   3.0    Treat as zero by MCPB.py

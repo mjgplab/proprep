@@ -74,7 +74,25 @@ annually. The conda channel below carries current releases between those.
 
 ## Install
 
-The installer creates a self-contained conda environment named `ProPrep`,
+### Option A: the self-contained installer (recommended)
+
+One file per platform, containing ProPrep, AmberTools, MODELLER and every
+other dependency. No conda, no compiler, no network during the install.
+Download the file for your computer from the
+[latest release](https://github.com/mjgplab/proprep/releases/latest), then:
+
+```
+bash ProPrep-<version>-<platform>.sh -b -p ~/ProPrep
+~/ProPrep/bin/proprep-web
+```
+
+`INSTALL.md` walks through this step by step for macOS (Apple silicon and
+Intel), Windows (through WSL2) and Linux, assuming no command-line
+experience, including how to add your MODELLER license key.
+
+### Option B: the conda installer script
+
+The script creates a self-contained conda environment named `ProPrep`,
 installs the package from the [`mjgplab` conda
 channel](https://anaconda.org/mjgplab/proprep), and pip-installs `tmtools` for
 structure alignment. It pins and verifies the exact version, so a partial
@@ -99,10 +117,27 @@ bash install_proprep.sh
 
 ## Run
 
+With the self-contained installer (Option A):
+
+```
+~/ProPrep/bin/proprep-web      # browser-based UI (web shell)
+~/ProPrep/bin/proprep          # interactive command-line interface
+```
+
+With the conda environment (Option B):
+
 ```
 conda activate ProPrep
 proprep              # interactive command-line interface
 proprep-web          # browser-based UI (web shell)
+```
+
+Structure repair needs a MODELLER license key (free for academic use,
+https://salilab.org/modeller/registration.html). Save it once and ProPrep
+finds it on every run:
+
+```
+mkdir -p ~/.proprep && echo 'YOUR_KEY' > ~/.proprep/modeller_key
 ```
 
 To use the bundled Amber tools in the same shell:
@@ -113,8 +148,13 @@ source $CONDA_PREFIX/amber.sh
 
 ## Update
 
-Rerun the installer. It installs the pinned version and aborts if conda
-resolves anything different:
+Self-contained installer (Option A): download the new release's installer and
+run it with `-u` added (`bash ProPrep-<version>-<platform>.sh -b -u -p ~/ProPrep`);
+it updates `~/ProPrep` in place. Your projects and your MODELLER key live
+outside that directory and are untouched.
+
+Conda environment (Option B): rerun the script. It installs the pinned
+version and aborts if conda resolves anything different:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/mjgplab/proprep/main/install_proprep.sh | bash

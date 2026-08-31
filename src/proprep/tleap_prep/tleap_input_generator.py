@@ -6,13 +6,14 @@ for disulfide bonds, metal coordination, and other special bonds.
 """
 
 import logging
+import re
 import os
 import parmed as pmd
 import subprocess
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 from rich.panel import Panel
 from proprep.utils.prompts import prompt_with_context, confirm_with_context
@@ -26,6 +27,18 @@ from parmed.tools.checkvalidity import check_validity
 
 from proprep.utils.module_registry import ProcessingModule, register_module
 from proprep.utils.tleap_utils import tleap_safe_unit_var
+from proprep.utils.titration_modes import (
+    PH as TITRATION_PH,
+    REDOX as TITRATION_REDOX,
+    PHREDOX as TITRATION_PHREDOX,
+    PH_RESIDUE_PKA,
+    REDOX_RESIDUE_EO,
+    get_mode as get_titration_mode,
+    modes_for_residue_names,
+    partition_residues_by_mode,
+    mdin_keyword_sets,
+    parmed_titratable_atom_count,
+)
 from proprep.forcefield_params.forcefield_catalog import FORCEFIELD_OPTIONS as _FF_CATALOG
 from proprep.forcefield_params.forcefield_catalog import (
     recommended_water_for_protein,
@@ -251,7 +264,7 @@ class TLeapInputGenerator(ProcessingModule):
             "generate_microstate_inputs": "Generate tLEaP inputs for all redox microstates",
             "generate_topology": "Generate prmtop/rst7 files from tLEaP input files",
             "pb_titrate": "Refine protonation states via PB (PBSA)",
-            "generate_cpin": "Generate cpin file for constant pH MD",
+            "generate_cpin": "Generate cpin/cein file for constant pH or redox MD",
         }
 
         return menu
@@ -295,7 +308,11 @@ class TLeapInputGenerator(ProcessingModule):
             # For single state, any prmtop is fine
             has_topology = len(prmtop_files) > 0
 
-        has_cpin = workspace.get("cpin_file") is not None
+        # A cein/cpein counts as generated too; `titration_file` is written
+        # for every mode, `cpin_file` only for constant pH (kept for records
+        # and sessions that predate the redox modes).
+        has_cpin = (workspace.get("titration_file") is not None
+                    or workspace.get("cpin_file") is not None)
 
         # Option 1: Edit bonds - always available
         options.append(MenuOption(
@@ -386,7 +403,7 @@ class TLeapInputGenerator(ProcessingModule):
             dependency_text=dep_text
         ))
 
-        # Option 6: Generate cpin - requires topology
+        # Option 6: Generate the titration input file - requires topology
         if has_topology:
             status = OptionStatus.COMPLETED if has_cpin else OptionStatus.READY
             dep_text = ""
@@ -396,7 +413,7 @@ class TLeapInputGenerator(ProcessingModule):
 
         options.append(MenuOption(
             key="6",
-            description="Generate cpin file for constant pH MD",
+            description="Generate cpin/cein file for constant pH or redox MD",
             status=status,
             dependency_text=dep_text
         ))
@@ -433,7 +450,11 @@ class TLeapInputGenerator(ProcessingModule):
         else:
             has_topology = num_prmtop > 0
 
-        has_cpin = workspace.get("cpin_file") is not None
+        # A cein/cpein counts as generated too; `titration_file` is written
+        # for every mode, `cpin_file` only for constant pH (kept for records
+        # and sessions that predate the redox modes).
+        has_cpin = (workspace.get("titration_file") is not None
+                    or workspace.get("cpin_file") is not None)
 
         if not has_tleap_input:
             if has_batch_microstates:
@@ -446,12 +467,17 @@ class TLeapInputGenerator(ProcessingModule):
             else:
                 return "✓ tLEaP input generated. Generate topology files (option 4) to create prmtop/rst7 files"
         elif has_cpin:
-            return f"✓ All steps complete ({num_prmtop} topologies, cpin generated). Press [m] to return to the main menu"
+            titration_cfg = workspace.get("titration_config") or {}
+            modes = titration_cfg.get("modes") or [TITRATION_PH]
+            kinds = "/".join(get_titration_mode(m).file_ext for m in modes)
+            return (f"✓ All steps complete ({num_prmtop} topologies, "
+                    f"{kinds} generated). Press [m] to return to the main "
+                    f"menu")
         else:
             return (f"✓ Topology files generated ({num_prmtop} prmtop files). "
                     f"Optionally refine protonation states via PB (option 5) or "
-                    f"generate cpin for constant pH (option 6), or press [m] to "
-                    f"return to the main menu")
+                    f"generate a cpin/cein for constant pH or redox MD "
+                    f"(option 6), or press [m] to return to the main menu")
 
     def handle_menu_option(self, option: str) -> bool:
         """Handle a menu option selection"""
@@ -2799,6 +2825,7 @@ class TLeapInputGenerator(ProcessingModule):
                 console=console
             ) as progress:
                 task = progress.add_task("Info pass...", total=len(microstates))
+                unknown_by_microstate: Dict[str, List[str]] = {}
 
                 for ms_idx, microstate_info in enumerate(microstates, 1):
                     code = microstate_info['code']
@@ -2812,6 +2839,8 @@ class TLeapInputGenerator(ProcessingModule):
 
                     n_waters = system_info.get('n_waters')
                     net_charge = system_info.get('net_charge')
+                    if system_info.get('unknown_residues'):
+                        unknown_by_microstate[f"microstate_{ms_idx:03d}"] = system_info['unknown_residues']
 
                     if n_waters is not None and net_charge is not None:
                         ion_counts = self._calculate_multi_salt_ions(
@@ -2833,6 +2862,26 @@ class TLeapInputGenerator(ProcessingModule):
                         microstate_ion_counts[code] = None
 
                     progress.advance(task)
+
+            if unknown_by_microstate:
+                # A charge computed with unrecognised residues is not a charge of
+                # this system; stop here rather than write inputs that will fail
+                # (or worse, build with untyped atoms) in the real tLEaP run.
+                names = sorted({n for ns in unknown_by_microstate.values() for n in ns})
+                console.print(
+                    f"\n[bold red]tLEaP did not recognise residue(s) {', '.join(names)} in "
+                    f"{len(unknown_by_microstate)} of {len(microstates)} microstates.[/bold red]"
+                )
+                for ms, ns in unknown_by_microstate.items():
+                    console.print(f"  [red]{ms}: {', '.join(ns)}[/red]")
+                console.print(
+                    "[yellow]The forcefield set chosen for this cofactor defines different residue "
+                    "names than the microstate structures carry (for example HEH from a constant-E "
+                    "set against HCO/HCR in PDBs built with fixed_E). Choose the set whose library "
+                    "defines the names in the PDB, or regenerate the microstates with the matching "
+                    "redox treatment in the Redox Site Preparer. No tLEaP inputs were written.[/yellow]"
+                )
+                return False
 
             # Show summary of charge range across all microstates
             charges = [ic['net_charge'] for ic in microstate_ion_counts.values() if ic]
@@ -2916,6 +2965,11 @@ class TLeapInputGenerator(ProcessingModule):
             pdb_stem = Path(microstate_info['filename']).stem
             ms_label = pdb_stem if pdb_stem else Path(script_filename).stem.replace('_tleap', '')
             final_content = final_content.replace("MICROSTATE", ms_label)
+            # Each microstate logs to its own file. tLEaP appends every run to
+            # leap.log in the working directory, so five microstates (and the
+            # info passes before them) produced one interleaved log that was
+            # unreadable; `logFile` is tLEaP's own redirection command.
+            final_content = f"logFile {ms_label}_leap.log\n" + final_content
 
             # Replace solvation placeholder based on solvent model choice
             if enable_solvation:
@@ -3022,6 +3076,16 @@ class TLeapInputGenerator(ProcessingModule):
                     ]
                     if ph_matched:
                         options = ph_matched
+
+                combo_redox_treatment = self._preferred_redox_treatment_for_combo(
+                    transformer_type, redox_state, spin_state)
+                if combo_redox_treatment and options:
+                    redox_matched = [
+                        o for o in options
+                        if o.get('redox_treatment') == combo_redox_treatment
+                    ]
+                    if redox_matched:
+                        options = redox_matched
 
                 if not options:
                     console.print(f"[yellow]No forcefield files found for {transformer_type}/{redox_state}/{spin_state}[/yellow]")
@@ -4325,6 +4389,7 @@ class TLeapInputGenerator(ProcessingModule):
             info_file = f"{base}_info_pass.in"
 
             with open(info_file, 'w') as f:
+                f.write(f'logFile "{base}_info_pass.log"\n')
                 f.write("# INFO PASS - will be terminated early after gathering water count and charge\n")
 
                 found_solvate = False
@@ -4779,6 +4844,23 @@ quit
 
         return temp_path
 
+    _UNKNOWN_RESIDUE_RE = re.compile(r"Unknown residue:\s*(\S+)")
+
+    @classmethod
+    def _unknown_residues_in_tleap_output(cls, lines) -> List[str]:
+        """Residue names tLEaP could not find in any loaded library, in order of
+        first appearance. tLEaP does not stop on these: it builds the residue
+        from bare atoms with no types or charges and carries on, so the
+        'Total unperturbed charge' it then prints silently omits every such
+        residue. A heme named HCO in the PDB with only the HEH library loaded is
+        the case that motivated this check (all microstates at the same charge)."""
+        seen, names = set(), []
+        for line in lines:
+            m = cls._UNKNOWN_RESIDUE_RE.search(line)
+            if m and m.group(1) not in seen:
+                seen.add(m.group(1)); names.append(m.group(1))
+        return names
+
     def _run_info_pass_for_microstate(self, microstate_info: dict, selected_forcefields: dict,
                                        water_box: str = "TIP3PBOX", buffer: float = 10.0,
                                        use_octahedron: bool = True, buffer_xyz=None,
@@ -4803,11 +4885,24 @@ quit
             microstate_info, selected_forcefields, water_box, buffer, use_octahedron,
             buffer_xyz=buffer_xyz, oct_diagonal=oct_diagonal, iso=iso
         )
+        info_log = None
+        if info_script:
+            # Log to a scratch file beside the script instead of appending
+            # five throwaway passes to the project's leap.log.
+            info_log = info_script + ".leaplog"
+            try:
+                with open(info_script) as fh:
+                    body = fh.read()
+                with open(info_script, 'w') as fh:
+                    fh.write(f'logFile "{info_log}"\n' + body)
+            except OSError:
+                info_log = None
         if not info_script:
             return {'n_waters': None, 'net_charge': None}
 
-        info = {'n_waters': None, 'net_charge': None}
+        info = {'n_waters': None, 'net_charge': None, 'unknown_residues': []}
         required_fields = {'n_waters', 'net_charge'}
+        output_lines: List[str] = []
 
         # Patterns to match
         patterns = {
@@ -4828,6 +4923,7 @@ quit
             for line in iter(proc.stdout.readline, ''):
                 if not line:
                     break
+                output_lines.append(line.rstrip())
 
                 if match := patterns['water_count'].search(line):
                     info['n_waters'] = int(match.group(1))
@@ -4858,11 +4954,13 @@ quit
                 proc.kill()
                 proc.wait()
         finally:
-            if info_script and os.path.exists(info_script):
-                try:
-                    os.remove(info_script)
-                except Exception:
-                    pass
+            info['unknown_residues'] = self._unknown_residues_in_tleap_output(output_lines)
+            for scratch in (info_script, info_log):
+                if scratch and os.path.exists(scratch):
+                    try:
+                        os.remove(scratch)
+                    except Exception:
+                        pass
 
         return info
 
@@ -4939,7 +5037,7 @@ quit
 
                     if result.returncode == 0:
                         # Parse warnings/errors from leap.log silently
-                        warnings, errors, notes, summary = self._parse_leap_log("leap.log")
+                        warnings, errors, notes, summary = self._parse_leap_log(self._leap_log_for(tleap_file))
 
                         # Collect unique warning types (just the message text, not line numbers)
                         for warning_block in warnings:
@@ -5097,8 +5195,9 @@ quit
                 errors_set = set()
 
                 if result.returncode == 0:
-                    # Parse leap.log from temp directory
-                    leap_log = os.path.join(temp_dir, "leap.log")
+                    # Parse the script's log from the temp directory (its own
+                    # <microstate>_leap.log when the script declares one).
+                    leap_log = os.path.join(temp_dir, os.path.basename(self._leap_log_for(tleap_file)))
                     if os.path.exists(leap_log):
                         warnings, errors, notes, summary = self._parse_leap_log(leap_log)
                         for warning_block in warnings:
@@ -5117,6 +5216,11 @@ quit
                                 errors_set.add(' '.join(error_block).strip()[:100])
 
                     # Copy output files back to source directory
+                    # Keep the per-microstate log next to the inputs: it is the only
+                    # record of this run once the temp directory is removed.
+                    own_log = os.path.basename(self._leap_log_for(tleap_file))
+                    if own_log != "leap.log" and os.path.exists(os.path.join(temp_dir, own_log)):
+                        shutil.copy2(os.path.join(temp_dir, own_log), os.path.join(source_dir, own_log))
                     for key in ['expected_prmtop', 'expected_rst7']:
                         if info.get(key):
                             basename = os.path.basename(info[key])
@@ -6634,11 +6738,11 @@ else:
         """
         console = self.processor.console
         
-        # Look for leap.log in current directory
-        leap_log_file = "leap.log"
-        
+        # The script's own log if it declares one (microstate scripts do), else
+        # leap.log in the current directory.
+        leap_log_file = self._leap_log_for(tleap_file)
         if not os.path.exists(leap_log_file):
-            console.print(f"[yellow]No leap.log file found for {tleap_file}[/yellow]")
+            console.print(f"[yellow]No {os.path.basename(leap_log_file)} found for {tleap_file}[/yellow]")
             return
         
         try:
@@ -6683,6 +6787,25 @@ else:
                 
         except Exception as e:
             console.print(f"[red]Error reading leap.log: {e}[/red]")
+
+    @staticmethod
+    def _leap_log_for(tleap_file: str) -> str:
+        """The log a tLEaP script writes: the argument of its ``logFile`` line
+        (resolved beside the script) or, without one, ``leap.log`` in the
+        working directory."""
+        try:
+            with open(tleap_file) as fh:
+                for line in fh:
+                    parts = line.split()
+                    if parts and parts[0].lower() == 'logfile' and len(parts) > 1:
+                        name = parts[1].strip('"')
+                        if os.path.isabs(name):
+                            return name
+                        script_dir = os.path.dirname(os.path.abspath(tleap_file))
+                        return os.path.join(script_dir, name)
+        except OSError:
+            pass
+        return "leap.log"
 
     def _parse_leap_log(self, leap_log_file: str) -> tuple:
         """
@@ -9013,6 +9136,30 @@ quit"""
                 return si.get("ph_treatment")
         return None
 
+    def _preferred_redox_treatment_for_combo(self, transformer_type, redox_state, spin_state):
+        """The fixed_E/constant_E choice a site recorded in the redox site
+        preparer for this (transformer, redox, spin) combo, read from workspace
+        transformer_info. Mirrors _preferred_ph_treatment_for_combo on the
+        orthogonal redox axis. Returns None when no matching site recorded a
+        choice (→ no filtering, existing behavior)."""
+        for si in (self.get_from_workspace("transformer_info", []) or []):
+            if (si.get("transformer_type") == transformer_type
+                    and si.get("redox_state") == redox_state
+                    and si.get("spin_state") == spin_state
+                    and si.get("redox_treatment")):
+                return si.get("redox_treatment")
+        return None
+
+    @staticmethod
+    def _redox_treatment_phrase(redox_treatment):
+        """User-facing label for a set's redox treatment. As with
+        _ph_treatment_phrase, the picker owns this wording so it can't drift
+        from the metadata. None for sets with no redox fork."""
+        return {
+            'fixed_E': 'fixed-redox (state baked into the library)',
+            'constant_E': 'constant-redox (HEH, state set at cein generation)',
+        }.get(redox_treatment)
+
     @staticmethod
     def _ph_treatment_phrase(ph_treatment):
         """User-facing label for a set's propionate pH treatment. The FF-set
@@ -9650,6 +9797,7 @@ quit"""
                         # for a given (transformer, redox, spin) key.
                         'forcefield_set': site_info.get('forcefield_set'),
                         'ph_treatment': site_info.get('ph_treatment'),
+                        'redox_treatment': site_info.get('redox_treatment'),
                     }
 
         console.print(f"[green]Built requirements for {len(requirements)} unique transformer combinations[/green]")
@@ -10011,6 +10159,20 @@ quit"""
                     ]
                     if ph_matched:
                         options = ph_matched
+
+                # Same for the orthogonal redox axis (fixed_E vs constant_E),
+                # decided alongside the pH treatment in the redox site preparer.
+                # Without this a cofactor with both forks would re-offer the
+                # HEH/constant_E sets to someone who chose fixed_E. Gated the
+                # same way, so cofactors with no redox fork are unaffected.
+                chosen_redox_treatment = info.get('redox_treatment')
+                if chosen_redox_treatment and options:
+                    redox_matched = [
+                        o for o in options
+                        if o.get('redox_treatment') == chosen_redox_treatment
+                    ]
+                    if redox_matched:
+                        options = redox_matched
 
                 if not options:
                     console.print(f"[yellow]No forcefield files found for {transformer_type}/{redox_state}/{spin_state}[/yellow]")
@@ -11239,188 +11401,448 @@ mol = loadpdb {microstate_info['filename']}"""
     # =#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#+#+#+#
     # CPIN File Generation for Constant pH MD
 
-    def generate_cpin_file(self):
-        """Generate cpin file for constant pH MD simulations"""
+    @staticmethod
+    def _parse_topology_selection(text: str, n: int) -> Optional[List[int]]:
+        """'all', '3', '1,3,5' or '1-4,7' -> sorted 1-based indices, or None if invalid."""
+        text = (text or '').strip().lower()
+        if not text:
+            return None
+        if text == 'all':
+            return list(range(1, n + 1))
+        picked = set()
+        for token in text.split(','):
+            token = token.strip()
+            if not token:
+                continue
+            if '-' in token:
+                a, _, b = token.partition('-')
+                if not (a.strip().isdigit() and b.strip().isdigit()):
+                    return None
+                lo, hi = int(a), int(b)
+                if lo > hi:
+                    lo, hi = hi, lo
+                picked.update(range(lo, hi + 1))
+            elif token.isdigit():
+                picked.add(int(token))
+            else:
+                return None
+        if not picked or min(picked) < 1 or max(picked) > n:
+            return None
+        return sorted(picked)
+
+    def _select_topologies_for_titration(self, step):
+        """Pick the prmtop/rst7 pair(s) the titration files will describe.
+
+        Reads the topologies directly: everything this step needs (which
+        residues are present, their numbering, their atom counts) is in the
+        prmtop. Several may be chosen at once, which is the normal case for a
+        set of redox microstates that share every titratable residue; the
+        residue and state choices are then made once and reused wherever the
+        scan matches. Returns a list of pair dicts, or None.
+        """
+        console = self.processor.console
+        workspace = self.get_workspace()
+        pairs = [p for p in (workspace.get("md_structure_pairs") or [])
+                 if p.get("prmtop") and os.path.exists(p["prmtop"])]
+        if not pairs:
+            # Fall back to the single most recent topology.
+            prmtop = workspace.get("parm7_file")
+            rst7 = workspace.get("rst7_file")
+            if prmtop and os.path.exists(prmtop):
+                pairs = [{"name": os.path.splitext(os.path.basename(prmtop))[0],
+                          "prmtop": prmtop, "rst7": rst7}]
+        if not pairs:
+            console.print("[red]ERROR: No topology files found in the "
+                          "workspace.[/red]")
+            console.print("[yellow]Run 'Generate topology files' (option 4) "
+                          "first.[/yellow]")
+            return None
+
+        if len(pairs) == 1:
+            chosen = [pairs[0]]
+            console.print(f"\n[green]Using topology:[/green] "
+                          f"{os.path.basename(chosen[0]['prmtop'])}")
+        else:
+            console.print(f"\n[bold]Step {step}: Select Topologies[/bold]")
+            console.print("[grey50]Titratable residues are read from each "
+                          "topology itself. Microstates that share the same "
+                          "titratable residues get one set of choices, applied "
+                          "to all of them.[/grey50]\n")
+            for idx, pair in enumerate(pairs, 1):
+                console.print(f"  {idx}. {os.path.basename(pair['prmtop'])}")
+            while True:
+                choice = prompt_with_context(
+                    processor=self.processor,
+                    prompt="\nSelect topologies (number, comma list, range, or 'all')",
+                    default="all",
+                    module="Topology Generator - Titration",
+                    description="Topologies for titration file generation",
+                    options_map={str(k): os.path.basename(p['prmtop'])
+                                 for k, p in enumerate(pairs, 1)},
+                )
+                indices = self._parse_topology_selection(choice, len(pairs))
+                if indices:
+                    break
+                console.print(f"[red]Enter numbers 1-{len(pairs)}, ranges, "
+                              f"comma lists, or 'all'.[/red]")
+            chosen = [pairs[k - 1] for k in indices]
+
+        valid = []
+        for pair in chosen:
+            rst7 = pair.get("rst7")
+            if not rst7 or not os.path.exists(rst7):
+                # The scan converts prmtop+rst7 to PDB via cpptraj; without
+                # coordinates there is nothing to convert.
+                console.print(f"[red]ERROR: No coordinate file for "
+                              f"{os.path.basename(pair['prmtop'])}; skipping.[/red]")
+                continue
+            valid.append(pair)
+        return valid or None
+
+    @staticmethod
+    def _titratable_signature(residues):
+        """What makes two topologies interchangeable for titration-file
+        purposes: the same titratable residues at the same numbers."""
+        return tuple(sorted((r.get('resname'), r.get('resnum')) for r in (residues or [])))
+
+    def generate_cpin_file(self, mode_keys=None):
+        """Generate the titration input file(s) for constant pH / redox MD.
+
+        Which files get written follows from what the topology contains:
+
+            pH-titratable residues only     -> cpinutil.py  -> .cpin
+            redox-titratable residues only  -> ceinutil.py  -> .cein
+            both families                   -> BOTH files, one per family
+            a proton-coupled site (TYX)     -> cpeinutil.py -> .cpein
+
+        The both-families case produces two complementary files run together,
+        which is the documented workflow: Amber tutorial 33 generates a cein
+        for HEH and a cpin for PRN/GL4 from the same topology, then runs
+        production with `-cpin ... -cein ...` and both keyword families in one
+        &cntrl. They are not alternatives. sander's only exclusion is
+        one-directional and guards cpein alone (mdfil.F90:586).
+
+        `mode_keys` forces a specific list and skips the prompt; None
+        auto-detects.
+        """
         console = self.processor.console
         workspace = self.get_workspace()
 
-        console.print("\n[bold blue]═══ Generate CPIN File for Constant pH MD ═══[/bold blue]")
+        console.print("\n[bold blue]═══ Generate Titration Input Files "
+                      "(Constant pH / Redox MD) ═══[/bold blue]")
 
-        # Helper to truncate long filenames for display
-        def truncate_filename(fname, max_len=50):
-            if len(fname) <= max_len:
-                return fname
-            name, ext = os.path.splitext(fname)
-            available = max_len - len(ext) - 3  # 3 for "..."
-            return name[:available//2] + "..." + name[-(available//2):] + ext
-
-        # Use dynamic step counter
         step = 1
 
-        # Check for multi-microstate case
-        microstate_tleap_files = workspace.get("generated_microstate_tleap_files")
-        is_multi_microstate = microstate_tleap_files and len(microstate_tleap_files) > 1
-
-        if is_multi_microstate:
-            console.print(f"\n[blue]Detected {len(microstate_tleap_files)} microstate topologies[/blue]")
-            console.print("[grey50]All microstates share the same titratable residues.[/grey50]")
-
-        # Step 1: Select simulation type FIRST (before topology selection)
+        # Step 1: Select simulation type
         sim_type = self._select_simulation_type(step)
         if not sim_type:
             return False
         step += 1
 
-        # Now handle topology selection based on simulation type
-        if is_multi_microstate:
-            # Find all valid topologies
-            tleap_input_file = None
-            tleap_info = None
-            all_microstate_info = []
+        # Step 2: Pick the topologies (directly -- no tLEaP input file needed)
+        pairs = self._select_topologies_for_titration(step)
+        if not pairs:
+            return False
+        step += 1
 
-            for tleap_file in microstate_tleap_files:
-                if os.path.exists(tleap_file):
-                    info = self._parse_tleap_input_file(tleap_file)
-                    if info and info.get('expected_prmtop') and os.path.exists(info['expected_prmtop']):
-                        all_microstate_info.append({'tleap_file': tleap_file, 'info': info})
-                        if tleap_input_file is None:
-                            tleap_input_file = tleap_file
-                            tleap_info = info
+        # The choices below (which files, GB settings, residues, initial
+        # states) are made on the first topology and reused for every later
+        # one whose titratable residues match it exactly; a topology that
+        # differs gets its own prompts.
+        first_choices = None   # {'mode_keys', 'igb', 'intdiel', 'per_mode': {key: (selected, initial)}}
+        first_signature = None
+        last_generated = None
 
-            if not tleap_input_file:
-                console.print("[red]ERROR: No valid topology files found. Run 'Generate Topology Files' first.[/red]")
+        for pair_idx, pair in enumerate(pairs, 1):
+            prmtop_file, rst7_file = pair["prmtop"], pair.get("rst7")
+            if len(pairs) > 1:
+                console.print(f"\n[bold blue]── Topology {pair_idx}/{len(pairs)}: "
+                              f"{os.path.basename(prmtop_file)} ──[/bold blue]")
+            console.print(f"[grey50]  Topology file: "
+                          f"{os.path.basename(prmtop_file)}[/grey50]")
+            console.print(f"[grey50]  Coordinate file: "
+                          f"{os.path.basename(rst7_file)}[/grey50]")
+
+            # Scan the topology ONCE for every titratable residue, pH and redox
+            # alike. The same scan drives detection and the per-file selection.
+            all_titratable = self._scan_topology_for_titratable_residues(
+                prmtop_file, rst7_file, None)
+            if not all_titratable:
+                console.print("[red]ERROR: No titratable residues found in "
+                              "topology.[/red]")
+                console.print("[yellow]Expected pH-titratable residues (AS4, GL4, "
+                              "HIP, LYS, CYS, TYR, PRN) or the redox-titratable "
+                              "heme HEH.[/yellow]")
                 return False
 
-            prmtop_display = truncate_filename(os.path.basename(tleap_info['expected_prmtop']))
-
-            console.print("[grey50]One CPIN file will be generated (shared by all microstates).[/grey50]")
-            if sim_type == 'implicit':
-                console.print(f"[green]Using representative topology:[/green] {prmtop_display}")
+            signature = self._titratable_signature(all_titratable)
+            reuse = (first_choices is not None and signature == first_signature)
+            if reuse:
+                console.print(f"[grey50]  Same titratable residues as "
+                              f"{os.path.basename(pairs[0]['prmtop'])}; reusing its "
+                              f"selections.[/grey50]")
+                this_mode_keys = first_choices['mode_keys']
+                igb, intdiel = first_choices['igb'], first_choices['intdiel']
             else:
-                console.print(f"[yellow]Explicit solvent: Modified topologies with custom radii will be generated for all {len(all_microstate_info)} microstates.[/yellow]")
-                console.print(f"[grey50]Representative topology for CPIN:[/grey50] {prmtop_display}")
+                # Step 3: Which files to generate
+                this_mode_keys = mode_keys
+                if this_mode_keys is None:
+                    this_mode_keys = self._select_titration_files(step, all_titratable)
+                    if not this_mode_keys:
+                        return False
+                    step += 1
+                # Configure GB model (implicit solvent only). One setting serves
+                # every file, so the offered values are the intersection across
+                # them: a cein alongside a cpin still cannot use igb=1.
+                if sim_type == 'implicit':
+                    igb, intdiel = self._configure_gb_parameters(step, this_mode_keys, sim_type)
+                    step += 2
+                else:
+                    igb, intdiel = None, 1.0
 
-            # Store the active tLEaP file for coordinate mapping
-            workspace.set("_active_tleap_input_file", tleap_input_file)
-        else:
-            all_microstate_info = None  # Not multi-microstate
-
-            # Get tLEaP input file (use workspace if available)
-            tleap_input_file = workspace.get("tleap_input_file")
-
-            if tleap_input_file and os.path.exists(tleap_input_file):
-                console.print(f"\n[green]Using tLEaP file from workspace:[/green] {os.path.basename(tleap_input_file)}")
-                tleap_info = self._parse_tleap_input_file(tleap_input_file)
-                if not tleap_info:
-                    console.print("[red]ERROR: Failed to parse tLEaP input file from workspace.[/red]")
+            modes = [get_titration_mode(k) for k in this_mode_keys]
+            for mode in modes:
+                ok, problems = self._validate_mode_constraints(
+                    mode, sim_type, igb, intdiel, len(modes) > 1)
+                if not ok:
+                    console.print(f"\n[red]Cannot generate a {mode.file_ext} file "
+                                  f"with these settings:[/red]")
+                    for problem in problems:
+                        console.print(f"  [red]•[/red] {problem}")
                     return False
-            else:
-                # No workspace data - prompt user
-                console.print(f"\n[bold]Step {step}: Select tLEaP Input File[/bold]")
-                console.print("[grey50]This file contains the topology information and residue mapping.[/grey50]")
-                tleap_input_file, tleap_info = self._select_tleap_input_file_manual(step)
-                if not tleap_input_file:
-                    return False
+
+            # Partition the scanned residues into the file each belongs in.
+            # Mixing them is a hard error at the utility, not a silent skip:
+            # ceinutil rejects a -resnums list containing an AS4 outright.
+            partitioned = partition_residues_by_mode(all_titratable, this_mode_keys)
+
+            # Exactly one file may write the radii-corrected prmtop for explicit
+            # solvent, or the second utility would overwrite the first's work
+            # from a stale input. Tutorial 33 uses cpinutil's mp8_es.new.prmtop
+            # for the whole run, so the first -op-capable file owns it; if none
+            # is capable (a redox-only run) ProPrep writes it with ParmEd.
+            prmtop_owner = next((m.key for m in modes
+                                 if m.supports_output_prmtop), modes[0].key)
+
+            generated = {}
+            per_mode = first_choices['per_mode'] if reuse else {}
+            for mode in modes:
+                candidates = partitioned.get(mode.key) or []
+                if not candidates:
+                    console.print(f"[yellow]No residues for the {mode.file_ext} "
+                                  f"file — skipping.[/yellow]")
+                    continue
+                console.print(f"\n[bold cyan]── {mode.label} "
+                              f"({mode.utility} → .{mode.file_ext}) ──[/bold cyan]")
+                if reuse and mode.key in per_mode:
+                    selected_residues, initial_states = per_mode[mode.key]
+                else:
+                    selected_residues = self._select_titratable_residues(
+                        step, prmtop_file, rst7_file, mode.key, prescanned=candidates)
+                    if not selected_residues:
+                        console.print(f"[yellow]No residues selected for the "
+                                      f"{mode.file_ext} file. Aborting.[/yellow]")
+                        return False
+                    step += 1
+                    initial_states = self._set_initial_protonation_states(
+                        selected_residues, step, mode.key)
+                    step += 1
+                    per_mode[mode.key] = (selected_residues, initial_states)
+                write_prmtop = (sim_type == 'explicit'
+                                and mode.key == prmtop_owner)
+                stem = os.path.splitext(os.path.basename(prmtop_file))[0]
+                ok = self._run_titration_util(
+                    prmtop_file=prmtop_file,
+                    sim_type=sim_type,
+                    igb=igb,
+                    intdiel=intdiel,
+                    selected_residues=selected_residues,
+                    initial_states=initial_states,
+                    step=step,
+                    mode_key=mode.key,
+                    write_modified_prmtop=write_prmtop,
+                    # Reused topologies take the default names without asking.
+                    output_name=(f"{stem}.{mode.file_ext}" if reuse else None),
+                    system_name=(stem if reuse else None),
+                )
                 step += 1
+                if not ok:
+                    return False
+                generated[mode.key] = workspace.get("_last_titration_file")
 
-            # Store for coordinate mapping
-            workspace.set("_active_tleap_input_file", tleap_input_file)
+            if not generated:
+                return False
+            if first_choices is None:
+                first_choices = {'mode_keys': this_mode_keys, 'igb': igb,
+                                 'intdiel': intdiel, 'per_mode': per_mode}
+                first_signature = signature
+            self._record_titration_workspace(generated, prmtop_file, sim_type,
+                                             igb, intdiel, this_mode_keys)
+            last_generated = generated
 
-        # Extract prmtop and rst7 from tLEaP file (no user prompt needed)
-        prmtop_file = tleap_info['expected_prmtop']
-        rst7_file = tleap_info['expected_rst7']
+        if len(pairs) > 1:
+            console.print(f"\n[green]Titration files written for {len(pairs)} "
+                          f"topologies.[/green]")
+        self._print_titration_next_steps(last_generated, sim_type)
+        return True
 
-        console.print(f"[grey50]  Topology file: {truncate_filename(os.path.basename(prmtop_file))}[/grey50]")
-        console.print(f"[grey50]  Coordinate file: {truncate_filename(os.path.basename(rst7_file))}[/grey50]")
+    def _select_titration_files(self, step, all_residues):
+        """Decide which titration file(s) this topology needs.
 
-        # Verify files exist
-        if not os.path.exists(prmtop_file):
-            console.print(f"[red]ERROR: Topology file not found: {prmtop_file}[/red]")
-            console.print("[yellow]Run 'Generate Topology Files' first.[/yellow]")
-            return False
+        Auto-detects, and only prompts when there is a real choice. A topology
+        with both families defaults to generating BOTH -- a cpin for the
+        pH-titratable residues and a cein for the heme, run together. The
+        alternative offers are for deliberately titrating only one family.
 
-        if not os.path.exists(rst7_file):
-            console.print(f"[red]ERROR: Coordinate file not found: {rst7_file}[/red]")
-            console.print("[yellow]Run 'Generate Topology Files' first.[/yellow]")
-            return False
+        Returns a list of mode keys, or None if the user aborts.
+        """
+        console = self.processor.console
 
-        # Configure GB model (for implicit solvent only)
-        if sim_type == 'implicit':
-            igb, intdiel = self._configure_gb_parameters(step)
-            step += 2  # This method internally uses 2 steps (GB model + dielectric)
-        else:
-            igb, intdiel = None, 1.0
+        present = {r['resname'] for r in (all_residues or [])}
+        detected = modes_for_residue_names(present)
+        if not detected:
+            console.print("[red]ERROR: No titratable residues found in "
+                          "topology.[/red]")
+            return None
 
-        # Step N: Select titratable residues (scan topology directly)
-        selected_residues = self._select_titratable_residues(step, prmtop_file, rst7_file)
-        if not selected_residues:
-            console.print("[yellow]No residues selected. Aborting.[/yellow]")
-            return False
-        step += 1
+        n_ph = sum(1 for r in all_residues if r.get('pka') is not None)
+        n_redox = sum(1 for r in all_residues if r.get('eo') is not None)
 
-        # Step N+1: Set initial protonation states
-        initial_states = self._set_initial_protonation_states(selected_residues, step)
-        step += 1
+        console.print(f"\n[bold]Step {step}: Titration Files[/bold]")
+        console.print(
+            f"[grey50]Topology contains {n_ph} pH-titratable and {n_redox} "
+            f"redox-titratable residue(s).[/grey50]")
 
-        # Step N+2: Generate CPIN file (and modified prmtop for first microstate if explicit)
-        success = self._run_cpinutil(
-            prmtop_file=prmtop_file,
-            tleap_input_file=tleap_input_file,
-            tleap_info=tleap_info,
-            sim_type=sim_type,
-            igb=igb,
-            intdiel=intdiel,
-            selected_residues=selected_residues,
-            initial_states=initial_states,
-            step=step
+        # Single-family topologies and the joint-site case have exactly one
+        # sensible answer.
+        if len(detected) == 1:
+            only = get_titration_mode(detected[0])
+            console.print(f"[green]Generating {only.file_ext}[/green] "
+                          f"[grey50]({only.utility}; sander "
+                          f"{only.flag_input})[/grey50]")
+            return detected
+
+        # Both families present.
+        console.print("")
+        console.print("  1. Both — a cpin and a cein  [green](recommended)[/green]")
+        console.print("     [grey50]cpinutil.py → .cpin for the "
+                      f"{n_ph} pH-titratable residue(s)[/grey50]")
+        console.print("     [grey50]ceinutil.py → .cein for the "
+                      f"{n_redox} redox-titratable residue(s)[/grey50]")
+        console.print("     [grey50]Run together: sander -cpin ... -cein ...[/grey50]")
+        console.print("  2. Constant pH only — cpin")
+        console.print("     [grey50]The heme is held at a fixed oxidation "
+                      "state[/grey50]")
+        console.print("  3. Constant redox only — cein")
+        console.print("     [grey50]Protonation states are held fixed[/grey50]")
+
+        choice = prompt_with_context(
+            processor=self.processor,
+            prompt="\nSelect",
+            choices=["1", "2", "3"],
+            default="1",
+            module="Topology Generator - Titration",
+            description="Which titration files to generate",
+            options_map={"1": "both cpin and cein",
+                         "2": "cpin only",
+                         "3": "cein only"},
         )
+        return {"1": [TITRATION_PH, TITRATION_REDOX],
+                "2": [TITRATION_PH],
+                "3": [TITRATION_REDOX]}[choice]
 
-        if not success:
-            return False
+    def _record_titration_workspace(self, generated, prmtop_file, sim_type,
+                                    igb, intdiel, mode_keys):
+        """Persist what was generated so the MD Manager can pick it up."""
+        workspace = self.get_workspace()
+        console = self.processor.console
 
-        # For multi-microstate explicit solvent, generate modified prmtops for remaining microstates
-        if is_multi_microstate and sim_type == 'explicit' and all_microstate_info and len(all_microstate_info) > 1:
-            console.print(f"\n[bold]Generating modified prmtops for remaining {len(all_microstate_info) - 1} microstates...[/bold]")
-            console.print("[grey50]Each microstate needs its own prmtop with corrected radii for explicit solvent CpHMD.[/grey50]\n")
+        modified_prmtop = workspace.get("_last_modified_prmtop")
+        titration_config = {
+            'modes': list(generated.keys()),
+            'files': dict(generated),
+            'prmtop_file': prmtop_file,
+            'simulation_type': sim_type,
+            'igb': igb if sim_type == 'implicit' else None,
+            'intdiel': intdiel,
+        }
+        if modified_prmtop:
+            titration_config['modified_prmtop'] = modified_prmtop
 
-            # Skip the first one (already processed above)
-            for i, ms_info in enumerate(all_microstate_info[1:], 2):
-                ms_prmtop = ms_info['info']['expected_prmtop']
-                console.print(f"  [{i}/{len(all_microstate_info)}] Processing {os.path.basename(ms_prmtop)}...")
+        # Carry the per-file details recorded by each run.
+        details = workspace.get("_titration_details") or {}
+        titration_config['details'] = details
+        titration_config['num_residues'] = sum(
+            d.get('num_residues', 0) for d in details.values())
 
-                # Generate modified prmtop using cpinutil (CPIN output will be discarded/overwritten)
-                modified_prmtop = os.path.splitext(ms_prmtop)[0] + "_cpin.prmtop"
+        self.update_workspace("titration_config", titration_config)
+        # One entry per topology, so a set of microstates keeps every file:
+        # `titration_config` above is only the most recent. Replace an entry
+        # for the same prmtop, append otherwise.
+        configs = [c for c in (workspace.get("titration_configs") or [])
+                   if os.path.basename(c.get('prmtop_file', '')) != os.path.basename(prmtop_file)]
+        configs.append(dict(titration_config))
+        self.update_workspace("titration_configs", configs)
+        # `titration_file` names the primary file for status displays; the
+        # authoritative mapping is titration_config['files'].
+        primary = generated.get(TITRATION_PH) or next(iter(generated.values()))
+        self.update_workspace("titration_file", primary)
 
-                # Build minimal cpinutil command just for radii modification
-                cmd = [
-                    "cpinutil.py",
-                    "-p", ms_prmtop,
-                    "-op", modified_prmtop,
-                    "-o", os.devnull  # Discard CPIN output (we already have the shared one)
-                ]
+        # `cpin_config`/`cpin_file` predate the redox files and are read by the
+        # MD manager's legacy path and by older session records. Keep writing
+        # them whenever a cpin exists so nothing that already works changes.
+        if TITRATION_PH in generated:
+            cpin_config = dict(titration_config)
+            cpin_config['cpin_file'] = generated[TITRATION_PH]
+            self.update_workspace("cpin_config", cpin_config)
+            self.update_workspace("cpin_file", generated[TITRATION_PH])
 
-                # Add residue selection
-                if selected_residues:
-                    resnums = [str(r['resnum']) for r in selected_residues]
-                    cmd.extend(["-resnums"] + resnums)
+        for scratch in ("_last_titration_file", "_last_modified_prmtop",
+                        "_titration_details"):
+            try:
+                workspace.set(scratch, None)
+            except Exception:  # noqa: BLE001 - scratch cleanup is best-effort
+                pass
 
-                try:
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-                    if result.returncode == 0:
-                        console.print(f"    [green]✓ Generated: {os.path.basename(modified_prmtop)}[/green]")
-                        # Swap the matching md_structure_pairs entry for this
-                        # microstate so the MD manager sees the cpin-ready
-                        # prmtop instead of the pre-cpinutil constph one.
-                        self._swap_md_pair_to_cpin_prmtop(ms_prmtop,
-                                                            modified_prmtop)
-                    else:
-                        console.print(f"    [red]✗ Failed: {result.stderr[:100]}[/red]")
-                except Exception as e:
-                    console.print(f"    [red]✗ Error: {e}[/red]")
+        console.print("\n[green]✓ Saved titration settings to "
+                      "workspace[/green]")
 
-            console.print(f"\n[green]✓ Modified prmtops generated for all {len(all_microstate_info)} microstates[/green]")
+    def _print_titration_next_steps(self, generated, sim_type):
+        """Summarize the generated files and how they are run."""
+        console = self.processor.console
+        modes = [get_titration_mode(k) for k in generated]
 
-        return success
+        console.print(f"\n[bold]Generated {len(generated)} titration "
+                      f"file(s):[/bold]")
+        for mode in modes:
+            console.print(f"  [green]✓[/green] "
+                          f"{os.path.basename(generated[mode.key])} "
+                          f"[grey50]({mode.label})[/grey50]")
+
+        flag_str = " ".join(
+            f"{m.flag_input} <{m.file_ext}> {m.flag_output} <{m.ext_output}> "
+            f"{m.flag_restart} <{m.ext_restart}>" for m in modes)
+        keyword_bits = []
+        for m in mdin_keyword_sets(list(generated)):
+            value = 2 if sim_type == 'explicit' else 1
+            keyword_bits.append(f"{m.mdin_flag_keyword}={value}, "
+                                f"{m.mdin_setpoint_keyword}=X.X, "
+                                f"{m.mdin_freq_keyword}=N")
+
+        console.print(f"\n[bold blue]Next steps:[/bold blue]")
+        console.print(
+            "  Run MD via [bold]MD Manager → Setup and configure "
+            "simulations[/bold], then pick a protocol.")
+        console.print(
+            f"  ProPrep applies these to the production steps automatically:")
+        console.print(f"    [bold]{flag_str}[/bold]")
+        console.print(f"    {'; '.join(keyword_bits)}")
+        if len(modes) > 1:
+            console.print(
+                "  [grey50]Both files are passed in the same command — they "
+                "titrate different residues and\n"
+                "  are complementary, not alternatives (Amber tutorial "
+                "33).[/grey50]")
 
     def _select_tleap_input_file_manual(self, step):
         """Manually select tLEaP input file (fallback when not in workspace)"""
@@ -11525,63 +11947,160 @@ mol = loadpdb {microstate_info['filename']}"""
 
         return 'implicit' if choice == "1" else 'explicit'
 
-    def _configure_gb_parameters(self, step):
-        """Configure GB model and internal dielectric"""
+    # GB models the utilities accept, in menu order.
+    _GB_MODEL_CHOICES = (
+        (1, "Hawkins, Cramer, Truhlar pairwise GB"),
+        (2, "Modified GB model - default for constant pH"),
+        (5, "Modified GB model II"),
+        (7, "GBn model"),
+        (8, "GBn2 model"),
+    )
+
+    def _configure_gb_parameters(self, step, mode_keys=None,
+                                 sim_type='implicit'):
+        """Configure GB model and internal dielectric.
+
+        Only offers combinations that HAVE reference energies. The utilities do
+        not check: ceinutil accepts any of igb 1/2/5/7/8, but HEH's
+        reduced-state ``_ReferenceEnergy`` is built without an ``igb1``
+        argument and its dielc2 energies are registered with no arguments at
+        all, so an unsupported choice yields a file of ``None`` values rather
+        than an error.
+
+        One igb serves every file being generated -- a cpin and a cein run in
+        the same simulation, under one &cntrl -- so the offered values are the
+        INTERSECTION across them. A cpin alone could use igb=1; accompanied by
+        a cein it cannot.
+        """
         console = self.processor.console
+        if isinstance(mode_keys, str) or mode_keys is None:
+            mode_keys = [mode_keys]
+        modes = [get_titration_mode(k) for k in mode_keys]
+        mode = modes[0]
+        allowed = frozenset.intersection(
+            *[m.allowed_igb(sim_type) for m in modes])
 
         console.print(f"\n[bold]Step {step}: Generalized Born Model[/bold]")
         console.print("Which GB model will you use for dynamics?")
-        console.print("  1. igb=1 (Hawkins, Cramer, Truhlar pairwise GB)")
-        console.print("  2. igb=2 (Modified GB model - default for constant pH)")
-        console.print("  3. igb=5 (Modified GB model II)")
-        console.print("  4. igb=7 (GBn model)")
-        console.print("  5. igb=8 (GBn2 model)")
 
+        offered = [(v, desc) for v, desc in self._GB_MODEL_CHOICES
+                   if v in allowed]
+        excluded = [v for v, _ in self._GB_MODEL_CHOICES if v not in allowed]
+
+        choices = []
+        options_map = {}
+        igb_map = {}
+        for i, (value, desc) in enumerate(offered, 1):
+            key = str(i)
+            recommended = " (recommended)" if value == 2 else ""
+            console.print(f"  {key}. igb={value} ({desc}){recommended}")
+            choices.append(key)
+            options_map[key] = f"igb={value}{recommended}"
+            igb_map[key] = value
+
+        if not offered:
+            console.print(
+                f"[red]No igb value has reference energies for all of: "
+                f"{', '.join(m.label for m in modes)} in {sim_type} "
+                f"solvent.[/red]")
+            return None, None
+
+        if excluded:
+            who = (modes[0].label if len(modes) == 1
+                   else " + ".join(m.file_ext for m in modes))
+            console.print(
+                f"[grey50]  Not offered for {who}: "
+                f"{', '.join(f'igb={v}' for v in excluded)} "
+                f"(no reference energies for {sim_type} solvent).[/grey50]")
+
+        default_choice = next(
+            (k for k, v in igb_map.items() if v == 2), choices[0])
         choice = prompt_with_context(
             processor=self.processor,
             prompt="\nSelect GB model",
-            choices=["1", "2", "3", "4", "5"],
-            default="2",
-            module="Topology Generator - CPIN",
+            choices=choices,
+            default=default_choice,
+            module="Topology Generator - Titration",
             description="GB model",
-            options_map={"1": "igb=1", "2": "igb=2 (recommended)", "3": "igb=5", "4": "igb=7", "5": "igb=8"}
+            options_map=options_map,
         )
-
-        igb_map = {"1": 1, "2": 2, "3": 5, "4": 7, "5": 8}
         igb = igb_map[choice]
 
         console.print(f"\n[bold]Step {step+1}: Internal Dielectric Constant[/bold]")
-        intdiel_str = prompt_with_context(
-            processor=self.processor,
-            prompt="Internal dielectric for GB evaluation",
-            default="1.0",
-            module="Topology Generator - CPIN",
-            description="Internal dielectric constant"
-        )
+        allowed_set = frozenset.intersection(
+            *[m.allowed_intdiel for m in modes])
+        allowed_intdiel = sorted(allowed_set)
+        if not allowed_intdiel:
+            console.print("[red]No internal dielectric has reference energies "
+                          "for all selected files.[/red]")
+            return None, None
+        if len(allowed_intdiel) == 1:
+            intdiel = allowed_intdiel[0]
+            who = (mode.label if len(modes) == 1
+                   else " + ".join(m.file_ext for m in modes))
+            console.print(
+                f"[grey50]{who} supports intdiel={intdiel:g} only "
+                f"— using it.[/grey50]")
+            return igb, intdiel
 
-        intdiel = float(intdiel_str)
+        while True:
+            intdiel_str = prompt_with_context(
+                processor=self.processor,
+                prompt="Internal dielectric for GB evaluation",
+                default="1.0",
+                module="Topology Generator - Titration",
+                description="Internal dielectric constant"
+            )
+            try:
+                intdiel = float(intdiel_str)
+            except ValueError:
+                console.print("[yellow]Enter a number.[/yellow]")
+                continue
+            if intdiel in allowed_set:
+                return igb, intdiel
+            console.print(
+                f"[yellow]intdiel must be one of "
+                f"{', '.join(f'{v:g}' for v in allowed_intdiel)}.[/yellow]")
 
-        return igb, intdiel
-
-    def _select_titratable_residues(self, step, prmtop_file, rst7_file):
+    def _select_titratable_residues(self, step, prmtop_file, rst7_file,
+                                    mode_key=None, prescanned=None):
         """
-        Select titratable residues for cpin file.
+        Select titratable residues for the cpin/cein/cpein file.
 
         Uses direct topology scanning - no complex residue mapping needed!
-        The residue numbers from the topology PDB are exactly what cpinutil expects.
+        The residue numbers from the topology PDB are exactly what the
+        titration utility expects.
+
+        `prescanned` lets the caller hand in the mode-detection scan so the
+        topology is only converted to PDB once per run; it is filtered down to
+        the chosen mode's residue names here.
         """
         console = self.processor.console
         workspace = self.get_workspace()
 
+        mode = get_titration_mode(mode_key)
         console.print(f"\n[bold]Step {step}: Select Titratable Residues[/bold]")
 
         # DIRECT APPROACH: Scan the topology for titratable residues
-        # This gives us the exact residue numbers that cpinutil expects
-        titratable_residues = self._scan_topology_for_titratable_residues(prmtop_file, rst7_file)
+        # This gives us the exact residue numbers that the utility expects
+        if prescanned is not None:
+            titratable_residues = [r for r in prescanned
+                                   if r['resname'] in mode.residue_names]
+        else:
+            titratable_residues = self._scan_topology_for_titratable_residues(
+                prmtop_file, rst7_file, mode.key)
 
         if not titratable_residues:
-            console.print("[red]ERROR: No titratable residues found in topology.[/red]")
-            console.print("[yellow]Make sure your topology contains titratable residues like AS4, GL4, HIS, LYS, etc.[/yellow]")
+            console.print(
+                f"[red]ERROR: No {mode.label} titratable residues found in "
+                f"topology.[/red]")
+            if mode.titrates_redox:
+                console.print(
+                    "[yellow]Constant-redox MD needs a residue named HEH "
+                    "(AMBER's conste.lib bis-His c-heme). ProPrep emits that "
+                    "name only for a constant_E forcefield set.[/yellow]")
+            else:
+                console.print("[yellow]Make sure your topology contains titratable residues like AS4, GL4, HIS, LYS, etc.[/yellow]")
             return None
 
         # Display the found residues
@@ -11593,8 +12112,12 @@ mol = loadpdb {microstate_info['filename']}"""
         console.print("  2. Include by residue type (e.g., ASP, GLU, HIS)")
         console.print("  3. Include by residue number")
         console.print("  4. Custom selection (exclude specific residues)")
+        if mode.range_flag_min:
+            console.print(f"  5. Filter by {mode.range_label} range")
 
         choices = ["1", "2", "3", "4"]
+        if mode.range_flag_min:
+            choices.append("5")
 
         choice = prompt_with_context(
             processor=self.processor,
@@ -11617,6 +12140,9 @@ mol = loadpdb {microstate_info['filename']}"""
         elif choice == "4":
             # Custom exclusion
             selected = self._select_custom(titratable_residues)
+        elif choice == "5":
+            # pKa range for pH modes, Eo range for redox
+            selected = self._select_by_value_range(titratable_residues, mode)
         else:
             selected = titratable_residues
 
@@ -11679,11 +12205,20 @@ mol = loadpdb {microstate_info['filename']}"""
         return titratable
 
     def _display_titratable_residues_table(self, residues):
-        """Display table of titratable residues"""
+        """Display table of titratable residues.
+
+        Columns adapt to what is present: a pKa column when anything is
+        pH-active, an Eo column when anything is redox-active, and both for a
+        combined-mode topology. A residue shows "—" in the column it does not
+        titrate in, which is how a heme (Eo, no pKa) reads next to a
+        carboxylate (pKa, no Eo).
+        """
         console = self.processor.console
 
         console.print(f"\nDetected {len(residues)} titratable residues:")
 
+        has_pka = any(r.get('pka') is not None for r in residues)
+        has_eo = any(r.get('eo') is not None for r in residues)
         # Add a "Source" column only if any residue carries a pka_source tag
         # (set by the topology scanner when pb_titrate results are present).
         has_source = any(r.get('pka_source') for r in residues)
@@ -11692,63 +12227,82 @@ mol = loadpdb {microstate_info['filename']}"""
         table.add_column("Res#", style="blue")
         table.add_column("Chain", style="blue")
         table.add_column("Residue", style="green")
-        table.add_column("pKa", style="yellow")
+        if has_pka:
+            table.add_column("pKa", style="yellow")
+        if has_eo:
+            table.add_column("Eo (V)", style="cyan")
         if has_source:
             table.add_column("pKa source", style="magenta")
 
         for res in residues:
-            pka_str = f"{res['pka']:.2f}" if res.get('pka') is not None else "N/A"
             row = [
                 str(res['resnum']),
                 res['chain'],
                 res['resname'],
-                pka_str,
             ]
+            if has_pka:
+                row.append(f"{res['pka']:.2f}"
+                           if res.get('pka') is not None else "—")
+            if has_eo:
+                row.append(f"{res['eo']:+.3f}"
+                           if res.get('eo') is not None else "—")
             if has_source:
-                row.append(res.get('pka_source') or '—')
+                row.append(res.get('pka_source')
+                           or res.get('eo_source') or '—')
             table.add_row(*row)
 
         console.print(table)
 
-    def _select_by_pka_range(self, residues):
-        """Filter residues by pKa range"""
+    def _select_by_value_range(self, residues, mode):
+        """Filter residues by pKa range (pH modes) or Eo range (redox mode).
+
+        Mirrors the utility's own ``-minpKa/-maxpKa`` and ``-mineo/-maxeo``
+        filters, but applied here so the user sees the survivors before the
+        file is written. cpeinutil exposes no range filter, so combined mode
+        never reaches this.
+        """
         console = self.processor.console
-        
-        console.print("\n[bold]Filter by pKa Range:[/bold]")
-        
-        min_pka_str = prompt_with_context(
+
+        field = 'eo' if mode.key == TITRATION_REDOX else 'pka'
+        label = mode.range_label
+
+        console.print(f"\n[bold]Filter by {label} Range:[/bold]")
+
+        min_str = prompt_with_context(
             processor=self.processor,
-            prompt="Minimum pKa to include (leave blank for no minimum)",
+            prompt=f"Minimum {label} to include (leave blank for no minimum)",
             default="",
-            module="Topology Generator - CPIN",
-            description="Minimum pKa"
+            module="Topology Generator - Titration",
+            description=f"Minimum {label}"
         )
-        
-        max_pka_str = prompt_with_context(
+
+        max_str = prompt_with_context(
             processor=self.processor,
-            prompt="Maximum pKa to include (leave blank for no maximum)",
+            prompt=f"Maximum {label} to include (leave blank for no maximum)",
             default="",
-            module="Topology Generator - CPIN",
-            description="Maximum pKa"
+            module="Topology Generator - Titration",
+            description=f"Maximum {label}"
         )
-        
-        min_pka = float(min_pka_str) if min_pka_str else None
-        max_pka = float(max_pka_str) if max_pka_str else None
-        
+
+        min_val = float(min_str) if min_str else None
+        max_val = float(max_str) if max_str else None
+
         selected = []
         for res in residues:
-            pka = res.get('pka')
-            if pka is None:
+            value = res.get(field)
+            if value is None:
                 continue
-            if min_pka is not None and pka < min_pka:
+            if min_val is not None and value < min_val:
                 continue
-            if max_pka is not None and pka > max_pka:
+            if max_val is not None and value > max_val:
                 continue
             selected.append(res)
-        
-        range_str = f"{min_pka if min_pka else 'any'} - {max_pka if max_pka else 'any'}"
-        console.print(f"\n[green]Filtered selection: {len(selected)} residues (pKa {range_str})[/green]")
-        
+
+        lo = f"{min_val:g}" if min_val is not None else "any"
+        hi = f"{max_val:g}" if max_val is not None else "any"
+        console.print(f"\n[green]Filtered selection: {len(selected)} residues "
+                      f"({label} {lo} - {hi})[/green]")
+
         return selected
 
     def _select_by_residue_type(self, residues):
@@ -11828,33 +12382,56 @@ mol = loadpdb {microstate_info['filename']}"""
         console.print(f"\n[green]Selected {len(selected)} residues (excluded {len(exclude_nums)})[/green]")
         return selected
 
-    def _set_initial_protonation_states(self, selected_residues, step):
-        """Set initial protonation states for constant pH MD."""
+    def _set_initial_protonation_states(self, selected_residues, step,
+                                        mode_key=None):
+        """Set initial titration states for constant pH / redox / combined MD.
+
+        The utility writes a `-states` list positionally, so this returns a
+        {resnum: state_index} map that the caller flattens in the same order it
+        passes `-resnums`.
+
+        State index semantics differ per residue family and are documented in
+        `_get_cpin_state_description`. For the redox residue HEH the two states
+        are oxidation states, not protonation states: 0 = Fe(III) (oxidized),
+        1 = Fe(II) (reduced).
+        """
         console = self.processor.console
         workspace = self.get_workspace()
 
-        console.print(f"\n[bold]Step {step}: Set Initial Protonation States[/bold]")
+        mode = get_titration_mode(mode_key)
+        console.print(f"\n[bold]Step {step}: Set Initial Titration States[/bold]")
 
-        # Standard pKa values from cpinutil
-        pka_values = {
-            'AS4': 4.0, 'GL4': 4.4, 'HIP': 6.6,
-            'LYS': 10.4, 'CYS': 8.5, 'TYR': 9.6, 'PRN': 4.8
-        }
+        # What is actually in the selection drives which prompts appear: a
+        # combined-mode file over a topology whose only redox residue was
+        # deselected needs no target potential.
+        has_ph_residues = any(r['resname'] in PH_RESIDUE_PKA
+                              for r in selected_residues)
+        has_redox_residues = any(r['resname'] in REDOX_RESIDUE_EO
+                                 for r in selected_residues)
 
         # Option 3 (Use titrate recommendations) is only offered when the
         # PB Titrate workflow has run and persisted a recommendations dict.
+        # PB Titrate refines pKa only, so it is pointless without pH residues.
         titrate_recs = workspace.get("titrate_recommendations") or {}
-        has_titrate = bool(titrate_recs)
+        has_titrate = bool(titrate_recs) and has_ph_residues
 
-        console.print("\nHow would you like to set initial protonation states?")
-        console.print("  1. Use cpinutil defaults (reference states)")
-        console.print("  2. Set states based on target pH (using standard pKa values)")
+        setpoint_bits = []
+        if has_ph_residues:
+            setpoint_bits.append("target pH")
+        if has_redox_residues:
+            setpoint_bits.append("target redox potential")
+        setpoint_label = " and ".join(setpoint_bits) or "target conditions"
+
+        console.print("\nHow would you like to set initial states?")
+        console.print(f"  1. Use {mode.utility} defaults (reference states)")
+        console.print(f"  2. Set states based on {setpoint_label}")
         if has_titrate:
             console.print(f"  3. Use PB Titrate recommendations "
                             f"({len(titrate_recs)} sites refined)")
 
         choices = ["1", "2", "3"] if has_titrate else ["1", "2"]
-        options_map = {"1": "cpinutil defaults", "2": "pH-based"}
+        options_map = {"1": f"{mode.utility} defaults",
+                       "2": "setpoint-based"}
         if has_titrate:
             options_map["3"] = "PB titrate recommendations"
             default_choice = "3"
@@ -11866,19 +12443,23 @@ mol = loadpdb {microstate_info['filename']}"""
             prompt="\nSelect option",
             choices=choices,
             default=default_choice,
-            module="Topology Generator - CPIN",
+            module="Topology Generator - Titration",
             description="Initial state method",
             options_map=options_map,
         )
 
         if choice == "1":
-            # Use cpinutil defaults - no -states flag
-            console.print("\n[grey50]Using cpinutil default reference states (no -states flag).[/grey50]")
+            # Use the utility's defaults - no -states flag
+            console.print(f"\n[grey50]Using {mode.utility} default reference "
+                          f"states (no -states flag).[/grey50]")
             console.print("")
-            console.print("cpinutil default states:")
-            console.print("  AS4/GL4/PRN: State 0 (deprotonated, COO⁻)")
-            console.print("  LYS/CYS/TYR: State 0 (protonated)")
-            console.print("  HIP: State 0 (doubly protonated, HIP⁺)")
+            console.print(f"{mode.utility} default states:")
+            if has_ph_residues:
+                console.print("  AS4/GL4/PRN: State 0 (deprotonated, COO\u207b)")
+                console.print("  LYS/CYS/TYR: State 0 (protonated)")
+                console.print("  HIP: State 0 (doubly protonated, HIP\u207a)")
+            if has_redox_residues:
+                console.print("  HEH: State 0 (oxidized, Fe\u00b3\u207a)")
             return None
 
         if choice == "3":
@@ -11886,8 +12467,9 @@ mol = loadpdb {microstate_info['filename']}"""
             # titrate_recs schema: {(resname, resnum) -> {state_id, state_name,
             #                       prot_count, pka_corr, net_charge}}.
             # Selected residues that have no titrate recommendation fall back
-            # to cpinutil's default state for their type (state 0 for all
-            # supported resnames per cpinutil --describe).
+            # to the utility's default state for their type (state 0 for every
+            # supported resname per `--describe`). Redox residues never have a
+            # recommendation - PB Titrate refines pKa, not Eo.
             console.print(
                 "\n[blue]Setting initial states from PB Titrate "
                 "recommendations[/blue]")
@@ -11900,7 +12482,7 @@ mol = loadpdb {microstate_info['filename']}"""
                 resnum = res['resnum']
                 rec = titrate_recs.get((resname, resnum))
                 if rec is None:
-                    # No recommendation — fall back to cpinutil default
+                    # No recommendation - fall back to the utility default
                     state = 0
                     n_default += 1
                 else:
@@ -11910,7 +12492,11 @@ mol = loadpdb {microstate_info['filename']}"""
                 state_summary.setdefault(resname, {}).setdefault(state, 0)
                 state_summary[resname][state] += 1
             console.print(f"  PB-recommended: {n_recommended}  |  "
-                            f"cpinutil-default fallback: {n_default}")
+                            f"{mode.utility}-default fallback: {n_default}")
+            if has_redox_residues:
+                console.print(
+                    "  [grey50]Redox residues took the default oxidized state "
+                    "— PB Titrate refines pKa, not Eo.[/grey50]")
             console.print("")
             for resname in sorted(state_summary.keys()):
                 for state, count in sorted(state_summary[resname].items()):
@@ -11919,53 +12505,90 @@ mol = loadpdb {microstate_info['filename']}"""
                                     f"({count} residues)")
             return initial_states
 
-        # Option 2: Set states based on target pH
-        ph_str = prompt_with_context(
-            processor=self.processor,
-            prompt="Target pH",
-            default="7.0",
-            module="Topology Generator - CPIN",
-            description="Target pH for initial states"
-        )
-        ph = float(ph_str)
+        # Option 2: Set states from the target pH and/or redox potential.
+        ph = None
+        if has_ph_residues:
+            ph_str = prompt_with_context(
+                processor=self.processor,
+                prompt="Target pH",
+                default="7.0",
+                module="Topology Generator - Titration",
+                description="Target pH for initial states"
+            )
+            ph = float(ph_str)
 
-        console.print(f"\n[blue]Setting initial states for pH {ph} based on standard pKa values:[/blue]")
+        target_e = None
+        if has_redox_residues:
+            console.print(
+                "\n[grey50]The applied potential decides which oxidation state "
+                "the heme starts in:\n"
+                "  E above Eo favours the oxidized form, E below Eo favours "
+                "the reduced form.\n"
+                "  HEH has Eo = -0.203 V.[/grey50]")
+            e_str = prompt_with_context(
+                processor=self.processor,
+                prompt="Target redox potential in Volts (solve)",
+                default="-0.203",
+                module="Topology Generator - Titration",
+                description="Target redox potential for initial states"
+            )
+            target_e = float(e_str)
 
-        # Calculate states based on pH vs pKa
+        summary_bits = []
+        if ph is not None:
+            summary_bits.append(f"pH {ph}")
+        if target_e is not None:
+            summary_bits.append(f"E {target_e:+.3f} V")
+        console.print(f"\n[blue]Setting initial states for "
+                      f"{' and '.join(summary_bits)}:[/blue]")
+
         initial_states = {}
         state_summary = {}  # Track states by residue type
 
         for res in selected_residues:
             resname = res['resname']
-            pka = pka_values.get(resname, 7.0)
 
-            # Determine state based on pH vs pKa
-            if resname in ['AS4', 'GL4', 'PRN']:
-                # Carboxylic acids: deprotonated (state 0) if pH > pKa
-                if ph > pka:
-                    state = 0  # Deprotonated (COO⁻)
+            if resname in REDOX_RESIDUE_EO:
+                # Redox: state 0 = oxidized Fe(III), state 1 = reduced Fe(II).
+                eo = res.get('eo')
+                if eo is None:
+                    eo = REDOX_RESIDUE_EO[resname]
+                if target_e is None or target_e >= eo:
+                    state = 0  # Oxidized
                 else:
-                    state = 1  # Protonated (COOH)
-            elif resname == 'HIP':
-                # Histidine: doubly protonated (state 0) if pH < pKa, else singly protonated
-                if ph < pka:
-                    state = 0  # Doubly protonated (HIP⁺)
-                else:
-                    state = 2  # Singly protonated (HIE, neutral)
-            elif resname == 'LYS':
-                # Lysine: protonated (state 0) if pH < pKa
-                if ph < pka:
-                    state = 0  # Protonated (NH₃⁺)
-                else:
-                    state = 1  # Deprotonated (NH₂)
-            elif resname in ['CYS', 'TYR']:
-                # Cysteine/Tyrosine: protonated (state 0) if pH < pKa
-                if ph < pka:
-                    state = 0  # Protonated
-                else:
-                    state = 1  # Deprotonated
+                    state = 1  # Reduced
             else:
-                state = 0
+                pka = PH_RESIDUE_PKA.get(resname, 7.0)
+                effective_ph = 7.0 if ph is None else ph
+
+                # Determine state based on pH vs pKa
+                if resname in ['AS4', 'GL4', 'PRN']:
+                    # Carboxylic acids: deprotonated (state 0) if pH > pKa
+                    if effective_ph > pka:
+                        state = 0  # Deprotonated (COO-)
+                    else:
+                        state = 1  # Protonated (COOH)
+                elif resname == 'HIP':
+                    # Histidine: doubly protonated (state 0) if pH < pKa,
+                    # else singly protonated
+                    if effective_ph < pka:
+                        state = 0  # Doubly protonated (HIP+)
+                    else:
+                        state = 2  # Singly protonated (HIE, neutral)
+                elif resname == 'LYS':
+                    # Lysine: protonated (state 0) if pH < pKa
+                    if effective_ph < pka:
+                        state = 0  # Protonated (NH3+)
+                    else:
+                        state = 1  # Deprotonated (NH2)
+                elif resname in ['CYS', 'TYR']:
+                    # Cysteine/Tyrosine: protonated (state 0) if pH < pKa
+                    if effective_ph < pka:
+                        state = 0  # Protonated
+                    else:
+                        state = 1  # Deprotonated
+                else:
+                    state = 0
 
             initial_states[res['resnum']] = state
 
@@ -11979,16 +12602,37 @@ mol = loadpdb {microstate_info['filename']}"""
         # Display state summary
         console.print("")
         for resname in sorted(state_summary.keys()):
-            pka = pka_values.get(resname, "?")
             for state, count in sorted(state_summary[resname].items()):
                 description = self._get_cpin_state_description(resname, state)
-                relation = ">" if ph > pka else "<" if ph < pka else "="
-                console.print(f"  {resname} (pKa {pka}): pH {ph} {relation} pKa → State {state} = {description} ({count} residues)")
+                if resname in REDOX_RESIDUE_EO:
+                    eo = REDOX_RESIDUE_EO[resname]
+                    if target_e is None:
+                        relation = "(no target E)"
+                    else:
+                        sign = ">" if target_e > eo else "<" if target_e < eo else "="
+                        relation = f"E {target_e:+.3f} {sign} Eo {eo:+.3f}"
+                    console.print(
+                        f"  {resname} (Eo {eo:+.3f} V): {relation} \u2192 "
+                        f"State {state} = {description} ({count} residues)")
+                else:
+                    pka = PH_RESIDUE_PKA.get(resname, "?")
+                    effective_ph = 7.0 if ph is None else ph
+                    relation = (">" if effective_ph > pka
+                                else "<" if effective_ph < pka else "=")
+                    console.print(
+                        f"  {resname} (pKa {pka}): pH {effective_ph} "
+                        f"{relation} pKa \u2192 State {state} = {description} "
+                        f"({count} residues)")
 
         return initial_states
 
     def _get_cpin_state_description(self, resname, state):
-        """Get human-readable description of a cpin state"""
+        """Get human-readable description of a cpin/cein/cpein state.
+
+        For pH residues the index selects a protonation state; for HEH it
+        selects an OXIDATION state (0 = Fe(III), 1 = Fe(II)), which is why the
+        two families are described together here rather than assuming protons.
+        """
         state_descriptions = {
             'ASP': {
                 0: "COO⁻ (deprotonated, -1)",
@@ -12040,6 +12684,21 @@ mol = loadpdb {microstate_info['filename']}"""
                 2: "COOH (protonated, neutral)",
                 3: "COOH (protonated, neutral)",
                 4: "COOH (protonated, neutral)",
+            },
+            # Redox states, not protonation states. Electron counts are
+            # ParmEd's: eleccnt=2 is the ferric form, eleccnt=3 the ferrous.
+            'HEH': {
+                0: "Fe³⁺ (oxidized, ferric)",
+                1: "Fe²⁺ (reduced, ferrous)",
+            },
+            # Both pH- and redox-active (ParmEd typ='phredox'); reachable
+            # only through cpeinutil. Four states, one per (proton, electron)
+            # combination -- protcnt/eleccnt from ParmEd's TYX table.
+            'TYX': {
+                0: "TyrOH (protonated, reduced)",
+                1: "TyrOH⁺• (protonated, oxidized radical cation)",
+                2: "TyrO⁻ (deprotonated, reduced)",
+                3: "TyrO• (deprotonated, oxidized radical)",
             },
         }
 
@@ -12221,44 +12880,53 @@ mol = loadpdb {microstate_info['filename']}"""
 
         return residues
 
-    def _scan_topology_for_titratable_residues(self, prmtop_file, rst7_file):
+    def _scan_topology_for_titratable_residues(self, prmtop_file, rst7_file,
+                                               mode_key=None):
         """
         Directly scan topology for titratable residues - no mapping needed!
 
         This is the simplest and most reliable approach: generate a PDB from the
         final topology and scan it directly for titratable residue types. The residue
-        numbers in the PDB are exactly what cpinutil expects.
+        numbers in the PDB are exactly what cpinutil/ceinutil/cpeinutil expect.
 
         Args:
             prmtop_file: Path to topology file (.prmtop)
             rst7_file: Path to coordinate file (.rst7)
+            mode_key: Titration mode to filter for ('ph'/'redox'/'phredox').
+                None scans for EVERY titratable residue name regardless of
+                mode, which is what the mode auto-detector wants: one cpptraj
+                run serves both detection and the per-mode selection that
+                follows.
 
         Returns:
-            List of dicts with 'resnum', 'resname', 'chain' for titratable residues,
-            or None if failed
+            List of dicts with 'resnum', 'resname', 'chain', plus 'pka' and/or
+            'eo' depending on what the residue titrates in, or None if failed
         """
         console = self.processor.console
         workspace = self.get_workspace()
 
-        # Titratable residue types supported by AMBER constant pH MD
-        # IMPORTANT: Only specific residue names are titratable in CpHMD!
-        # - HIP (not HIE/HID) - doubly protonated histidine
-        # - AS4 (not ASP) - titratable aspartate
-        # - GL4 (not GLU) - titratable glutamate
-        # - LYS, CYS, TYR, PRN are titratable with their standard names
-        # Standard pKa values from cpinutil.py --describe
-        titratable_info = {
-            'AS4': 4.0,   # Titratable aspartate (NOT ASP!)
-            'GL4': 4.4,   # Titratable glutamate (NOT GLU!)
-            'HIP': 6.6,   # Titratable histidine (NOT HIE/HID!)
-            'LYS': 10.4,  # Lysine
-            'CYS': 8.5,   # Cysteine (free thiol)
-            'TYR': 9.6,   # Tyrosine
-            'PRN': 4.8,   # Propionate (for heme groups)
-        }
-        titratable_types = set(titratable_info.keys())
+        # Titratable residue names, and what each one titrates in.
+        #
+        # pH side (cpinutil): only specific residue NAMES are titratable --
+        #   HIP (not HIE/HID), AS4 (not ASP), GL4 (not GLU); LYS/CYS/TYR/PRN
+        #   keep their standard names. pKa values from `cpinutil.py --describe`.
+        # Redox side (ceinutil): HEH only -- the bis-His c-type heme of
+        #   conste.lib. Eo in Volts from `ceinutil.py --describe`.
+        #
+        # A residue that appears in both tables (none today, but TYX is typed
+        # "phredox" upstream) is reported with both numbers.
+        mode = get_titration_mode(mode_key) if mode_key else None
+        if mode is None:
+            titratable_types = (set(PH_RESIDUE_PKA) | set(REDOX_RESIDUE_EO))
+        else:
+            titratable_types = set(mode.residue_names)
 
-        console.print("\n[grey50]Scanning topology for titratable residues...[/grey50]")
+        if mode is None:
+            console.print("\n[grey50]Scanning topology for titratable "
+                          "residues (pH and redox)...[/grey50]")
+        else:
+            console.print(f"\n[grey50]Scanning topology for {mode.label} "
+                          f"titratable residues...[/grey50]")
 
         # Generate PDB from topology using cpptraj
         import tempfile
@@ -12314,10 +12982,13 @@ quit
             # CLYS/CASP), so cpinutil cannot titrate them — including them
             # silently corrupts terminal-specific backbone charges. We detect
             # terminals here via the same H1/H2/H3 (N-term) / OXT (C-term)
-            # atom markers used by pb_titrate.sites._is_terminal. PRN
-            # (heme propionate) has no chain termini and is exempt.
+            # atom markers used by pb_titrate.sites._is_terminal. Cofactor
+            # residues have no chain termini at all and are exempt: PRN (heme
+            # propionate) and HEH (the whole conste heme construct, which owns
+            # side-chain fragments of two Cys and two His but no backbone).
             NTERM_MARKERS = {'H1', 'H2', 'H3'}
             CTERM_MARKERS = {'OXT'}
+            COFACTOR_NO_TERMINI = {'PRN', 'HEH'}
 
             # Optional cross-check: pb_titrate may have already flagged these
             # in its step 2 (workspace key 'pb_titrate_terminal_excluded').
@@ -12346,6 +13017,9 @@ quit
                     except ValueError:
                         continue
             pb_source = "PB Titrate" if normalized_pka else "cpinutil --describe"
+            # Redox residues have no pKa and no PB Titrate counterpart; their
+            # Eo comes from ceinutil's built-in table only.
+            eo_source = "ceinutil --describe"
 
             titratable_residues = []
             terminal_excluded = []
@@ -12354,10 +13028,10 @@ quit
                     continue
                 if res['resname'] not in titratable_types:
                     continue
-                # Skip terminals (PRN exempt — no backbone termini)
+                # Skip terminals (cofactors exempt — no backbone termini)
                 atom_names = res.get('atom_names') or set()
                 terminal_kind = None
-                if res['resname'] != 'PRN':
+                if res['resname'] not in COFACTOR_NO_TERMINI:
                     if atom_names & NTERM_MARKERS:
                         terminal_kind = 'N-terminal'
                     elif atom_names & CTERM_MARKERS:
@@ -12379,22 +13053,52 @@ quit
                                           & (NTERM_MARKERS | CTERM_MARKERS)),
                     })
                     continue
-                # pKa source: PB Titrate per-site if available, else cpinutil default
-                pka = (normalized_pka.get(rkey)
-                       if rkey is not None
-                       else None)
-                if pka is None:
-                    pka = titratable_info[res['resname']]
-                    src = "cpinutil --describe"
+                # Every titratable residue carries the numbers relevant to
+                # what it titrates in: a pKa if it is pH-active, an Eo (Volts)
+                # if it is redox-active, both if it is typed "phredox"
+                # upstream. `titr_type` is what the mode auto-detector and the
+                # display table branch on.
+                resname = res['resname']
+                is_ph = resname in PH_RESIDUE_PKA
+                is_redox = resname in REDOX_RESIDUE_EO
+                if is_ph and is_redox:
+                    titr_type = TITRATION_PHREDOX
+                elif is_redox:
+                    titr_type = TITRATION_REDOX
                 else:
-                    src = "PB Titrate"
-                titratable_residues.append({
+                    titr_type = TITRATION_PH
+
+                entry = {
                     'resnum': res['resnum'],
                     'chain': res['chain'],
-                    'resname': res['resname'],
-                    'pka': pka,
-                    'pka_source': src,
-                })
+                    'resname': resname,
+                    'titr_type': titr_type,
+                    'pka': None,
+                    'pka_source': None,
+                    'eo': None,
+                    'eo_source': None,
+                    'natoms': len(atom_names) if atom_names else None,
+                }
+
+                if is_ph:
+                    # pKa source: PB Titrate per-site if available, else the
+                    # cpinutil residue-type default.
+                    pka = (normalized_pka.get(rkey)
+                           if rkey is not None
+                           else None)
+                    if pka is None:
+                        pka = PH_RESIDUE_PKA[resname]
+                        src = "cpinutil --describe"
+                    else:
+                        src = "PB Titrate"
+                    entry['pka'] = pka
+                    entry['pka_source'] = src
+
+                if is_redox:
+                    entry['eo'] = REDOX_RESIDUE_EO[resname]
+                    entry['eo_source'] = eo_source
+
+                titratable_residues.append(entry)
 
             # Clean up
             os.unlink(topo_pdb_path)
@@ -12421,19 +13125,36 @@ quit
                         f"({e['kind']}; detected via {markers})")
 
             # Report pKa source so users know what they're looking at
+            n_ph = sum(1 for r in titratable_residues
+                       if r.get('pka') is not None)
             n_pbt = sum(1 for r in titratable_residues
                          if r.get('pka_source') == "PB Titrate")
-            if n_pbt > 0:
+            if n_ph:
+                if n_pbt > 0:
+                    console.print(
+                        f"[grey50]  pKa values: {n_pbt} from PB Titrate (computed "
+                        f"for this structure), "
+                        f"{n_ph - n_pbt} from cpinutil "
+                        f"--describe (residue-type defaults)[/grey50]")
+                else:
+                    console.print(
+                        f"[grey50]  pKa values: all from cpinutil --describe "
+                        f"(residue-type defaults; run PB Titrate to get "
+                        f"per-site values for this structure)[/grey50]")
+
+            n_redox = sum(1 for r in titratable_residues
+                          if r.get('eo') is not None)
+            if n_redox:
                 console.print(
-                    f"[grey50]  pKa values: {n_pbt} from PB Titrate (computed "
-                    f"for this structure), "
-                    f"{len(titratable_residues) - n_pbt} from cpinutil "
-                    f"--describe (residue-type defaults)[/grey50]")
-            else:
-                console.print(
-                    f"[grey50]  pKa values: all from cpinutil --describe "
-                    f"(residue-type defaults; run PB Titrate to get "
-                    f"per-site values for this structure)[/grey50]")
+                    f"[grey50]  Eo values: all {n_redox} from ceinutil "
+                    f"--describe (residue-type defaults; ProPrep has no "
+                    f"per-site Eo refinement)[/grey50]")
+
+            # Redox residues are whole cofactor constructs whose atom count
+            # must match ParmEd's definition exactly or the utility drops them
+            # without comment. Check now, while we can still name the culprit.
+            self._warn_on_titratable_atom_count_mismatch(
+                prmtop_file, titratable_residues)
 
             return titratable_residues
 
@@ -12447,6 +13168,144 @@ quit
             console.print(f"[red]ERROR scanning topology: {e}[/red]")
             logger.exception("Topology scan error:")
             return None
+
+    def _warn_on_titratable_atom_count_mismatch(self, prmtop_file, residues):
+        """Flag residues the titration utility will silently drop.
+
+        cpinutil/ceinutil/cpeinutil all filter chain termini the same crude
+        way: compare the topology residue's atom count against
+        ``len(res.atom_list)`` in ParmEd's definition and ``continue`` on any
+        mismatch (ceinutil.py:236). No message, no non-zero exit.
+
+        For protein residues that is the intent -- a terminal AS4 really is a
+        different residue. For a cofactor construct it is a trap. HEH is one
+        87-atom residue spanning the porphyrin plus side-chain fragments of two
+        Cys and two His; if ProPrep's build differs by a single atom, the heme
+        is dropped from the selection.
+
+        What that costs depends on how many survive (verified against ParmEd
+        4.3.1):
+
+          - Some survive: the file is written and the utility exits 0. Worse,
+            ``TitratableResidueList.set_states`` sees a ``-states`` list whose
+            length no longer matches the residue count, emits a Python-level
+            AmberWarning on stderr, and **discards every initial state**,
+            falling back to defaults.
+          - None survive: ``write_cpin`` raises ValueError from
+            ``max()`` over an empty sequence, so the run at least fails loudly.
+
+        The quiet partial case is the one worth catching, hence this check.
+        Uses the utility's own arithmetic so the verdict matches. Only loads the
+        topology when a construct residue is actually present, since AmberParm
+        on a solvated system is not free.
+        """
+        console = self.processor.console
+        if not residues:
+            return
+
+        # Residues where a count mismatch means silent data loss rather than
+        # deliberate terminus filtering.
+        construct_names = set(REDOX_RESIDUE_EO) | {'PRN'}
+        if not any(r.get('resname') in construct_names for r in residues):
+            return
+
+        try:
+            parm = pmd.amber.AmberParm(prmtop_file)
+            nres = parm.ptr('nres')
+            natom = parm.ptr('natom')
+            pointers = parm.parm_data['RESIDUE_POINTER']
+        except Exception as exc:  # noqa: BLE001 - advisory check only
+            logger.debug("Atom-count cross-check skipped: %s", exc)
+            return
+
+        mismatches = []
+        for res in residues:
+            resname = res.get('resname')
+            expected = parmed_titratable_atom_count(resname)
+            if expected is None:
+                continue
+            try:
+                resnum = int(res.get('resnum'))
+            except (TypeError, ValueError):
+                continue
+            if resnum < 1 or resnum > nres:
+                continue
+            # Exactly the arithmetic in cpinutil/ceinutil/cpeinutil.
+            if resnum == nres:
+                actual = natom + 1 - pointers[resnum - 1]
+            else:
+                actual = pointers[resnum] - pointers[resnum - 1]
+            res['natoms'] = actual
+            if actual != expected:
+                mismatches.append((resname, resnum, actual, expected))
+
+        if not mismatches:
+            return
+
+        console.print(
+            f"\n[red]⚠ {len(mismatches)} residue(s) will be SILENTLY SKIPPED "
+            f"by the titration utility[/red]")
+        console.print(
+            "[grey50]  The utility filters termini by atom count and drops any "
+            "residue whose count\n"
+            "  differs from ParmEd's definition — without an error or a "
+            "non-zero exit status.[/grey50]")
+        for resname, resnum, actual, expected in mismatches:
+            console.print(
+                f"  [red]{resname}-{resnum}[/red]: topology has {actual} atoms, "
+                f"ParmEd's {resname} expects {expected}")
+        console.print(
+            "[yellow]  Fix the library/build before generating, or these "
+            "residues will not titrate.[/yellow]")
+
+    def _validate_mode_constraints(self, mode, sim_type, igb, intdiel,
+                                   companion_writes_prmtop=False):
+        """Check igb/intdiel against the reference energies that actually exist.
+
+        The utilities validate their arguments loosely -- ceinutil accepts any
+        of igb 1/2/5/7/8 and intdiel 1/2 -- but the reference energies are
+        per-residue data, and HEH's are sparser than that. Selecting a
+        combination with no energies yields a file full of ``None`` rather than
+        an error, so refuse it here where the reason can be explained.
+
+        Returns (ok, list_of_messages).
+        """
+        problems = []
+
+        if igb is not None:
+            allowed = mode.allowed_igb(sim_type)
+            if igb not in allowed:
+                problems.append(
+                    f"igb={igb} has no {mode.label} reference energies for "
+                    f"{sim_type} solvent. Available: "
+                    f"{', '.join(str(v) for v in sorted(allowed))}."
+                )
+
+        if intdiel is not None:
+            if float(intdiel) not in mode.allowed_intdiel:
+                allowed_str = ', '.join(
+                    f"{v:g}" for v in sorted(mode.allowed_intdiel))
+                extra = ""
+                if mode.titrates_redox and float(intdiel) == 2.0:
+                    extra = (" HEH registers its dielc2 energies with no "
+                             "arguments, so every intdiel=2 value is None.")
+                problems.append(
+                    f"intdiel={intdiel:g} is not supported for {mode.label}. "
+                    f"Available: {allowed_str}.{extra}"
+                )
+
+        # ceinutil has no -op. That is only a problem when nothing else in
+        # this run writes the radii-corrected topology: in a cpin+cein run
+        # cpinutil writes it and both files share it, exactly as tutorial 33
+        # uses one mp8_es.new.prmtop for the whole simulation. For a
+        # redox-only explicit run ProPrep writes it with ParmEd instead, so
+        # this is informational rather than blocking either way.
+        if (sim_type == 'explicit' and not mode.supports_output_prmtop
+                and not companion_writes_prmtop):
+            logger.debug("%s has no -op; ProPrep will write the "
+                         "radii-corrected prmtop with ParmEd", mode.utility)
+
+        return (not problems), problems
 
     def _create_residue_number_mapping(self, tleap_info):
         """
@@ -12629,203 +13488,305 @@ quit
             logger.exception("Residue mapping error:")
             return None
 
-    def _run_cpinutil(self, prmtop_file, tleap_input_file, tleap_info, sim_type, igb, intdiel, selected_residues, initial_states, step):
-        """Run cpinutil to generate cpin file"""
+    def _write_radii_modified_prmtop(self, prmtop_file, out_path):
+        """Write the radii-corrected topology explicit-solvent titration needs.
+
+        `cpinutil.py -op` does exactly two things to the parm before writing
+        it: ``changeRadii(parm, 'mbondi2')`` then ``change(parm, 'RADII',
+        ':AS4,GL4,PRN@OD=,OE=,O1=,O2=', 1.3)``. Explicit-solvent CpHMD needs
+        that because the MC protonation step evaluates a GB energy, and the
+        default carboxylate radii give the wrong pKa.
+
+        ceinutil.py imports both actions and then never calls them -- it has no
+        -op flag at all. Rather than refuse explicit-solvent constant-redox
+        runs, reproduce the same two actions here through ParmEd. The heme
+        propionate PRN is already in cpinutil's mask, so a heme system gets the
+        identical treatment it would have got from cpinutil.
+
+        Returns True on success.
+        """
+        console = self.processor.console
+        try:
+            from parmed.tools.actions import changeRadii, change
+            parm = pmd.amber.AmberParm(prmtop_file)
+            changeRadii(parm, 'mbondi2').execute()
+            change(parm, 'RADII', ':AS4,GL4,PRN@OD=,OE=,O1=,O2=', 1.3).execute()
+            parm.overwrite = True
+            parm.write_parm(out_path)
+            return True
+        except Exception as exc:  # noqa: BLE001 - reported to the user
+            console.print(f"[red]Could not write radii-modified prmtop: "
+                          f"{exc}[/red]")
+            logger.exception("Radii modification failed:")
+            return False
+
+    def _run_titration_util(self, prmtop_file, sim_type, igb, intdiel,
+                            selected_residues, initial_states, step,
+                            mode_key=None, write_modified_prmtop=None,
+                            output_name=None, system_name=None):
+        """Run cpinutil/ceinutil/cpeinutil to generate ONE titration file.
+
+        One implementation for all three: the utility name, output extension,
+        range flags and -op capability come from the mode descriptor, so the
+        flow cannot drift between pH and redox.
+
+        The caller owns the workspace record and the closing summary, because a
+        combined run calls this once per file and the summary describes the
+        set. Results are handed back through the `_last_titration_file`,
+        `_last_modified_prmtop` and `_titration_details` scratch keys.
+        """
         console = self.processor.console
         workspace = self.get_workspace()
+        mode = get_titration_mode(mode_key)
 
-        console.print(f"\n[bold]Step {step}: Generate CPIN File[/bold]")
-        
-        # Get output filename
-        default_cpin = os.path.splitext(os.path.basename(prmtop_file))[0] + ".cpin"
-        output_cpin = prompt_with_context(
-            processor=self.processor,
-            prompt="Output filename",
-            default=default_cpin,
-            module="Topology Generator - CPIN",
-            description="Output cpin filename"
-        )
-        
-        # Get system name
-        system_name = prompt_with_context(
-            processor=self.processor,
-            prompt="System name (for documentation)",
-            default="system",
-            module="Topology Generator - CPIN",
-            description="System name"
-        )
-        
-        # Make output path absolute
+        console.print(f"\n[bold]Step {step}: Generate {mode.file_ext.upper()} "
+                      f"File[/bold]")
+
+        default_out = (os.path.splitext(os.path.basename(prmtop_file))[0]
+                       + "." + mode.file_ext)
+        if output_name is None:
+            output_name = prompt_with_context(
+                processor=self.processor,
+                prompt=f"Output {mode.file_ext} filename",
+                default=default_out,
+                module="Topology Generator - Titration",
+                description=f"Output {mode.file_ext} filename"
+            )
+
+        if system_name is None:
+            system_name = prompt_with_context(
+                processor=self.processor,
+                prompt="System name (for documentation)",
+                default="system",
+                module="Topology Generator - Titration",
+                description="System name"
+            )
+
         output_dir = workspace.get("output_dir", ".")
-        output_cpin_path = os.path.join(output_dir, output_cpin)
+        output_path = os.path.join(output_dir, output_name)
 
-        # NOTE: No mapping needed! Residues were scanned directly from the topology,
-        # so their residue numbers are exactly what cpinutil expects.
-        console.print(f"[grey50]Using {len(selected_residues)} residues with topology numbering[/grey50]")
+        # NOTE: No mapping needed. Residues were scanned directly from the
+        # topology, so their numbers are exactly what the utility expects.
+        console.print(f"[grey50]Using {len(selected_residues)} residues with "
+                      f"topology numbering[/grey50]")
 
-        # Build cpinutil command
-        cmd = ["cpinutil.py", "-p", prmtop_file]
-        
+        cmd = [mode.utility, "-p", prmtop_file]
+
+        if write_modified_prmtop is None:
+            write_modified_prmtop = (sim_type == 'explicit')
+
+        modified_prmtop = None
+        needs_manual_radii = False
         if sim_type == 'implicit':
             cmd.extend(["-igb", str(igb)])
             cmd.extend(["-intdiel", str(intdiel)])
-        else:
-            # Explicit solvent - generate modified prmtop
+        elif write_modified_prmtop:
             modified_prmtop = os.path.splitext(prmtop_file)[0] + "_cpin.prmtop"
-            cmd.extend(["-op", modified_prmtop])
-        
-        cmd.extend(["-o", output_cpin_path])
+            if mode.supports_output_prmtop:
+                cmd.extend(["-op", modified_prmtop])
+            else:
+                # ceinutil has no -op; write it ourselves after the run.
+                needs_manual_radii = True
+
+        cmd.extend(["-o", output_path])
         cmd.extend(["-system", system_name])
-        
-        # Add residue selection if not all
+
         if selected_residues:
             resnums = [str(r['resnum']) for r in selected_residues]
             cmd.extend(["-resnums"] + resnums)
-        
-        # Add initial states if provided
+
+        # -states is positional: the Nth value applies to the Nth residue the
+        # utility adds, which is the order of -resnums above, so both lists are
+        # built from selected_residues.
         if initial_states:
-            states = [str(initial_states.get(r['resnum'], 0)) for r in selected_residues]
+            states = [str(initial_states.get(r['resnum'], 0))
+                      for r in selected_residues]
             cmd.extend(["-states"] + states)
-        
-        # Display command
-        console.print("\n[bold]Generating cpin file...[/bold]")
+
+        console.print(f"\n[bold]Generating {mode.file_ext} file...[/bold]")
         console.print(f"[grey50]Running: {' '.join(cmd)}[/grey50]\n")
-        
-        # Run cpinutil
+
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-            
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    timeout=300)
+
             if result.returncode != 0:
-                console.print(f"[red]Error running cpinutil:[/red]")
+                console.print(f"[red]Error running {mode.utility}:[/red]")
                 console.print(result.stderr)
                 return False
-            
-            console.print("[green]✓ Generated:[/green] " + output_cpin)
 
-            if sim_type == 'explicit':
-                console.print("[green]✓ Generated modified prmtop:[/green] " + os.path.basename(modified_prmtop))
+            console.print("[green]✓ Generated:[/green] " + output_name)
 
-            # Save command to a script for reproducibility
-            script_name = os.path.splitext(output_cpin)[0] + "_generate.sh"
-            script_path = os.path.join(output_dir, script_name)
-            try:
-                with open(script_path, 'w') as f:
-                    f.write("#!/bin/bash\n")
-                    f.write("# Auto-generated script to regenerate cpin file\n")
-                    f.write(f"# Generated by ProPrep on {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write("#\n")
-                    f.write("# Usage: bash " + script_name + "\n")
-                    f.write("# Edit residue numbers or states below as needed\n\n")
+            # A residue that fails the utility's atom-count terminus filter is
+            # dropped without a message, and the run still exits 0. When that
+            # happens the -states list no longer matches the residue count, so
+            # ParmEd warns on stderr and silently reverts EVERY residue to its
+            # default state. Compare what was asked for against what landed.
+            n_written = self._count_titration_file_residues(output_path)
+            if n_written == 0:
+                console.print(
+                    f"[red]✗ {output_name} contains NO titratable "
+                    f"residues.[/red]")
+                console.print(
+                    f"[grey50]  Every selected residue failed {mode.utility}'s "
+                    f"atom-count check. Running this would titrate "
+                    f"nothing.[/grey50]")
+                return False
+            if n_written is not None and n_written < len(selected_residues):
+                console.print(
+                    f"[yellow]⚠ Selected {len(selected_residues)} residues but "
+                    f"only {n_written} reached the file — the rest failed "
+                    f"{mode.utility}'s atom-count filter.[/yellow]")
+                if initial_states:
+                    console.print(
+                        "[red]  Your initial states were therefore DISCARDED: "
+                        "the -states list no longer matches the\n"
+                        "  residue count, so every residue reverted to its "
+                        "default state.[/red]")
 
-                    # Write the command with line continuation for readability
-                    # Format: one flag per line for long lists (resnums, states)
-                    formatted_cmd = []
-                    i = 0
-                    while i < len(cmd):
-                        part = cmd[i]
-                        # Handle flags that take multiple arguments (resnums, states)
-                        if part in ['-resnums', '-states'] and i + 1 < len(cmd):
-                            # Start the flag on its own line
-                            formatted_cmd.append(f"  {part}")
-                            i += 1
-                            # Collect all numeric arguments following this flag
-                            args = []
-                            while i < len(cmd) and not cmd[i].startswith('-'):
-                                args.append(cmd[i])
-                                i += 1
-                            # Format args: 10 per line for readability
-                            for j in range(0, len(args), 10):
-                                chunk = ' '.join(args[j:j+10])
-                                if j > 0:
-                                    formatted_cmd.append(f"    {chunk}")
-                                else:
-                                    formatted_cmd.append(f" {chunk}")
-                        else:
-                            # Regular flag or value
-                            formatted_cmd.append(f"  {part}")
-                            i += 1
+            # Surface the utility's own stderr warnings; they are the only
+            # notice of a silently-dropped residue or a discarded state list.
+            for line in (result.stderr or "").splitlines():
+                if 'warn' in line.lower():
+                    console.print(f"[yellow]  {mode.utility}: "
+                                  f"{line.strip()}[/yellow]")
 
-                    # Write with backslash line continuations
-                    f.write("cpinutil.py \\\n")
-                    f.write(" \\\n".join(formatted_cmd[1:]))  # Skip 'cpinutil.py' since we wrote it above
-                    f.write('\n')
-
-                # Make script executable
-                import stat
-                os.chmod(script_path, os.stat(script_path).st_mode | stat.S_IEXEC)
-
-                console.print(f"[green]✓ Saved command script:[/green] {script_name}")
-            except Exception as e:
-                console.print(f"[yellow]⚠ Could not save script file: {e}[/yellow]")
-
-            # Display summary
-            console.print(f"\n[bold]Summary:[/bold]")
-            console.print(f"  - {len(selected_residues)} titratable residues included")
-            if initial_states:
-                console.print(f"  - Initial states set from protonation analysis")
-            if sim_type == 'implicit':
-                console.print(f"  - Compatible with implicit solvent (igb={igb})")
-            else:
-                console.print(f"  - Compatible with explicit solvent")
-            
-            console.print(f"\n[bold blue]Next steps:[/bold blue]")
-            console.print(
-                f"  Run MD via [bold]MD Manager → Setup and configure simulations[/bold], "
-                f"then pick a predefined protocol.")
-            console.print(
-                f"  ProPrep detects this CPIN and offers to enable constant pH MD on the "
-                f"production")
-            console.print(
-                f"  steps for you — it sets icnstph/solvph and the "
-                f"[bold]-cpin -cpout -cprestrt[/bold] flags automatically"
-                + (" (and uses the modified prmtop)." if sim_type == 'explicit' else "."))
-            console.print(
-                f"  [grey50]Manual route: run {output_cpin} with sander/pmemd, set icnstph=1 "
-                f"and solvph=X.X in your mdin"
-                + (", and use the modified prmtop." if sim_type == 'explicit' else ".")
-                + "[/grey50]")
-            
-            # Save to workspace automatically
-            cpin_config = {
-                'cpin_file': output_cpin_path,
-                'prmtop_file': prmtop_file,
-                'simulation_type': sim_type,
-                'igb': igb if sim_type == 'implicit' else None,
-                'intdiel': intdiel,
-                'num_residues': len(selected_residues),
-                'system_name': system_name,
-                'selected_residues': selected_residues,
-                'initial_states': initial_states
-            }
-
-            if sim_type == 'explicit':
-                cpin_config['modified_prmtop'] = modified_prmtop
-                # Swap the raw constph prmtop in md_structure_pairs to the
-                # cpin-modified one — that's the production CpHMD topology
-                # the MD manager should hand to pmemd/sander, not the
-                # pre-cpinutil input.
-                if self._swap_md_pair_to_cpin_prmtop(prmtop_file, modified_prmtop):
+            if modified_prmtop:
+                if needs_manual_radii:
+                    console.print(
+                        f"[grey50]{mode.utility} has no -op flag; writing the "
+                        f"radii-corrected topology with ParmEd "
+                        f"instead...[/grey50]")
+                    if not self._write_radii_modified_prmtop(prmtop_file,
+                                                             modified_prmtop):
+                        return False
+                console.print("[green]✓ Generated modified prmtop:[/green] "
+                              + os.path.basename(modified_prmtop))
+                workspace.set("_last_modified_prmtop", modified_prmtop)
+                if self._swap_md_pair_to_cpin_prmtop(prmtop_file,
+                                                     modified_prmtop):
                     console.print(
                         f"[grey50]  Updated md_structure_pairs: "
                         f"{os.path.basename(prmtop_file)} → "
                         f"{os.path.basename(modified_prmtop)}[/grey50]")
 
-            self.update_workspace("cpin_config", cpin_config)
-            self.update_workspace("cpin_file", output_cpin_path)  # For menu status tracking
-            console.print("[green]✓ Saved cpin settings to workspace[/green]")
-            
+            self._write_titration_regen_script(
+                cmd, mode, output_name, output_dir, prmtop_file,
+                modified_prmtop if needs_manual_radii else None)
+
+            console.print(f"  [grey50]{len(selected_residues)} residues"
+                          + (", initial states set" if initial_states else "")
+                          + f", {mode.label}[/grey50]")
+
+            workspace.set("_last_titration_file", output_path)
+            details = workspace.get("_titration_details") or {}
+            details[mode.key] = {
+                'file': output_path,
+                'num_residues': len(selected_residues),
+                'system_name': system_name,
+                'selected_residues': selected_residues,
+                'initial_states': initial_states,
+            }
+            workspace.set("_titration_details", details)
             return True
-            
+
         except subprocess.TimeoutExpired:
-            console.print("[red]Error: cpinutil timed out after 5 minutes[/red]")
+            console.print(f"[red]Error: {mode.utility} timed out after 5 "
+                          f"minutes[/red]")
             return False
         except FileNotFoundError:
-            console.print("[red]Error: cpinutil.py not found in PATH[/red]")
+            console.print(f"[red]Error: {mode.utility} not found in PATH[/red]")
             console.print("Make sure AmberTools is installed and in your PATH")
             return False
         except Exception as e:
-            console.print(f"[red]Error running cpinutil: {e}[/red]")
+            console.print(f"[red]Error running {mode.utility}: {e}[/red]")
             return False
+
+    def _write_titration_regen_script(self, cmd, mode, output_name, output_dir,
+                                      prmtop_file, manual_radii_prmtop=None):
+        """Save the exact command to a shell script for reproducibility."""
+        console = self.processor.console
+        # Include the extension: a combined run writes sys.cpin and sys.cein,
+        # and stripping it would make both scripts sys_generate.sh, with the
+        # second silently overwriting the first.
+        script_name = (os.path.splitext(output_name)[0]
+                       + f"_{mode.file_ext}_generate.sh")
+        script_path = os.path.join(output_dir, script_name)
+        try:
+            with open(script_path, 'w') as f:
+                f.write("#!/bin/bash\n")
+                f.write(f"# Auto-generated script to regenerate the "
+                        f"{mode.file_ext} file\n")
+                f.write(f"# Generated by ProPrep on "
+                        f"{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("#\n")
+                f.write("# Usage: bash " + script_name + "\n")
+                f.write("# Edit residue numbers or states below as needed\n\n")
+
+                # One flag per line, with long lists (resnums, states) wrapped.
+                formatted_cmd = []
+                i = 0
+                while i < len(cmd):
+                    part = cmd[i]
+                    if part in ['-resnums', '-states'] and i + 1 < len(cmd):
+                        formatted_cmd.append(f"  {part}")
+                        i += 1
+                        args = []
+                        while i < len(cmd) and not cmd[i].startswith('-'):
+                            args.append(cmd[i])
+                            i += 1
+                        for j in range(0, len(args), 10):
+                            chunk = ' '.join(args[j:j+10])
+                            formatted_cmd.append(
+                                f"    {chunk}" if j > 0 else f" {chunk}")
+                    else:
+                        formatted_cmd.append(f"  {part}")
+                        i += 1
+
+                f.write(f"{mode.utility} \\\n")
+                f.write(" \\\n".join(formatted_cmd[1:]))  # skip argv[0]
+                f.write('\n')
+
+                if manual_radii_prmtop:
+                    f.write("\n# " + "-" * 68 + "\n")
+                    f.write(f"# {mode.utility} cannot write the "
+                            f"radii-corrected topology explicit solvent\n"
+                            f"# needs, so ProPrep did it with ParmEd. "
+                            f"Equivalent parmed input:\n")
+                    f.write("#\n")
+                    f.write(f"#   parmed -p {os.path.basename(prmtop_file)}\n")
+                    f.write("#     changeRadii mbondi2\n")
+                    f.write("#     change RADII :AS4,GL4,PRN@OD=,OE=,O1=,O2= 1.3\n")
+                    f.write(f"#     outparm {os.path.basename(manual_radii_prmtop)}\n")
+
+            import stat
+            os.chmod(script_path, os.stat(script_path).st_mode | stat.S_IEXEC)
+            console.print(f"[green]✓ Saved command script:[/green] {script_name}")
+        except Exception as e:
+            console.print(f"[yellow]⚠ Could not save script file: {e}[/yellow]")
+
+    def _count_titration_file_residues(self, path):
+        """Count the residues a generated cpin/cein/cpein actually declares.
+
+        The file is a Fortran namelist; ParmEd writes the residue count as
+        ``TRESCNT=N,`` (and again as ``ntres=N`` in the &CNSTPHE_LIMITS block).
+        Returns None if the file cannot be read or the count is absent, so
+        callers treat the check as unavailable rather than as a zero.
+        """
+        try:
+            with open(path, 'r') as f:
+                content = f.read()
+        except OSError:
+            return None
+        import re as _re
+        for pattern in (r'TRESCNT\s*=\s*(\d+)', r'\bntres\s*=\s*(\d+)'):
+            m = _re.search(pattern, content, _re.IGNORECASE)
+            if m:
+                return int(m.group(1))
+        # No count field: fall back to counting the per-residue labels ParmEd
+        # writes into RESNAME ("'Residue: HEH 1',").
+        labels = _re.findall(r"'Residue:\s+\S+\s+\d+'", content)
+        return len(labels) if labels else None
 
     def _get_all_titratable_residues_from_prmtop(self):
         """Fallback: Get all titratable residues when no protonation data available"""

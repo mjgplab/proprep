@@ -26,8 +26,8 @@ contact:
     given-names: "Matthew J."
     email: mjgp@nmsu.edu
     orcid: "https://orcid.org/0000-0002-1143-0693"
-version: 1.16.0
-date-released: 2026-08-19
+version: 1.17.0
+date-released: 2026-08-31
 license: MIT
 repository-code: "https://github.com/mjgplab/proprep"
 url: "https://anaconda.org/mjgplab/proprep"

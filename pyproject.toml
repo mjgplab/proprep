@@ -1,6 +1,6 @@
 [project]
 name = "proprep"
-version = "1.16.0"
+version = "1.17.0"
 description = "Protein Preparation Assistant - A modular workflow manager for processing PDB structures for MD simulations."
 authors = [
     { name="Matthew J. Guberman-Pfeffer", email="mjgp@nmsu.edu" },
@@ -76,6 +76,7 @@ package-dir = {"" = "src"}
 proprep = "proprep.main:main"
 mpsa = "proprep.main:main"
 proprep-web = "proprep.web.__main__:main"
+proprep-library = "proprep.utils.user_library_snapshots:main"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"

@@ -5044,19 +5044,31 @@ class StructureCompletenessModule(ProcessingModule):
                                         break
                                 break
 
-                        # Display options
+                        # Display options. With the live viewer open, print each
+                        # alternate's viewer colour beside its occupancy so the
+                        # red/blue on screen can be read against the numbers.
                         self.console.print(f"[bold]Chain {chain_id}, {res_name} {res_num}:[/bold]")
                         sorted_altlocs = sorted(altlocs)
+                        avg_occs: Dict[str, str] = {}
                         for i, altloc in enumerate(sorted_altlocs, 1):
                             avg_occ = "?"
                             if altloc in occupancies and occupancies[altloc]:
                                 avg_occ = f"{sum(occupancies[altloc]) / len(occupancies[altloc]):.2f}"
-                            self.console.print(f"  {i}. Alternate {altloc} (occupancy: {avg_occ})")
+                            avg_occs[altloc] = avg_occ
+                            if altloc_viewer is not None:
+                                hex_color, color_name = self._altloc_color(altloc, i - 1)
+                                self.console.print(
+                                    f"  {i}. Alternate {altloc} (occupancy: {avg_occ})  "
+                                    f"[{hex_color}]■ {color_name} in viewer[/{hex_color}]"
+                                )
+                            else:
+                                self.console.print(f"  {i}. Alternate {altloc} (occupancy: {avg_occ})")
 
                         # Refocus the viewer on the current residue before prompting.
                         if altloc_viewer is not None:
                             self._focus_altloc_viewer(
-                                altloc_viewer, chain_id, res_name, res_num, sorted_altlocs
+                                altloc_viewer, chain_id, res_name, res_num, sorted_altlocs,
+                                occupancies=avg_occs,
                             )
 
                         # Prompt for selection
@@ -5152,18 +5164,27 @@ class StructureCompletenessModule(ProcessingModule):
     # ALT-LOC LIVE VIEWER (best-effort)
     # ========================================================================
 
-    # Per-altloc colors used in the 3D viewer. Same letters are used in the
-    # picker prompt ("Alternate A", "Alternate B", ...) so the visual mapping
-    # stays consistent across residues.
+    # Per-altloc colors used in the 3D viewer, with the name the prompt prints
+    # next to each alternate so the user can tell which occupancy is which.
     _ALTLOC_PALETTE = {
-        "A": "#e74c3c",  # red
-        "B": "#3498db",  # blue
-        "C": "#2ecc71",  # green
-        "D": "#f39c12",  # orange
-        "E": "#9b59b6",  # purple
-        "F": "#1abc9c",  # teal
+        "A": ("#e74c3c", "red"),
+        "B": ("#3498db", "blue"),
+        "C": ("#2ecc71", "green"),
+        "D": ("#f39c12", "orange"),
+        "E": ("#9b59b6", "purple"),
+        "F": ("#1abc9c", "teal"),
     }
-    _ALTLOC_FALLBACK_PALETTE = ["#e67e22", "#34495e", "#c0392b", "#16a085"]
+    _ALTLOC_FALLBACK_PALETTE = [
+        ("#e67e22", "dark orange"), ("#34495e", "slate"),
+        ("#c0392b", "dark red"), ("#16a085", "sea green"),
+    ]
+
+    def _altloc_color(self, alt: str, index: int) -> Tuple[str, str]:
+        """(hex, name) for an altloc letter; letters beyond F cycle the fallback palette."""
+        return self._ALTLOC_PALETTE.get(
+            alt.upper(),
+            self._ALTLOC_FALLBACK_PALETTE[index % len(self._ALTLOC_FALLBACK_PALETTE)],
+        )
     # Radius (Å) of the environment shell drawn around each alt-loc residue.
     _ALTLOC_ENV_DISTANCE = 5.0
 
@@ -5265,6 +5286,7 @@ class StructureCompletenessModule(ProcessingModule):
         res_name: str,
         res_num: int,
         sorted_altlocs: List[str],
+        occupancies: Optional[Dict[str, str]] = None,
     ) -> None:
         """Refocus the coordinator viewer on a single residue's altlocs.
 
@@ -5294,15 +5316,14 @@ class StructureCompletenessModule(ProcessingModule):
                 label="altloc_scaffold", focused=True,
             )
             for i, alt in enumerate(sorted_altlocs):
-                color = self._ALTLOC_PALETTE.get(
-                    alt.upper(),
-                    self._ALTLOC_FALLBACK_PALETTE[i % len(self._ALTLOC_FALLBACK_PALETTE)],
-                )
+                color, color_name = self._altloc_color(alt, i)
                 label = f"altloc_{alt}"
                 new_labels.append(label)
+                occ = (occupancies or {}).get(alt)
+                display = f"Alt {alt} ({color_name})" + (f", occ {occ}" if occ else "")
                 _viewer.highlight(
                     f"{base} and %{alt}", style="ball+stick",
-                    color=color, label=label,
+                    color=color, label=label, display_label=display,
                 )
 
             # Draw the surrounding environment shell, if requested. Added after

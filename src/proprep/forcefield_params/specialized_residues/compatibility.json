@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-28T16:17:17",
-  "set_count": 51,
+  "generated_at": "2026-08-23T18:00:22",
+  "set_count": 76,
   "detailed": false,
   "set_ids": [
     "flavin/fad:hydroquinone_anionic:default:Guberman_FAH_RESP",
@@ -14,18 +14,36 @@
     "flavin/fmn:oxidized:default:Guberman_FMN_RESP",
     "flavin/fmn:semiquinone_anionic:default:Guberman_FMR_RESP",
     "flavin/fmn:semiquinone_neutral:default:Guberman_FMS_RESP",
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP",
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP",
-    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP",
-    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP",
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5",
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal",
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc",
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc",
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5",
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal",
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc",
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc",
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_CM5",
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_RESP",
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_CM5",
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_RESP",
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP_FixedpH",
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP_constpH",
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HEH_RESP_constE_FixedpH",
+    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HEH_RESP_constE_constpH",
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP_FixedpH",
+    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP_constpH",
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH",
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH",
+    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP_FixedpH",
+    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP_constpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_FixedpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_constpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FixedpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_constpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_FixedpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_constpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_FixedpH",
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_constpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal_FixedpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal_constpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FixedpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_constpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc_FixedpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc_constpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc_FixedpH",
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc_constpH",
     "iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP",
     "iron_sulfur/4fe4s:oxidized:FO1:Guberman_FO1_RESP",
     "iron_sulfur/4fe4s:oxidized:FO2:Guberman_FO2_RESP",
@@ -44,6 +62,12 @@
     "iron_sulfur/4fe4s:reduced_hipip:FR1:Guberman_FR1_RESP",
     "iron_sulfur/4fe4s:reduced_hipip:FR2:Guberman_FR2_RESP",
     "iron_sulfur/4fe4s:reduced_hipip:FR3:Guberman_FR3_RESP",
+    "metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated",
+    "metal_sites/4uhx_moco:oxidized:singlet:mcpb_generated",
+    "metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated",
+    "metal_sites/DiMn_Baloxavir:default:high:mcpb_generated",
+    "metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated",
+    "metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated",
     "nicotinamide/nad:oxidized:default:Guberman_NAD_RESP",
     "nicotinamide/nad:reduced:default:Guberman_NDH_RESP",
     "nicotinamide/nadp:oxidized:default:Guberman_NAP_RESP",
@@ -54,491 +78,583 @@
     "pterin/biopterin:n5_radical:default:Guberman_H3R_RESP",
     "pterin/biopterin:quinonoid_dihydro:default:Guberman_H2Q_RESP",
     "pterin/biopterin:tetrahydro:default:Guberman_H4B_RESP",
+    "small_molecules/4uhx_fad:single_state:default:user_4uhx_fad",
     "zinc/cys4:single_state:default:Guberman_ZNC_RESP"
   ],
   "parse_errors": [],
   "conflicts": {
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5": {
+    "flavin/fad:oxidized:default:Guberman_FAD_RESP|small_molecules/4uhx_fad:single_state:default:user_4uhx_fad": {
+      "shared_types": [
+        "c3",
+        "h1",
+        "ho",
+        "oh"
+      ],
+      "entry_count": 43,
+      "entries_by_section": {
+        "LIB": 43
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_CM5|metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "M1",
+        "N",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 22,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 6
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_CM5|metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M1",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
         "O",
-        "OH",
-        "S"
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_CM5|metal_sites/DiMn_Baloxavir:default:high:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_CM5|metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_CM5|metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_RESP|metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "M1",
+        "N",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 22,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 6
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_RESP|metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_RESP|metal_sites/DiMn_Baloxavir:default:high:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_RESP|metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:oxidized:low_spin:Guberman_HBO_RESP|metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M1",
+        "N",
+        "NA",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 24,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6,
+        "BOND": 4,
+        "ANGL": 8
+      }
+    },
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_CM5|iron_sulfur/4fe4s:reduced_fd:FD6:Guberman_FD6_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "N",
+        "O",
+        "Z1",
+        "Z2",
+        "Z3",
+        "Z4",
+        "Z5",
+        "Z6"
+      ],
+      "entry_count": 12,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6
+      }
+    },
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_CM5|metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated": {
+      "shared_types": [
+        "C",
+        "CC",
+        "CR",
+        "CT",
+        "CV",
+        "CX",
+        "H",
+        "H1",
+        "H4",
+        "H5",
+        "HC",
+        "M2",
+        "N",
+        "NA",
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_CM5|metal_sites/DiMn_Baloxavir:default:high:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_CM5|metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_CM5|metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_RESP|iron_sulfur/4fe4s:reduced_fd:FD6:Guberman_FD6_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "N",
+        "O",
+        "Z1",
+        "Z2",
+        "Z3",
+        "Z4",
+        "Z5",
+        "Z6"
+      ],
+      "entry_count": 12,
+      "entries_by_section": {
+        "MASS": 6,
+        "NONB": 6
+      }
+    },
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_RESP|metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_RESP|metal_sites/DiMn_Baloxavir:default:high:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_RESP|metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:oxidized:low_spin:Henriques_HCO_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc": {
+    "heme/bis_his_b_type:reduced:low_spin:Guberman_HBR_RESP|metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated": {
       "shared_types": [
         "C",
         "CC",
-        "CD",
         "CR",
         "CT",
         "CV",
         "CX",
-        "Cp",
         "H",
         "H1",
         "H4",
         "H5",
         "HC",
-        "HO",
+        "M2",
         "N",
         "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
+        "O"
       ],
       "entry_count": 1,
       "entries_by_section": {
         "MASS": 1
       }
     },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_FixedpH": {
       "shared_types": [
         "C",
-        "CC",
-        "CD",
-        "CR",
         "CT",
-        "CV",
         "CX",
-        "Cp",
+        "FO",
         "H",
         "H1",
-        "H4",
-        "H5",
         "HC",
         "HO",
         "N",
-        "NA",
-        "NB",
         "NO",
         "NP",
         "O",
-        "OH",
-        "S"
+        "O2",
+        "OH"
       ],
-      "entry_count": 1,
+      "entry_count": 5,
       "entries_by_section": {
-        "MASS": 1
+        "BOND": 2,
+        "ANGL": 3
       }
     },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/bis_his_c_type:reduced:low_spin:Henriques_HCR_RESP|heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc": {
-      "shared_types": [
-        "C",
-        "CC",
-        "CD",
-        "CR",
-        "CT",
-        "CV",
-        "CX",
-        "Cp",
-        "H",
-        "H1",
-        "H4",
-        "H5",
-        "HC",
-        "HO",
-        "N",
-        "NA",
-        "NB",
-        "NO",
-        "NP",
-        "O",
-        "OH",
-        "S"
-      ],
-      "entry_count": 1,
-      "entries_by_section": {
-        "MASS": 1
-      }
-    },
-    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_constpH": {
       "shared_types": [
         "C",
         "CT",
@@ -558,7 +674,30 @@
         "ANGL": 3
       }
     },
-    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FixedpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "HO",
+        "N",
+        "NO",
+        "NP",
+        "O",
+        "O2",
+        "OH"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_constpH": {
       "shared_types": [
         "C",
         "CT",
@@ -578,7 +717,30 @@
         "ANGL": 3
       }
     },
-    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_FixedpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "HO",
+        "N",
+        "NO",
+        "NP",
+        "O",
+        "O2",
+        "OH"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_constpH": {
       "shared_types": [
         "C",
         "CT",
@@ -598,7 +760,30 @@
         "ANGL": 3
       }
     },
-    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_FixedpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "HO",
+        "N",
+        "NO",
+        "NP",
+        "O",
+        "O2",
+        "OH"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_constpH": {
       "shared_types": [
         "C",
         "CT",
@@ -618,7 +803,7 @@
         "ANGL": 3
       }
     },
-    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_FixedpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -634,23 +819,167 @@
         "NONB": 1
       }
     },
-    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_FixedpH": {
       "shared_types": [
         "C",
         "CT",
         "CX",
-        "FR",
+        "FO",
         "H",
         "H1",
+        "HC",
         "N",
+        "NO",
+        "NP",
         "O"
       ],
-      "entry_count": 1,
+      "entry_count": 5,
       "entries_by_section": {
-        "NONB": 1
+        "BOND": 2,
+        "ANGL": 3
       }
     },
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_constpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FixedpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_constpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_FixedpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_constpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_FixedpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_constpH": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "NO",
+        "NP",
+        "O"
+      ],
+      "entry_count": 5,
+      "entries_by_section": {
+        "BOND": 2,
+        "ANGL": 3
+      }
+    },
+    "heme/cys_axial_b_type:oxidized:high_spin:Guberman_HTO_RESP_constpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -666,7 +995,39 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP_FixedpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/cys_axial_b_type:reduced:high_spin:Guberman_HTR_RESP_constpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_FixedpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -682,7 +1043,7 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FeLocal_constpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -698,7 +1059,7 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_FixedpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -714,7 +1075,87 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_CM5_constpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_FixedpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPmc_constpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_FixedpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:oxidized:low_spin:Guberman_HMO_RESPsc_constpH|iron_sulfur/4fe4s:oxidized:FO0:Guberman_FO0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FO",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal_FixedpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -730,7 +1171,7 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FeLocal_constpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -746,7 +1187,7 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_FixedpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -762,7 +1203,7 @@
         "NONB": 1
       }
     },
-    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_CM5_constpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
       "shared_types": [
         "C",
         "CT",
@@ -776,6 +1217,312 @@
       "entry_count": 1,
       "entries_by_section": {
         "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc_FixedpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPmc_constpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc_FixedpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "heme/his_met_axial_c_type:reduced:low_spin:Guberman_HMR_RESPsc_constpH|iron_sulfur/4fe4s:reduced_hipip:FR0:Guberman_FR0_RESP": {
+      "shared_types": [
+        "C",
+        "CT",
+        "CX",
+        "FR",
+        "H",
+        "H1",
+        "N",
+        "O"
+      ],
+      "entry_count": 1,
+      "entries_by_section": {
+        "NONB": 1
+      }
+    },
+    "metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated|metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "M1",
+        "M2",
+        "N",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 19,
+      "entries_by_section": {
+        "MASS": 8,
+        "NONB": 8,
+        "BOND": 2,
+        "ANGL": 1
+      }
+    },
+    "metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated|metal_sites/DiMn_Baloxavir:default:high:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "M1",
+        "M2",
+        "N",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 19,
+      "entries_by_section": {
+        "MASS": 8,
+        "NONB": 8,
+        "BOND": 2,
+        "ANGL": 1
+      }
+    },
+    "metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated|metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "M1",
+        "M2",
+        "N",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 19,
+      "entries_by_section": {
+        "MASS": 8,
+        "NONB": 8,
+        "BOND": 2,
+        "ANGL": 1
+      }
+    },
+    "metal_sites/4uhx_fe2s2_I:oxidized:high_spin:mcpb_generated|metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "C",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "M1",
+        "M2",
+        "N",
+        "O",
+        "Y1",
+        "Y2",
+        "Y3",
+        "Y4",
+        "Y5",
+        "Y6"
+      ],
+      "entry_count": 19,
+      "entries_by_section": {
+        "MASS": 8,
+        "NONB": 8,
+        "BOND": 2,
+        "ANGL": 1
+      }
+    },
+    "metal_sites/4uhx_moco:oxidized:singlet:mcpb_generated|metal_sites/DiMn_Baloxavir.known-good:default:high:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "3C",
+        "C",
+        "C8",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "HO",
+        "N",
+        "OH",
+        "Y7",
+        "Y8",
+        "Y9",
+        "c",
+        "c3",
+        "c6",
+        "cc",
+        "cd",
+        "h1",
+        "h2",
+        "o",
+        "os"
+      ],
+      "entry_count": 6,
+      "entries_by_section": {
+        "MASS": 3,
+        "NONB": 3
+      }
+    },
+    "metal_sites/4uhx_moco:oxidized:singlet:mcpb_generated|metal_sites/DiMn_Baloxavir:default:high:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "3C",
+        "C",
+        "C8",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "HO",
+        "N",
+        "OH",
+        "Y7",
+        "Y8",
+        "Y9",
+        "c",
+        "c3",
+        "c6",
+        "cc",
+        "cd",
+        "h1",
+        "h2",
+        "o",
+        "os"
+      ],
+      "entry_count": 6,
+      "entries_by_section": {
+        "MASS": 3,
+        "NONB": 3
+      }
+    },
+    "metal_sites/4uhx_moco:oxidized:singlet:mcpb_generated|metal_sites/DiMn_Baloxavir:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "3C",
+        "C",
+        "C8",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "HO",
+        "N",
+        "OH",
+        "Y7",
+        "Y8",
+        "Y9",
+        "c",
+        "c3",
+        "c6",
+        "cc",
+        "cd",
+        "h1",
+        "h2",
+        "o",
+        "os"
+      ],
+      "entry_count": 6,
+      "entries_by_section": {
+        "MASS": 3,
+        "NONB": 3
+      }
+    },
+    "metal_sites/4uhx_moco:oxidized:singlet:mcpb_generated|metal_sites/DiMn_E4Z:default:high_spin:mcpb_generated": {
+      "shared_types": [
+        "2C",
+        "3C",
+        "C",
+        "C8",
+        "CT",
+        "CX",
+        "H",
+        "H1",
+        "HC",
+        "N",
+        "Y7",
+        "Y8",
+        "Y9",
+        "c",
+        "c3",
+        "c6",
+        "cc",
+        "cd",
+        "h1",
+        "h2",
+        "o",
+        "os"
+      ],
+      "entry_count": 6,
+      "entries_by_section": {
+        "MASS": 3,
+        "NONB": 3
       }
     }
   }

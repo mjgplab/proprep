@@ -9,9 +9,11 @@ Date: 2025-11-14
 """
 
 import os
+import getpass
 import json
 import logging
 import socket
+import sys
 import threading
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -19,6 +21,67 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# Text-mode browsers that Python's ``webbrowser`` registers as fallbacks
+# whenever TERM is set, regardless of whether a display exists. Handing the
+# NGL viewer page to one of these is never useful (the page is a WebGL app)
+# and is actively harmful: ``GenericBrowser.open()`` blocks on the child, so
+# a text browser either takes over the CLI's terminal or, as seen with
+# lynx 2.8.9, segfaults on the page.
+_CONSOLE_BROWSERS = {"www-browser", "links", "links2", "elinks", "lynx", "w3m"}
+
+
+def gui_browser_unavailable_reason() -> Optional[str]:
+    """Return None if a real browser can be opened here, else why it cannot.
+
+    An explicitly set ``BROWSER`` environment variable always wins — that is
+    the user telling us what to launch, including deliberately neutralising
+    the launch with something like ``BROWSER=/bin/true``.
+    """
+    if os.environ.get("BROWSER"):
+        return None
+
+    if sys.platform.startswith("win") or sys.platform == "darwin":
+        return None
+
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return "no DISPLAY or WAYLAND_DISPLAY"
+
+    try:
+        browser = webbrowser.get()
+    except webbrowser.Error:
+        return "no browser registered"
+
+    name = os.path.basename(getattr(browser, "name", "") or "")
+    if name in _CONSOLE_BROWSERS:
+        return f"only a text-mode browser ({name}) is available"
+
+    return None
+
+
+def ssh_forward_hint(port: int) -> Optional[str]:
+    """An ``ssh -L`` command that tunnels ``port`` to the caller's machine.
+
+    Returns None when this process is not on the far end of an SSH
+    connection, in which case we have no idea how the user reaches this host
+    and should not guess. SSH_CONNECTION is
+    "<client ip> <client port> <server ip> <server port>", so the port the
+    user actually dialled is field 4 (sshd may not be on 22).
+    """
+    conn = os.environ.get("SSH_CONNECTION", "").split()
+    if len(conn) != 4:
+        return None
+
+    server_ip, server_port = conn[2], conn[3]
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = os.environ.get("USER", "")
+
+    port_opt = "" if server_port == "22" else f"-p {server_port} "
+    account = f"{user}@{server_ip}" if user else server_ip
+    return f"ssh {port_opt}-L {port}:localhost:{port} {account}"
 
 
 class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
@@ -32,6 +95,12 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
     config_version = 0
     template_path = ""
     structure_files = []
+    # Scene save/load. ``scene_sink`` is a callable(payload) -> dict set by the
+    # viewer object; the page POSTs its state to /scene and the sink writes the
+    # file. ``scene_request`` rides on /version so the CLI can ask the page to
+    # save without a push channel: the page sees a new token and POSTs.
+    scene_sink = None
+    scene_request = None
 
     def do_GET(self):
         """Handle GET requests."""
@@ -114,10 +183,38 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._handle_serve_error("config", e)
 
+    def do_POST(self):
+        """POST /scene: the page hands over its representation and camera state."""
+        if self.path != "/scene":
+            self.send_error(404, "Unknown endpoint")
+            return
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+            raw = self.rfile.read(length) if length else b""
+            payload = json.loads(raw.decode("utf-8") or "{}")
+            sink = type(self).scene_sink
+            if sink is None:
+                result = {"ok": False, "error": "no scene handler registered"}
+                status = 503
+            else:
+                result = sink(payload) or {"ok": True}
+                status = 200 if result.get("ok", True) else 400
+            body = json.dumps(result).encode("utf-8")
+            self.send_response(status)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', len(body))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self._handle_serve_error("scene", e)
+
     def serve_version(self):
         """Tiny endpoint for the browser's poll loop."""
         try:
-            body = json.dumps({"version": self.config_version}).encode("utf-8")
+            info = {"version": self.config_version}
+            if self.scene_request:
+                info["scene_request"] = self.scene_request
+            body = json.dumps(info).encode("utf-8")
             self.send_response(200)
             self.send_header('Content-type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', len(body))
@@ -196,7 +293,8 @@ class ViewerServer:
     - /structure/{index} - PDB structure files
     """
 
-    def __init__(self, config: Dict, structure_files: List[str], port: int = 8765):
+    def __init__(self, config: Dict, structure_files: List[str], port: int = 8765,
+                 scene_sink=None):
         """
         Initialize the viewer server.
 
@@ -204,20 +302,43 @@ class ViewerServer:
             config: Viewer configuration dict
             structure_files: List of PDB file paths
             port: Port to run server on (default: 8765)
+            scene_sink: callable(payload) -> dict that persists a scene the
+                page POSTs to /scene (see InteractiveStructureViewer)
         """
         self.config = config
         self.structure_files = structure_files
+        self._scene_token = 0
         self.port = port
         self.server = None
         self.thread = None
         self.template_path = self._get_template_path()
         self._config_lock = threading.Lock()
 
+        # Set by start(): whether a browser tab was actually opened, and if
+        # not, the reason — callers print a port-forwarding hint instead.
+        self.browser_opened = False
+        self.headless_reason: Optional[str] = None
+
         # Set class variables for the request handler
         ViewerHTTPRequestHandler.config = self.config
         ViewerHTTPRequestHandler.config_version = 1
         ViewerHTTPRequestHandler.structure_files = self.structure_files
         ViewerHTTPRequestHandler.template_path = self.template_path
+        ViewerHTTPRequestHandler.scene_sink = scene_sink
+        ViewerHTTPRequestHandler.scene_request = None
+
+    def request_scene(self, name: str) -> int:
+        """Ask the open page to POST its current scene under ``name``.
+
+        The page polls /version; a new token there makes it collect its state
+        and POST /scene, which lands in ``scene_sink``. Returns the token so the
+        caller can wait for that particular save."""
+        self._scene_token += 1
+        ViewerHTTPRequestHandler.scene_request = {"token": self._scene_token, "name": name}
+        return self._scene_token
+
+    def clear_scene_request(self) -> None:
+        ViewerHTTPRequestHandler.scene_request = None
 
     def update_config(self, new_config: Dict) -> int:
         """Replace the served config and bump the version counter.
@@ -299,9 +420,18 @@ class ViewerServer:
 
             in_web_shell = bool(os.environ.get("PROPREP_WEB_SHELL"))
             if open_browser and not in_web_shell:
-                url = f"http://localhost:{self.port}/viewer"
-                webbrowser.open(url)
-                logger.debug(f"Opened browser at {url}")
+                self.headless_reason = gui_browser_unavailable_reason()
+                if self.headless_reason:
+                    logger.debug(
+                        "Not opening a browser (%s); viewer is served on port %d",
+                        self.headless_reason,
+                        self.port,
+                    )
+                else:
+                    url = f"http://localhost:{self.port}/viewer"
+                    webbrowser.open(url)
+                    self.browser_opened = True
+                    logger.debug(f"Opened browser at {url}")
 
             if in_web_shell:
                 # Tell the parent uvicorn process which port we're on so it

@@ -30,10 +30,10 @@ BA-B1  105.9    2.2701      Created by Seminario method using MCPB.py
 BB-B2   99.9    2.2676      Created by Seminario method using MCPB.py
 BC-B3  108.5    2.2499      Created by Seminario method using MCPB.py
 BD-B4  106.9    2.2615      Created by Seminario method using MCPB.py
-CT-BA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-BB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-BC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-BD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-BA   126.4    1.8605      Seminario from small-model Hessian (was 237.0/1.810)
+CT-BB   126.6    1.8614      Seminario from small-model Hessian (was 237.0/1.810)
+CT-BC   124.0    1.8620      Seminario from small-model Hessian (was 237.0/1.810)
+CT-BD   116.6    1.8630      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-BA-B1    27.25     102.44    Created by Seminario method using MCPB.py

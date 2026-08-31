@@ -8,6 +8,11 @@ scans upward from the requested port for the first free one, so the
 second instance lands on 8001, the third on 8002, and so on. Pass
 ``--strict-port`` to disable the scan and fail if the requested port
 is already taken.
+
+Hosted mode (``--seats N``) serves N independent seats from one process,
+each with its own working directory and URL token (see ``seats.py``); the
+launcher prints one link per seat to hand out. Put a TLS-terminating
+reverse proxy or tunnel in front; the server itself stays on loopback.
 """
 
 import argparse
@@ -77,6 +82,19 @@ def main() -> int:
                                "each session is teed to "
                                "~/.proprep/web_sessions/session_<timestamp>.log.")
     parser.add_argument("--log-level", default="info", help="uvicorn log level")
+    hosted = parser.add_argument_group("hosted mode (workshop seats)")
+    hosted.add_argument("--seats", type=int, default=0, metavar="N",
+                        help="Serve N seats from this process, each with its own "
+                             "working directory and URL token. Implies --no-browser "
+                             "and disables auto-shutdown. Sessions survive browser "
+                             "disconnects and are re-attached with a replay.")
+    hosted.add_argument("--seats-dir", default=None, metavar="DIR",
+                        help="Where seat directories and seats.json live "
+                             "(default: ~/.proprep/web_seats). Existing seats.json "
+                             "is reused so links stay valid across restarts.")
+    hosted.add_argument("--public-url", default=None, metavar="URL",
+                        help="Base URL attendees will use (e.g. the tunnel or proxy "
+                             "address), used only to print the seat links.")
     args = parser.parse_args()
 
     # Accept both 'proprep-web white' (positional) and '--theme white'; the
@@ -100,6 +118,20 @@ def main() -> int:
     else:
         os.environ["PROPREP_WEB_FONT_SIZE"] = ""
     os.environ["PROPREP_WEB_NO_TRANSCRIPT"] = "1" if args.no_transcript else "0"
+
+    seats = []
+    if args.seats < 0:
+        print("proprep-web: --seats must be >= 0", file=sys.stderr)
+        return 2
+    if args.seats:
+        from pathlib import Path
+        from proprep.web.seats import SEATS_FILE_NAME, load_or_create_seats
+        seats_dir = Path(args.seats_dir).expanduser() if args.seats_dir else Path.home() / ".proprep" / "web_seats"
+        seats = load_or_create_seats(seats_dir, args.seats)
+        os.environ["PROPREP_WEB_SEATS_FILE"] = str(seats_dir.resolve() / SEATS_FILE_NAME)
+        args.no_browser = True
+    else:
+        os.environ.pop("PROPREP_WEB_SEATS_FILE", None)
 
     if sys.platform.startswith("win"):
         print("proprep.web requires POSIX (pty module). Windows is not supported.", file=sys.stderr)
@@ -130,7 +162,20 @@ def main() -> int:
             print(f"  (port {requested_port} was busy; using {port})")
 
     url = f"http://{args.host}:{port}/"
+    # The PTY children announce their viewer port to this loopback address
+    # (never through whatever proxy or tunnel sits in front of us).
+    bind_host = "127.0.0.1" if args.host in ("0.0.0.0", "") else args.host
+    os.environ["PROPREP_WEB_BIND"] = f"http://{bind_host}:{port}"
     print(f"ProPrep Web Shell listening on {url}")
+    if seats:
+        base = (args.public_url or url).rstrip("/")
+        print(f"  - Hosted mode: {len(seats)} seat(s); seat directories under "
+              f"{os.path.dirname(seats[0].cwd)}")
+        print("  - Sessions persist across browser disconnects; no auto-shutdown")
+        print("  - Seat links (one per attendee; the token is the only access control):")
+        for seat in seats:
+            print(f"      seat {seat.name}: {base}/?seat={seat.token}")
+        print()
     print("  - Terminal pane runs the unmodified ProPrep CLI")
     print("  - Structure Viewer will dock on the right when launched from the CLI")
     if args.no_transcript:
@@ -140,7 +185,24 @@ def main() -> int:
     print()
 
     if not args.no_browser:
-        threading.Thread(target=lambda: (time.sleep(0.6), webbrowser.open(url)), daemon=True).start()
+        # Same headless guard as the structure viewer: on a display-less host
+        # webbrowser.open() falls through to a text browser (lynx/w3m), which
+        # cannot render this page and takes over the terminal to fail at it.
+        from proprep.structure_prep.viewer_server import (
+            gui_browser_unavailable_reason,
+            ssh_forward_hint,
+        )
+
+        headless_reason = gui_browser_unavailable_reason()
+        if headless_reason:
+            print(f"  - No browser opened on this host ({headless_reason})")
+            hint = ssh_forward_hint(port)
+            if hint:
+                print("    Forward the port from your own machine, then open the URL there:")
+                print(f"      {hint}")
+            print()
+        else:
+            threading.Thread(target=lambda: (time.sleep(0.6), webbrowser.open(url)), daemon=True).start()
 
     import uvicorn
     uvicorn.run(

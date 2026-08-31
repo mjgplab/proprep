@@ -30,10 +30,10 @@ XA-X1   65.3    2.3252      Created by Seminario method using MCPB.py
 XB-X2   65.3    2.3593      Created by Seminario method using MCPB.py
 Xz-X3   71.9    2.3562      Created by Seminario method using MCPB.py
 XD-X4   64.2    2.3185      Created by Seminario method using MCPB.py
-CT-XA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-XB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-Xz  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-XD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-XA   130.0    1.8565      Seminario from small-model Hessian (was 237.0/1.810)
+CT-XB   136.0    1.8571      Seminario from small-model Hessian (was 237.0/1.810)
+CT-Xz   133.6    1.8582      Seminario from small-model Hessian (was 237.0/1.810)
+CT-XD   133.4    1.8568      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-XA-X1    30.15     102.61    Created by Seminario method using MCPB.py

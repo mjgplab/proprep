@@ -42,6 +42,20 @@ class RecipeError(Exception):
     pass
 
 
+def _norm_icode(value) -> str:
+    """A PDB insertion code, normalized so "absent" is always ``''``.
+
+    BioPython reports a *space* for a residue with no insertion code
+    (``residue.id[2]``), and that space travels into RedoxSiteAtom. It is
+    truthy, so ``value or ""`` keeps it. Every command in this editor supplies
+    ``''``, and the residue lookup compares icodes with ``==``, so an
+    unnormalized space makes every residue in the table unaddressable.
+    ``RedoxSite.get_atoms_by_residue`` guards the same hazard with a dual-key
+    lookup; normalizing at the boundary is the equivalent here.
+    """
+    return (value or "").strip()
+
+
 # ---------------------------------------------------------------------------
 # Internal editable structure, built from a RedoxSite. uid is the immutable key
 # (coordinates never change in a RedoxSite; uid mirrors that stability).
@@ -73,7 +87,7 @@ class _Structure:
             atoms.append(_Atom(
                 uid=uid, record=rec, name=a.atom_name, resname=a.resname,
                 chain=a.chain, resid=a.resid,
-                icode=(getattr(a, "insertion_code", "") or ""),
+                icode=_norm_icode(getattr(a, "insertion_code", "")),
                 element=(getattr(a, "element", "") or ""),
             ))
         return cls(atoms)
@@ -88,6 +102,7 @@ class _Structure:
         return [a for a in self.atoms if (a.chain, a.resid, a.icode) == key]
 
     def resname_of(self, chain: str, resid: int, icode: str = "") -> Optional[str]:
+        icode = _norm_icode(icode)
         for a in self.atoms:
             if a.chain == chain and a.resid == resid and a.icode == icode:
                 return a.resname
@@ -95,10 +110,14 @@ class _Structure:
 
     def find(self, chain: str, resid: int, icode: str = "",
              atom_names: Optional[Set[str]] = None) -> List[_Atom]:
+        icode = _norm_icode(icode)
+        # Atom names are matched case-insensitively so the user can type them
+        # as they read them; the structure's own spelling is what gets recorded.
+        wanted = {n.upper() for n in atom_names} if atom_names is not None else None
         out = []
         for a in self.atoms:
             if a.chain == chain and a.resid == resid and a.icode == icode:
-                if atom_names is None or a.name in atom_names:
+                if wanted is None or a.name.upper() in wanted:
                     out.append(a)
         return out
 
@@ -122,6 +141,7 @@ class RecipeBuilder:
     # ---- role tagging ----------------------------------------------------
     def _seed_roles_from_site(self):
         sig = connectivity_signature(self.redox_site)
+        sig_wet = connectivity_signature(self.redox_site, include_waters=True)
         seen: Dict[str, int] = {}
         order = self.structure.residue_order()
         for key in order:
@@ -135,6 +155,7 @@ class RecipeBuilder:
             self.role_meta[label] = {
                 "resname": rn,
                 "fingerprint": sig.get((chain, resid)),
+                "fingerprint_hydrated": sig_wet.get((chain, resid)),
                 "discriminators": [
                     {"source_atom": s, "partner_resname": p, "target_atom": t}
                     for (s, p, t) in sorted(discs)
@@ -216,15 +237,18 @@ class RecipeBuilder:
         hits = self.structure.find(chain, resid, icode, {old_atom})
         if not hits:
             raise RecipeError(f"Atom {old_atom} not found in {chain}/{resid} ({rn}).")
+        # The lookup is case-insensitive, but the replay applier matches the PDB
+        # atom name exactly, so key the mapping on the structure's spelling.
+        actual = hits[0].name
         self._checkpoint()
         selector = self._tag({"chain": chain, "resid": resid, "icode": icode,
                               "resname": rn}, (chain, resid, icode))
         for a in hits:
             a.name = new_atom
         self.operations.append({"op": "rename_atom", "selector": selector,
-                                "action": {"rename_atoms": {old_atom: new_atom}}})
+                                "action": {"rename_atoms": {actual: new_atom}}})
         self._rebuild_addr_map()
-        return f"Renamed atom {old_atom} -> {new_atom} in {chain}/{resid} ({rn})"
+        return f"Renamed atom {actual} -> {new_atom} in {chain}/{resid} ({rn})"
 
     def change_residue_id(self, chain, resid, new_id, icode="") -> str:
         rn = self._require_residue(chain, resid, icode)
@@ -287,7 +311,7 @@ class RecipeBuilder:
         want = set(atom_names)
         movers = self.structure.find(chain, resid, icode, want)
         found = {a.name for a in movers}
-        missing = want - found
+        missing = {n for n in want if n.upper() not in {f.upper() for f in found}}
         if missing:
             raise RecipeError(f"Atoms not found in {chain}/{resid}: {', '.join(sorted(missing))}")
         if len(found) == len(self.structure.find(chain, resid, icode)):
@@ -338,11 +362,12 @@ class RecipeBuilder:
         want = set(atom_names)
         movers = self.structure.find(chain, resid, icode, want)
         found = {a.name for a in movers}
-        missing = want - found
+        missing = {n for n in want if n.upper() not in {f.upper() for f in found}}
         if missing:
             raise RecipeError(f"Atoms not found: {', '.join(sorted(missing))}")
-        target_names = {a.name for a in self.structure.find(target_chain, target_resid, target_icode)}
-        clash = found & target_names
+        target_names = {a.name.upper()
+                        for a in self.structure.find(target_chain, target_resid, target_icode)}
+        clash = {n for n in found if n.upper() in target_names}
         if clash:
             raise RecipeError(f"Target already has atom name(s) {', '.join(sorted(clash))}.")
         self._checkpoint()
@@ -485,10 +510,10 @@ def apply_command(builder: RecipeBuilder, tokens: List[str]) -> str:
 
     if verb in ("rename_res", "renameres"):
         need(4, "rename_res <chain> <resid> <NEWNAME>")
-        return builder.rename_residue(tokens[1], int(tokens[2]), tokens[3].upper())
+        return builder.rename_residue(tokens[1], int(tokens[2]), tokens[3])
     if verb in ("rename_atom", "renameatom"):
         need(5, "rename_atom <chain> <resid> <OLD> <NEW>")
-        return builder.rename_atom(tokens[1], int(tokens[2]), tokens[3].upper(), tokens[4].upper())
+        return builder.rename_atom(tokens[1], int(tokens[2]), tokens[3], tokens[4])
     if verb == "id":
         need(4, "id <chain> <resid> <NEWID>")
         return builder.change_residue_id(tokens[1], int(tokens[2]), int(tokens[3]))
@@ -503,12 +528,12 @@ def apply_command(builder: RecipeBuilder, tokens: List[str]) -> str:
         return builder.set_record_type(tokens[1], int(tokens[2]), verb)
     if verb == "movenew":
         need(6, "movenew <chain> <resid> <A,B,C> <NEWNAME> <ID_OFFSET>")
-        atoms = [a.upper() for a in tokens[3].split(",") if a]
+        atoms = [a for a in tokens[3].split(",") if a]
         return builder.move_to_new_residue(tokens[1], int(tokens[2]), atoms,
-                                           tokens[4].upper(), int(tokens[5]))
+                                           tokens[4], int(tokens[5]))
     if verb == "move":
         need(6, "move <chain> <resid> <A,B,C> <TCHAIN> <TRESID>")
-        atoms = [a.upper() for a in tokens[3].split(",") if a]
+        atoms = [a for a in tokens[3].split(",") if a]
         return builder.move_to_existing_residue(tokens[1], int(tokens[2]), atoms,
                                                 tokens[4], int(tokens[5]))
     if verb == "param":
@@ -526,7 +551,7 @@ def apply_command(builder: RecipeBuilder, tokens: List[str]) -> str:
     if verb == "vary":
         need(4, "vary <op#> <val1,val2,...> <NEWNAME>")
         return builder.vary_name(int(tokens[1]), [v for v in tokens[2].split(",") if v],
-                                 tokens[3].upper())
+                                 tokens[3])
     if verb == "undo":
         return builder.undo()
     raise RecipeError(f"Unknown command '{verb}'. Type 'help'.")
@@ -547,6 +572,11 @@ Commands (one operation at a time; the table redraws after each):
   refstate    <param=value> ...                         set the authoring state
   vary        <op#> <val1,...> <NEWNAME>                give a rename a per-state name
   undo | show | summary | save | quit
+
+New names are written exactly as you type them -- case is preserved, because
+tLEaP unit and atom names are case-sensitive (a lib whose unit is 'gdp' will
+not match a residue named 'GDP'). Names you are matching ON may be typed in
+any case.
 """
 
 _MODULE = "Table Transformer Creator"
@@ -617,6 +647,43 @@ class TableTransformerCreator:
                 self.console.print(f"  [red]! {e}[/red]")
 
     # ---- force-field selection ------------------------------------------
+    def _resolve_template_collision(self, name):
+        """Settle on a template name that will not silently replace another.
+
+        The save is a plain ``open(path, "w")``, and _sanitize collapses case
+        and punctuation -- "GDP ff94" and "gdp-ff94" become the same file --
+        so an unnoticed reuse of a name destroys the earlier recipe. Returns
+        ``(name, token)``, or ``(name, None)`` if the user gave up.
+        """
+        token = _sanitize(name)
+        while True:
+            out_path = DEFAULT_USER_TRANSFORMER_DIR / f"{token}.json"
+            if not out_path.exists():
+                return name, token
+
+            described = ""
+            try:
+                existing = json.loads(out_path.read_text())
+                described = existing.get("description") or existing.get("name") or ""
+            except Exception:  # a malformed file is still a file we would clobber
+                pass
+            self.console.print(
+                f"\n[yellow]A transformer named [cyan]{token}[/cyan] already "
+                f"exists{f' — {described}' if described else ''}.[/yellow]")
+            self.console.print(f"[grey50]{out_path}[/grey50]", highlight=False)
+
+            if confirm_with_context(
+                    self.processor, "Replace it?", default=False, module=_MODULE,
+                    description="Replace an existing transformer spec"):
+                return name, token
+            name = prompt_with_context(
+                self.processor, "Template name", module=_MODULE,
+                description="transformer name").strip()
+            if not name:
+                self.console.print("[yellow]No name given; not saved.[/yellow]")
+                return name, None
+            token = _sanitize(name)
+
     def _pick_forcefield_path(self, default=None):
         """Choose a deposited library, listing what exists.
 
@@ -736,12 +803,24 @@ class TableTransformerCreator:
         else:
             self.console.print("\n[bold]Operation sequence:[/bold]")
             self.console.print(render_summary(builder))
+        # "Template" is a third name in a workflow that just asked for two
+        # library names, and nothing on screen says which of the three this is.
+        self.console.print(
+            f"\n[grey50]The template is this rename recipe, saved as "
+            f"[cyan]{DEFAULT_USER_TRANSFORMER_DIR}/<name>.json[/cyan] and "
+            f"replayed whenever this site is seen again. It is not the library "
+            f"entry holding the parameters — the next prompt links it to "
+            f"one.[/grey50]", highlight=False)
         name = prompt_with_context(self.processor, "Template name",
                                    module=_MODULE, description="transformer name").strip()
         if not name:
             self.console.print("[yellow]No name given; not saved.[/yellow]")
             return None
-        token = _sanitize(name)
+        # Checked before the force-field questions below, so a collision is
+        # discovered while the name is still the subject.
+        name, token = self._resolve_template_collision(name)
+        if token is None:
+            return None
         ff = None
         seed = self.forcefield_default
         if seed.get("path"):

@@ -264,6 +264,9 @@ class RedoxTransformationManager:
         # site's reduced/oxidized forms may carry different propionate
         # protonation; each microstate inherits the treatment of its states.
         self.site_state_protonation: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        # Batch: fixed_E per site for cofactors that declare a redox-treatment
+        # fork (see _stamp_batch_redox_treatment).
+        self.site_redox_treatment: Dict[str, str] = {}
         self.structure_lines: List[str] = []
         self.id_mapping: Dict[Tuple[str, int], int] = {}
 
@@ -1480,6 +1483,64 @@ class RedoxTransformationManager:
         default = param_def.get("default")
 
         transformer_class = redox_transformer_registry.get_transformer(transformer_name)
+
+        # Gated parameters. A transformer can declare that this parameter is not
+        # a choice at all in a given configuration (e.g. redox_state is not a
+        # build-time choice under constant_E, where the state is set when the
+        # cein file is generated). This is deliberately NOT expressed as an
+        # empty get_valid_options list: the loop below treats [] as "no
+        # narrowing opinion" and widens back to the static options, which can
+        # never suppress a parameter that has non-empty static options. A gate
+        # skips the prompt AND stamps the transformer's value, because a gated
+        # parameter may still be structurally required downstream (redox_state
+        # keys the forcefield metadata tree).
+        gated_values: Dict[str, Any] = {}
+        for site_id in site_ids:
+            current_params = self.transformation_parameters.get(site_id, {}).copy()
+            current_params.pop(param_name, None)
+            try:
+                if transformer_class.is_parameter_gated_off(param_name, current_params):
+                    gated_values[site_id] = transformer_class.gated_parameter_value(
+                        param_name, current_params
+                    )
+            except Exception as e:
+                logger.warning(
+                    "is_parameter_gated_off failed for %s/%s on site %s: %s. "
+                    "Treating the parameter as ungated.",
+                    transformer_name, param_name, site_id, e,
+                )
+
+        if gated_values:
+            gated_numbers = []
+            for site_id, value in gated_values.items():
+                if value is not None:
+                    self.transformation_parameters.setdefault(site_id, {})[param_name] = value
+                gated_numbers.append(site_numbers[site_ids.index(site_id)])
+            try:
+                reason = transformer_class.gated_parameter_reason(
+                    param_name, self.transformation_parameters.get(site_ids[0], {})
+                )
+            except Exception:
+                reason = ""
+            stamped = {v for v in gated_values.values() if v is not None}
+            stamped_note = (
+                f" Set to '{sorted(stamped)[0]}'." if len(stamped) == 1 else ""
+            )
+            self.console.print(
+                f"\n[grey50]'{param_name}' is not configurable for sites "
+                f"{','.join(map(str, sorted(gated_numbers)))} in this "
+                f"configuration.{stamped_note}[/grey50]"
+            )
+            if reason:
+                self.console.print(f"[grey50]{reason}[/grey50]")
+
+            # Drop gated sites from the prompting lists; if none remain there is
+            # nothing left to ask.
+            keep = [i for i, sid in enumerate(site_ids) if sid not in gated_values]
+            if not keep:
+                return
+            site_ids = [site_ids[i] for i in keep]
+            site_numbers = [site_numbers[i] for i in keep]
 
         # Per-site valid options. With the base default impl this just returns
         # the static options list for every site; transformers that override
@@ -2904,6 +2965,13 @@ class RedoxTransformationManager:
         if not self._setup_site_transformers():
             return False
 
+        # Batch microstates build each redox state into its own topology, so
+        # the heme redox treatment is fixed_E by construction (constant-E HEH,
+        # where the state is a cein choice, belongs to the single-state path).
+        # Stamped, not asked, so the Topology Generator picker filters to the
+        # fixed_E sets instead of offering HEH beside HCO.
+        self._stamp_batch_redox_treatment()
+
         # Step 3: Select redox/spin state combinations for each site
         if not self._select_state_combinations():
             return False
@@ -3177,6 +3245,35 @@ class RedoxTransformationManager:
 
         return False  # Should never reach here
 
+    BATCH_REDOX_TREATMENT = 'fixed_E'
+
+    def _stamp_batch_redox_treatment(self) -> None:
+        """Record fixed_E for every site whose transformer declares a
+        fixed_E/constant_E fork. Batch microstates enumerate redox states
+        explicitly, one topology each, which is what fixed_E means; constant_E
+        (one HEH library, state chosen at cein generation) is a single-state
+        concept and is not offered here. Recording the treatment is what lets
+        the Topology Generator filter the set picker: without it the batch
+        transformer_info carried no treatment, the picker showed the HEH set
+        next to HCO for the oxidized state, and a user who chose HEH got a
+        library that defines no HCO (every microstate at the same charge).
+        """
+        from proprep.redoxsite_prep.transformation.redox_transformer_framework import redox_transformer_registry
+        self.site_redox_treatment = {}
+        for i, site in enumerate(self.redox_sites):
+            sid = site.site_id if hasattr(site, 'site_id') else f'site_{i}'
+            tname = self.site_transformer_assignments.get(sid)
+            tclass = redox_transformer_registry.get_transformer(tname) if tname else None
+            defs = (tclass.redox_treatment_parameter_definitions()
+                    if tclass and hasattr(tclass, 'redox_treatment_parameter_definitions') else {})
+            if defs:
+                self.site_redox_treatment[sid] = self.BATCH_REDOX_TREATMENT
+        if self.site_redox_treatment:
+            self.console.print(
+                "[grey50]Heme redox treatment: fixed_E (each microstate builds its redox "
+                "state into the topology; the constant-E HEH treatment is a single-state option).[/grey50]"
+            )
+
     def _available_states_for_transformer(self, transformer_name: str) -> List[Dict[str, Any]]:
         """Enumerate the (redox_state, spin_state) options a transformer offers.
 
@@ -3328,6 +3425,8 @@ class RedoxTransformationManager:
                     self.transformation_parameters[sid] = {
                         'redox_state': redox, 'spin_state': spin
                     }
+                    if sid in getattr(self, 'site_redox_treatment', {}):
+                        self.transformation_parameters[sid]['redox_treatment'] = self.site_redox_treatment[sid]
 
                 for pname in ordered_params:
                     pdef = param_defs.get(pname)
@@ -4272,6 +4371,7 @@ class RedoxTransformationManager:
                         "spin_state": spin_state,
                         "residue_name": residue_name,
                         "ph_treatment": state_params.get('ph_treatment'),
+                        "redox_treatment": state_params.get('redox_treatment'),
                         "forcefield_set": ff_set,
                         "forcefield_info": {
                             "atom_types": atom_types,
@@ -4386,6 +4486,8 @@ class RedoxTransformationManager:
                     'redox_state': states['redox_state'],
                     'spin_state': states['spin_state']
                 }
+                if site_id in getattr(self, 'site_redox_treatment', {}):
+                    params['redox_treatment'] = self.site_redox_treatment[site_id]
                 state_key = f"{states['redox_state']}_{states['spin_state']}"
                 params.update(
                     self.site_state_protonation.get(site_id, {}).get(state_key, {})
@@ -5652,9 +5754,11 @@ class RedoxTransformationManager:
                     'spin_state': spin_state,
                     'parameters': parameters,
                     'atom_types': atom_types,
-                    # pH-treatment dimension + resolved set (None for cofactors
-                    # without a fork) — consumed by the topology generator.
+                    # pH-treatment and redox-treatment dimensions + resolved set
+                    # (None for cofactors without the corresponding fork) —
+                    # consumed by the topology generator to filter the picker.
                     'ph_treatment': parameters.get('ph_treatment'),
+                    'redox_treatment': parameters.get('redox_treatment'),
                     'forcefield_set': forcefield_set,
                 })
             else:
@@ -5677,6 +5781,8 @@ class RedoxTransformationManager:
         batch mode: redox/spin plus the propionate/pH treatment configured in
         Step 6 (empty when the site's transformer has no pH fork)."""
         params = {'redox_state': redox_state, 'spin_state': spin_state}
+        if site_id in getattr(self, 'site_redox_treatment', {}):
+            params['redox_treatment'] = self.site_redox_treatment[site_id]
         params.update(
             self.site_state_protonation.get(site_id, {}).get(f"{redox_state}_{spin_state}", {})
         )
@@ -5727,7 +5833,7 @@ class RedoxTransformationManager:
                         ff_set = tclass.select_forcefield_set_name(params)
                     except Exception:
                         pass
-                dedup_key = (tname, redox, spin, params.get('ph_treatment'), ff_set)
+                dedup_key = (tname, redox, spin, params.get('redox_treatment'), params.get('ph_treatment'), ff_set)
                 if dedup_key in seen:
                     continue
                 seen.add(dedup_key)
@@ -5740,6 +5846,7 @@ class RedoxTransformationManager:
                     'spin_state': spin,
                     'parameters': params,
                     'ph_treatment': params.get('ph_treatment'),
+                    'redox_treatment': params.get('redox_treatment'),
                     'forcefield_set': ff_set,
                     'residue_name': primary.resname if primary else '',
                     'chain': primary.chain if primary else '',

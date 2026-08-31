@@ -5,17 +5,17 @@ SO 32.06         2.900              bridging sulfide (state-specific, averaged)
 GO 32.06         2.900              Cys SG (state-specific, averaged)
 
 BOND
-CT-GO   237.00   1.8100   avg over 24 (sd k=0.00)
-FO-SO    50.65   2.3937   avg over 72 (sd k=16.57)
-FO-GO   105.42   2.2606   avg over 24 (sd k=7.25)
+CT-GO   123.08   1.8619   avg over 24 (sd k=4.03)
+FO-SO    50.63   2.3935   avg over 72 (sd k=16.32)
+FO-GO   105.18   2.2609   avg over 24 (sd k=7.04)
 
 ANGL
-CT-GO-FO    56.67    100.76   avg over 24 (sd k=14.61)
+CT-GO-FO    56.07    100.80   avg over 24 (sd k=14.63)
 CX-CT-GO    50.00    108.60   avg over 24 (sd k=0.00)
-FO-SO-FO    36.80     81.52   avg over 72 (sd k=12.25)
+FO-SO-FO    36.62     81.54   avg over 72 (sd k=11.96)
 H1-CT-GO    50.00    109.50   avg over 24 (sd k=0.00)
-SO-FO-SO    47.62     97.69   avg over 72 (sd k=13.09)
-SO-FO-GO    37.68    119.43   avg over 72 (sd k=10.80)
+SO-FO-SO    47.92     97.67   avg over 72 (sd k=12.74)
+SO-FO-GO    38.30    119.45   avg over 72 (sd k=11.02)
 
 DIHE
 CT-GO-FO-SO    3       0.00       0.00   3.0    Treat as zero (MCPB convention)

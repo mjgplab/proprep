@@ -154,6 +154,7 @@ class SpecTransformer(AutoRenameTransformerBase):
         matched: Dict[str, Any] = {}
         missing: List[str] = []
         labels = connectivity_signature(redox_site)
+        labels_wet = connectivity_signature(redox_site, include_waters=True)
 
         groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for role in cls._roles():
@@ -177,18 +178,22 @@ class SpecTransformer(AutoRenameTransformerBase):
 
             # Tier 2 fallback: element-fingerprint bijection (reuses the base's
             # signature matcher) when discriminators don't resolve.
+            diag_labels, diag_entries = labels, None
             if assignment is None:
-                entries = [{"target": r["label"], "signature": r.get("fingerprint")}
+                entries = [{"target": r["label"], "signature": r.get("fingerprint"),
+                            "signature_hydrated": r.get("fingerprint_hydrated")}
                            for r in roles]
-                assignment = cls._match_by_signature(labels, entries, candidates)
+                assignment, diag_labels, diag_entries = cls._match_two_phase(
+                    labels_wet, labels, entries, candidates)
 
             if assignment is not None:
                 for label, (chain, resid) in assignment.items():
                     cls._write_role(matched, label, [(chain, resid)])
             else:
                 diagnostic = cls._signature_diagnostic(
-                    labels,
-                    [{"target": r["label"], "signature": r.get("fingerprint")} for r in roles],
+                    diag_labels,
+                    diag_entries or [{"target": r["label"], "signature": r.get("fingerprint")}
+                                     for r in roles],
                     candidates,
                 )
                 cls._declare_ambiguous(

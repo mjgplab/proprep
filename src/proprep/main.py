@@ -39,6 +39,12 @@ if 'readline' not in sys.modules:
 from rich.console import Console
 from rich.panel import Panel
 
+# Supply the MODELLER license key at run time (KEY_MODELLER or
+# ~/.proprep/modeller_key) before anything imports modeller. A no-op when
+# neither exists, so keys baked in by install_proprep.sh keep working.
+from proprep.utils.modeller_license import configure_modeller_license
+configure_modeller_license()
+
 from proprep.application.pdbprocessor import PDBProcessor
 from proprep.utils import integrate_session_manager
 from proprep.utils.session_recorder import safe_load_session_file
@@ -598,6 +604,55 @@ def parse_arguments():
 
     return parser.parse_args()
 
+def reload_structure_from_session_metadata(processor, session_file) -> bool:
+    """Load the structure a recorded session was launched with.
+
+    ``proprep --pdbid 1M1Q`` (or ``--pdbfile``) loads the structure in
+    ``main()`` non-interactively, so the session records only
+    ``metadata.pdb_id`` / ``metadata.pdb_file``. A replay started from the
+    session menu has neither argument, so this reads the metadata and repeats
+    the load. A ``pdb_file`` recorded on another machine is looked for by its
+    absolute path first, then by basename in the project directory.
+    Returns True when a structure was loaded.
+    """
+    from rich.console import Console
+    console = Console()
+    try:
+        with open(session_file) as fh:
+            metadata = (json.load(fh) or {}).get("metadata") or {}
+    except (OSError, ValueError) as exc:
+        logger.warning(f"Could not read session metadata from {session_file}: {exc}")
+        return False
+    pdb_id = metadata.get("pdb_id")
+    pdb_file = metadata.get("pdb_file")
+    if not pdb_id and not pdb_file:
+        return False
+    loader = processor.get_module_instance("Structure Loader")
+    workspace = processor._get_workspace()
+    if pdb_file:
+        candidates = [pdb_file, os.path.join(os.getcwd(), os.path.basename(pdb_file))]
+        project_dir = workspace.get("project_directory") if workspace else None
+        if project_dir:
+            candidates.append(os.path.join(str(project_dir), os.path.basename(pdb_file)))
+        found = next((c for c in candidates if c and os.path.exists(c)), None)
+        if found is None:
+            console.print(
+                f"[red]The recorded session was started with --pdbfile "
+                f"{os.path.basename(pdb_file)}, but that file is not here "
+                f"(looked for {pdb_file} and {os.path.basename(pdb_file)} in the project "
+                f"directory). Copy it in, or replay with --pdbfile <path>.[/red]")
+            return False
+        console.print(f"[grey50]Loading the structure this session was recorded with: "
+                      f"{os.path.basename(found)}[/grey50]")
+        loader._load_local_file_by_path(found, workspace)
+        logger.info(f"Replay: loaded PDB file from session metadata: {found}")
+        return True
+    console.print(f"[grey50]Loading the structure this session was recorded with: PDB {pdb_id}[/grey50]")
+    loader._download_and_load_pdb(pdb_id, workspace)
+    logger.info(f"Replay: loaded PDB {pdb_id} from session metadata")
+    return True
+
+
 def setup_project_directory(project_name=None, interactive=True):
     """
     Create and change to a project directory for ProPrep session.
@@ -1001,6 +1056,14 @@ def main():
             console.print("Tip: Use --no-session to disable automatic session recording\n")
 
         # Load PDB structure if specified via command line
+        # A session recorded from a `proprep --pdbid/--pdbfile` launch loaded its
+        # structure right here, without a single prompt, so the recording holds
+        # no loader interactions -- only metadata.pdb_id / pdb_file. Replaying
+        # it without that argument used to start at the main menu with no
+        # structure, and the first module then diverged. Redo the load.
+        if session_file_to_replay and not (args.pdbid or args.pdbfile):
+            reload_structure_from_session_metadata(processor, session_file_to_replay)
+
         if args.pdbid:
             loader = processor.get_module_instance("Structure Loader")
             workspace = processor._get_workspace()

@@ -30,10 +30,10 @@ WA-W1   66.1    2.3209      Created by Seminario method using MCPB.py
 WB-W2   69.3    2.3572      Created by Seminario method using MCPB.py
 WC-W3   67.8    2.3204      Created by Seminario method using MCPB.py
 WD-W4   70.4    2.3569      Created by Seminario method using MCPB.py
-CT-WA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-WB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-WC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-WD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-WA   131.2    1.8544      Seminario from small-model Hessian (was 237.0/1.810)
+CT-WB   134.5    1.8571      Seminario from small-model Hessian (was 237.0/1.810)
+CT-WC   137.4    1.8568      Seminario from small-model Hessian (was 237.0/1.810)
+CT-WD   129.6    1.8574      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-WA-W1    60.82     104.16    Created by Seminario method using MCPB.py

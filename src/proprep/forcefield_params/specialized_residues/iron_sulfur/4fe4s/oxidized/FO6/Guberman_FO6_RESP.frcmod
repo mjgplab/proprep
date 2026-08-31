@@ -30,10 +30,10 @@ JA-J1  105.4    2.2513      Created by Seminario method using MCPB.py
 JB-J2  105.4    2.2605      Created by Seminario method using MCPB.py
 JC-J3  110.4    2.2717      Created by Seminario method using MCPB.py
 JD-J4  114.6    2.2433      Created by Seminario method using MCPB.py
-CT-JA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-JB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-JC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-JD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-JA   119.7    1.8608      Seminario from small-model Hessian (was 237.0/1.810)
+CT-JB   123.8    1.8632      Seminario from small-model Hessian (was 237.0/1.810)
+CT-JC   129.5    1.8601      Seminario from small-model Hessian (was 237.0/1.810)
+CT-JD   117.9    1.8630      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-JA-J1    64.31     102.38    Created by Seminario method using MCPB.py

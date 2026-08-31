@@ -877,11 +877,23 @@ class WorkflowChecklist:
                     border_style="yellow",
                     expand=False,
                 ))
+                # A checkpoint is a PAUSE, not a completion: the step stopped
+                # early to wait for a calculation run outside ProPrep, and the
+                # artifacts it exists to produce do not exist yet. Recording it
+                # "completed" ticked it green, satisfied the next step's
+                # dependency and let the run walk straight past it -- the
+                # failure then surfaced at the first step that actually
+                # consumed the missing artifact, naming that step rather than
+                # this one. in_progress keeps the run resumable while saying
+                # plainly that the step is not done.
                 status = StepStatus(
-                    status="completed",
+                    status="in_progress",
                     started_at=status.started_at,
-                    completed_at=datetime.now().isoformat(),
-                    output_summary="Checkpoint reached - external calculation required"
+                    completed_at=None,
+                    output_summary=(
+                        "Waiting on an external calculation — re-run this step "
+                        "once its output is ready"
+                    )
                 )
             else:
                 # Normal completion
@@ -915,6 +927,11 @@ class WorkflowChecklist:
             if status.status == "failed":
                 self.console.print(
                     f"[red]✗ {step_label} failed: {status.output_summary}[/red]")
+                return False
+            if status.status == "in_progress":
+                self.console.print(
+                    f"[dark_orange3]⏸ {step_label} paused: "
+                    f"{status.output_summary}[/dark_orange3]")
                 return False
             self.console.print(f"[green]✓ {step_label} completed[/green]")
             return True
@@ -1086,10 +1103,15 @@ class WorkflowChecklist:
         return None
 
     def _get_next_pending_step(self) -> Optional[WorkflowStep]:
-        """Get the next step that should be run."""
+        """Get the next step that should be run.
+
+        ``in_progress`` counts: a step paused at a checkpoint is the next thing
+        to do, not something to skip past. Without this, [n]ext would offer the
+        step AFTER the one still waiting on its external calculation.
+        """
         for step in self.steps:
             status = self.state.get_step_status(step.id) if self.state else StepStatus()
-            if status.status == "pending":
+            if status.status in ("pending", "in_progress"):
                 return step
         return None
 

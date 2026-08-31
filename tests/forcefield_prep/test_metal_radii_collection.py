@@ -36,6 +36,29 @@ def _atom(element, charge, is_center):
     return {"element": element, "charge": charge, "is_center": is_center}
 
 
+def _has_mcpb_radii() -> bool:
+    """Whether MCPB.py's MK radius table is importable.
+
+    ``vdwRadiiDict2023`` ships with AmberTools. ProPrep treats it as optional
+    (``MetalIonDatabase._mcpb_mk_radii`` returns {} without it and the lookup
+    falls back to the IOD force-field table), so in an environment with no
+    AmberTools the values below are legitimately different numbers rather than
+    wrong ones. Skip instead of failing, as the AMBERHOME-gated suites do.
+    """
+    try:
+        from pymsmt.mol.element import vdwRadiiDict2023  # noqa: F401
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+requires_mcpb_radii = pytest.mark.skipif(
+    not _has_mcpb_radii(),
+    reason="requires AmberTools (pymsmt) for MCPB.py's vdwRadiiDict2023",
+)
+
+
+@requires_mcpb_radii
 def test_fe2s2_cluster_resolves_its_iron_radius():
     """A pure cluster: the reported case."""
     m = _mgr()
@@ -54,7 +77,13 @@ def test_fe2s2_cluster_resolves_its_iron_radius():
     assert radii["Fe"] == pytest.approx(1.383, abs=1e-3)
 
 
+@requires_mcpb_radii
 def test_moco_resolves_its_molybdenum_radius():
+    """Pin the value, not just its existence.
+
+    ``> 0`` was satisfied by the generic 1.5 A fallback this test exists to
+    rule out — see test_mo6_resolves_from_the_mcpb_table.
+    """
     m = _mgr()
     assignments = {
         (0.0, 0.0, 0.0): _atom("MO", 6.0, True),
@@ -65,7 +94,7 @@ def test_moco_resolves_its_molybdenum_radius():
     radii = m._collect_metal_radii(assignments)
 
     assert set(radii) == {"Mo"}
-    assert radii["Mo"] > 0
+    assert radii["Mo"] == pytest.approx(1.337, abs=1e-3)
 
 
 def test_element_case_is_normalised():
@@ -140,6 +169,7 @@ def test_object_style_assignments_are_supported():
     assert set(radii) == {"Fe"}
 
 
+@requires_mcpb_radii
 def test_esp_radius_is_not_the_forcefield_radius():
     """Two different quantities from two different sources.
 
@@ -160,6 +190,7 @@ def test_esp_radius_is_not_the_forcefield_radius():
     assert "IOD" in ff_source
 
 
+@requires_mcpb_radii
 def test_mo6_resolves_from_the_mcpb_table():
     """The reported gap: no IOD table runs past tetravalent, so Mo(VI) fell to
     an unsourced generic 1.5."""

@@ -3112,6 +3112,27 @@ class PBTitrateWorkflow:
             return {"summary": f"{len(pb_pka)} PB pKas (ProPKA failed)"}
 
         propka = pc.parse_propka_summary(pka_path)
+        # The .pka file identifies LIGAND groups by residue name plus ATOM name
+        # and never writes their residue number ("PRN  CG A  4.54  4.50  OCO"),
+        # so the file parse silently drops every heme propionate even though
+        # ProPKA does assess them. Recover those from ProPKA's Python API,
+        # which keeps the owning atom. Additive only: keys already parsed from
+        # the file win, so the well-tested standard-residue path is unchanged.
+        try:
+            api_groups = pc.parse_propka_groups(pdb_path)
+        except Exception as exc:                     # noqa: BLE001
+            api_groups = {}
+            self.console.print(
+                f"  [yellow]ProPKA API pass skipped ({type(exc).__name__}: {exc}); "
+                f"ligand groups such as heme propionates will be missing.[/yellow]")
+        recovered = {k: v for k, v in api_groups.items() if k not in propka}
+        if recovered:
+            propka.update(recovered)
+            by_name = sorted({rn for rn, _ in recovered})
+            self.console.print(
+                f"  [grey50]{len(recovered)} ligand group(s) recovered via the "
+                f"ProPKA API ({', '.join(by_name)}) - the .pka file records no "
+                f"residue number for these.[/grey50]")
 
         # Effective (coupling-aware) pKa: titrate the coupled system over a pH
         # grid using the precomputed coupling matrix (no PB calls). Sites in the

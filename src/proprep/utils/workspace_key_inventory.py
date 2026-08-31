@@ -243,8 +243,10 @@ KEY_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
     "parm7_file": {"type": "str (path)", "description": "Path to AMBER topology (.parm7) file"},
     "rst7_file": {"type": "str (path)", "description": "Path to AMBER coordinate (.rst7) file"},
     "_active_tleap_input_file": {"type": "str (path)", "description": "Currently active tLEaP input file (internal)"},
-    "cpin_config": {"type": "dict", "description": "Constant-pH input configuration"},
-    "cpin_file": {"type": "str (path)", "description": "Path to cpinutil-generated CPin file"},
+    "cpin_config": {"type": "dict", "description": "Constant-pH input configuration (written for the 'ph' titration mode only; superseded by titration_config)"},
+    "cpin_file": {"type": "str (path)", "description": "Path to cpinutil-generated CPin file (written for the 'ph' titration mode only; superseded by titration_file)"},
+    "titration_config": {"type": "dict", "description": "Titration input configuration for constant pH / redox / combined MD; carries 'mode' ('ph'/'redox'/'phredox')"},
+    "titration_file": {"type": "str (path)", "description": "Path to the generated cpin/cein/cpein file, whichever mode was used"},
     # ── MD restraints ──
     "disang_file": {"type": "str (path)", "description": "Path to exported DISANG restraint file"},
     "disang_export_results": {"type": "dict", "description": "DISANG export metadata (path, counts, status)"},

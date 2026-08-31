@@ -10,7 +10,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="proprep",
-    version="1.16.0",
+    version="1.17.0",
     description=(
         "Protein Preparation Assistant - A modular workflow manager "
         "for processing PDB structures for MD simulations."
@@ -57,6 +57,7 @@ setup(
             "proprep = proprep.main:main",
             "mpsa = proprep.main:main",
             "proprep-web = proprep.web.__main__:main",
+            "proprep-library = proprep.utils.user_library_snapshots:main",
         ],
     },
     install_requires=[

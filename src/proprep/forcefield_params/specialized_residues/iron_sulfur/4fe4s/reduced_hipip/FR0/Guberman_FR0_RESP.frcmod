@@ -5,17 +5,17 @@ SR 32.06         2.900              bridging sulfide (state-specific, averaged)
 GR 32.06         2.900              Cys SG (state-specific, averaged)
 
 BOND
-CT-GR   237.00   1.8100   avg over 12 (sd k=0.00)
-FR-SR    48.77   2.3888   avg over 36 (sd k=10.68)
-FR-GR    87.61   2.3006   avg over 12 (sd k=4.79)
+CT-GR   128.82   1.8582   avg over 12 (sd k=2.48)
+FR-SR    48.94   2.3883   avg over 36 (sd k=10.81)
+FR-GR    87.67   2.3007   avg over 12 (sd k=5.14)
 
 ANGL
-CT-GR-FR    52.04    101.12   avg over 12 (sd k=9.89)
+CT-GR-FR    54.90    100.61   avg over 12 (sd k=10.61)
 CX-CT-GR    50.00    108.60   avg over 12 (sd k=0.00)
-FR-SR-FR    35.89     74.51   avg over 36 (sd k=14.73)
+FR-SR-FR    36.74     74.46   avg over 36 (sd k=14.21)
 H1-CT-GR    50.00    109.50   avg over 12 (sd k=0.00)
-SR-FR-SR    35.79    102.75   avg over 36 (sd k=10.65)
-SR-FR-GR    30.34    115.44   avg over 36 (sd k=7.70)
+SR-FR-SR    36.01    102.79   avg over 36 (sd k=9.47)
+SR-FR-GR    30.94    115.41   avg over 36 (sd k=8.53)
 
 DIHE
 CT-GR-FR-SR    3       0.00       0.00   3.0    Treat as zero (MCPB convention)

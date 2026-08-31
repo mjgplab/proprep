@@ -319,7 +319,13 @@ class BisHisCTypeHemeTransformer(RedoxSiteTransformerBase):
     @classmethod
     def get_parameter_definitions(cls) -> Dict[str, Any]:
         """Parameters specific to c-type hemes"""
-        defs = {
+        # Insertion order matters: the manager configures choice parameters in
+        # dict order, and redox_treatment gates redox_state (under constant_E
+        # the oxidation state is a cein-generation choice, not a build choice),
+        # so it must come first. Yields {} unless this cofactor declares both
+        # treatments, leaving single-treatment cofactors unchanged.
+        defs = dict(cls.redox_treatment_parameter_definitions())
+        defs.update({
             "redox_state": {
                 "description": "Iron oxidation state",
                 "type": "choice",
@@ -332,7 +338,7 @@ class BisHisCTypeHemeTransformer(RedoxSiteTransformerBase):
                 "value": "low_spin",
                 "note": "Bis-histidine ligated hemes are always low-spin due to strong field ligands"
             }
-        }
+        })
         # Generic pH-treatment fork (constant_pH PRN vs fixed_pH PRD/PRP) + per-ring
         # protomer choices, derived from this cofactor's metadata. Mirrors the NOS
         # cys_axial transformer; yields {} for any cofactor that declares only one
@@ -348,6 +354,8 @@ class BisHisCTypeHemeTransformer(RedoxSiteTransformerBase):
         param_defs = cls.get_parameter_definitions()
         for name, defn in param_defs.items():
             others = {k: v for k, v in parameters.items() if k != name}
+            if cls.is_parameter_gated_off(name, others):
+                continue  # not a choice in this configuration; stamped, not prompted
             valid = cls.get_valid_options(name, others)
             if not valid:
                 continue  # gated off / not applicable in this configuration
@@ -381,14 +389,33 @@ class BisHisCTypeHemeTransformer(RedoxSiteTransformerBase):
         }
         
         param_key = f"{redox_state}_{spin_state}"
-        return mappings.get(param_key, mappings["reduced_low_spin"])
+        result = dict(mappings.get(param_key, mappings["reduced_low_spin"]))
+
+        # The centre's residue code is set-dependent, not just state-dependent:
+        # a constant_E set names it HEH — the code AMBER's ceinutil.py matches
+        # on, so the heme actually appears in the cein file — where its fixed_E
+        # siblings keep the state-specific HCO/HCR. Resolve from metadata when
+        # the parameters identify a set; the literals above remain the fallback
+        # for callers that pass only redox/spin.
+        try:
+            resolved = cls.resolve_output_residue_names(parameters)
+        except Exception:
+            resolved = {}
+        if resolved.get("center"):
+            result["heme_name"] = resolved["center"]
+        if resolved.get("axial_his_stub"):
+            result["proximal_ligand_name"] = resolved["axial_his_stub"]
+            result["distal_ligand_name"] = resolved["axial_his_stub"]
+        return result
     
     @classmethod
     def get_transformation_sequence(cls, components: Dict[str, Any], parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate the specific transformation sequence for bis-his c-type heme"""
         
-        # Get parameter mappings for residue names (heme + His/Cys stubs — these
-        # are pH-independent: HCO/HCR, HIO, CYO).
+        # Get parameter mappings for residue names (heme + His/Cys stubs). The
+        # His/Cys stubs are treatment-independent (HIO, CYO); the heme centre is
+        # HCO/HCR under fixed_E and HEH under constant_E, resolved from the
+        # chosen set's metadata by get_parameter_mappings.
         mappings = cls.get_parameter_mappings(parameters)
 
         # Propionate residue names are pH-treatment dependent: resolved from

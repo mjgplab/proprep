@@ -30,10 +30,10 @@ RA-R1   88.7    2.2995      Created by Seminario method using MCPB.py
 RB-R2   93.9    2.2946      Created by Seminario method using MCPB.py
 RC-R3   93.2    2.2936      Created by Seminario method using MCPB.py
 RD-R4   82.9    2.3062      Created by Seminario method using MCPB.py
-CT-RA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-RB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-RC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-RD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-RA   127.0    1.8594      Seminario from small-model Hessian (was 237.0/1.810)
+CT-RB   131.0    1.8607      Seminario from small-model Hessian (was 237.0/1.810)
+CT-RC   132.8    1.8582      Seminario from small-model Hessian (was 237.0/1.810)
+CT-RD   125.4    1.8585      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-RA-R1    53.94     100.14    Created by Seminario method using MCPB.py

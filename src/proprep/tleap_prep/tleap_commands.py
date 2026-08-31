@@ -140,7 +140,12 @@ class GenerateTopologyFilesCommand(ModuleActionCommand):
 
 
 class GenerateCpinCommand(ModuleActionCommand):
-    """Command to generate cpin file for constant pH MD."""
+    """Command to generate the titration input file for constant pH / redox MD.
+
+    Dispatches to a single flow that runs cpinutil.py, ceinutil.py or
+    cpeinutil.py depending on the titration mode detected from the topology.
+    The command name is unchanged so recorded sessions keep replaying.
+    """
 
     def __init__(self, processor):
         super().__init__(

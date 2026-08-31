@@ -30,10 +30,10 @@ LA-L1   87.7    2.2985      Created by Seminario method using MCPB.py
 LB-L2   82.8    2.3058      Created by Seminario method using MCPB.py
 LC-L3   92.3    2.3067      Created by Seminario method using MCPB.py
 LD-L4   85.6    2.3000      Created by Seminario method using MCPB.py
-CT-LA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-LB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-LC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-LD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-LA   126.1    1.8564      Seminario from small-model Hessian (was 237.0/1.810)
+CT-LB   128.7    1.8539      Seminario from small-model Hessian (was 237.0/1.810)
+CT-LC   131.7    1.8562      Seminario from small-model Hessian (was 237.0/1.810)
+CT-LD   125.0    1.8589      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-LA-L1    52.15     102.75    Created by Seminario method using MCPB.py

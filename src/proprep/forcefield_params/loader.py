@@ -225,6 +225,19 @@ def discover_forcefield_files(cofactor_path: str, redox_state: str, spin_state: 
                             # per-set prereq override). See resolve_residue_names
                             # and get_prerequisite_leaprc_groups(set_name=...).
                             "ph_treatment": set_info.get("ph_treatment"),
+                            # Redox-treatment dimension (constant_E vs fixed_E),
+                            # orthogonal to ph_treatment. Absent => None: a
+                            # legacy/treatment-agnostic set, unchanged behaviour.
+                            # constant_E means the heme residue is named HEH and
+                            # the oxidation state is set at cein-generation time
+                            # rather than baked into the lib's charges.
+                            "redox_treatment": set_info.get("redox_treatment"),
+                            # Per-set residue-name override, applied on top of the
+                            # spin-state residue_name / ligand_residue_names. Lets
+                            # sibling sets of one state emit different codes (e.g.
+                            # a constant_E set names the centre HEH where its
+                            # fixed_E siblings name it HCO/HCR).
+                            "residue_names": set_info.get("residue_names"),
                             "protonation_model": set_info.get("protonation_model"),
                             # Per-set prerequisite override (e.g. fixed-pH sets
                             # need ff14SB/ff19SB, not leaprc.constph). None ⇒ fall
@@ -420,7 +433,8 @@ def get_registered_residue_names() -> Dict[str, str]:
     Walks both the bundled and user libraries and returns the residue/unit names
     they define — the ``residue_name`` at each spin state (a bare string for a
     single residue, or the values of a source->code map for multi-residue metal
-    sites and covalent adducts) plus any ``ligand_residue_names``. These are
+    sites and covalent adducts), any ``ligand_residue_names``, and any per-set
+    ``residue_names`` overrides. These are
     exactly the names tLEaP will resolve once the library is loaded, so a newly
     parameterized residue must avoid them: two units saved under the same name
     collide in tLEaP's namespace and the second silently shadows the first.
@@ -454,6 +468,12 @@ def get_registered_residue_names() -> Dict[str, str]:
                     continue
                 _claim(spin.get("residue_name"), cofactor_path)
                 _claim(spin.get("ligand_residue_names"), cofactor_path)
+                # Per-set residue_names overrides claim their own codes: a
+                # constant_E set emits HEH where its state's residue_name says
+                # HCO/HCR, and HEH is just as much a taken tLEaP unit name.
+                for _set in (spin.get("forcefield_sets") or {}).values():
+                    if isinstance(_set, dict):
+                        _claim(_set.get("residue_names"), cofactor_path)
 
     return names
 
@@ -596,6 +616,12 @@ def resolve_residue_names(cofactor_path: str, redox_state: str, spin_state: str,
           ``protonation_choices[role]`` (falling back to the site ``default``)
         * constant-pH site: the single ``titratable_residue``
 
+    Finally the chosen set's optional ``residue_names`` block overrides any of
+    the above by role. That is how sibling sets of one redox/spin state emit
+    different codes: a ``constant_E`` set overrides ``center`` to ``HEH`` (the
+    name AMBER's ceinutil matches on) while its ``fixed_E`` siblings keep the
+    state-specific ``HCO``/``HCR``.
+
     Args:
         cofactor_path: Relative path like "heme/cys_axial_b_type"
         redox_state, spin_state: The chosen state
@@ -666,6 +692,14 @@ def resolve_residue_names(cofactor_path: str, redox_state: str, spin_state: str,
                     f"protonation_model site '{role}' in set '{set_name}' has "
                     "neither 'variants' nor 'titratable_residue'"
                 )
+
+    # Per-set overrides, applied LAST so a set can rename any role the state
+    # declared. Sibling sets of one redox/spin state otherwise share the
+    # spin-level residue_name; a constant_E set needs the centre named HEH
+    # (matching AMBER's conste.lib and parmed's titratable_residues, so
+    # ceinutil recognises it) while its fixed_E siblings keep HCO/HCR.
+    for role, resname in (set_info.get('residue_names', {}) or {}).items():
+        resolved[role] = resname
 
     return resolved
 

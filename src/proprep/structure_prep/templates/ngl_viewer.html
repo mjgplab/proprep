@@ -403,6 +403,7 @@
                 <button class="view-btn" onclick="resetView()">Reset View</button>
                 <button class="view-btn" onclick="toggleFullscreen()">Toggle Fullscreen</button>
                 <button class="view-btn" onclick="captureScreenshot()">Save Screenshot</button>
+                <button class="view-btn" onclick="saveScene()" title="Save every representation, the camera and the background to a scene file in the project directory; reload it from the Structure Viewer menu">Save Scene</button>
                 <button id="background-btn" class="view-btn" onclick="cycleBackground()">Background: Dark</button>
                 <button id="camera-btn" class="view-btn" onclick="toggleCameraType()">Camera: Orthographic</button>
             </div>
@@ -472,7 +473,7 @@
         const NAMED_COLORS = [
             ['element', 'Element'],
             ['residueindex', 'Rainbow (N\u2192C)'],
-            ['chainid', 'Chain ID'],
+            ['chainname', 'Chain ID'],
             ['sstruc', 'Sec. Structure'],
             ['bfactor', 'B-factor'],
             ['hydrophobicity', 'Hydrophobicity'],
@@ -535,11 +536,84 @@
         // server's config has been replaced (e.g. the alt-loc picker moved
         // to the next residue), re-fetch /config and rebuild representations
         // on the existing stage without reloading the page or PDB files.
+        // ---- Scenes: save the view as prepared, reload it later ----------
+        let lastSceneToken = 0;
+        function collectScene() {
+            const reps = {};
+            for (const structIdx in repState) {
+                reps[structIdx] = [];
+                for (const repId in repState[structIdx]) {
+                    reps[structIdx].push({ ...repState[structIdx][repId].config });
+                }
+            }
+            let orientation = null;
+            try { orientation = stage.viewerControls.getOrientation().toArray(); } catch (e) { /* no stage */ }
+            return {
+                representations: reps,
+                camera: orientation ? { orientation: orientation } : null,
+                camera_type: CAMERA_TYPES[cameraIndex].type,
+                background: BACKGROUNDS[backgroundIndex].color,
+            };
+        }
+        async function postScene(name) {
+            const payload = collectScene();
+            payload.name = name || '';
+            try {
+                const r = await fetch('/scene', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const result = await r.json().catch(() => ({}));
+                const info = document.getElementById('structure-info');
+                if (info) {
+                    info.textContent = r.ok && result.ok !== false
+                        ? 'Scene saved: ' + (result.path || name)
+                        : 'Scene save failed: ' + (result.error || r.status);
+                }
+            } catch (e) {
+                console.error('Scene save failed', e);
+            }
+        }
+        function saveScene() {
+            const name = window.prompt('Scene name (saved as <name>.scene.json in the project directory):', '');
+            if (name === null) return;
+            postScene(name);
+        }
+        function applySceneView(cfg) {
+            // Camera, background and camera type come only from a loaded scene.
+            if (cfg.background) {
+                const i = BACKGROUNDS.findIndex(b => b.color.toLowerCase() === String(cfg.background).toLowerCase());
+                if (i >= 0) { backgroundIndex = i; }
+                stage.setParameters({ backgroundColor: cfg.background });
+                const btn = document.getElementById("background-btn");
+                if (btn && i >= 0) { btn.textContent = "Background: " + BACKGROUNDS[i].label; }
+            }
+            if (cfg.camera_type) {
+                const i = CAMERA_TYPES.findIndex(c => c.type === cfg.camera_type);
+                if (i >= 0) {
+                    cameraIndex = i;
+                    stage.setParameters({ cameraType: cfg.camera_type });
+                    const btn = document.getElementById("camera-btn");
+                    if (btn) { btn.textContent = "Camera: " + CAMERA_TYPES[i].label; }
+                }
+            }
+            if (cfg.camera && Array.isArray(cfg.camera.orientation) && cfg.camera.orientation.length === 16) {
+                try {
+                    stage.viewerControls.orient(new NGL.Matrix4().fromArray(cfg.camera.orientation));
+                } catch (e) { console.warn('Could not restore camera', e); }
+            }
+        }
         async function pollVersion() {
             try {
                 const r = await fetch('/version', { cache: 'no-store' });
                 if (!r.ok) return;
-                const v = (await r.json()).version || 0;
+                const vinfo = await r.json();
+                const v = vinfo.version || 0;
+                // A CLI "save scene" request: answer it without touching the reps.
+                if (vinfo.scene_request && vinfo.scene_request.token !== lastSceneToken) {
+                    lastSceneToken = vinfo.scene_request.token;
+                    postScene(vinfo.scene_request.name);
+                }
                 if (v !== lastSeenVersion) {
                     lastSeenVersion = v;
                     const cfgResp = await fetch('/config', { cache: 'no-store' });
@@ -551,12 +625,19 @@
             }
         }
 
+        let lastSceneId = null;
         function applyNewConfig(newConfig) {
-            // Wipe representations created from the *previous* config but
-            // leave the loaded structure components in place — they came
-            // from /structure/N and aren't expected to change mid-session.
+            // Representations added by hand in the sidebar (user_*) live only
+            // here; keep them across an annotation refresh. A loaded scene
+            // carries its own full list, so it replaces them instead.
+            const sceneLoad = newConfig.scene_id && newConfig.scene_id !== lastSceneId;
+            const userReps = {};
             for (const structIdx in repState) {
+                userReps[structIdx] = [];
                 for (const repId in repState[structIdx]) {
+                    if (!sceneLoad && repId.startsWith('user_')) {
+                        userReps[structIdx].push({ ...repState[structIdx][repId].config });
+                    }
                     try {
                         components[structIdx].removeRepresentation(
                             repState[structIdx][repId].nglRepr
@@ -565,10 +646,7 @@
                 }
                 repState[structIdx] = {};
             }
-
             config = newConfig;
-
-            // Recreate reps for each structure that we've already loaded.
             for (const structInfo of (config.structures || [])) {
                 const idx = structInfo.index;
                 if (!components[idx]) continue;
@@ -576,10 +654,16 @@
                 for (const repConfig of (structInfo.representations || [])) {
                     createNglRep(idx, repConfig);
                 }
+                for (const repConfig of (userReps[idx] || [])) {
+                    if (!repState[idx][repConfig.id]) createNglRep(idx, repConfig);
+                }
                 refreshRepList(idx);
             }
-
             applyShapesFromConfig(config);
+            if (sceneLoad) {
+                lastSceneId = newConfig.scene_id;
+                applySceneView(config);
+            }
 
             if (config.focused_mode) {
                 centerOnAnnotations();
@@ -630,6 +714,10 @@
                 centerOnAnnotations();
             } else {
                 stage.autoView();
+            }
+            if (config.scene_id) {
+                lastSceneId = config.scene_id;
+                applySceneView(config);
             }
         }
 
@@ -790,7 +878,13 @@
                 };
             }
 
-            const params = { sele: repConfig.selection, color: repConfig.color };
+            // 'chainid' in NGL is the parser's internal chain RECORD (a new one at
+            // every TER and every polymer/HETATM break), not the chain letter: a
+            // 16-chain PDB with hemes and waters has ~100 records, and the protein
+            // segments, which come first, all land at the red end of the scale.
+            // 'chainname' is the chain letter. Map the old value for saved scenes.
+            const colour = repConfig.color === 'chainid' ? 'chainname' : repConfig.color;
+            const params = { sele: repConfig.selection, color: colour };
             if (nglStyle === 'ball+stick') params.scale = 0.5;
             if (nglStyle === 'spacefill' && repConfig.selection === 'ion') params.scale = 0.8;
             if (nglStyle === 'halo') {

@@ -205,12 +205,15 @@ class ViewerCoordinator:
         force: bool = False,
         opacity: Optional[float] = None,
         scale: Optional[float] = None,
+        display_label: Optional[str] = None,
     ) -> None:
         """Add an annotation overlay to the currently shown structure.
 
         ``selection`` is an NGL selection string (e.g., ``":A and 56"``).
         ``label`` lets later calls replace the same overlay; default labels
-        are auto-generated from the selection.
+        are auto-generated from the selection. ``display_label`` is the text
+        shown in the viewer's representation list; without it the key is
+        title-cased (``water_cat_hbond`` -> "Water Cat Hbond").
 
         ``focused=True`` hides the default protein/ligand/ion/water reps so
         the overlay is the only thing visible — used when the caller is
@@ -231,6 +234,7 @@ class ViewerCoordinator:
             self._safely(lambda: self._highlight_impl(
                 selection, style=style, color=color, label=label,
                 focused=focused, force=force, opacity=opacity, scale=scale,
+                display_label=display_label,
             ))
 
     def set_opacity(self, target: str, opacity: float, *, force: bool = False) -> None:
@@ -486,6 +490,7 @@ class ViewerCoordinator:
         force: bool,
         opacity: Optional[float] = None,
         scale: Optional[float] = None,
+        display_label: Optional[str] = None,
     ) -> None:
         v = self._ensure_viewer()
         if not v.selected_structures:
@@ -507,6 +512,8 @@ class ViewerCoordinator:
             cfg["opacity"] = opacity
         if scale is not None:
             cfg["scale"] = scale
+        if display_label:
+            cfg["label"] = display_label
         v.annotation_config[key] = cfg
 
         if focused:

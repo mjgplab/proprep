@@ -30,10 +30,10 @@ ZA-Z1   65.8    2.3597      Created by Seminario method using MCPB.py
 ZB-Z2   67.0    2.3280      Created by Seminario method using MCPB.py
 ZC-Z3   69.7    2.3162      Created by Seminario method using MCPB.py
 ZD-Z4   68.4    2.3536      Created by Seminario method using MCPB.py
-CT-ZA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-ZB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-ZC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-ZD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-ZA   128.7    1.8583      Seminario from small-model Hessian (was 237.0/1.810)
+CT-ZB   134.0    1.8572      Seminario from small-model Hessian (was 237.0/1.810)
+CT-ZC   137.4    1.8565      Seminario from small-model Hessian (was 237.0/1.810)
+CT-ZD   129.4    1.8554      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-ZA-Z1    57.73      98.36    Created by Seminario method using MCPB.py

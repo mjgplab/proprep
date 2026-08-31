@@ -2978,20 +2978,34 @@ class StructurePreprocessor:
         all_atom_types = _dedupe(all_atom_types)
 
         if self.workspace:
-            # Append renamed mol2 paths to preprocessing_lib_files
+            # The site's organic ligands were re-parameterized as part of the
+            # metal site, so their standalone small-molecule registrations are
+            # now stale: the renamed PDB has no E4Z left for e4z.lib to build,
+            # and the site library carries its own copy of e4z.frcmod. Drop the
+            # superseded halves so tLEaP sees exactly one definition of each.
+            superseded = self._superseded_component_files(site_resnames, ligand_frcmods)
+
+            # Add renamed mol2 paths to preprocessing_lib_files
             # (tLEaP generator handles .mol2 -> loadmol2 automatically)
             lib_files = self.workspace.get("preprocessing_lib_files", [])
             if not isinstance(lib_files, list):
                 lib_files = []
-            lib_files.extend(all_lib_files)
+            lib_files = self._merge_ff_file_list(
+                lib_files, all_lib_files, superseded)
             self.workspace.set("preprocessing_lib_files", lib_files)
 
-            # Append frcmod paths to preprocessing_frcmod_files
+            # Add frcmod paths to preprocessing_frcmod_files
             frcmod_files = self.workspace.get("preprocessing_frcmod_files", [])
             if not isinstance(frcmod_files, list):
                 frcmod_files = []
-            frcmod_files.extend(all_frcmod_paths)
+            frcmod_files = self._merge_ff_file_list(
+                frcmod_files, all_frcmod_paths, superseded)
             self.workspace.set("preprocessing_frcmod_files", frcmod_files)
+
+            if superseded:
+                self.console.print(
+                    f"  [grey50]Superseded {len(superseded)} standalone ligand "
+                    f"file(s) now provided by the site library[/grey50]")
 
             # Store custom atom types for tLEaP addAtomTypes block
             if all_atom_types:
@@ -3884,6 +3898,67 @@ class StructurePreprocessor:
                     break
 
         return frcmods
+
+    def _superseded_component_files(self, resnames: Set[str],
+                                    ligand_frcmods: Dict[str, str]) -> Set[str]:
+        """Return the standalone lib/mol2/frcmod paths that the metal-site
+        parameterization has replaced.
+
+        A ligand inside the site (e.g. E4Z) is parameterized twice: first
+        standalone by the small-molecule parameterizer, then again as part of
+        the site, which renames its residue (E4Z -> EZ1) and re-deposits its
+        GAFF frcmod into the site library. Both registrations otherwise reach
+        tLEaP, so it loads two definitions of one ligand — and the standalone
+        ``e4z.lib`` names a unit that no longer occurs in the renamed PDB.
+        These paths are the losing half of that pair.
+
+        Returned as realpaths so relative and absolute spellings of the same
+        file compare equal.
+        """
+        import os
+
+        superseded: Set[str] = set()
+
+        organic = self.workspace.get("preprocessing_organic_ff", {}) if self.workspace else {}
+        orgmet = self.workspace.get("preprocessing_organometallic_ff", {}) if self.workspace else {}
+        for resname, info in {**organic, **orgmet}.items():
+            if resname not in resnames:
+                continue
+            for key in ("lib_file", "mol2_file", "frcmod_file"):
+                path = info.get(key)
+                if path:
+                    superseded.add(os.path.realpath(str(path)))
+
+        # The frcmods actually copied into the site library, including any
+        # resolved by _collect_ligand_frcmods' on-disk fallback (which the
+        # workspace registries above may not carry when the organic step cached).
+        for path in (ligand_frcmods or {}).values():
+            if path:
+                superseded.add(os.path.realpath(str(path)))
+
+        return superseded
+
+    @staticmethod
+    def _merge_ff_file_list(existing, additions, superseded: Set[str]):
+        """Drop superseded entries from ``existing``, append ``additions``, and
+        de-duplicate by realpath while preserving order.
+
+        De-duplication matters because mcpb-4 can run more than once in a
+        session (a re-run after adjusting a site), and each run appends.
+        """
+        import os
+
+        merged = []
+        seen: Set[str] = set()
+        for path in list(existing or []) + list(additions or []):
+            if not path:
+                continue
+            real = os.path.realpath(str(path))
+            if real in superseded or real in seen:
+                continue
+            seen.add(real)
+            merged.append(path)
+        return merged
 
     def _remove_metals_from_structure(self, metals: List[MetalInfo], pdb_file: str = None) -> Path:
         """Remove specified metal atoms from structure."""

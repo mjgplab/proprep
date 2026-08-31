@@ -2,18 +2,20 @@
 # ============================================================
 # ProPrep release version-lockstep check
 # ============================================================
-# The ProPrep version is pinned in FOUR independent files that must
-# always agree. The release-bump step is done by hand (in practice by
-# a Claude session) and install_proprep.sh — which lives at the repo
-# root, apart from the packaging files, and must also be copied to the
-# separate mjgplab/proprep dist-repo — is the one most often forgotten.
+# The ProPrep version is pinned in SEVEN independent files that must
+# always agree (see docs/RELEASE_PROCEDURE.md, "The version is pinned in
+# SEVEN files"). The release bump is done by hand (in practice by a
+# Claude session), and history shows which pins get forgotten:
+#   - install_proprep.sh (missed in 1.12.0)
+#   - update_proprep_in_ambertools.sh (sat at 1.14.0 through 1.16.0)
+#   - constructor/construct.yaml (added 2026-08-28, two lines)
 #
-# Run this BEFORE `conda build` on every release. It exits non-zero if
-# the four pins disagree, so a missed file fails loudly instead of
-# silently shipping an installer that fetches the wrong version.
+# Run this BEFORE `conda build` and again BEFORE the public snapshot on
+# every release. It exits non-zero if any pin disagrees or is missing.
 #
 #   bash scripts/check_version_lockstep.sh          # check they agree
-#   bash scripts/check_version_lockstep.sh 1.12.0   # also assert == 1.12.0
+#   bash scripts/check_version_lockstep.sh 1.17.0   # also assert == 1.17.0
+#   make check-version VERSION=1.17.0               # same, via Makefile
 # ============================================================
 set -u
 
@@ -21,49 +23,63 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 2
 
-# Each pin: "label|file|sed-extract-expression". The sed programs target
-# the specific pin line per file, not any semver-looking string.
-pyproject=$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'         pyproject.toml       | head -1)
-setup=$(sed -nE 's/.*version="([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'             setup.py             | head -1)
-recipe=$(sed -nE 's/.*set version = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'      recipe/meta.yaml     | head -1)
-installer=$(sed -nE 's/^PROPREP_VERSION="([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p'  install_proprep.sh   | head -1)
-citation=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p'                CITATION.cff         | head -1)
+SEMVER='[0-9]+\.[0-9]+\.[0-9]+'
 
-printf '%-28s %s\n' "pyproject.toml"       "${pyproject:-<not found>}"
-printf '%-28s %s\n' "setup.py"             "${setup:-<not found>}"
-printf '%-28s %s\n' "recipe/meta.yaml"     "${recipe:-<not found>}"
-printf '%-28s %s\n' "install_proprep.sh"   "${installer:-<not found>}"
-printf '%-28s %s\n' "CITATION.cff"         "${citation:-<not found>}"
+# label|file|sed program extracting the pin (targets the pin line, not any
+# semver-looking string in the file).
+PINS=(
+  "pyproject.toml|pyproject.toml|s/^version = \"($SEMVER)\".*/\1/p"
+  "setup.py|setup.py|s/.*version=\"($SEMVER)\".*/\1/p"
+  "recipe/meta.yaml|recipe/meta.yaml|s/.*set version = \"($SEMVER)\".*/\1/p"
+  "install_proprep.sh|install_proprep.sh|s/^PROPREP_VERSION=\"($SEMVER)\".*/\1/p"
+  "update_proprep_in_ambertools.sh|update_proprep_in_ambertools.sh|s/^PROPREP_VERSION=\"($SEMVER)\".*/\1/p"
+  "CITATION.cff|CITATION.cff|s/^version: ($SEMVER).*/\1/p"
+  "constructor/construct.yaml (version:)|constructor/construct.yaml|s/^version: ($SEMVER).*/\1/p"
+  "constructor/construct.yaml (proprep=)|constructor/construct.yaml|s/^ *- proprep=($SEMVER).*/\1/p"
+)
 
 fail=0
-for v in "$pyproject" "$setup" "$recipe" "$installer" "$citation"; do
-    [ -z "$v" ] && fail=1
+first=""
+for entry in "${PINS[@]}"; do
+    label="${entry%%|*}"
+    rest="${entry#*|}"
+    file="${rest%%|*}"
+    prog="${rest#*|}"
+    if [ ! -f "$file" ]; then
+        value="<file missing>"
+        fail=1
+    else
+        value="$(sed -nE "$prog" "$file" | head -1)"
+        if [ -z "$value" ]; then
+            value="<not found>"
+            fail=1
+        fi
+    fi
+    printf '%-42s %s\n' "$label" "$value"
+    if [ -z "$first" ] && [ "$value" != "<not found>" ] && [ "$value" != "<file missing>" ]; then
+        first="$value"
+    elif [ -n "$first" ] && [ "$value" != "$first" ]; then
+        fail=1
+    fi
 done
-
-# All four must be identical.
-if [ "$pyproject" != "$setup" ] || [ "$pyproject" != "$recipe" ] || [ "$pyproject" != "$installer" ] || [ "$pyproject" != "$citation" ]; then
-    fail=1
-fi
 
 if [ "$fail" -ne 0 ]; then
     echo
     echo "ERROR: version pins are NOT in lockstep (or a pin was not found)."
-    echo "       Bump all four to the same X.Y.Z before building/releasing."
-    echo "       Reminder: install_proprep.sh must ALSO be copied to the"
-    echo "       mjgplab/proprep dist-repo and pushed after publishing."
+    echo "       Bump every file listed above to the same X.Y.Z before"
+    echo "       building, publishing, or exporting the public snapshot."
+    echo "       See docs/RELEASE_PROCEDURE.md."
     exit 1
 fi
 
 # Optional: assert the agreed version equals an expected value.
 if [ "$#" -ge 1 ]; then
-    if [ "$pyproject" != "$1" ]; then
+    if [ "$first" != "$1" ]; then
         echo
-        echo "ERROR: pins agree at $pyproject but you expected $1."
+        echo "ERROR: pins agree on $first but the release is supposed to be $1."
         exit 1
     fi
-    echo
-    echo "OK: all five pins agree at $pyproject (== expected $1)."
-else
-    echo
-    echo "OK: all five version pins agree at $pyproject."
 fi
+
+echo
+echo "OK: all version pins agree on $first"

@@ -41,6 +41,37 @@ class RESPInputGenerator:
         3: ['CA', 'H', 'HA', 'N', 'C', 'O', 'CB']
     }
 
+
+    # Complete periodic table (elements 1-118), shared by element
+    # inference and atomic-number lookup.
+    ATOMIC_NUMBERS = {
+        # Period 1
+        'H': 1, 'He': 2,
+        # Period 2
+        'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8, 'F': 9, 'Ne': 10,
+        # Period 3
+        'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15, 'S': 16, 'Cl': 17, 'Ar': 18,
+        # Period 4
+        'K': 19, 'Ca': 20, 'Sc': 21, 'Ti': 22, 'V': 23, 'Cr': 24, 'Mn': 25, 'Fe': 26,
+        'Co': 27, 'Ni': 28, 'Cu': 29, 'Zn': 30, 'Ga': 31, 'Ge': 32, 'As': 33, 'Se': 34,
+        'Br': 35, 'Kr': 36,
+        # Period 5
+        'Rb': 37, 'Sr': 38, 'Y': 39, 'Zr': 40, 'Nb': 41, 'Mo': 42, 'Tc': 43, 'Ru': 44,
+        'Rh': 45, 'Pd': 46, 'Ag': 47, 'Cd': 48, 'In': 49, 'Sn': 50, 'Sb': 51, 'Te': 52,
+        'I': 53, 'Xe': 54,
+        # Period 6
+        'Cs': 55, 'Ba': 56, 'La': 57, 'Ce': 58, 'Pr': 59, 'Nd': 60, 'Pm': 61, 'Sm': 62,
+        'Eu': 63, 'Gd': 64, 'Tb': 65, 'Dy': 66, 'Ho': 67, 'Er': 68, 'Tm': 69, 'Yb': 70,
+        'Lu': 71, 'Hf': 72, 'Ta': 73, 'W': 74, 'Re': 75, 'Os': 76, 'Ir': 77, 'Pt': 78,
+        'Au': 79, 'Hg': 80, 'Tl': 81, 'Pb': 82, 'Bi': 83, 'Po': 84, 'At': 85, 'Rn': 86,
+        # Period 7
+        'Fr': 87, 'Ra': 88, 'Ac': 89, 'Th': 90, 'Pa': 91, 'U': 92, 'Np': 93, 'Pu': 94,
+        'Am': 95, 'Cm': 96, 'Bk': 97, 'Cf': 98, 'Es': 99, 'Fm': 100, 'Md': 101, 'No': 102,
+        'Lr': 103, 'Rf': 104, 'Db': 105, 'Sg': 106, 'Bh': 107, 'Hs': 108, 'Mt': 109,
+        'Ds': 110, 'Rg': 111, 'Cn': 112, 'Nh': 113, 'Fl': 114, 'Mc': 115, 'Lv': 116,
+        'Ts': 117, 'Og': 118
+    }
+
     def __init__(self, logger=None):
         """
         Initialize RESP input generator.
@@ -181,11 +212,18 @@ class RESPInputGenerator:
                            all_restraints, residue_groups)
         self.logger.debug(f"  Written: {respin1_path.name}")
 
+        # Stage 2 refits only the atoms whose charges are being equivalenced,
+        # plus the heavy atom each such group hangs off; everything else is
+        # held at its stage-1 value. See _stage2_free_atoms.
+        stage2_free = self._stage2_free_atoms(pdb_file, atoms_info, equivalences)
+        self.logger.debug(f"  Stage-2 refitted atoms: {len(stage2_free)} "
+                          f"of {n_atoms} (rest held at stage-1 charges)")
+
         # Write resp2.in (stage 2)
         respin2_path = output_dir / "resp2.in"
         self._write_respin2(respin2_path, atoms_info, total_charge,
                            all_restraints, equivalences, residue_groups,
-                           frozen_cap_atoms)
+                           frozen_cap_atoms, stage2_free)
         self.logger.debug(f"  Written: {respin2_path.name}")
 
         return str(respin1_path), str(respin2_path)
@@ -209,7 +247,7 @@ class RESPInputGenerator:
                     resname = line[17:20].strip()
                     chain = line[21] if len(line) > 21 else ' '
                     resid = int(line[22:26].strip())
-                    element = line[76:78].strip() if len(line) > 77 else atom_name[0]
+                    element = self._infer_element(line, atom_name, resname)
 
                     atoms.append({
                         'serial': serial,
@@ -220,6 +258,80 @@ class RESPInputGenerator:
                         'element': element
                     })
         return atoms
+
+    # Two-letter element symbols that realistically appear as an atom name in
+    # a biomolecular PDB — metals, halides, selenium. Deliberately an
+    # allowlist: a blocklist of colliding protein atom names is easy to leave
+    # incomplete (SG would otherwise read as seaborgium rather than Cys
+    # sulfur). Symbols that collide with a standard protein atom name (CA, CD,
+    # CE, ND, NE, HE, HG) are excluded here and reached only by the
+    # monatomic-ion test, where the residue name confirms them.
+    _ION_ELEMENT_NAMES = frozenset({
+        'ZN', 'FE', 'MG', 'MN', 'CU', 'NI', 'CO', 'MO', 'AU', 'AG', 'PT',
+        'PD', 'RU', 'RH', 'OS', 'IR', 'RE', 'TC', 'CR', 'NA', 'LI', 'RB',
+        'CS', 'SR', 'BA', 'AL', 'PB', 'SN', 'SB', 'TL', 'CL', 'BR', 'SE',
+    })
+
+    def _infer_element(self, line: str, atom_name: str, resname: str = '') -> str:
+        """Element symbol for one ATOM/HETATM record.
+
+        Columns 77-78 are used when present and non-blank. Externally produced
+        PDBs frequently omit them — MCPB.py's own ``*_large.pdb`` is 65
+        characters wide, so the previous fallback of ``atom_name[0]`` read
+        ``ZN`` as element "Z" and aborted RESP input generation.
+
+        Three fallbacks are tried in order:
+
+        1. The PDB column convention, where a two-letter element starts in
+           column 13 and a one-letter element is right-justified into column
+           14. This is what separates the calcium ion ``CA  `` from an alpha
+           carbon `` CA ``, so the raw field is read, not the stripped name.
+        2. A monatomic-ion record, where the residue name equals the atom
+           name (``ZN``/``ZN``). This catches writers such as MCPB.py that
+           indent the metal into column 14 regardless of its symbol length.
+        3. An atom named for a metal, halide or selenium embedded in a larger
+           residue (``FE`` in ``HEM``); see ``_ION_ELEMENT_NAMES``.
+
+        Args:
+            line: The full ATOM/HETATM record.
+            atom_name: The stripped atom name (columns 13-16).
+            resname: The stripped residue name, used for the ion test.
+
+        Returns:
+            Element symbol, falling back to the name's first letter.
+        """
+        if len(line) >= 78:
+            explicit = line[76:78].strip()
+            if explicit:
+                return explicit
+
+        def as_element(symbol: str) -> Optional[str]:
+            if len(symbol) != 2:
+                return None
+            normalized = symbol[0].upper() + symbol[1].lower()
+            return normalized if normalized in self.ATOMIC_NUMBERS else None
+
+        raw = line[12:16] if len(line) >= 16 else atom_name.rjust(4)
+        if raw[:1].strip() and not raw[0].isdigit():
+            found = as_element(raw[:2].strip())
+            if found:
+                return found
+
+        upper_name = atom_name.strip().upper()
+        if upper_name and upper_name == resname.strip().upper():
+            found = as_element(upper_name)
+            if found:
+                return found
+
+        if upper_name in self._ION_ELEMENT_NAMES:
+            found = as_element(upper_name)
+            if found:
+                return found
+
+        for char in atom_name:
+            if char.isalpha():
+                return char.upper()
+        return atom_name[:1]
 
     def _get_atomic_number(self, element: str) -> int:
         """
@@ -234,34 +346,7 @@ class RESPInputGenerator:
         Raises:
             ValueError: If element symbol is not recognized
         """
-        # Complete periodic table (elements 1-118)
-        atomic_numbers = {
-            # Period 1
-            'H': 1, 'He': 2,
-            # Period 2
-            'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8, 'F': 9, 'Ne': 10,
-            # Period 3
-            'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15, 'S': 16, 'Cl': 17, 'Ar': 18,
-            # Period 4
-            'K': 19, 'Ca': 20, 'Sc': 21, 'Ti': 22, 'V': 23, 'Cr': 24, 'Mn': 25, 'Fe': 26,
-            'Co': 27, 'Ni': 28, 'Cu': 29, 'Zn': 30, 'Ga': 31, 'Ge': 32, 'As': 33, 'Se': 34,
-            'Br': 35, 'Kr': 36,
-            # Period 5
-            'Rb': 37, 'Sr': 38, 'Y': 39, 'Zr': 40, 'Nb': 41, 'Mo': 42, 'Tc': 43, 'Ru': 44,
-            'Rh': 45, 'Pd': 46, 'Ag': 47, 'Cd': 48, 'In': 49, 'Sn': 50, 'Sb': 51, 'Te': 52,
-            'I': 53, 'Xe': 54,
-            # Period 6
-            'Cs': 55, 'Ba': 56, 'La': 57, 'Ce': 58, 'Pr': 59, 'Nd': 60, 'Pm': 61, 'Sm': 62,
-            'Eu': 63, 'Gd': 64, 'Tb': 65, 'Dy': 66, 'Ho': 67, 'Er': 68, 'Tm': 69, 'Yb': 70,
-            'Lu': 71, 'Hf': 72, 'Ta': 73, 'W': 74, 'Re': 75, 'Os': 76, 'Ir': 77, 'Pt': 78,
-            'Au': 79, 'Hg': 80, 'Tl': 81, 'Pb': 82, 'Bi': 83, 'Po': 84, 'At': 85, 'Rn': 86,
-            # Period 7
-            'Fr': 87, 'Ra': 88, 'Ac': 89, 'Th': 90, 'Pa': 91, 'U': 92, 'Np': 93, 'Pu': 94,
-            'Am': 95, 'Cm': 96, 'Bk': 97, 'Cf': 98, 'Es': 99, 'Fm': 100, 'Md': 101, 'No': 102,
-            'Lr': 103, 'Rf': 104, 'Db': 105, 'Sg': 106, 'Bh': 107, 'Hs': 108, 'Mt': 109,
-            'Ds': 110, 'Rg': 111, 'Cn': 112, 'Nh': 113, 'Fl': 114, 'Mc': 115, 'Lv': 116,
-            'Ts': 117, 'Og': 118
-        }
+        atomic_numbers = self.ATOMIC_NUMBERS
 
         # Normalize element symbol (handle both 'C' and 'c', 'CA' and 'Ca')
         element_clean = element.strip()
@@ -481,6 +566,56 @@ class RESPInputGenerator:
                 equivalences.extend(special_equiv)
 
         return equivalences
+
+    def _stage2_free_atoms(self,
+                           pdb_file: str,
+                           atoms_info: List[Dict],
+                           equivalences: List[List[int]]) -> set:
+        """Atoms that RESP stage 2 is allowed to refit (1-based indices).
+
+        The two-stage RESP protocol only re-optimizes the charges it has to:
+        the atoms being made equivalent, and the heavy atom each equivalenced
+        hydrogen group is bonded to. Every other atom is held at its stage-1
+        value (``-99``). Refitting them under stage 2's stronger hyperbolic
+        restraint (``qwt`` 0.001 vs 0.0005) systematically damps charges
+        toward zero — on a metal site that shows up directly in the metal and
+        ligating-atom charges.
+
+        The parent heavy atom is only freed for groups that are entirely
+        hydrogens (the CH2/CH3 case MCPB.py handles). A cross-residue group
+        of heavy atoms frees its own members but not their neighbours, so a
+        user-declared equivalence cannot cascade through the molecule.
+
+        Args:
+            pdb_file: PDB the CONECT records are read from.
+            atoms_info: Parsed atoms, in RESP-input order.
+            equivalences: Equivalence groups (1-based RESP-input indices).
+
+        Returns:
+            Set of 1-based indices stage 2 may refit.
+        """
+        serial_to_resp = {info['serial']: idx
+                          for idx, info in enumerate(atoms_info, 1)}
+        bonds = []
+        for s1, s2 in self._parse_conect_records(pdb_file):
+            r1, r2 = serial_to_resp.get(s1), serial_to_resp.get(s2)
+            if r1 is not None and r2 is not None:
+                bonds.append((r1, r2))
+
+        def is_h(idx: int) -> bool:
+            return atoms_info[idx - 1]['element'].strip().upper() == 'H'
+
+        free = set()
+        for group in equivalences:
+            free.update(group)
+            if not all(is_h(i) for i in group):
+                continue
+            for i in group:
+                for a, b in bonds:
+                    other = b if a == i else (a if b == i else None)
+                    if other is not None and not is_h(other):
+                        free.add(other)
+        return free
 
     def _expand_cross_residue_equivalences(
         self,
@@ -760,7 +895,8 @@ class RESPInputGenerator:
                       restraints: Dict[int, float],
                       equivalences: List[List[int]],
                       residue_groups: List[Tuple[List[int], float]] = None,
-                      frozen_cap_atoms: set = None) -> None:
+                      frozen_cap_atoms: set = None,
+                      stage2_free: set = None) -> None:
         """
         Write stage 2 resp input (strong restraint + equivalences).
 
@@ -806,6 +942,10 @@ class RESPInputGenerator:
 
             # Atom section with equivalences
             frozen_set = frozen_cap_atoms or set()
+            # Atoms stage 2 may refit. None means "no restriction" (every atom
+            # free), preserving the pre-fix behaviour for any caller that does
+            # not supply the set.
+            free_set = stage2_free
 
             for idx in range(1, n_atoms + 1):
                 atomic_num = self._get_atomic_number(atoms_info[idx-1]['element'])
@@ -820,6 +960,10 @@ class RESPInputGenerator:
                 elif idx in equiv_map:
                     # Equivalent to another atom
                     equiv_flag = equiv_map[idx]
+                elif free_set is not None and idx not in free_set:
+                    # Not being equivalenced: hold at the stage-1 charge rather
+                    # than refitting it under stage 2's stronger restraint.
+                    equiv_flag = -99
                 else:
                     # Free atom (0)
                     equiv_flag = 0

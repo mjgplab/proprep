@@ -165,13 +165,21 @@ def _canon_signature(sig: Optional[Dict[str, Any]]) -> Optional[Tuple]:
 _WL_ROUNDS = 4
 
 
-def connectivity_signature(redox_site) -> Dict[Tuple[str, int], str]:
+def connectivity_signature(redox_site, include_waters: bool = False) -> Dict[Tuple[str, int], str]:
     """Canonical WL label per site residue, keyed by (chain, resid).
 
     Labels are protein-independent (built only from residue names, metal
     elements, coordinating atom names and graph structure — never resids or
     chains), so a label computed on the parameterized site matches the same
     role computed on another instance of the site.
+
+    ``include_waters=False`` (the anhydrous fingerprint) is what has always
+    been baked and matched: water bonds are frequently replaced by MD
+    restraints and omitted on the reuse side, and WL would propagate that
+    difference to every label. ``include_waters=True`` (the hydrated
+    fingerprint) adds waters as ``L:WAT`` nodes so coordinated waters that a
+    transformer renames (e.g. to MW1/MW2) are themselves distinguishable.
+    Emitters bake both; matching tries hydrated first and falls back.
     """
     # Nodes: every site residue EXCEPT waters. Waters are excluded on purpose:
     # they are never renamed, their naming varies (HOH/WAT/TIP3/...), and their
@@ -183,7 +191,7 @@ def connectivity_signature(redox_site) -> Dict[Tuple[str, int], str]:
     # "metal" node if any of its atoms is a metal element.
     residues: Dict[Tuple[str, int], Dict[str, Any]] = {}
     for a in getattr(redox_site, "atoms", []) or []:
-        if _norm_resname(a.resname) == "WAT":
+        if not include_waters and _norm_resname(a.resname) == "WAT":
             continue
         key = (a.chain, a.resid)
         elem = (getattr(a, "element", "") or "").upper()
@@ -412,12 +420,41 @@ class AutoRenameTransformerBase(RedoxSiteTransformerBase):
         }
 
     @classmethod
+    def _match_two_phase(cls, labels_wet, labels_dry, entries, candidates):
+        """Hydrated-first signature match.
+
+        ``entries`` carry ``signature`` (anhydrous, always) and possibly
+        ``signature_hydrated``. The hydrated bijection is attempted when every
+        entry has one (water roles only exist there); on failure or absence the
+        anhydrous match runs unchanged, so transformers emitted before the
+        hydrated fingerprint, and reuse sites whose water bonds are undefined,
+        behave exactly as before. Returns (assignment|None, labels, entries)
+        where the last two are what a diagnostic should display.
+        """
+        wet_entries = [{"target": e["target"], "signature": e.get("signature_hydrated")}
+                       for e in entries]
+        wet_ok = all(e["signature"] is not None for e in wet_entries)
+        if wet_ok:
+            assignment = cls._match_by_signature(labels_wet, wet_entries, candidates)
+            if assignment is not None:
+                return assignment, labels_wet, wet_entries
+        dry_entries = [{"target": e["target"], "signature": e.get("signature")}
+                       for e in entries]
+        assignment = cls._match_by_signature(labels_dry, dry_entries, candidates)
+        if assignment is not None:
+            return assignment, labels_dry, dry_entries
+        if wet_ok:
+            return None, labels_wet, wet_entries
+        return None, labels_dry, dry_entries
+
+    @classmethod
     def match_components(cls, redox_site) -> Tuple[Dict[str, Any], List[str]]:
         matched: Dict[str, Any] = {}
         missing: List[str] = []
 
         # WL connectivity labels for the brought site, computed once.
         labels = connectivity_signature(redox_site)
+        labels_wet = connectivity_signature(redox_site, include_waters=True)
 
         for resname, entries in cls._rename_groups().items():
             candidates = cls._site_residues_by_resname(redox_site, resname)
@@ -439,12 +476,13 @@ class AutoRenameTransformerBase(RedoxSiteTransformerBase):
                 )
                 continue
 
-            assignment = cls._match_by_signature(labels, entries, candidates)
+            assignment, diag_labels, diag_entries = cls._match_two_phase(
+                labels_wet, labels, entries, candidates)
             if assignment is not None:
                 for target, (chain, resid) in assignment.items():
                     cls._write_role(matched, target, [(chain, resid)])
             else:
-                diagnostic = cls._signature_diagnostic(labels, entries, candidates)
+                diagnostic = cls._signature_diagnostic(diag_labels, diag_entries, candidates)
                 cls._declare_ambiguous(matched, resname, distinct_targets,
                                        candidates, diagnostic)
 
@@ -693,7 +731,8 @@ def emit_rename_transformer(rename_table: List[Dict[str, Any]], *,
                             target_dir: Optional[Path] = None) -> Path:
     """Write a data-only rename transformer module and return its path.
 
-    ``rename_table`` is a list of ``{"resname", "target", "signature"?}`` dicts
+    ``rename_table`` is a list of ``{"resname", "target", "signature"?,
+    "signature_hydrated"?}`` dicts
     (one per renamed residue) — exactly what the caller derives from its own
     rename map. The file is written to ``~/.proprep/transformers/<name>.py``;
     re-emitting the same ``name`` overwrites it, so re-parameterizing a site

@@ -30,10 +30,10 @@ DA-D1   98.7    2.2606      Created by Seminario method using MCPB.py
 DB-D2   99.6    2.2850      Created by Seminario method using MCPB.py
 DC-D3  112.7    2.2450      Created by Seminario method using MCPB.py
 DD-D4  104.2    2.2576      Created by Seminario method using MCPB.py
-CT-DA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-DB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-DC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-DD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-DA   120.1    1.8622      Seminario from small-model Hessian (was 237.0/1.810)
+CT-DB   129.3    1.8647      Seminario from small-model Hessian (was 237.0/1.810)
+CT-DC   124.8    1.8625      Seminario from small-model Hessian (was 237.0/1.810)
+CT-DD   118.8    1.8615      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-DA-D1    64.37     100.40    Created by Seminario method using MCPB.py

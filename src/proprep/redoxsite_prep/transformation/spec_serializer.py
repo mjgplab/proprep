@@ -154,6 +154,7 @@ def build_json_spec(spec, roles: Dict[str, Any],
     site into the JSON transformer spec consumed by :class:`SpecTransformer`."""
     created = _created_labels(spec)
     sig = connectivity_signature(site) if site is not None else {}
+    sig_wet = connectivity_signature(site, include_waters=True) if site is not None else {}
 
     role_entries: List[Dict[str, Any]] = []
     for label, role in roles.items():
@@ -163,6 +164,7 @@ def build_json_spec(spec, roles: Dict[str, Any],
         else:
             key = _role_key(label, roles, resolved)
             entry["fingerprint"] = sig.get(key) if key else None
+            entry["fingerprint_hydrated"] = sig_wet.get(key) if key else None
             entry["discriminators"] = [
                 {"source_atom": s, "partner_resname": p, "target_atom": t}
                 for (s, p, t) in sorted(residue_bond_discriminators(site, key))

@@ -6667,17 +6667,49 @@ class ModifiedAAWorkflowManager:
                 keys.append(lo["key"])
         return keys
 
+    # Workspace key holding the step-5 selection across sessions. The selection
+    # decides which ESP single points get run, so losing it on resume silently
+    # re-selects and can orphan QM the user has already paid for.
+    _SELECTION_WS_KEY = "modaa_selected_esp_keys"
+
+    def _persist_selection(self, selected):
+        """Record the step-5 selection in the workspace (snapshotted to state)."""
+        try:
+            ws = self.processor._get_workspace()
+            ws.set(self._SELECTION_WS_KEY,
+                   {"amino_acid": self.amino_acid,
+                    "keys": [list(k) for k in selected]})
+        except Exception as exc:  # never break the step over bookkeeping
+            logger.debug("Could not persist the RESP selection: %s", exc)
+
+    def _persisted_selection(self):
+        """The step-5 selection recorded in a prior session, or None.
+
+        Keyed by amino acid so a different residue's run cannot inherit it.
+        """
+        try:
+            record = self.processor._get_workspace().get(self._SELECTION_WS_KEY)
+        except Exception:
+            return None
+        if not isinstance(record, dict) or record.get("amino_acid") != self.amino_acid:
+            return None
+        keys = record.get("keys")
+        return [tuple(k) for k in keys] if keys else None
+
     def _selected_candidates(self):
         """Candidates chosen to feed RESP, honoring an explicit step-5 selection.
 
         Resolution order: an in-memory selection (``self._selected_esp_keys``),
-        then a selection recorded in the step-5 result, then the deterministic
-        default. Falls back to all candidates if the selection matched nothing.
+        then a selection recorded in the step-5 result, then one persisted to
+        the workspace by an earlier session, then the deterministic default.
+        Falls back to all candidates if the selection matched nothing.
         """
         keys = getattr(self, "_selected_esp_keys", None)
         if keys is None:
             recorded = self.step_results.get("step_5", {}).get("selected_keys")
             keys = [tuple(k) for k in recorded] if recorded else None
+        if keys is None:
+            keys = self._persisted_selection()
         if keys is None:
             keys = self._default_selection_keys()
         keyset = {tuple(k) for k in keys}
@@ -7811,6 +7843,7 @@ class ModifiedAAWorkflowManager:
         # Single candidate (one conformer, unscanned): nothing to choose.
         if len(cands) == 1:
             self._selected_esp_keys = [cands[0]["key"]]
+            self._persist_selection(self._selected_esp_keys)
             return {"success": True,
                     "message": "Single structure selected for charge fitting",
                     "selected_keys": [list(cands[0]["key"])],
@@ -7866,6 +7899,7 @@ class ModifiedAAWorkflowManager:
             selected = list(default_keys)
 
         self._selected_esp_keys = selected
+        self._persist_selection(selected)
         chosen = [c for c in cands if c["key"] in {tuple(k) for k in selected}]
         labels_shown = ", ".join(
             f"{c['label']}" + ("" if c["point"] is None else f"/p{c['point']}")
@@ -8195,7 +8229,22 @@ class ModifiedAAWorkflowManager:
                     net_charge = recovered
 
         if not esp_file or not ac_file:
-            return {"success": False, "message": "Missing ESP or AC file from previous steps"}
+            # Naming both artifacts left the user to guess which one was absent,
+            # and step 7 announces the AC file immediately before this runs -- so
+            # the natural reading was the wrong one. Say which, and where we
+            # looked, since both are resolved relative to the working directory.
+            aa = self.amino_acid.lower()
+            missing = []
+            if not esp_file:
+                missing.append(
+                    f"the combined ESP from step 6 — no {aa}_combined.esp and no single "
+                    f"per-structure .esp in {os.getcwd()}. Step 6 writes one only after "
+                    f"EVERY selected structure has its ESP log; while any is missing it "
+                    f"pauses instead")
+            if not ac_file:
+                missing.append("the AC file from step 7")
+            return {"success": False,
+                    "message": "Cannot fit RESP charges, missing " + "; ".join(missing)}
 
         result = generate_and_run_residuegen(self.amino_acid, ac_file, esp_file, net_charge, processor=self.processor)
         if result and result.get("success"):

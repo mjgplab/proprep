@@ -16,10 +16,16 @@ BINDIR ?= $(AMBERHOME)/bin
 install:
 	$(PYTHON) setup.py install --prefix=$(AMBERHOME) --install-scripts=$(BINDIR)
 
-# Release guard: verify the four version pins are in lockstep before building.
-# Optionally pass VERSION=X.Y.Z to also assert the agreed value.
+# Release guard: verify the SEVEN version pins are in lockstep before building
+# (see docs/RELEASE_PROCEDURE.md). Optionally pass VERSION=X.Y.Z to also
+# assert the agreed value.
 check-version:
 	bash scripts/check_version_lockstep.sh $(VERSION)
+
+# Export the clean public snapshot of tag v$(VERSION) for the mjgplab/proprep
+# mirror and the Zenodo upload -> releases/public/ (gitignored).
+snapshot:
+	bash scripts/export_public_snapshot.sh v$(VERSION)
 
 clean:
 	-rm -rf build/ dist/ *.egg-info src/*.egg-info

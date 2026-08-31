@@ -50,7 +50,6 @@ class WaterAnalyzer:
         self.parameters = {
             'metal_distance_cutoff': 2.5,
             'hbond_distance_cutoff': 3.5,
-            'hbond_angle_cutoff': 120.0,
             'hbond_atoms': 'N,O,S',
             'max_hbonds_per_water': 4,
             'interface_distance_cutoff': 5.0,
@@ -59,9 +58,8 @@ class WaterAnalyzer:
             
             # Burial analysis parameters
             'burial_radius': 5.0,                    
-            'burial_atom_types': 'protein,hetero',   
+            'burial_atom_types': 'protein,hetero,metal',   # metal ions are their own class; a bound ion must shield its water   
             'burial_weighting': 'count',             
-            'burial_max_expected': 50,               
         
             # NEW: Network analysis parameters
             'network_type': 'water_only',           # water_only/water_protein_water/all_hbonds
@@ -71,9 +69,7 @@ class WaterAnalyzer:
         } 
 
         # SASA calculation cache
-        self._sasa_result = None
-        self._sasa_temp_file = None
-        self._sasa_calculated = False
+        self._burial_cache: Dict[str, Any] = {}   # occluder set, KD-tree, enclosure grid (see _burial_context)
 
     def get_hbond_atoms(self):
         """Get list of atoms to consider for H-bonding."""
@@ -83,6 +79,8 @@ class WaterAnalyzer:
     def set_parameters(self, **kwargs):
         """Update analysis parameters."""
         self.parameters.update(kwargs)
+        if 'burial_atom_types' in kwargs or 'sasa_probe_radius' in kwargs:
+            self._burial_cache.clear()
         
     def get_metal_atoms(self) -> List[Tuple[Any, str, str]]:
         """Find all metal atoms in the structure."""
@@ -99,84 +97,17 @@ class WaterAnalyzer:
                         metals.append((atom, chain.id, f"{residue.resname}{residue.id[1]}"))
         return metals
         
-    def _estimate_hbond_angle(self, water_oxygen, partner_atom, partner_residue):
-        """
-        Calculate actual H-bond geometry using heavy atoms.
-        
-        For water H-bonds, we calculate the angle formed by:
-        bonded_atom - partner_atom - water_oxygen
-        
-        Returns score from 0-1, where 1 is optimal H-bond geometry.
-        """
-        from Bio.PDB.vectors import Vector
-        import numpy as np
-        
-        water_pos = Vector(water_oxygen.coord)
-        partner_pos = Vector(partner_atom.coord)
-        distance = (partner_pos - water_pos).norm()
-        
-        # Find atoms bonded to the partner atom (within 1.8 Å)
-        bonded_atoms = []
-        for atom in partner_residue:
-            if atom == partner_atom:
-                continue
-            atom_pos = Vector(atom.coord)
-            bond_distance = (atom_pos - partner_pos).norm()
-            if bond_distance <= 1.8:  # Typical covalent bond distance
-                bonded_atoms.append(atom)
-        
-        if not bonded_atoms:
-            # No bonded atoms found, use distance-based scoring only
-            if distance <= 3.0:
-                return 0.8
-            elif distance <= 3.5:
-                return 0.6
-            else:
-                return 0.3
-        
-        # Calculate angles for H-bond geometry
-        best_angle_score = 0.0
-        
-        for bonded_atom in bonded_atoms:
-            bonded_pos = Vector(bonded_atom.coord)
-            
-            # Calculate angle: bonded_atom - partner_atom - water_oxygen
-            vec1 = bonded_pos - partner_pos  # partner to bonded atom
-            vec2 = water_pos - partner_pos   # partner to water
-            
-            # Calculate angle between vectors
-            cos_angle = vec1 * vec2 / (vec1.norm() * vec2.norm())
-            # Clamp to valid range for acos
-            cos_angle = max(-1.0, min(1.0, cos_angle))
-            angle_rad = np.arccos(cos_angle)
-            angle_deg = np.degrees(angle_rad)
-            
-            # For H-bonds, we want angles close to 180° (linear)
-            if angle_deg >= 150:  # Very linear - excellent H-bond
-                angle_score = 1.0
-            elif angle_deg >= 120:  # Good H-bond angle
-                angle_score = 0.8
-            elif angle_deg >= 90:   # Acceptable H-bond
-                angle_score = 0.6
-            else:  # Poor H-bond geometry
-                angle_score = 0.3
-                
-            best_angle_score = max(best_angle_score, angle_score)
-        
-        # Combine angle and distance scoring
-        if distance <= 2.8:
-            distance_score = 1.0
-        elif distance <= 3.2:
-            distance_score = 0.9
-        elif distance <= 3.5:
-            distance_score = 0.7
-        else:
-            distance_score = 0.4
-            
-        return best_angle_score * distance_score
-
     def calculate_hydrogen_bonds(self, water_oxygen, chain: Chain) -> Dict[str, Any]:
-        """Calculate hydrogen bonds for a water molecule using heavy atom geometry."""
+        """Hydrogen-bond partners of a water from heavy-atom distances alone.
+
+        Candidates are the N/O/S atoms within ``hbond_distance_cutoff`` of the
+        oxygen (3.5 Å by default, the Baker-Hubbard donor-acceptor criterion).
+        No angular test: hydrogens are usually absent at this point and the
+        heavy-atom positions do not fix where they point, so any "angle score"
+        would be invented. Candidates are ranked by distance and truncated to
+        ``max_hbonds_per_water``, so ``total`` is a count of plausible partners
+        within the cutoff, not a hydrogen-bond census.
+        """
         hbond_counts = {'protein': 0, 'water': 0, 'hetero': 0, 'total': 0}
         hbond_details = []  # Store details of each H-bond
         
@@ -196,7 +127,10 @@ class WaterAnalyzer:
         for search_chain in self.model:
             for residue in search_chain:
                 for atom in residue:
-                    if atom == water_oxygen:
+                    # Identity, not ==: Biopython's Atom.__eq__ compares by name
+                    # (and parent), so == would also skip every backbone O and
+                    # every other water's O.
+                    if atom is water_oxygen:
                         continue
                         
                     if atom.element not in hbond_atoms:
@@ -204,30 +138,18 @@ class WaterAnalyzer:
                         
                     distance = (Vector(atom.coord) - water_pos).norm()
                     if distance <= self.parameters['hbond_distance_cutoff']:
-                        
-                        # Calculate angle for O-H...O geometry
-                        angle_score = self._estimate_hbond_angle(water_oxygen, atom, residue)
-                        
                         potential_partners.append({
                             'atom': atom,
                             'residue': residue,
                             'distance': distance,
-                            'angle_score': angle_score,
                             'atom_name': atom.name,
                             'res_name': residue.resname.strip(),
                             'res_num': residue.id[1],
                             'chain_id': residue.parent.id
                         })
         
-        # Score and rank potential partners
-        for partner in potential_partners:
-            # Combine distance and angle considerations
-            distance_score = 1.0 / partner['distance']  # Closer = better
-            angle_score = partner['angle_score']  # 0-1, higher = better angle
-            partner['combined_score'] = distance_score * angle_score
-        
-        # Sort by combined score (best first)
-        potential_partners.sort(key=lambda x: x['combined_score'], reverse=True)
+        # Closest first
+        potential_partners.sort(key=lambda x: x['distance'])
         
         # Accept up to max_hbonds_per_water with best scores
         max_hbonds = self.parameters.get('max_hbonds_per_water', 4)
@@ -243,7 +165,6 @@ class WaterAnalyzer:
                 'partner_residue': f"{partner['res_name']}{partner['res_num']}",
                 'partner_chain': partner['chain_id'],
                 'distance': partner['distance'],
-                'angle_score': partner['angle_score']
             })
             
             if partner['res_name'] in protein_residues:
@@ -323,121 +244,174 @@ class WaterAnalyzer:
         is_at_interface = len(nearby_chains) >= 2
         return (is_at_interface, nearby_chains if is_at_interface else set())
         
-    def _calculate_structure_sasa(self):
-        """Calculate SASA once for the entire structure and cache the result."""
-        if self._sasa_calculated:
-            return self._sasa_result
+    # Radii for solvent accessibility (Bondi, J. Phys. Chem. 1964), heavy atoms only.
+    # Hydrogens are never occluders: the united-atom convention every SASA program uses.
+    # Elements not listed (metals) take SASA_DEFAULT_RADIUS.
+    SASA_RADII = {
+        'C': 1.70, 'N': 1.55, 'O': 1.52, 'S': 1.80, 'P': 1.80,
+        'F': 1.47, 'CL': 1.75, 'BR': 1.85, 'I': 1.98, 'SE': 1.90,
+    }
+    SASA_DEFAULT_RADIUS = 2.00
+    # A water is one sphere of radius 1.4 Å whether it is the probe or a
+    # crystallographic water (the query oxygen, and other waters when they are
+    # occluders): half the O···O distance in liquid water, the Lee-Richards
+    # probe convention. Bondi's 1.52 Å is the radius of an oxygen ATOM inside
+    # a molecule, a different quantity; using it here gave the same species two
+    # sizes and a 2.92 Å "contact" where two real waters touch at 2.80 Å.
+    WATER_OXYGEN_RADIUS = 1.40
+    # wwPDB validation lists heavy-atom pairs closer than this as close contacts
+    # (REMARK 500). A water this close to a C/N/O/S/P atom overlaps it; metals are
+    # excluded because 2.0-2.2 Å is ordinary coordination.
+    CLASH_DISTANCE = 2.2
+    CLASH_ELEMENTS = {'C', 'N', 'O', 'S', 'P'}
+    # Grid resolution for the enclosure test. This is a resolution, not a threshold:
+    # the bulk/enclosed answer converges as it shrinks. 0.5 Å resolves any channel a
+    # 1.4 Å probe can pass through. Grids above ENCLOSURE_MAX_CELLS are coarsened.
+    ENCLOSURE_GRID_SPACING = 0.5
+    ENCLOSURE_MAX_CELLS = 30_000_000
+    # Lee-Richards integrates exactly within each z-slice; the slice count sets how
+    # thin an exposed sliver can be and still register. 100 slices over a water's
+    # 5.8 Å accessible sphere is 0.06 Å.
+    SASA_SLICES = 100
 
+    def _burial_occluders(self):
+        """Heavy atoms of the residue classes in ``burial_atom_types``: the atoms that
+        can shield a water from solvent. Waters are never occluders unless 'water' is
+        listed explicitly: computed among its neighbours, a surface water in a full
+        hydration shell would look buried."""
+        atom_types = [t.strip().lower() for t in self.parameters['burial_atom_types'].split(',')]
+        atoms = []
+        for chain in self.model:
+            for residue in chain:
+                if self._classify_residue_for_burial(residue) not in atom_types:
+                    continue
+                for atom in residue:
+                    element = (atom.element or '').strip().upper()
+                    if element == 'H' or element == 'D':
+                        continue
+                    atoms.append(atom)
+        coords = np.array([a.coord for a in atoms], dtype=float).reshape(-1, 3)
+        is_water = np.array([self._classify_residue_for_burial(a.get_parent()) == 'water' for a in atoms], dtype=bool)
+        radii = np.array([self.SASA_RADII.get((a.element or '').strip().upper(), self.SASA_DEFAULT_RADIUS)
+                          for a in atoms], dtype=float)
+        radii[is_water] = self.WATER_OXYGEN_RADIUS
+        return atoms, coords, radii, is_water
+
+    def _burial_context(self) -> Dict[str, Any]:
+        """Build (once per occluder set) everything the burial metrics share."""
+        if self._burial_cache:
+            return self._burial_cache
+        from scipy.spatial import cKDTree
+        atoms, coords, radii, is_water = self._burial_occluders()
+        probe = float(self.parameters['sasa_probe_radius'])
+        ctx = {'atoms': atoms, 'coords': coords, 'radii': radii, 'is_water': is_water, 'probe': probe,
+               'tree': cKDTree(coords) if len(coords) else None}
+        # Two accessible spheres (r_i + probe, r_j + probe) intersect only if their centres
+        # are closer than r_i + r_j + 2 * probe. No atom beyond that distance can remove any
+        # of the water's accessible area, so it need not be given to the SASA calculation.
+        r_max = float(radii.max()) if len(radii) else self.SASA_DEFAULT_RADIUS
+        ctx['sasa_cutoff'] = self.WATER_OXYGEN_RADIUS + r_max + 2.0 * probe
+        ctx['enclosure'] = None   # built lazily by _enclosure_grid()
+        self._burial_cache = ctx
+        return ctx
+
+    def calculate_water_sasa(self, water_oxygen_coord) -> float:
+        """Solvent-accessible surface area (Å²) of a water oxygen against the occluders
+        alone, Lee-Richards with the configured probe. Only atoms within
+        ``sasa_cutoff`` are passed to FreeSASA; the result is identical to using the
+        whole structure (see _burial_context)."""
+        import math
+        ctx = self._burial_context()
+        probe, r_w = ctx['probe'], self.WATER_OXYGEN_RADIUS
+        isolated = 4.0 * math.pi * (r_w + probe) ** 2
+        if ctx['tree'] is None:
+            return isolated
+        o = np.asarray(water_oxygen_coord, dtype=float)
+        idx = ctx['tree'].query_ball_point(o, ctx['sasa_cutoff'])
+        # When waters are occluders the query water is among them; a sphere coincident
+        # with itself is a degenerate case Lee-Richards gets wrong, so drop it.
+        idx = [i for i in idx if np.linalg.norm(ctx['coords'][i] - o) > 1e-3]
+        if not idx:
+            return isolated
         if not FREESASA_AVAILABLE:
-            logger.warning("FreeSASA not installed. SASA calculations will be skipped.")
-            self._sasa_calculated = True
-            self._sasa_result = None
-            return None
+            raise RuntimeError("FreeSASA is required for water burial analysis")
+        coords = np.vstack([ctx['coords'][idx], o[None, :]]).ravel().tolist()
+        radii = ctx['radii'][idx].tolist() + [r_w]
+        result = freesasa.calcCoord(coords, radii, freesasa.Parameters({
+            'probe-radius': probe, 'algorithm': freesasa.LeeRichards, 'n-slices': self.SASA_SLICES}))
+        return float(result.atomArea(len(radii) - 1))
 
-        try:
-            import tempfile
-            import os
-            from Bio.PDB import PDBIO
+    def _enclosure_grid(self) -> Dict[str, Any]:
+        """Flood fill of probe-centre-accessible space.
 
-            # Create temporary file for the entire structure
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as tmp_file:
-                self._sasa_temp_file = tmp_file.name
+        A grid point is accessible if a probe centred there overlaps no occluder, i.e.
+        its distance to every atom exceeds r_atom + probe. Connected components of the
+        accessible points are labelled; the component touching the box boundary is
+        bulk solvent. A water whose surroundings are not part of that component sits
+        in a cavity the solvent cannot reach without the protein moving.
 
-                # Save entire structure to temporary file
-                io = PDBIO()
-                io.set_structure(self.structure)
-                io.save(tmp_file.name)
+        Waters are never walls here, whatever ``burial_atom_types`` says: a water
+        cannot be trapped by other, equally mobile, waters.
+        """
+        from scipy import ndimage
+        ctx = self._burial_context()
+        if ctx['enclosure'] is not None:
+            return ctx['enclosure']
+        keep = ~ctx['is_water']
+        coords, radii, probe = ctx['coords'][keep], ctx['radii'][keep], ctx['probe']
+        if len(coords) == 0:
+            ctx['enclosure'] = {'empty': True}
+            return ctx['enclosure']
+        reach = radii + probe
+        pad = float(reach.max()) + 1.0            # boundary layer is guaranteed accessible
+        lo = coords.min(axis=0) - pad
+        hi = coords.max(axis=0) + pad
+        h = self.ENCLOSURE_GRID_SPACING
+        n_cells = np.prod(np.ceil((hi - lo) / h) + 1)
+        if n_cells > self.ENCLOSURE_MAX_CELLS:
+            h = float(h * (n_cells / self.ENCLOSURE_MAX_CELLS) ** (1.0 / 3.0))
+            logger.info(f"Enclosure grid coarsened to {h:.2f} Å to stay within {self.ENCLOSURE_MAX_CELLS:,} cells")
+        shape = tuple(int(x) for x in np.ceil((hi - lo) / h) + 1)
+        axes = [lo[i] + h * np.arange(shape[i]) for i in range(3)]
+        blocked = np.zeros(shape, dtype=bool)
+        for c, r in zip(coords, reach):
+            i0 = np.maximum(np.floor((c - r - lo) / h).astype(int), 0)
+            i1 = np.minimum(np.ceil((c + r - lo) / h).astype(int) + 1, shape)
+            if np.any(i1 <= i0):
+                continue
+            gx, gy, gz = np.meshgrid(axes[0][i0[0]:i1[0]] - c[0], axes[1][i0[1]:i1[1]] - c[1],
+                                     axes[2][i0[2]:i1[2]] - c[2], indexing='ij')
+            blocked[i0[0]:i1[0], i0[1]:i1[1], i0[2]:i1[2]] |= (gx * gx + gy * gy + gz * gz) < r * r
+        accessible = ~blocked
+        labels, n_components = ndimage.label(accessible)
+        bulk_label = int(labels[0, 0, 0])            # the padded boundary is accessible everywhere
+        n_pockets = int(n_components) - (1 if bulk_label else 0)
+        ctx['enclosure'] = {'empty': False, 'lo': lo, 'h': h, 'shape': shape,
+                            'labels': labels, 'bulk_label': bulk_label, 'n_pockets': n_pockets}
+        logger.debug(f"Enclosure grid {shape} at {h:.2f} Å: {n_components} accessible components, "
+                     f"{n_pockets} not connected to bulk")
+        return ctx['enclosure']
 
-            # Single SASA calculation for the entire structure
-            try:
-                structure = freesasa.Structure(self._sasa_temp_file)
-                self._sasa_result = freesasa.calc(structure, freesasa.Parameters({
-                    'probe-radius': self.parameters['sasa_probe_radius'],
-                    'algorithm': freesasa.LeeRichards
-                }))
-
-                self._sasa_calculated = True
-                logger.debug(f"SASA calculated for entire structure with {structure.nAtoms()} atoms")
-
-                return self._sasa_result
-            except Exception as e:
-                logger.warning(
-                    f"FreeSASA failed to read structure (possibly due to non-standard residues): {str(e)}. "
-                    "SASA calculations will be disabled. Continuing without SASA data."
-                )
-                self._sasa_calculated = True  # Prevent retry
-                self._sasa_result = None
-                return None
-
-        except Exception as e:
-            logger.error(f"SASA calculation failed: {e}")
-            self._sasa_calculated = True  # Prevent retry
-            self._sasa_result = None
-            return None
-
-    def get_water_sasa(self, water_residue: Residue) -> float:
-        """Get SASA for a specific water molecule from the cached full-structure calculation."""
-        sasa_result = self._calculate_structure_sasa()
-        
-        if sasa_result is None:
-            logger.debug(f"No SASA result available, returning default value")
-            return 15.0  # Default moderate SASA value
-        
-        try:
-            water_sasa = 0.0
-            chain_id = water_residue.parent.id
-            res_name = water_residue.resname.strip()
-            res_num = water_residue.id[1]
-            
-            # Try multiple FreeSASA atom selection formats
-            selection_formats = [
-                # Format 1: Chain.ResName.ResNum.AtomName
-                lambda atom: f"{chain_id}.{res_name}.{res_num}.{atom.name}",
-                # Format 2: ResName.ResNum.AtomName (no chain)
-                lambda atom: f"{res_name}.{res_num}.{atom.name}",
-                # Format 3: Chain_ResName_ResNum_AtomName
-                lambda atom: f"{chain_id}_{res_name}_{res_num}_{atom.name}",
-                # Format 4: ResNum.AtomName (minimal)
-                lambda atom: f"{res_num}.{atom.name}",
-            ]
-            
-            for atom in water_residue:
-                atom_area = 0.0
-                
-                # Try different selection formats until one works
-                for format_func in selection_formats:
-                    try:
-                        selector = format_func(atom)
-                        atom_area = sasa_result.atomArea(selector)
-                        break  # Success, stop trying formats
-                    except:
-                        continue  # Try next format
-                
-                water_sasa += atom_area
-            
-            logger.debug(f"SASA for water {chain_id}:{res_name}{res_num}: {water_sasa:.2f} Ų")
-            return max(0.0, water_sasa)  # Ensure non-negative
-            
-        except Exception as e:
-            logger.debug(f"Error extracting SASA for water {water_residue.id}: {e}")
-            return 15.0  # Default moderate SASA value
-
-    def calculate_sasa(self, water_residue: Residue) -> float:
-        """Calculate solvent accessible surface area for a water molecule (efficient version)."""
-        return self.get_water_sasa(water_residue)
-
-    def cleanup_sasa(self):
-        """Clean up temporary SASA files."""
-        if self._sasa_temp_file and os.path.exists(self._sasa_temp_file):
-            try:
-                os.unlink(self._sasa_temp_file)
-                logger.debug("SASA temporary file cleaned up")
-            except:
-                pass
-
-    def __del__(self):
-        """Destructor to ensure cleanup."""
-        self.cleanup_sasa()
+    def classify_water_enclosure(self, water_oxygen_coord) -> str:
+        """'bulk' if a bulk-connected probe position lies within touching distance of
+        the water (r_water + probe, plus one grid cell), otherwise 'enclosed'."""
+        grid = self._enclosure_grid()
+        if grid.get('empty'):
+            return 'bulk'
+        ctx = self._burial_context()
+        o = np.asarray(water_oxygen_coord, dtype=float)
+        reach = self.WATER_OXYGEN_RADIUS + ctx['probe'] + grid['h']
+        lo, h, shape, labels = grid['lo'], grid['h'], grid['shape'], grid['labels']
+        i0 = np.maximum(np.floor((o - reach - lo) / h).astype(int), 0)
+        i1 = np.minimum(np.ceil((o + reach - lo) / h).astype(int) + 1, shape)
+        if np.any(i1 <= i0):
+            return 'bulk'          # beyond the padded box: nothing there to enclose it
+        sub = labels[i0[0]:i1[0], i0[1]:i1[1], i0[2]:i1[2]]
+        gx, gy, gz = np.meshgrid(lo[0] + h * np.arange(i0[0], i1[0]) - o[0],
+                                 lo[1] + h * np.arange(i0[1], i1[1]) - o[1],
+                                 lo[2] + h * np.arange(i0[2], i1[2]) - o[2], indexing='ij')
+        within = (gx * gx + gy * gy + gz * gz) <= reach * reach
+        return 'bulk' if np.any(sub[within] == grid['bulk_label']) else 'enclosed'
 
     def analyze_water(self, water_residue: Residue, interface_data: Dict = None) -> Dict[str, Any]:
         """Comprehensive analysis of a single water molecule."""
@@ -452,7 +426,10 @@ class WaterAnalyzer:
             'residue_name': water_residue.resname,
             'chain_id': water_residue.parent.id,
             'b_factor': water_oxygen.bfactor,
+            'protein_median_b': self.protein_median_bfactor(),
         }
+        if results['protein_median_b']:
+            results['b_factor_ratio'] = water_oxygen.bfactor / results['protein_median_b']
         
         # Metal distance analysis
         metals = self.get_metal_atoms()
@@ -475,10 +452,7 @@ class WaterAnalyzer:
         hbond_counts = self.calculate_hydrogen_bonds(water_oxygen, water_residue.parent)
         results.update(hbond_counts)
         
-        # SASA analysis
-        results['sasa'] = self.calculate_sasa(water_residue)
-        
-        # NEW: Burial analysis (proximity-based) - ADD THIS LINE
+        # Burial: solvent accessibility of the oxygen and bulk connectivity
         burial_data = self.calculate_burial_analysis(water_residue)
         results.update(burial_data)
 
@@ -487,25 +461,20 @@ class WaterAnalyzer:
         results['at_interface'] = at_interface
         results['bridged_chains'] = sorted(list(bridged_chains))  # Store as sorted list for display
 
-        # Categorize water
-        results['category'] = self._categorize_water(results)
-        
         return results
         
-    def _categorize_water(self, analysis: Dict[str, Any]) -> str:
-        """Categorize water based on analysis results."""
-        if analysis.get('coordinating_metal', False):
-            return 'Metal-coordinating'
-        elif analysis.get('total', 0) >= 3:
-            return 'Highly connected'
-        elif analysis.get('at_interface', False):
-            return 'Interface'
-        elif analysis.get('sasa', 0) < 10:
-            return 'Buried'
-        elif analysis.get('b_factor', 100) < 30:
-            return 'Ordered'
-        else:
-            return 'Bulk solvent'
+    def protein_median_bfactor(self) -> Optional[float]:
+        """Median B-factor of the protein heavy atoms, the structure's own yardstick
+        for "ordered". B-factors scale with resolution and refinement, so an
+        absolute cutoff means different things in different entries; a water
+        below the protein median is at least as ordered as a typical protein atom
+        in *this* structure. None when the model has no protein atoms."""
+        if hasattr(self, '_protein_median_b'):
+            return self._protein_median_b
+        bs = [a.bfactor for chain in self.model for res in chain if res.id[0] == ' '
+              for a in res if (a.element or '').strip().upper() not in ('H', 'D')]
+        self._protein_median_b = float(np.median(bs)) if bs else None
+        return self._protein_median_b
 
     def _classify_residue_for_burial(self, residue) -> str:
         """Classify residue type for burial analysis."""
@@ -623,82 +592,59 @@ class WaterAnalyzer:
             return 1.0
 
     def calculate_burial_analysis(self, water_residue: Residue) -> Dict[str, Any]:
-        """Calculate proximity-based burial analysis for a water molecule."""
+        """Burial of one water from geometry alone.
+
+        * ``burial_sasa``: accessible area (Å²) of the oxygen against the occluders,
+          1.4 Å probe. Zero means no water-sized probe can touch it.
+        * ``burial_covered_pct``: 100 × (1 − sasa / area of an isolated water oxygen),
+          so the same number reads as "how much of this water is covered".
+        * ``burial_access``: 'bulk' or 'enclosed' from the flood fill.
+        * ``burial_closest_distance`` / ``burial_closest_atom``: nearest occluder.
+        * ``burial_category``: 'Clash' (overlaps a protein atom by the wwPDB
+          close-contact criterion), 'Enclosed' (no path to bulk solvent), 'Buried'
+          (touchable by nothing, but bulk-connected: bottom of a cleft), 'Exposed'.
+        No calibration constants: the only inputs are the probe radius and the vdW radii.
+        """
         try:
             water_oxygen = water_residue['O']
         except KeyError:
             logger.warning(f"Water residue {water_residue.id} missing oxygen atom")
             return {}
-        
-        from Bio.PDB.vectors import Vector
-        from Bio.PDB.NeighborSearch import NeighborSearch
-        
-        # Get parameters
-        radius = self.parameters['burial_radius']
-        atom_types_str = self.parameters['burial_atom_types']
-        weighting = self.parameters['burial_weighting']
-        max_expected = self.parameters['burial_max_expected']
-        
-        # Parse atom types to include
-        atom_types = [t.strip().lower() for t in atom_types_str.split(',')]
-        
-        # Build neighbor search for all atoms
-        all_atoms = []
-        for chain in self.model:
-            for residue in chain:
-                if residue == water_residue:
-                    continue
-                res_type = self._classify_residue_for_burial(residue)
-                if res_type in atom_types:
-                    for atom in residue:
-                        all_atoms.append(atom)
-        
-        if not all_atoms:
-            return {
-                'burial_percentage': 0.0,
-                'burial_raw_count': 0.0,
-                'burial_atom_counts': {},
-                'burial_closest_distance': None,
-                'burial_estimated_sasa': 40.0
-            }
-        
-        # Find atoms within radius
-        ns = NeighborSearch(all_atoms)
-        water_pos = Vector(water_oxygen.coord)
-        nearby_atoms = ns.search(water_oxygen.coord, radius)
-        
-        # Count atoms by type and calculate weights
-        atom_counts = {'protein': 0, 'hetero': 0, 'water': 0, 'metal': 0}
-        total_weight = 0.0
-        closest_distance = float('inf')
-        
-        for atom in nearby_atoms:
-            if atom == water_oxygen:
-                continue
-            
-            distance = (Vector(atom.coord) - water_pos).norm()
-            if distance < closest_distance:
-                closest_distance = distance
-            
-            atom_residue = atom.get_parent()
-            res_type = self._classify_residue_for_burial(atom_residue)
-            
-            atom_counts[res_type] += 1
-            weight = self._calculate_burial_weight(distance, weighting, atom)
-            total_weight += weight
-        
-        # Calculate burial percentage
-        burial_percentage = min(100.0, (total_weight / max_expected) * 100.0)
-        
-        # Estimate SASA based on burial
-        estimated_sasa = 40.0 * (1.0 - burial_percentage / 100.0)
-        
+
+        import math
+        ctx = self._burial_context()
+        o = water_oxygen.coord.astype(float)
+        sasa = self.calculate_water_sasa(o)
+        access = self.classify_water_enclosure(o)
+
+        closest_distance, closest_atom, clash = None, None, False
+        if ctx['tree'] is not None:
+            d, i = ctx['tree'].query(o)
+            atom = ctx['atoms'][int(i)]
+            res = atom.get_parent()
+            closest_distance = float(d)
+            closest_atom = f"{res.resname}{res.id[1]} {atom.get_id()}"
+            element = (atom.element or '').strip().upper()
+            clash = element in self.CLASH_ELEMENTS and closest_distance < self.CLASH_DISTANCE
+
+        if clash:
+            category = 'Clash'
+        elif access == 'enclosed':
+            category = 'Enclosed'
+        elif sasa == 0.0:
+            category = 'Buried'
+        else:
+            category = 'Exposed'
+
+        isolated = 4.0 * math.pi * (self.WATER_OXYGEN_RADIUS + ctx['probe']) ** 2
         return {
-            'burial_percentage': burial_percentage,
-            'burial_raw_count': total_weight,
-            'burial_atom_counts': atom_counts,
-            'burial_closest_distance': closest_distance if closest_distance != float('inf') else None,
-            'burial_estimated_sasa': estimated_sasa
+            'burial_sasa': sasa,
+            'burial_sasa_isolated': isolated,
+            'burial_covered_pct': min(100.0, max(0.0, 100.0 * (1.0 - sasa / isolated))),
+            'burial_access': access,
+            'burial_closest_distance': closest_distance,
+            'burial_closest_atom': closest_atom,
+            'burial_category': category,
         }
 
     def calculate_burial_profile(self, water_residue: Residue, 
@@ -724,7 +670,7 @@ class WaterAnalyzer:
         all_atoms = []
         for chain in self.model:
             for residue in chain:
-                if residue == water_residue:
+                if residue is water_residue:
                     continue
                 res_type = self._classify_residue_for_burial(residue)
                 if res_type in atom_types:
@@ -742,7 +688,7 @@ class WaterAnalyzer:
         # Pre-calculate all atom distances for efficiency
         atom_distances = []
         for atom in all_atoms:
-            if atom == water_oxygen:
+            if atom is water_oxygen:
                 continue
             distance = (Vector(atom.coord) - water_pos).norm()
             atom_distances.append((atom, distance))
@@ -919,7 +865,7 @@ class WaterAnalyzer:
         all_atoms = []
         for chain in self.model:
             for residue in chain:
-                if residue == water_residue:
+                if residue is water_residue:
                     continue
                 res_type = self._classify_residue_for_burial(residue)
                 if res_type in atom_types:
@@ -948,7 +894,7 @@ class WaterAnalyzer:
         
         # Analyze each nearby atom
         for atom in nearby_atoms:
-            if atom == water_oxygen:
+            if atom is water_oxygen:
                 continue
             
             # Calculate direction vector
@@ -1004,14 +950,17 @@ class WaterAnalyzer:
         avg_count = sum(sector_counts) / len(sector_counts) if sector_counts else 0
 
         # Determine burial pattern type
+        # The labels are conventions, not findings: the sector-count range (max − min)
+        # is compared with the mean sector count at 0.5× and 1.5×. Each label states
+        # its rule so a reader can weigh it against the counts themselves.
         if count_range == 0:
             pattern_type = "No burial (all sectors empty)"
         elif count_range <= avg_count * 0.5:
-            pattern_type = "Uniform burial (even distribution)"
+            pattern_type = "Uniform (sector range ≤ 0.5 × mean)"
         elif count_range <= avg_count * 1.5:
-            pattern_type = "Moderately directional burial"
+            pattern_type = "Moderately directional (range ≤ 1.5 × mean)"
         else:
-            pattern_type = "Highly directional burial"
+            pattern_type = "Highly directional (range > 1.5 × mean)"
 
         return {
             'sectors': sectors,
@@ -2249,6 +2198,17 @@ class ChainTopologyAnalyzer:
             return "···"  # Very weak
 
 
+# Viewer annotation keys used for water halos. Every key is cleared before a
+# new set is drawn, so a category that disappears after a parameter change
+# disappears from the viewer too.
+WATER_HALO_KEYS = (
+    "water_metal", "water_interface", "water_b_below_median",
+    "water_hbond_1", "water_hbond_2", "water_hbond_3", "water_hbond_4",
+    "water_burial_clash", "water_burial_enclosed", "water_burial_zero",
+    "water_burial_covered90", "water_burial_covered50",
+)
+
+
 class PDBFilterWorker:
     """Handles PDB structure filtering operations."""
 
@@ -2326,10 +2286,10 @@ class PDBFilterWorker:
                 '1': 'Distance to nearest metal ion',
                 '2': 'Hydrogen bond analysis',
                 '3': 'B-factor/thermal information',
-                '4': 'Proximity-based burial analysis',
+                '4': 'Water burial: solvent-accessible area and enclosure',
                 '5': 'Interface proximity',
-                '6': 'Multi-radius burial profiling',
-                '7': 'Directional burial analysis',
+                '6': 'Multi-radius atom-count profiling',
+                '7': 'Directional atom-count analysis (8 sectors)',
                 '8': 'Water network analysis (clusters and chains)',
                 '9': 'Return with no waters selected and proceed with component filtering'
             }
@@ -2449,33 +2409,16 @@ class PDBFilterWorker:
                 # Display results table
                 self._display_water_analysis_table(water_analyses, selected_metrics, console, analyzer)
 
-                # Halo each water by its analysis category so the user
-                # can read the table and see the spatial distribution at
-                # the same time. Five distinct ball+stick reps under
-                # category-specific labels (Bulk solvent intentionally
-                # skipped — usually most numerous and not the focus).
+                # Halo the waters so the user can read the tables and see the
+                # spatial distribution at the same time: one group per fact a
+                # displayed metric establishes, each labelled with its rule and
+                # cutoff, overlaps allowed (no combined category).
                 try:
                     from proprep.structure_prep.viewer_coordinator import viewer as _viewer
-                    by_category: Dict[str, list] = {}
-                    for a in water_analyses:
-                        cat = a.get('category')
-                        if not cat or cat == 'Bulk solvent':
-                            continue
-                        by_category.setdefault(cat, []).append(a)
-                    category_styles = {
-                        "Metal-coordinating": ("#e31a1c", "water_cat_metal"),
-                        "Highly connected":   ("#6a3d9a", "water_cat_hbond"),
-                        "Interface":          ("#ff7f00", "water_cat_interface"),
-                        "Buried":             ("#33a02c", "water_cat_buried"),
-                        "Ordered":            ("#1f78b4", "water_cat_ordered"),
-                    }
-                    # Clear all category labels first so categories that
-                    # vanished after a parameter change actually disappear
-                    # from the viewer.
-                    for _, lbl in category_styles.values():
+                    for lbl in WATER_HALO_KEYS:
                         _viewer.unhighlight(lbl)
-                    for cat, items in by_category.items():
-                        color, label = category_styles.get(cat, ("#cccccc", f"water_cat_{cat.lower().replace(' ', '_')}"))
+                    for key, display, color, items in self._water_halo_groups(
+                            water_analyses, selected_metrics, analyzer):
                         clauses = [
                             f"(:{a.get('chain_id', chain.id)} and {a['residue_number']})"
                             for a in items
@@ -2485,7 +2428,8 @@ class PDBFilterWorker:
                                 " or ".join(clauses),
                                 style="ball+stick",
                                 color=color,
-                                label=label,
+                                label=key,
+                                display_label=display,
                             )
                 except Exception:
                     pass
@@ -2565,11 +2509,12 @@ class PDBFilterWorker:
             if analysis.get('total', 0) > 0:
                 info_parts.append(f"H-bonds: {analysis['total']}")
             
-            if analysis.get('b_factor'):
-                if analysis['b_factor'] < 30:
-                    info_parts.append("Low B-factor")
-                elif analysis['b_factor'] > 60:
-                    info_parts.append("High B-factor")
+            if analysis.get('b_factor') is not None:
+                ratio = analysis.get('b_factor_ratio')
+                if ratio is not None:
+                    info_parts.append(f"B {analysis['b_factor']:.0f} ({ratio:.1f}× protein median)")
+                else:
+                    info_parts.append(f"B {analysis['b_factor']:.0f}")
             
             if analysis.get('at_interface'):
                 info_parts.append("Interface")
@@ -2673,8 +2618,7 @@ class PDBFilterWorker:
         # the first analysis since all waters in this call share a chain.
         try:
             from proprep.structure_prep.viewer_coordinator import viewer as _viewer
-            for lbl in ("water_cat_metal", "water_cat_hbond", "water_cat_interface",
-                        "water_cat_buried", "water_cat_ordered"):
+            for lbl in WATER_HALO_KEYS:
                 _viewer.unhighlight(lbl)
             if selected_residues and water_analyses:
                 chain_id = water_analyses[0].get('chain_id', '')
@@ -2707,12 +2651,12 @@ class PDBFilterWorker:
 
         overview_text = "Available Analysis Methods:\n\n"
         overview_text += f"  • Metal Coordination: Distance to metal ions\n"
-        overview_text += f"  • Hydrogen Bonding: Network analysis with angle-based scoring\n"
+        overview_text += f"  • Hydrogen Bonding: N/O/S partners within a heavy-atom distance cutoff, closest first\n"
         overview_text += f"  • Thermal Factors: B-factor assessment for structural ordering\n"
-        overview_text += f"  • Burial Assessment: Proximity-based burial analysis (enhanced)\n"
+        overview_text += f"  • Water Burial: Accessible area of each water oxygen (1.4 Å probe) and whether it is enclosed from bulk solvent\n"
         overview_text += f"  • Interface Proximity: Waters at protein-protein interfaces\n"
-        overview_text += f"  • Multi-Radius Profiling: Burial vs radius analysis with ASCII charts\n"
-        overview_text += f"  • Directional Analysis: 8-sector compass burial analysis\n"
+        overview_text += f"  • Multi-Radius Profiling: Atom count around each water vs radius, with ASCII charts\n"
+        overview_text += f"  • Directional Analysis: Atom count in 8 compass sectors around each water\n"
         overview_text += f"  • Network Analysis: Water connectivity and clustering topology"  
 
         panel = Panel(overview_text, title="Water Analysis Overview", border_style="blue", expand=False)
@@ -2734,11 +2678,9 @@ class PDBFilterWorker:
         if '2' in selected_metrics:  # Hydrogen bonds
             params_text += f"Hydrogen Bond Analysis:\n"
             params_text += f"  • H-bond distance cutoff: {analyzer.parameters['hbond_distance_cutoff']} Å\n"
-            params_text += f"  • H-bond angle scoring: {analyzer.parameters['hbond_angle_cutoff']}° (reference)\n"
             params_text += f"  • H-bond atoms: {analyzer.parameters['hbond_atoms']}\n"
             params_text += f"  • Max H-bonds per water: {analyzer.parameters['max_hbonds_per_water']}\n"
-            params_text += f"  • Scoring method: Distance × angle quality (best geometry ranked first)\n"
-            params_text += f"  • Angle calculation: Uses heavy atom geometry (bonded_atom-partner-water)\n\n"
+            params_text += f"  • Ranking: by distance, closest first; no angular test (hydrogens are usually absent, so heavy atoms do not fix where they point)\n\n"
             has_parameters = True
             
         if '3' in selected_metrics:  # B-factor
@@ -2746,12 +2688,10 @@ class PDBFilterWorker:
             params_text += f"  • Uses atomic B-factors from PDB file (no adjustable parameters)\n\n"
             
         if '4' in selected_metrics:  # SASA/Burial
-            params_text += f"Proximity-Based Burial Analysis:\n"
-            params_text += f"  • Burial radius: {analyzer.parameters['burial_radius']} Å (3.0-8.0 Å)\n"
-            params_text += f"  • Atom types: {analyzer.parameters['burial_atom_types']}\n"
-            params_text += f"  • Weighting scheme: {analyzer.parameters['burial_weighting']}\n"
-            params_text += f"  • Max expected count: {analyzer.parameters['burial_max_expected']}\n"
-            params_text += f"  • Traditional SASA probe: {analyzer.parameters['sasa_probe_radius']} Å\n\n"
+            params_text += f"Water Burial (solvent accessibility):\n"
+            params_text += f"  • Probe radius: {analyzer.parameters['sasa_probe_radius']} Å (a water molecule)\n"
+            params_text += f"  • Occluding atoms: {analyzer.parameters['burial_atom_types']} (other waters never occlude)\n"
+            params_text += f"  • Atomic radii: Bondi; enclosure grid: {analyzer.ENCLOSURE_GRID_SPACING} Å\n\n"
             has_parameters = True
             
         if '5' in selected_metrics:  # Interface
@@ -2836,21 +2776,24 @@ class PDBFilterWorker:
         if '2' in selected_metrics:  # Hydrogen bonds
             param_choices[str(choice_num)] = ('hbond_distance_cutoff', 'H-bond distance cutoff', 'Å')
             choice_num += 1
-            param_choices[str(choice_num)] = ('hbond_angle_cutoff', 'H-bond angle reference', '°')
-            choice_num += 1
             param_choices[str(choice_num)] = ('hbond_atoms', 'H-bond atoms (comma-separated)', '')
             choice_num += 1
             param_choices[str(choice_num)] = ('max_hbonds_per_water', 'Max H-bonds per water', '')
             choice_num += 1
         
-        if '4' in selected_metrics:  # Burial analysis
+        if '4' in selected_metrics:  # Burial (solvent accessibility)
+            param_choices[str(choice_num)] = ('sasa_probe_radius', 'Probe radius', 'Å')
+            choice_num += 1
+            param_choices[str(choice_num)] = ('burial_atom_types', 'Occluding atom types', '')
+            choice_num += 1
+
+        if '6' in selected_metrics or '7' in selected_metrics:  # Count-based profiles
             param_choices[str(choice_num)] = ('burial_radius', 'Burial radius (3.0-8.0)', 'Å')
             choice_num += 1
-            param_choices[str(choice_num)] = ('burial_atom_types', 'Atom types to count', '')
-            choice_num += 1
+            if '4' not in selected_metrics:
+                param_choices[str(choice_num)] = ('burial_atom_types', 'Atom types to count', '')
+                choice_num += 1
             param_choices[str(choice_num)] = ('burial_weighting', 'Weighting scheme (count/distance/vdw)', '')
-            choice_num += 1
-            param_choices[str(choice_num)] = ('burial_max_expected', 'Max expected count', '')
             choice_num += 1
             
         if '5' in selected_metrics:  # Interface
@@ -2919,7 +2862,8 @@ class PDBFilterWorker:
                     console.print("  • hetero - Non-standard residues (ligands, cofactors)")
                     console.print("  • water - Other water molecules")
                     console.print("  • metal - Metal ions")
-                    console.print("  Example: 'protein,hetero' or 'protein,hetero,water'\n")
+                    console.print("  Classes: protein, hetero, metal, water. Example: 'protein,hetero,metal' (default) "
+                                  "or 'protein,hetero,metal,water' to let other waters shield too\n")
                     new_val_str = prompt_with_context(
                         self.processor,
                         f"Enter atom types (comma-separated)",
@@ -2962,7 +2906,7 @@ class PDBFilterWorker:
                     analyzer.set_parameters(**{param_key: new_val})
                     console.print(f"[green]Updated: {desc} = {new_val}[/green]")
                     modified = True
-                elif param_key in ['max_hbonds_per_water', 'burial_max_expected', 'network_min_cluster_size', 'network_max_display_size']:
+                elif param_key in ['max_hbonds_per_water', 'network_min_cluster_size', 'network_max_display_size']:
                     new_val_str = prompt_with_context(
                         self.processor,
                         f"Enter new {desc.lower()}",
@@ -3003,6 +2947,58 @@ class PDBFilterWorker:
                 
         return modified 
 
+    def _water_halo_groups(self, analyses: List[Dict], selected_metrics: List[str], analyzer):
+        """Group waters for viewer halos: ``[(key, display_label, color, [analysis, ...])]``.
+
+        One group per fact a *displayed* metric establishes, each labelled with
+        its rule and cutoff. A water can belong to several groups (a
+        metal-bound water that is also enclosed appears in both); there is no
+        precedence and no combined category, in keeping with the rest of the
+        analysis, which reports each measurement on its own. Metrics 6 to 8 are
+        display-only and draw nothing.
+        """
+        p = analyzer.parameters
+        spec = []
+        if '1' in selected_metrics:
+            spec.append(('water_metal', f"Waters: metal within {p['metal_distance_cutoff']} Å", '#e31a1c',
+                         lambda a: bool(a.get('coordinating_metal'))))
+        if '2' in selected_metrics:
+            # One group per partner count: the count is the datum, not a threshold.
+            palette = {1: '#cab2d6', 2: '#9e7bb5', 3: '#6a3d9a', 4: '#3f1f66'}
+            for n in (1, 2, 3, 4):
+                spec.append((f'water_hbond_{n}',
+                             f"Waters: {n} H-bond partner{'s' if n > 1 else ''} (≤ {p['hbond_distance_cutoff']} Å)",
+                             palette[n], (lambda n: lambda a: a.get('total', 0) == n)(n)))
+        if '3' in selected_metrics:
+            median_b = analyzer.protein_median_bfactor()
+            label = (f"Waters: B below protein median ({median_b:.0f} Å²)" if median_b
+                     else "Waters: B below protein median")
+            spec.append(('water_b_below_median', label, '#1f78b4',
+                         lambda a: a.get('b_factor_ratio') is not None and a['b_factor_ratio'] < 1.0))
+        if '4' in selected_metrics:
+            touch = analyzer.WATER_OXYGEN_RADIUS + float(p['sasa_probe_radius'])
+            spec += [
+                ('water_burial_clash', f"Waters: clash, atom < {analyzer.CLASH_DISTANCE} Å", '#d6008f',
+                 lambda a: a.get('burial_category') == 'Clash'),
+                ('water_burial_enclosed', f"Waters: enclosed (no bulk path within {touch:.2f} Å)", '#b30000',
+                 lambda a: a.get('burial_category') == 'Enclosed'),
+                ('water_burial_zero', "Waters: SASA 0 Å², bulk-connected", '#ff7f00',
+                 lambda a: a.get('burial_category') == 'Buried'),
+                ('water_burial_covered90', "Waters: covered ≥ 90%", '#33a02c',
+                 lambda a: a.get('burial_category') == 'Exposed' and a.get('burial_covered_pct', 0) >= 90),
+                ('water_burial_covered50', "Waters: covered 50–90%", '#a6d96a',
+                 lambda a: a.get('burial_category') == 'Exposed' and 50 <= a.get('burial_covered_pct', 0) < 90),
+            ]
+        if '5' in selected_metrics:
+            spec.append(('water_interface', f"Waters: within {p['interface_distance_cutoff']} Å of two chains", '#ff7f00',
+                         lambda a: bool(a.get('at_interface'))))
+        groups: List[Tuple[str, str, str, list]] = []
+        for key, display, color, pred in spec:
+            items = [a for a in analyses if pred(a)]
+            if items:
+                groups.append((key, display, color, items))
+        return groups
+
     def _display_water_analysis_table(self, analyses: List[Dict], selected_metrics: List[str], console, analyzer):
         """Display metric-specific analysis results with separate tables."""
         if not analyses:
@@ -3018,7 +3014,7 @@ class PDBFilterWorker:
             elif metric == '3':  # B-factor
                 self._display_bfactor_table(analyses, console)
             elif metric == '4':  # SASA
-                self._display_sasa_table(analyses, console)
+                self._display_sasa_table(analyses, console, analyzer)
             elif metric == '5':  # Interface
                 self._display_interface_table(analyses, console, analyzer)
 
@@ -3371,7 +3367,7 @@ class PDBFilterWorker:
         legend_text += "• [bold green]Bold green[/bold green]: ≥4 H-bonds (highly connected)\n"
         legend_text += "• [green]Green[/green]: 2-3 H-bonds (well connected)\n"
         legend_text += "• Partners shown as: AtomName(ResidueName+Number)\n"
-        legend_text += f"• Analysis uses distance + angle scoring for heavy atoms\n"
+        legend_text += f"• Partners are N/O/S atoms within the heavy-atom cutoff, closest first; no angular test\n"
         console.print(legend_text)
 
     def _display_bfactor_table(self, analyses: List[Dict], console):
@@ -3381,141 +3377,135 @@ class PDBFilterWorker:
         # Sort by B-factor (lowest first)
         bfactor_analyses = sorted(analyses, key=lambda x: x.get('b_factor', float('inf')))
         
-        table = Table(title=f"B-factor Analysis ({len(analyses)} waters)")
+        median_b = next((a.get('protein_median_b') for a in analyses if a.get('protein_median_b')), None)
+        title = f"B-factor Analysis ({len(analyses)} waters"
+        title += f"; protein heavy-atom median B = {median_b:.1f} Å²)" if median_b else ")"
+        table = Table(title=title)
         table.add_column("Residue #", style="bold yellow", width=10)
         table.add_column("Name", style="yellow", width=8)
-        table.add_column("B-factor", style="blue", width=10)
-        table.add_column("Category", style="blue", width=15)
-        
+        table.add_column("B (Å²)", style="blue", width=10, justify="right")
+        table.add_column("× protein median", style="blue", width=17, justify="right")
+        table.add_column("Category", style="blue", width=22)
+
         for analysis in bfactor_analyses:
             bfactor = analysis.get('b_factor', 0)
-            
-            # Color coding and categorization
-            if bfactor < 20:
-                bfactor_str = f"[bold blue]{bfactor:.1f}[/bold blue]"
-                category = "Very ordered"
-            elif bfactor < 40:
-                bfactor_str = f"[blue]{bfactor:.1f}[/blue]"
-                category = "Ordered"
-            elif bfactor < 60:
-                bfactor_str = f"{bfactor:.1f}"
-                category = "Average mobility"
+            ratio = (bfactor / median_b) if median_b else None
+            if ratio is None:
+                bfactor_str, ratio_str, category = f"{bfactor:.1f}", "-", "no protein reference"
+            elif ratio < 1.0:
+                bfactor_str, ratio_str, category = f"[blue]{bfactor:.1f}[/blue]", f"[blue]{ratio:.2f}[/blue]", "below protein median"
             else:
-                bfactor_str = f"[red]{bfactor:.1f}[/red]"
-                category = "High mobility"
-                
+                bfactor_str, ratio_str, category = f"{bfactor:.1f}", f"{ratio:.2f}", "above protein median"
             table.add_row(
                 f"[bold yellow]{analysis['residue_number']}[/bold yellow]",
                 analysis['residue_name'],
                 bfactor_str,
-                category
+                ratio_str,
+                category,
             )
-            
+
         console.print(table)
-        
-        # Add legend
-        legend_text = "\n[bold]Legend:[/bold]\n"
-        legend_text += "• [bold blue]Bold blue[/bold blue]: <20 (very ordered)\n"
-        legend_text += "• [blue]Blue[/blue]: 20-40 (ordered)\n"
-        legend_text += "• [red]Red[/red]: >60 (high mobility)\n"
+
+        legend_text = "\n[bold]Legend:[/bold] B-factors depend on resolution and refinement, so waters are compared with "
+        legend_text += "this structure's own protein heavy atoms rather than an absolute cutoff. "
+        legend_text += "[blue]Blue[/blue] = B below the protein median (at least as ordered as a typical protein atom); "
+        legend_text += "the ratio column is the number, sort order is ascending B."
         console.print(legend_text)
 
-    def _display_sasa_table(self, analyses: List[Dict], console):
-        """Display burial analysis with both SASA and proximity metrics."""
+    def _display_sasa_table(self, analyses: List[Dict], console, analyzer):
+        """Display water burial: accessible area of the oxygen and bulk connectivity."""
         from rich.table import Table
         from rich.panel import Panel
 
-        # Display information panel explaining the analysis
-        info_text = "[bold cyan]About Proximity-Based Burial Analysis[/bold cyan]\n\n"
-        info_text += "[bold]Approach:[/bold]\n"
-        info_text += "Measures how buried or exposed a water molecule is by counting nearby atoms within a defined radius.\n\n"
+        probe = analyzer.parameters['sasa_probe_radius']
+        isolated = analyses[0].get('burial_sasa_isolated', 0.0) if analyses else 0.0
 
-        info_text += "[bold]Method:[/bold]\n"
-        info_text += f"• Search radius: {self.parameters['burial_radius']}Å around water oxygen\n"
-        info_text += f"• Counts atoms from: {self.parameters['burial_atom_types']}\n"
-        info_text += f"• Weighting scheme: {self.parameters['burial_weighting']}\n"
-        if self.parameters['burial_weighting'] == 'vdw':
-            info_text += "  [grey50](vdW radii from Charry & Tkatchenko, J. Chem. Theory Comput. 2024)[/grey50]\n"
-        info_text += f"• Max expected atoms: {self.parameters['burial_max_expected']}\n\n"
+        touch = analyzer.WATER_OXYGEN_RADIUS + probe
+        grid_h = analyzer.ENCLOSURE_GRID_SPACING
+        reach = touch + grid_h
+        info_text = "[bold cyan]About Water Burial[/bold cyan]\n\n"
+        info_text += ("Two geometric questions are asked about each water oxygen, at two different distances. "
+                      f"The probe is a {probe} Å sphere, i.e. another water. A probe [bold]touches[/bold] the oxygen when its "
+                      f"centre is exactly r_water + r_probe = {analyzer.WATER_OXYGEN_RADIUS} + {probe} = {touch:.2f} Å away.\n\n")
+        info_text += f"[bold]1. Can anything touch it? (SASA, measured on the {touch:.2f} Å contact sphere)[/bold]\n"
+        info_text += (f"The accessible area is the part of that {touch:.2f} Å sphere where a probe centre can sit without "
+                      f"overlapping any {analyzer.parameters['burial_atom_types']} atom (Lee-Richards, Bondi radii; other "
+                      f"waters never occlude). A free water has the whole sphere, {isolated:.0f} Å². 0 Å² means no point on "
+                      "the contact sphere is free: nothing can be in contact with this water.\n\n")
+        info_text += f"[bold]2. Does the free space around it reach the outside? (Access, looked for within {reach:.2f} Å)[/bold]\n"
+        info_text += (f"Every position where a probe centre fits is marked on a {grid_h} Å grid and the marked positions "
+                      "are joined into connected regions; the region touching the box edge is bulk solvent. The test then "
+                      f"asks whether any bulk-connected position lies within {touch:.2f} + {grid_h} = {reach:.2f} Å of the oxygen "
+                      "(contact distance plus one grid cell of tolerance). If none does, the water is [bold]enclosed[/bold]: "
+                      "it cannot leave, or be replaced, without the protein moving. Note this looks slightly beyond the "
+                      "contact sphere, which is why a water can have 0 Å² and still be bulk-connected: a probe can come down "
+                      "an open cleft to just above it but not the last fraction of an Ångström to touch it.\n\n")
+        info_text += "[bold]Covered %:[/bold]\n"
+        info_text += (f"100 × (1 − SASA / {isolated:.0f} Å²): the share of the water's accessible surface that the "
+                      "structure takes away. 0% is a free water, 100% is untouchable.\n\n")
+        info_text += "[bold]Category rules (applied in this order; the first that matches wins):[/bold]\n"
+        info_text += (f"1. [bold magenta]Clash[/bold magenta]    nearest C/N/O/S/P atom < {analyzer.CLASH_DISTANCE} Å "
+                      "(wwPDB close-contact criterion; metals exempt, coordination is 2.0-2.2 Å)\n")
+        info_text += (f"2. [bold red]Enclosed[/bold red] no bulk-connected probe position within {reach:.2f} Å of the oxygen: "
+                      "the free space around it, if any, is a sealed pocket\n")
+        info_text += ("3. [bold dark_orange3]Buried[/bold dark_orange3]   SASA = 0.0 Å² (nothing can touch it) but open space "
+                      f"within {reach:.2f} Å reaches bulk: a water at the bottom of a cleft too narrow to enter. "
+                      f"A thin class by construction (the {touch:.2f}-{reach:.2f} Å band); often empty\n")
+        info_text += "4. [cyan]Exposed[/cyan]  everything else; read the SASA and Covered columns\n\n"
+        info_text += ("The rules are yes/no statements, not bins on the continuum: a 99%-covered water is still "
+                      "Exposed. The numbers are shown so you can draw your own line.")
 
-        info_text += "[bold]Calculation:[/bold]\n"
-        info_text += "• Burial % = (nearby_atoms / max_expected) × 100%\n"
-        info_text += "• Estimated SASA = 40Ų × (1 - burial%/100)\n\n"
-
-        info_text += "[bold]Assumptions:[/bold]\n"
-        info_text += "• Maximum water SASA = 40 Ų (fully exposed)\n"
-        info_text += "• Linear relationship between atom proximity and burial\n"
-        info_text += "• Burial correlates inversely with solvent accessibility\n\n"
-
-        info_text += "[bold yellow]Important:[/bold yellow]\n"
-        info_text += "• Results are on a [bold]relative[/bold] scale for comparing waters within this structure\n"
-        info_text += "• Changing max_expected value produces non-comparable results\n"
-        info_text += "• Use consistent parameters when comparing across analyses\n\n"
-
-        info_text += "[bold]Interpretation:[/bold]\n"
-        info_text += "• [bold red]Deeply buried (>75%)[/bold red]: Waters in protein core/active sites (functionally important)\n"
-        info_text += "• [dark_orange3]Partially buried (25-75%)[/dark_orange3]: Waters at interfaces or pockets\n"
-        info_text += "• [cyan]Exposed (<25%)[/cyan]: Surface waters (may be bulk solvent)\n\n"
-
-        info_text += "[bold]Why Useful:[/bold]\n"
-        info_text += "• Identifies structurally/catalytically important buried waters\n"
-        info_text += "• Distinguishes functional waters from bulk solvent\n"
-        info_text += "• Fast alternative to SASA calculation (no surface algorithm needed)"
-
-        panel = Panel(info_text, title="[bold]Method Information[/bold]", border_style="cyan", expand=False)
+        panel = Panel(info_text, title="[bold]Method Information[/bold]", border_style="cyan", width=min(100, console.width))
         console.print()
         console.print(panel)
         console.print()
 
-        # Sort by burial percentage (highest first - most buried)
-        burial_analyses = sorted(analyses, key=lambda x: x.get('burial_percentage', 0), reverse=True)
+        order = {'Clash': 0, 'Enclosed': 1, 'Buried': 2, 'Exposed': 3}
+        burial_analyses = sorted(
+            analyses, key=lambda x: (order.get(x.get('burial_category'), 3), x.get('burial_sasa', 0.0)))
 
-        table = Table(title=f"Proximity-Based Burial Analysis ({len(analyses)} waters)")
+        counts = {k: sum(1 for a in analyses if a.get('burial_category') == k) for k in order}
+        table = Table(title=f"Water Burial ({len(analyses)} waters: {counts['Enclosed']} enclosed, "
+                            f"{counts['Buried']} buried, {counts['Clash']} clashing)")
         table.add_column("Residue #", style="bold yellow", width=10)
         table.add_column("Name", style="yellow", width=8)
-        table.add_column("Burial %", style="dark_orange3", width=10)
-        table.add_column("Atom Count", style="blue", width=12)
-        table.add_column("Est. SASA", style="cyan", width=10)
-        table.add_column("Category", style="dark_orange3", width=15)
-        
+        table.add_column("SASA (Å²)", style="cyan", width=10, justify="right")
+        table.add_column("Covered", style="cyan", width=8, justify="right")
+        table.add_column("Access", style="blue", width=10)
+        table.add_column("Nearest atom", style="grey50", width=18)
+        table.add_column("Category", style="dark_orange3", width=12)
+
+        style = {'Clash': 'bold magenta', 'Enclosed': 'bold red', 'Buried': 'bold dark_orange3', 'Exposed': 'cyan'}
         for analysis in burial_analyses:
-            burial_pct = analysis.get('burial_percentage', 0)
-            raw_count = analysis.get('burial_raw_count', 0)
-            est_sasa = analysis.get('burial_estimated_sasa', 0)
-            
-            # Color coding based on burial percentage
-            if burial_pct > 75:
-                burial_str = f"[bold red]{burial_pct:.1f}%[/bold red]"
-                category = "Deeply buried"
-            elif burial_pct > 50:
-                burial_str = f"[bold dark_orange3]{burial_pct:.1f}%[/bold dark_orange3]"
-                category = "Buried"
-            elif burial_pct > 25:
-                burial_str = f"[dark_orange3]{burial_pct:.1f}%[/dark_orange3]"
-                category = "Partially buried"
-            else:
-                burial_str = f"[cyan]{burial_pct:.1f}%[/cyan]"
-                category = "Exposed"
-            
+            category = analysis.get('burial_category', 'Exposed')
+            sasa = analysis.get('burial_sasa', 0.0)
+            covered = analysis.get('burial_covered_pct')
+            if covered is None:
+                covered = 100.0 * (1.0 - sasa / isolated) if isolated else 0.0
+            d = analysis.get('burial_closest_distance')
+            nearest = f"{analysis.get('burial_closest_atom', '')} {d:.2f} Å" if d is not None else "-"
             table.add_row(
                 f"[bold yellow]{analysis['residue_number']}[/bold yellow]",
                 analysis['residue_name'],
-                burial_str,
-                f"{raw_count:.1f}",
-                f"{est_sasa:.1f}",
-                category
+                f"[{style[category]}]{sasa:.1f}[/{style[category]}]",
+                f"{covered:.0f}%",
+                analysis.get('burial_access', '-'),
+                nearest,
+                f"[{style[category]}]{category}[/{style[category]}]",
             )
-            
+
         console.print(table)
-        
-        # Add legend
-        legend_text = "\n[bold]Proximity-Based Burial Analysis Legend:[/bold]\n"
-        legend_text += "• [bold red]Red[/bold red]: >75% buried (deeply buried)\n"
-        legend_text += "• [bold dark_orange3]Bold orange[/bold dark_orange3]: 50-75% buried\n"
-        legend_text += "• [dark_orange3]Orange[/dark_orange3]: 25-50% buried\n"
-        legend_text += "• [cyan]Cyan[/cyan]: <25% buried (exposed)\n"
-        console.print(legend_text)
-        
+
+        legend = "\n[bold]Legend:[/bold] "
+        legend += f"SASA = area a {probe} Å probe can touch (isolated water {isolated:.0f} Å²); "
+        legend += f"Covered = 100 × (1 − SASA/{isolated:.0f}); "
+        legend += "Access = bulk / enclosed from the flood fill.\n"
+        legend += (f"Category: [bold magenta]Clash[/bold magenta] nearest C/N/O/S/P < {analyzer.CLASH_DISTANCE} Å  →  "
+                   f"[bold red]Enclosed[/bold red] no bulk-connected probe position within {reach:.2f} Å  →  "
+                   f"[bold dark_orange3]Buried[/bold dark_orange3] SASA = 0.0 on the {touch:.2f} Å contact sphere, "
+                   f"but bulk reachable within {reach:.2f} Å  →  [cyan]Exposed[/cyan] otherwise.")
+        console.print(legend)
+
     def _display_interface_table(self, analyses: List[Dict], console, analyzer):
         """Display interface proximity analysis."""
         from rich.table import Table
@@ -3601,7 +3591,7 @@ class PDBFilterWorker:
         table = Table(title=f"Multi-Radius Burial Profiles ({len(profile_analyses)} waters)")
         table.add_column("Residue #", style="bold yellow", width=10)
         table.add_column("Final Count", style="dark_orange3", width=12)
-        table.add_column("Saturation", style="blue", width=12)
+        table.add_column("Saturation (<10%/step)", style="blue", width=22)
         table.add_column("Steep Rise", style="green", width=15)
         
         for analysis in profile_analyses:
@@ -3625,6 +3615,12 @@ class PDBFilterWorker:
             )
         
         console.print(table)
+        console.print(
+            "\n[bold]Legend:[/bold] counts are weighted atom counts within each radius (2.0 to 8.0 Å in 0.5 Å "
+            "steps). [bold]Saturation[/bold] = first radius at which the count grows by less than 10% over the "
+            "previous step; [bold]Steep Rise[/bold] = the 0.5 Å step with the largest increase. The 10% is a "
+            "convention for labelling the curve, not a property of the water; the profile itself is the result."
+        )
         
         # Offer to show detailed profiles
         if confirm_with_context(
@@ -3698,23 +3694,34 @@ class PDBFilterWorker:
         table.add_column("Residue #", style="bold yellow", width=10)
         table.add_column("Total Weight", style="dark_orange3", width=12)
         table.add_column("Primary Dir", style="blue", width=12)
-        table.add_column("Pocket Opening", style="cyan", width=14)
-        
+        table.add_column("Least Buried", style="cyan", width=13)
+        table.add_column("Pattern", style="grey50", width=44)
+
         for analysis in directional_analyses:
             directional = analysis['directional_burial']
-            
+
             total_weight = f"{directional.get('total_weight', 0):.1f}"
             primary_dir = directional.get('primary_direction', 'N/A')
             pocket_opening = directional.get('pocket_opening', 'N/A')
-            
+            pattern = directional.get('pattern_type', 'N/A')
+
             table.add_row(
                 f"[bold yellow]{analysis['residue_number']}[/bold yellow]",
                 total_weight,
                 primary_dir,
-                pocket_opening
+                pocket_opening,
+                pattern,
             )
         
         console.print(table)
+        console.print(
+            "\n[bold]Legend:[/bold] sectors are 45° wedges of azimuth in the xy-plane of the coordinate frame, "
+            "so directions are relative to the crystal frame, not the protein. [bold]Primary[/bold] = sector with "
+            "the largest weighted count, [bold]Least Buried[/bold] = the smallest. [bold]Pattern[/bold] compares "
+            "the sector-count range (max − min) with the mean sector count; the 0.5× and 1.5× in each label are "
+            "conventions for naming the shape, not properties of the water. Compass glyphs (●, ●●, ●●●, ████) are "
+            "quarters of that water's own largest sector."
+        )
         
         # Offer to show detailed compass charts
         if confirm_with_context(
@@ -3826,11 +3833,13 @@ class PDBFilterWorker:
 [bold]Compass interpretation:[/bold]
 - ⚬ = Water molecule at center
 - ○ = No atoms in that direction (0 count)
-- ● = Few atoms (low burial)
-- ●● = Moderate atoms 
-- ●●● = Many atoms
-- ████ = Very high atom density
+- ● / ●● / ●●● / ████ = up to 25% / 50% / 75% / above 75% of this water's largest sector count
 - Numbers in () = Actual atom count in that sector
+
+[bold]Pattern label (a naming convention, stated with each label):[/bold]
+- Uniform: sector-count range (max − min) ≤ 0.5 × mean sector count
+- Moderately directional: range ≤ 1.5 × mean
+- Highly directional: range > 1.5 × mean
 
 [bold]Key metrics:[/bold]
 - [yellow]Primary direction:[/yellow] Sector with highest atom density

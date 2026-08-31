@@ -1,6 +1,6 @@
 # proprep.spec
 # -*- mode: python ; coding: utf-8 -*-
-# Updated: 2026-03-06
+# Updated: 2026-08-27
 
 import sys
 import os
@@ -44,6 +44,33 @@ try:
 except Exception:
     pass
 
+# Modules excluded from BOTH executables to reduce size.
+# NOTE: scipy is deliberately NOT excluded - it is a lazy runtime dependency.
+_EXCLUDES = [
+    # The conda MODELLER package's config.py has the BUILD machine's license
+    # key baked in. Never ship it: the runtime hook supplies a stand-in
+    # (see hook-modeller-config.py / proprep.utils.modeller_license).
+    'modeller.config',
+        # Exclude unnecessary modules to reduce size
+        'tkinter',
+        'matplotlib',
+        'PIL',
+        'Pillow',
+        'pytest',
+        'IPython',
+        'jupyter',
+        'notebook',
+        'pandas',
+        'tensorflow',
+        'torch',
+        'cv2',
+        'wx',
+        'PyQt5',
+        'PyQt6',
+        'PySide2',
+        'PySide6',
+]
+
 a = Analysis(
     ['src/proprep/main.py'],
     pathex=[str(Path.cwd() / "src")],
@@ -66,6 +93,13 @@ a = Analysis(
 
         # Structure viewer HTML template
         ('src/proprep/structure_prep/templates', 'proprep/structure_prep/templates'),
+
+        # PB-titrate model compounds (prmtop/rst7 pairs read by
+        # pb_titrate/model_compounds.py via Path(__file__).parent / "models")
+        ('src/proprep/pb_titrate/models', 'proprep/pb_titrate/models'),
+
+        # HPC cluster profiles (SLURM generator)
+        ('src/proprep/md_prep/cluster_profiles', 'proprep/md_prep/cluster_profiles'),
 
     ] + _parmed_data + _modeller_datas,
     hiddenimports=[
@@ -335,6 +369,12 @@ a = Analysis(
         'proprep.orca_prep.orca_writer',
 
         # =====================================================================
+        # QM/MM preparation (imported by name in pdbprocessor.py)
+        # =====================================================================
+        'proprep.qmmm_prep.qmmm_preparator',
+        'proprep.qmmm_prep.frame_extractor',
+
+        # =====================================================================
         # Third-party dependencies
         # =====================================================================
 
@@ -364,8 +404,12 @@ a = Analysis(
         'pyyaml',
         'numpy',
         'networkx',
-        'sklearn',
-        'scikit-learn',
+        # scipy is imported lazily (pb_titrate cKDTree/curve_fit,
+        # trajectory_analyzer cdist, molecular_dynamics_manager ndimage)
+        'scipy',
+        'scipy.spatial',
+        'scipy.optimize',
+        'scipy.ndimage',
         'sympy',
         'pydantic',
         'pydantic_core',
@@ -380,27 +424,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=['hook-modeller-config.py'],
-    excludes=[
-        # Exclude unnecessary modules to reduce size
-        'tkinter',
-        'matplotlib',
-        'PIL',
-        'Pillow',
-        'pytest',
-        'IPython',
-        'jupyter',
-        'notebook',
-        'pandas',
-        'scipy',
-        'tensorflow',
-        'torch',
-        'cv2',
-        'wx',
-        'PyQt5',
-        'PyQt6',
-        'PySide2',
-        'PySide6',
-    ],
+    excludes=_EXCLUDES,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -408,6 +432,42 @@ a = Analysis(
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+# ---------------------------------------------------------------------------
+# proprep-web: the browser shell (entry point proprep.web.__main__:main).
+# It only imports proprep.web.* + fastapi/uvicorn/httpx and execs the sibling
+# ``proprep`` binary inside a PTY (see web/pty_session.py, frozen branch), so
+# it gets its own small Analysis rather than a copy of the full one.
+# ---------------------------------------------------------------------------
+a_web = Analysis(
+    ['src/proprep/web/__main__.py'],
+    pathex=[str(Path.cwd() / "src")],
+    binaries=[],
+    datas=[
+        # Served by web/server.py via Path(__file__).parent / "static"
+        ('src/proprep/web/static', 'proprep/web/static'),
+    ],
+    hiddenimports=[
+        'proprep.web',
+        'proprep.web.server',
+        'proprep.web.pty_session',
+        'fastapi',
+        'fastapi.responses',
+        'fastapi.staticfiles',
+        'uvicorn',
+        'httpx',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=_EXCLUDES,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz_web = PYZ(a_web.pure, a_web.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
@@ -417,6 +477,28 @@ exe = EXE(
     a.datas,
     [],
     name='proprep',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
+
+exe_web = EXE(
+    pyz_web,
+    a_web.scripts,
+    a_web.binaries,
+    a_web.zipfiles,
+    a_web.datas,
+    [],
+    name='proprep-web',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -279,6 +279,23 @@ class RedoxSiteTransformerBase:
                     "not chosen here."
                 ),
             }.get(option_value, "")
+        if param_name == cls.REDOX_TREATMENT_PARAM:
+            return {
+                "fixed_E": (
+                    "The oxidation state is built into the topology - the library's "
+                    "charges are the ferric or ferrous set and cannot change during "
+                    "the run. The heme residue is named for its state (HCO/HCR). Use "
+                    "for ordinary MD, or constant-pH MD where only the propionates "
+                    "titrate - you pick each site's state here."
+                ),
+                "constant_E": (
+                    "The heme residue is named HEH, matching AMBER's conste.lib, so "
+                    "ceinutil.py finds it and writes both Fe(III) and Fe(II) charge "
+                    "vectors into the cein file. One library serves both states; the "
+                    "state is set at cein-generation time, not here. Use for "
+                    "constant-redox (or combined constant-pH/redox) MD."
+                ),
+            }.get(option_value, "")
         if param_name.startswith(cls.PROTONATION_PARAM_PREFIX):
             return {
                 "deprotonated": "Deprotonated carboxylate (COO-, net -1) - standard above the propionate pKa (~4.8).",
@@ -316,6 +333,13 @@ class RedoxSiteTransformerBase:
 
     PROTONATION_PARAM_PREFIX = "protonation_"
     PH_TREATMENT_PARAM = "ph_treatment"
+    # Redox-treatment fork, orthogonal to the pH fork above. constant_E means
+    # the centre is named for AMBER's titratable redox residue (HEH for a
+    # c-type heme) and the oxidation state is chosen at cein-generation time
+    # (ceinutil.py -states / ParmEd) rather than baked into the lib's charges,
+    # so ONE library serves both states. fixed_E bakes the state in.
+    REDOX_TREATMENT_PARAM = "redox_treatment"
+    CONSTANT_E = "constant_E"
 
     @classmethod
     def _forcefield_sets(cls, redox_state: str, spin_state: str) -> List[Dict[str, Any]]:
@@ -359,6 +383,123 @@ class RedoxSiteTransformerBase:
         return treatments
 
     @classmethod
+    def available_redox_treatments(cls) -> List[str]:
+        """Distinct, order-preserved redox_treatment values across ALL of this
+        cofactor's states.
+
+        Unioned over every state rather than one state, because a constant_E set
+        is redox-state-agnostic by nature and is registered under a single
+        branch of the metadata tree (see ``constant_E_redox_state``).
+        """
+        seen, treatments = set(), []
+        for redox, spin in cls._all_redox_spin_pairs():
+            for st in cls._forcefield_sets(redox, spin):
+                t = st.get("redox_treatment")
+                if t and t not in seen:
+                    seen.add(t)
+                    treatments.append(t)
+        return treatments
+
+    @classmethod
+    def constant_E_redox_state(cls) -> Optional[str]:
+        """The redox_state branch under which this cofactor's constant_E sets
+        live, or None if it declares none.
+
+        Under constant_E the topology carries no committed oxidation state, so
+        the sets are registered under one branch only (the one whose charges
+        the shipped library carries). This is the value stamped for the
+        suppressed ``redox_state`` parameter — read from metadata rather than
+        hardcoded, so a cofactor that ships its constant_E lib under the reduced
+        branch works without a code change.
+        """
+        for redox, spin in cls._all_redox_spin_pairs():
+            for st in cls._forcefield_sets(redox, spin):
+                if st.get("redox_treatment") == cls.CONSTANT_E:
+                    return redox
+        return None
+
+    @classmethod
+    def effective_redox_state(cls, parameters: Dict[str, Any]) -> Optional[str]:
+        """The redox_state branch to look sets up under.
+
+        Normally the chosen ``redox_state``. Under constant_E the sets are
+        redox-state-agnostic and registered under one branch only, so any
+        redox_state a caller still carries (a replayed session, a microstate
+        combo built before the treatment was chosen) is redirected to that
+        branch. Without this, a stale 'reduced' would silently resolve back to
+        a fixed_E set and re-emit HCR.
+        """
+        if parameters.get(cls.REDOX_TREATMENT_PARAM) == cls.CONSTANT_E:
+            branch = cls.constant_E_redox_state()
+            if branch:
+                return branch
+        return parameters.get("redox_state")
+
+    @classmethod
+    def redox_treatment_parameter_definitions(cls) -> Dict[str, Any]:
+        """The ``redox_treatment`` fork definition, or {} when there's no fork.
+
+        Mirrors :py:meth:`protonation_parameter_definitions`: emitted only when
+        the cofactor declares 2+ distinct treatments, so cofactors that ship
+        only fixed_E sets (every leaf but bis_his_c_type today) are unaffected.
+
+        A transformer must merge this BEFORE ``redox_state`` in its
+        ``get_parameter_definitions`` dict — the manager configures choice
+        parameters in insertion order, and this parameter gates redox_state.
+        """
+        treatments = cls.available_redox_treatments()
+        if len(treatments) < 2:
+            return {}
+        default = "fixed_E" if "fixed_E" in treatments else treatments[0]
+        return {
+            cls.REDOX_TREATMENT_PARAM: {
+                "description": "Heme iron redox treatment",
+                "type": "choice",
+                "options": list(treatments),
+                "default": default,
+            }
+        }
+
+    @classmethod
+    def is_parameter_gated_off(cls, param_name: str,
+                               current_parameters: Dict[str, Any]) -> bool:
+        """True when ``param_name`` must not be prompted for at all here.
+
+        Deliberately separate from ``get_valid_options`` returning ``[]``: the
+        manager treats an empty valid-option list as "no narrowing opinion" and
+        falls back to the static options, so a parameter with a non-empty
+        static ``options`` list (like redox_state) cannot be suppressed that
+        way. A gated parameter is skipped AND stamped with
+        :py:meth:`gated_parameter_value`, because unlike the per-ring
+        protonation choices (which are simply unused under constant_pH),
+        redox_state is structurally required: it keys the metadata tree.
+        """
+        if (param_name == "redox_state"
+                and current_parameters.get(cls.REDOX_TREATMENT_PARAM) == cls.CONSTANT_E
+                and cls.constant_E_redox_state()):
+            return True
+        return False
+
+    @classmethod
+    def gated_parameter_value(cls, param_name: str,
+                              current_parameters: Dict[str, Any]) -> Any:
+        """The value to stamp for a parameter ``is_parameter_gated_off`` hid."""
+        if param_name == "redox_state":
+            return cls.constant_E_redox_state()
+        return None
+
+    @classmethod
+    def gated_parameter_reason(cls, param_name: str,
+                               current_parameters: Dict[str, Any]) -> str:
+        """One-line explanation shown where the skipped prompt would have been."""
+        if param_name == "redox_state":
+            return ("Under constant_E the oxidation state is not built into the "
+                    "topology - it is set when you generate the cein file "
+                    "(ceinutil.py -states) and applied by sander at step 0. One "
+                    "library serves both states, as in AMBER's conste.lib.")
+        return ""
+
+    @classmethod
     def select_forcefield_set_name(cls, parameters: Dict[str, Any]) -> Optional[str]:
         """Pick a representative set whose names this state+treatment imply.
 
@@ -369,7 +510,7 @@ class RedoxSiteTransformerBase:
         the is_default set, else the first. The specific lib (charge method) is
         chosen later in the Topology Generator.
         """
-        redox = parameters.get("redox_state")
+        redox = cls.effective_redox_state(parameters)
         spin = parameters.get("spin_state")
         if not redox or not spin:
             return None
@@ -387,6 +528,11 @@ class RedoxSiteTransformerBase:
         if treatment:
             sets = [s for s in sets if s.get("ph_treatment") == treatment] or sets
 
+        redox_treatment = parameters.get(cls.REDOX_TREATMENT_PARAM)
+        if redox_treatment:
+            sets = [s for s in sets
+                    if s.get("redox_treatment") == redox_treatment] or sets
+
         for s in sets:
             if s.get("is_default"):
                 return s["name"]
@@ -401,7 +547,7 @@ class RedoxSiteTransformerBase:
         try:
             from proprep.forcefield_params import get_protonation_model
             model = get_protonation_model(
-                cls.FORCEFIELD_PATH, parameters["redox_state"],
+                cls.FORCEFIELD_PATH, cls.effective_redox_state(parameters),
                 parameters["spin_state"], set_name)
         except Exception:
             return []
@@ -481,7 +627,7 @@ class RedoxSiteTransformerBase:
         }
         from proprep.forcefield_params import resolve_residue_names
         return resolve_residue_names(
-            cls.FORCEFIELD_PATH, parameters["redox_state"],
+            cls.FORCEFIELD_PATH, cls.effective_redox_state(parameters),
             parameters["spin_state"], set_name, protonation_choices)
 
     @classmethod

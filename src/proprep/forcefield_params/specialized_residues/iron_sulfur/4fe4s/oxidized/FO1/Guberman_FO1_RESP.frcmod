@@ -30,10 +30,10 @@ AA-A1  103.2    2.2549      Created by Seminario method using MCPB.py
 AB-A2  112.7    2.2515      Created by Seminario method using MCPB.py
 AC-A3  104.1    2.2850      Created by Seminario method using MCPB.py
 AD-A4  111.7    2.2551      Created by Seminario method using MCPB.py
-CT-AA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-AB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-AC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-AD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-AA   119.2    1.8645      Seminario from small-model Hessian (was 237.0/1.810)
+CT-AB   123.4    1.8623      Seminario from small-model Hessian (was 237.0/1.810)
+CT-AC   130.6    1.8649      Seminario from small-model Hessian (was 237.0/1.810)
+CT-AD   120.6    1.8610      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-AA-A1    56.89     100.68    Created by Seminario method using MCPB.py

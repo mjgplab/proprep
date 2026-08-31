@@ -22,6 +22,13 @@ from rich.table import Table
 from rich.text import Text
 
 from proprep.utils.module_registry import ProcessingModule, register_module
+from proprep.utils.titration_modes import (
+    PH as TITRATION_PH,
+    REDOX as TITRATION_REDOX,
+    get_mode as get_titration_mode,
+    engine_flags_for_modes,
+    mdin_keyword_sets,
+)
 from proprep.utils.prompts import (
     prompt_with_context,
     confirm_with_context,
@@ -90,10 +97,34 @@ class WorkflowConfig:
     steps: List[SimulationConfig]  # Ordered list of simulations
     hardware_config: Optional[Dict] = None  # Default hardware for all steps
     preset_id: Optional[str] = None  # Reference to workflow preset if used
-    # Constant pH / Redox MD settings (applied to production steps only)
-    cpin_file: Optional[str] = None  # Path to CPIN file from cpinutil
+    # Constant pH / Redox MD settings (applied to production steps only).
+    #
+    # A run may carry MORE THAN ONE titration file: a cpin for the
+    # pH-titratable residues and a cein for the redox-titratable ones are
+    # complementary and are passed together (Amber tutorial 33). So
+    # `titration_files` is the authoritative {mode: path} mapping.
+    #
+    # `cpin_file` is kept as the historical single-file field so workflows
+    # persisted before the redox files keep loading; it holds the cpin when
+    # there is one. A workflow with neither `titration_files` nor a
+    # `titration_mode` is constant pH, which is what every pre-existing one was.
+    cpin_file: Optional[str] = None  # Path to the cpin (or the only file)
     cpin_config: Optional[Dict] = None  # Full config dict from workspace
-    cpmd_settings: Optional[Dict] = None  # e.g. {'icnstph': 2, 'solvph': 7.0, 'ntcnstph': 100, 'ntrelax': 200}
+    cpmd_settings: Optional[Dict] = None  # e.g. {'icnstph': 2, 'solvph': 7.0, 'icnste': 2, 'solve': -0.203}
+    titration_mode: Optional[str] = None  # legacy single-mode marker
+    titration_files: Optional[Dict[str, str]] = None  # {'ph': path, 'redox': path}
+
+    def active_titration_files(self) -> Dict[str, str]:
+        """{mode: path} for every titration file this workflow runs with.
+
+        Falls back to the single-file fields for workflows persisted before
+        multi-file support, so an old cpin-only workflow still resolves.
+        """
+        if self.titration_files:
+            return dict(self.titration_files)
+        if self.cpin_file:
+            return {self.titration_mode or TITRATION_PH: self.cpin_file}
+        return {}
 
 
 class SimulationQueue:
@@ -127,6 +158,8 @@ class SimulationQueue:
                         cpin_file=wf_dict.get('cpin_file'),
                         cpin_config=wf_dict.get('cpin_config'),
                         cpmd_settings=wf_dict.get('cpmd_settings'),
+                        titration_mode=wf_dict.get('titration_mode'),
+                        titration_files=wf_dict.get('titration_files'),
                     )
             
             # Convert dicts back to SimulationConfig objects
@@ -213,6 +246,10 @@ class SimulationQueue:
                     wf_entry['cpin_config'] = workflow.cpin_config
                 if workflow.cpmd_settings:
                     wf_entry['cpmd_settings'] = workflow.cpmd_settings
+                if workflow.titration_mode:
+                    wf_entry['titration_mode'] = workflow.titration_mode
+                if workflow.titration_files:
+                    wf_entry['titration_files'] = workflow.titration_files
                 workflow_data[wf_id] = wf_entry
             self.workspace.set('md_workflows', workflow_data)
         
@@ -1697,26 +1734,37 @@ class MolecularDynamicsManager(ProcessingModule):
             return False
 
     def _maybe_enable_cphmd_for_assignments(self, structure_assignments) -> None:
-        """Offer constant pH MD (if a CPIN exists in the workspace) and register
-        a metadata-only WorkflowConfig for each structure whose topology matches
-        the CPIN, so the production-step CpHMD machinery engages
+        """Offer constant pH / redox MD and register a metadata-only
+        WorkflowConfig for each structure whose topology has titration files,
+        so the production-step CpHMD machinery engages
         (``_get_workflow_for_step`` -> CPIN staging / icnstph+solvph injection /
         ``-cpin -cpout -cprestrt`` flags).
 
-        The live setup path builds SimulationConfigs but never registered a
-        WorkflowConfig, so every downstream CpHMD guard resolved the workflow to
-        ``None`` and the (otherwise complete) machinery no-opped. This is the
-        single hook that turns it on.
+        Each structure gets ITS OWN files: a set of microstates has one cpin
+        per topology, looked up by prmtop name. The prompt is asked once and
+        lists every structure it applies to. When the workspace has only the
+        legacy single config, the original single-structure behaviour stands.
 
-        No-op when there is no CPIN in the workspace, no production step is
-        queued, or the user declines — keeping non-CpHMD runs unchanged.
+        No-op when there are no titration files, no production step is queued,
+        or the user declines — keeping non-CpHMD runs unchanged.
         """
         # Only meaningful if at least one queued step is a production step.
         if not any(self._is_production_step(c) for c in self.simulation_queue.queue):
             return
 
-        # _check_and_offer_cpmd reads cpin_config/cpin_file from the workspace;
-        # the prmtop arg is informational only.
+        if self.workspace and self.workspace.get('titration_configs'):
+            by_prmtop = self._titration_configs_by_prmtop()
+            matched = []   # (assignment, config, files)
+            for assignment in structure_assignments or []:
+                prmtop = str(assignment.structure_pair.get('prmtop', ''))
+                hit = by_prmtop.get(os.path.basename(prmtop))
+                if hit:
+                    matched.append((assignment, hit[0], hit[1]))
+            if matched:
+                self._enable_cphmd_per_structure(structure_assignments, matched)
+                return
+
+        # Legacy single-config path (unchanged behaviour).
         rep_prmtop = ""
         if structure_assignments:
             rep_prmtop = str(structure_assignments[0].structure_pair.get('prmtop', ''))
@@ -1725,8 +1773,11 @@ class MolecularDynamicsManager(ProcessingModule):
             return
 
         cpin_config = cpmd_info.get('cpin_config') or {}
-        # Topologies the CPIN is valid for: the cpinutil input and, for explicit
-        # solvent, the radii-corrected *_cpin.prmtop that MD actually runs on.
+        titration_label = " + ".join(
+            get_titration_mode(k).label
+            for k in (cpmd_info.get('titration_files') or {TITRATION_PH: 1}))
+        # Topologies the titration files are valid for: the utility's input
+        # and, for explicit solvent, the radii-corrected prmtop MD runs on.
         cpin_prmtops = {
             os.path.basename(p) for p in (
                 cpin_config.get('prmtop_file'),
@@ -1749,27 +1800,70 @@ class MolecularDynamicsManager(ProcessingModule):
             self.simulation_queue._workflows[wid] = WorkflowConfig(
                 workflow_id=wid,
                 name=assignment.structure_name,
-                description="Constant pH MD",
+                description=f"{titration_label} MD",
                 system_prmtop=prmtop,
                 initial_rst7=rst7,
                 steps=[],
                 cpin_file=cpmd_info.get('cpin_file'),
                 cpin_config=cpin_config,
                 cpmd_settings=cpmd_info.get('cpmd_settings'),
+                titration_files=cpmd_info.get('titration_files'),
             )
             registered += 1
 
         if registered:
             self.simulation_queue._sync_to_workspace()
             self.console.print(
-                f"[grey50]  Constant pH MD will be applied to production steps "
-                f"of {registered} structure(s).[/grey50]"
+                f"[grey50]  {titration_label} MD will be applied to "
+                f"production steps of {registered} structure(s).[/grey50]"
             )
         else:
             self.console.print(
-                "[yellow]  Note: the generated CPIN does not match the selected "
-                "structure topology, so constant pH MD was not enabled.[/yellow]"
+                f"[yellow]  Note: the generated titration file(s) do not "
+                f"match the selected structure topology, so {titration_label} "
+                f"MD was not enabled.[/yellow]"
             )
+
+    def _enable_cphmd_per_structure(self, structure_assignments, matched) -> None:
+        """Per-topology path: one prompt, then every matched structure is
+        registered with its own titration files and shared MD settings."""
+        rep_assignment, rep_cfg, rep_files = matched[0]
+        applies_to = [(a.structure_name, list(files.values())) for a, _, files in matched]
+        cpmd_info = self._check_and_offer_cpmd(
+            str(rep_assignment.structure_pair.get('prmtop', '')),
+            resolved=(rep_cfg, rep_files), applies_to=applies_to)
+        if not cpmd_info:
+            return
+        titration_label = " + ".join(get_titration_mode(k).label for k in rep_files)
+        registered = 0
+        for assignment, cfg, files in matched:
+            wid = assignment.custom_workflow_id
+            cpin_config = dict(cfg)
+            if TITRATION_PH in files:
+                cpin_config['cpin_file'] = files[TITRATION_PH]
+            self.simulation_queue._workflows[wid] = WorkflowConfig(
+                workflow_id=wid,
+                name=assignment.structure_name,
+                description=f"{titration_label} MD",
+                system_prmtop=str(assignment.structure_pair.get('prmtop', '')),
+                initial_rst7=str(assignment.structure_pair.get('rst7', '')),
+                steps=[],
+                cpin_file=files.get(TITRATION_PH) or next(iter(files.values())),
+                cpin_config=cpin_config,
+                cpmd_settings=cpmd_info.get('cpmd_settings'),
+                titration_files=dict(files),
+            )
+            registered += 1
+        self.simulation_queue._sync_to_workspace()
+        self.console.print(
+            f"[grey50]  {titration_label} MD will be applied to "
+            f"production steps of {registered} structure(s).[/grey50]"
+        )
+        skipped = len(structure_assignments or []) - registered
+        if skipped:
+            self.console.print(
+                f"[yellow]  {skipped} structure(s) have no titration files "
+                f"and run without {titration_label} MD.[/yellow]")
 
     def _step1_template_selection_legacy(self, controller, structure_pairs):
         """Legacy Step 1: Select from existing templates or create new templates and assign to structure pairs."""
@@ -3624,6 +3718,8 @@ are well-known and documented by the AMBER developers."""
                 template_content = self._apply_configured_restraints(
                     template_content, sim_config, step_dir
                 )
+                # Titration namelist (icnstph/solvph, icnste/solve) for production steps.
+                template_content = self._maybe_inject_cpmd_params(template_content, sim_config, silent=True)
                 with open(mdin_file, 'w') as f:
                     f.write(template_content)
                 mdin_files.append(rel_mdin)
@@ -3635,12 +3731,14 @@ are well-known and documented by the AMBER developers."""
                 step_names.append(sim_config.name)
                 self.console.print(f"[yellow]  ⚠ Created basic {rel_mdin}[/yellow]")
 
-            # Stage CpHMD files per production step (mirrors SLURM).
-            if wf_config and wf_config.cpin_file and self._is_production_step(sim_config):
-                cpin_path = Path(wf_config.cpin_file)
-                if cpin_path.exists():
-                    shutil.copy2(cpin_path, step_dir / cpin_path.name)
-                    self.console.print(f"[grey50]  ✓ Staged CPIN into {step_key}/ ({cpin_path.name})[/grey50]")
+            # Stage every titration file per production step (mirrors SLURM).
+            if wf_config and self._is_production_step(sim_config):
+                for mode_key, file_path in wf_config.active_titration_files().items():
+                    step_mode = get_titration_mode(mode_key)
+                    cpin_path = Path(file_path)
+                    if cpin_path.exists():
+                        shutil.copy2(cpin_path, step_dir / cpin_path.name)
+                        self.console.print(f"[grey50]  ✓ Staged {step_mode.file_ext.upper()} into {step_key}/ ({cpin_path.name})[/grey50]")
                 if wf_config.cpin_config:
                     mod_prmtop = wf_config.cpin_config.get('modified_prmtop')
                     if mod_prmtop and Path(mod_prmtop).exists():
@@ -3754,6 +3852,8 @@ are well-known and documented by the AMBER developers."""
                         )
                         self.console.print(f"[grey50]  ✓ Applied DISANG restraints[/grey50]")
 
+                # Titration namelist (icnstph/solvph, icnste/solve) for production steps.
+                template_content = self._maybe_inject_cpmd_params(template_content, sim_config, silent=True)
                 with open(mdin_file, 'w') as f:
                     f.write(template_content)
                 self.console.print(f"[grey50]  ✓ Created MDIN file[/grey50]")
@@ -5397,131 +5497,186 @@ MD simulations require TWO files per structure:
         self.simulation_queue.add_simulation(config)
         self.console.print(f"[green]✓ Imported '{sim_name}' from {file_path}[/green]")
 
-    def _check_and_offer_cpmd(self, prmtop_file: str) -> Optional[Dict]:
-        """Check workspace for constant pH config and offer to enable CpHMD.
+    def _resolve_titration_workspace_config(self) -> Optional[Tuple[Dict, Dict]]:
+        """Find the generated titration file(s) in the workspace.
 
-        Returns a dict with cpin_file, cpin_config, and cpmd_settings if the
-        user accepts, or None if no CPIN file exists or the user declines.
+        Returns (config, {mode: path}) or None.
+
+        Prefers `titration_config`, which records every file generated. Falls
+        back to `cpin_config`/`cpin_file`, all that exists in workspaces
+        written before the redox files -- those are constant pH by definition.
         """
         workspace = self.workspace
         if not workspace:
             return None
 
-        cpin_config = workspace.get('cpin_config')
-        cpin_file = workspace.get('cpin_file')
-        if not cpin_config or not cpin_file:
-            return None
+        config = workspace.get('titration_config')
+        if config and config.get('files'):
+            return config, dict(config['files'])
 
-        # Verify the CPIN file still exists on disk
+        config = workspace.get('cpin_config')
+        path = workspace.get('cpin_file')
+        if config and path:
+            return config, {TITRATION_PH: path}
+
+        return None
+
+    def _titration_configs_by_prmtop(self) -> Dict[str, Tuple[Dict, Dict]]:
+        """Titration config per topology, keyed by the basename of both the
+        utility's input prmtop and the radii-corrected `_cpin.prmtop`.
+        Reads `titration_configs` (one entry per topology written by the
+        Topology Generator) and falls back to the single legacy config."""
+        out: Dict[str, Tuple[Dict, Dict]] = {}
+        workspace = self.workspace
+        if not workspace:
+            return out
+        entries = list(workspace.get('titration_configs') or [])
+        if not entries:
+            single = self._resolve_titration_workspace_config()
+            if single:
+                entries = [single[0]]
         from pathlib import Path
-        if not Path(cpin_file).exists():
+        for cfg in entries:
+            files = {k: v for k, v in (cfg.get('files') or {}).items() if Path(v).exists()}
+            if not files and cfg.get('cpin_file') and Path(cfg['cpin_file']).exists():
+                files = {TITRATION_PH: cfg['cpin_file']}
+            if not files:
+                continue
+            for key in (cfg.get('prmtop_file'), cfg.get('modified_prmtop')):
+                if key:
+                    out[os.path.basename(key)] = (cfg, files)
+        return out
+
+    def _check_and_offer_cpmd(self, prmtop_file: str, resolved=None,
+                              applies_to=None) -> Optional[Dict]:
+        """Check the workspace for titration files and offer to enable them.
+
+        A run may have both a cpin and a cein; they titrate different residues
+        and are passed together, so this collects BOTH keyword families and
+        both flag triples in that case (Amber tutorial 33 section 3):
+
+            cpin present -> icnstph, solvph, ntcnstph (+ ntrelax if explicit)
+            cein present -> icnste,  solve,  ntcnste  (+ ntrelaxe if explicit)
+
+        Returns a dict with cpin_file, titration_files, cpin_config and
+        cpmd_settings if the user accepts, or None.
+        """
+        resolved = resolved or self._resolve_titration_workspace_config()
+        if not resolved:
             return None
+        titration_config, files_by_mode = resolved
+        modes = [get_titration_mode(k) for k in files_by_mode]
 
-        # Show what was configured
-        sim_type = cpin_config.get('simulation_type', 'unknown')
-        num_res = cpin_config.get('num_residues', 0)
-        self.console.print(f"\n[bold cyan]Constant pH MD Available[/bold cyan]")
-        self.console.print(f"  CPIN file: {Path(cpin_file).name}")
+        from pathlib import Path
+
+        # Drop any file that has since been removed.
+        files_by_mode = {k: v for k, v in files_by_mode.items()
+                         if Path(v).exists()}
+        if not files_by_mode:
+            return None
+        modes = [get_titration_mode(k) for k in files_by_mode]
+
+        label = " + ".join(m.label for m in modes)
+        sim_type = titration_config.get('simulation_type', 'unknown')
+        self.console.print(f"\n[bold cyan]{label} MD Available[/bold cyan]")
+        for mode in modes:
+            detail = (titration_config.get('details') or {}).get(mode.key, {})
+            n_res = detail.get('num_residues')
+            suffix = f" ({n_res} residues)" if n_res else ""
+            self.console.print(f"  {mode.file_ext.upper()} file: "
+                               f"{Path(files_by_mode[mode.key]).name}{suffix}")
         self.console.print(f"  Solvent model: {sim_type}")
-        self.console.print(f"  Titratable residues: {num_res}")
 
-        # Check for modified prmtop (explicit solvent)
-        modified_prmtop = cpin_config.get('modified_prmtop')
+        modified_prmtop = titration_config.get('modified_prmtop')
         if modified_prmtop:
-            self.console.print(f"  Modified topology: {Path(modified_prmtop).name}")
+            self.console.print(f"  Modified topology: "
+                               f"{Path(modified_prmtop).name}")
 
+        if applies_to:
+            self.console.print(f"  Applies to {len(applies_to)} structure(s), each with its own file(s):")
+            for name, paths in applies_to:
+                self.console.print(f"    {name}: {', '.join(Path(p).name for p in paths)}")
         enable = confirm_with_context(
             self.processor,
-            "Enable constant pH MD for production steps?",
+            f"Enable {label} MD for production steps?",
             default=True,
             module="MD Manager - CpHMD",
-            description="Enable constant pH molecular dynamics"
+            description=f"Enable {label} molecular dynamics"
         )
         if not enable:
             return None
 
-        # Determine icnstph value from simulation type
-        icnstph = 2 if sim_type == 'explicit' else 1
+        # icnstph/icnste: 1 = implicit solvent, 2 = explicit.
+        flag_value = 2 if sim_type == 'explicit' else 1
+        cpmd_settings: Dict[str, Any] = {}
 
-        # Get target pH
-        default_ph = 7.0
-        ph_str = prompt_with_context(
-            self.processor,
-            "Target pH",
-            default=str(default_ph),
-            module="MD Manager - CpHMD",
-            description="Solvent pH for constant pH MD"
-        )
-        try:
-            solvph = float(ph_str)
-        except ValueError:
-            solvph = default_ph
+        def _ask(prompt, default, description, cast):
+            raw = prompt_with_context(
+                self.processor, prompt, default=str(default),
+                module="MD Manager - CpHMD", description=description)
+            try:
+                return cast(raw)
+            except (TypeError, ValueError):
+                return default
 
-        # Get protonation state change frequency
-        ntcnstph_str = prompt_with_context(
-            self.processor,
-            "Steps between protonation state attempts (ntcnstph)",
-            default="100",
-            module="MD Manager - CpHMD",
-            description="MC protonation state change frequency"
-        )
-        try:
-            ntcnstph = int(ntcnstph_str)
-        except ValueError:
-            ntcnstph = 100
+        for family in mdin_keyword_sets(list(files_by_mode)):
+            if family.key == TITRATION_REDOX:
+                self.console.print(
+                    "\n[grey50]The applied potential sets which oxidation "
+                    "state is favoured; HEH has Eo = -0.203 V.[/grey50]")
+                setpoint_prompt = "Target redox potential in Volts (solve)"
+                setpoint_default = -0.203
+                freq_prompt = "Steps between redox state attempts (ntcnste)"
+                relax_prompt = ("Solvent relaxation steps after redox change "
+                                "(ntrelaxe)")
+            else:
+                setpoint_prompt = "Target pH"
+                setpoint_default = 7.0
+                freq_prompt = ("Steps between protonation state attempts "
+                               "(ntcnstph)")
+                relax_prompt = ("Solvent relaxation steps after protonation "
+                                "change (ntrelax)")
+
+            cpmd_settings[family.mdin_flag_keyword] = flag_value
+            cpmd_settings[family.mdin_setpoint_keyword] = _ask(
+                setpoint_prompt, setpoint_default,
+                f"Setpoint for {family.label} MD", float)
+            cpmd_settings[family.mdin_freq_keyword] = _ask(
+                freq_prompt, 100, f"MC attempt frequency for {family.label}",
+                int)
+            if flag_value == 2:
+                cpmd_settings[family.mdin_relax_keyword] = _ask(
+                    relax_prompt, 200,
+                    "Solvent relaxation steps (explicit solvent)", int)
 
         # Salt concentration (reference energies were derived with saltcon=0.1)
-        saltcon_str = prompt_with_context(
-            self.processor,
-            "Salt concentration in M (saltcon)",
-            default="0.1",
-            module="MD Manager - CpHMD",
-            description="Salt concentration for CpHMD reference energies"
-        )
-        try:
-            saltcon = float(saltcon_str)
-        except ValueError:
-            saltcon = 0.1
+        cpmd_settings['saltcon'] = _ask(
+            "Salt concentration in M (saltcon)", 0.1,
+            "Salt concentration for titration reference energies", float)
 
-        # Build settings dict
-        cpmd_settings = {
-            'icnstph': icnstph,
-            'solvph': solvph,
-            'ntcnstph': ntcnstph,
-            'saltcon': saltcon,
-        }
+        # Implicit solvent: igb must match what was used to derive the
+        # reference energies baked into the titration files.
+        if flag_value == 1:
+            cpmd_settings['igb'] = titration_config.get('igb', 2)
 
-        # Implicit solvent: igb must match what was used to derive reference energies
-        if icnstph == 1:
-            igb = cpin_config.get('igb', 2)
-            cpmd_settings['igb'] = igb
-
-        # Explicit solvent needs ntrelax
-        if icnstph == 2:
-            ntrelax_str = prompt_with_context(
-                self.processor,
-                "Solvent relaxation steps after state change (ntrelax)",
-                default="200",
-                module="MD Manager - CpHMD",
-                description="Solvent relaxation dynamics steps (explicit solvent only)"
-            )
-            try:
-                cpmd_settings['ntrelax'] = int(ntrelax_str)
-            except ValueError:
-                cpmd_settings['ntrelax'] = 200
-
-        self.console.print(f"\n[green]✓ Constant pH MD enabled[/green]")
-        self.console.print(f"  icnstph={cpmd_settings['icnstph']}, solvph={solvph}, "
-                         f"ntcnstph={ntcnstph}, saltcon={saltcon}")
+        self.console.print(f"\n[green]✓ {label} MD enabled[/green]")
+        summary = ", ".join(
+            f"{k}={v}" for k, v in cpmd_settings.items() if k != 'igb')
+        self.console.print(f"  {summary}")
         if 'igb' in cpmd_settings:
-            self.console.print(f"  igb={cpmd_settings['igb']} (from CPIN generation)")
-        if 'ntrelax' in cpmd_settings:
-            self.console.print(f"  ntrelax={cpmd_settings['ntrelax']}")
-        self.console.print(f"  [grey50]CpHMD flags will be applied to production steps only[/grey50]")
+            self.console.print(f"  igb={cpmd_settings['igb']} "
+                               f"(from titration file generation)")
+        flag_str = " ".join(
+            f"{m.flag_input} {m.flag_output} {m.flag_restart}" for m in modes)
+        self.console.print(
+            f"  [grey50]{flag_str} will be applied to production steps "
+            f"only[/grey50]")
 
         return {
-            'cpin_file': cpin_file,
-            'cpin_config': cpin_config,
+            'cpin_file': (files_by_mode.get(TITRATION_PH)
+                          or next(iter(files_by_mode.values()))),
+            'titration_files': files_by_mode,
+            'cpin_config': titration_config,
             'cpmd_settings': cpmd_settings,
         }
 
@@ -8830,10 +8985,13 @@ MD simulations require TWO files per structure:
 
     def _maybe_inject_cpmd_params(self, mdin_content: str, sim_config: SimulationConfig,
                                    silent: bool = False) -> str:
-        """Inject CpHMD namelist variables into mdin content for production steps.
+        """Inject titration namelist variables into mdin for production steps.
 
-        Only modifies the content if the parent workflow has cpmd_settings
-        and this step is a production step.
+        Only modifies the content if the parent workflow has cpmd_settings and
+        this step is a production step. The settings dict is applied verbatim,
+        so it carries icnstph/solvph/ntcnstph for constant pH, icnste/solve/
+        ntcnste for constant redox, and both for a combined run -- whichever
+        `_check_and_offer_cpmd` collected for the mode.
         """
         if not self._is_production_step(sim_config):
             return mdin_content
@@ -8847,22 +9005,41 @@ MD simulations require TWO files per structure:
         mdin_content = self._apply_parameter_overrides_to_content(mdin_content, overrides)
 
         if not silent:
-            self.console.print(f"[grey50]Injected CpHMD parameters: "
-                             f"icnstph={overrides.get('icnstph')}, "
-                             f"solvph={overrides.get('solvph')}[/grey50]")
+            shown = [f"{k}={overrides[k]}" for k in (
+                'icnstph', 'solvph', 'icnste', 'solve') if k in overrides]
+            self.console.print(f"[grey50]Injected titration parameters: "
+                               f"{', '.join(shown)}[/grey50]")
         return mdin_content
+
+    def _stage_mdin_from_path(self, sim_config: SimulationConfig, dest: Path) -> None:
+        """Write an imported .mdin to ``dest`` through the same finishing pass a
+        template gets: configured restraints, then the titration namelist for
+        production steps. A plain copy2 skipped both, so a batch or SLURM run
+        staged the cpin and passed -cpin but the mdin never carried icnstph.
+        Falls back to a verbatim copy if the file cannot be read."""
+        import shutil
+        try:
+            content = Path(sim_config.mdin_path).read_text()
+        except OSError:
+            shutil.copy2(sim_config.mdin_path, dest)
+            return
+        content = self._apply_configured_restraints(content, sim_config, dest.parent)
+        content = self._maybe_inject_cpmd_params(content, sim_config, silent=True)
+        dest.write_text(content)
 
     def _setup_cpmd_files(self, sim_config: SimulationConfig, sim_dir: Path,
                           shared_dir: Path, prmtop_name: str,
                           output_prefix: str, silent: bool = False) -> Optional[Dict]:
-        """Set up CpHMD files for a production step.
+        """Set up titration files (cpin/cein/cpein) for a production step.
 
-        Copies the CPIN file, resolves restart chaining between consecutive
-        production steps, and swaps the topology for explicit-solvent CpHMD.
+        Copies every titration file the workflow carries, resolves restart
+        chaining per file, and swaps the topology for explicit solvent. A run
+        with both a cpin and a cein gets all six flags, matching Amber
+        tutorial 33 section 3.
 
         Returns a dict with 'flags' (list of command-line args) and optionally
         'modified_prmtop' (filename to use instead of the original), or None
-        if CpHMD is not active for this step.
+        if titration is not active for this step.
         """
         import shutil
 
@@ -8870,43 +9047,51 @@ MD simulations require TWO files per structure:
             return None
 
         workflow = self._get_workflow_for_step(sim_config)
-        if not workflow or not workflow.cpin_file:
+        if not workflow:
             return None
 
-        cpin_source = Path(workflow.cpin_file)
-        if not cpin_source.exists():
-            if not silent:
-                self.console.print(f"[yellow]Warning: CPIN file not found: {cpin_source}[/yellow]")
+        files_by_mode = workflow.active_titration_files()
+        if not files_by_mode:
             return None
 
-        # Determine CPIN input: original file or previous production step's cprestrt
-        cpin_input_name = cpin_source.name
-        cprestrt_from_prev = self._find_previous_cprestrt(sim_config, sim_dir)
-        if cprestrt_from_prev and cprestrt_from_prev.exists():
-            # Use previous step's cprestrt as our cpin
-            shutil.copy2(cprestrt_from_prev, sim_dir / cprestrt_from_prev.name)
-            cpin_input_name = cprestrt_from_prev.name
-            if not silent:
-                self.console.print(f"[grey50]CpHMD restart: using {cprestrt_from_prev.name} as cpin[/grey50]")
-        else:
-            # First production step: copy original CPIN file
-            shutil.copy2(cpin_source, sim_dir / cpin_input_name)
-            if not silent:
-                self.console.print(f"[grey50]CpHMD: copied {cpin_input_name} to simulation directory[/grey50]")
+        staged: Dict[str, str] = {}
+        for mode_key, file_path in files_by_mode.items():
+            mode = get_titration_mode(mode_key)
+            source = Path(file_path)
+            if not source.exists():
+                if not silent:
+                    self.console.print(
+                        f"[yellow]Warning: {mode.file_ext.upper()} file not "
+                        f"found: {source}[/yellow]")
+                continue
 
-        # Output files
-        cpout_name = f"{output_prefix}.cpout"
-        cprestrt_name = f"{output_prefix}.cprestrt"
+            # Use the previous production step's restart file so titration
+            # state carries across steps; each file chains independently.
+            input_name = source.name
+            prev_restart = self._find_previous_cprestrt(sim_config, sim_dir,
+                                                        mode.ext_restart)
+            if prev_restart and prev_restart.exists():
+                shutil.copy2(prev_restart, sim_dir / prev_restart.name)
+                input_name = prev_restart.name
+                if not silent:
+                    self.console.print(
+                        f"[grey50]{mode.short_label} restart: using "
+                        f"{prev_restart.name} as {mode.file_ext}[/grey50]")
+            else:
+                shutil.copy2(source, sim_dir / input_name)
+                if not silent:
+                    self.console.print(
+                        f"[grey50]{mode.short_label}: copied {input_name} to "
+                        f"simulation directory[/grey50]")
+            staged[mode_key] = input_name
 
-        flags = [
-            "-cpin", cpin_input_name,
-            "-cpout", cpout_name,
-            "-cprestrt", cprestrt_name,
-        ]
+        if not staged:
+            return None
 
-        result = {'flags': flags}
+        result = {'flags': engine_flags_for_modes(staged, output_prefix)}
 
-        # Handle modified topology for explicit solvent CpHMD
+        # Handle modified topology for explicit solvent. One radii-corrected
+        # prmtop serves every titration file in the run.
         cpin_config = workflow.cpin_config or {}
         modified_prmtop_path = cpin_config.get('modified_prmtop')
         if modified_prmtop_path and Path(modified_prmtop_path).exists():
@@ -8914,13 +9099,20 @@ MD simulations require TWO files per structure:
             shutil.copy2(modified_prmtop_path, sim_dir / mod_prmtop_name)
             result['modified_prmtop'] = mod_prmtop_name
             if not silent:
-                self.console.print(f"[grey50]CpHMD: using modified topology {mod_prmtop_name}[/grey50]")
+                self.console.print(f"[grey50]Titration: using modified "
+                                   f"topology {mod_prmtop_name}[/grey50]")
 
         return result
 
     def _find_previous_cprestrt(self, sim_config: SimulationConfig,
-                                 sim_dir: Path) -> Optional[Path]:
-        """Find the cprestrt file from the previous production step in this workflow."""
+                                 sim_dir: Path,
+                                 restart_ext: str = 'cprestrt') -> Optional[Path]:
+        """Find the titration restart file from the previous production step.
+
+        `restart_ext` is the mode's restart extension -- cprestrt, cerestrt or
+        cperestrt -- so a constant-redox chain looks for the file sander
+        actually wrote rather than a cprestrt that will never exist.
+        """
         workflow = self._get_workflow_for_step(sim_config)
         if not workflow or sim_config.workflow_step is None:
             return None
@@ -8934,11 +9126,11 @@ MD simulations require TWO files per structure:
                 # The previous step's directory is a sibling of our sim_dir
                 run_dir = sim_dir.parent
                 prev_dir = run_dir / prev_step.name.replace(' ', '_').lower()
-                cprestrt = prev_dir / f"{prev_prefix}.cprestrt"
+                cprestrt = prev_dir / f"{prev_prefix}.{restart_ext}"
                 if cprestrt.exists():
                     return cprestrt
                 # Also check the pattern used by _run_amber_simulation
-                for candidate in prev_dir.glob("*.cprestrt"):
+                for candidate in prev_dir.glob(f"*.{restart_ext}"):
                     return candidate
                 break  # Only check the immediately preceding production step
 
@@ -9664,16 +9856,21 @@ MD simulations require TWO files per structure:
                                     extended_production_cycles: int = 0):
         """Create a master bash script that chains all workflow steps together.
 
-        If the parent workflow has CpHMD enabled, production steps get
-        -cpin/-cpout/-cprestrt flags with proper restart chaining.
+        If the parent workflow has a titration file, production steps get that
+        mode's flag triple (-cpin/-cpout/-cprestrt, -cein/-ceout/-cerestrt or
+        -cpein/-cpeout/-cperestrt) with proper restart chaining.
         """
         # Look up CpHMD configuration from the parent workflow
         wf_config = None
         if workflow_steps and workflow_steps[0].workflow_id:
             wf_config = self.simulation_queue._workflows.get(workflow_steps[0].workflow_id)
-        cpmd_active = wf_config and wf_config.cpin_file
-        cpin_filename = Path(wf_config.cpin_file).name if cpmd_active else None
-        # Use modified topology for explicit-solvent CpHMD
+        # Every titration file this workflow runs with. A cpin and a cein are
+        # complementary and are passed together, so this is a mapping, not a
+        # single choice (Amber tutorial 33 section 3).
+        cpmd_files = wf_config.active_titration_files() if wf_config else {}
+        cpmd_active = bool(cpmd_files)
+        cpmd_modes = [get_titration_mode(k) for k in cpmd_files]
+        # Use modified topology for explicit-solvent titration
         cpmd_prmtop = None
         if cpmd_active and wf_config.cpin_config:
             mod = wf_config.cpin_config.get('modified_prmtop')
@@ -9701,7 +9898,8 @@ MD simulations require TWO files per structure:
             f.write("set -e\n\n")
 
             # Track the last production step's key so later production steps
-            # can chain CpHMD restarts from ../step{prev}/step{prev}.cprestrt.
+            # can chain titration restarts from
+            # ../step{prev}/step{prev}.<restart ext>.
             prev_prod_step_key: Optional[str] = None
 
             # Write each step. Each step cds into its own subdirectory
@@ -9809,28 +10007,29 @@ MD simulations require TWO files per structure:
                         "-ref", input_coord,
                     ]
 
-                # CpHMD flags for production steps
+                # Titration flags for production steps
                 is_prod = self._is_production_step(sim_config)
                 if cpmd_active and is_prod:
-                    # Swap topology if explicit-solvent CpHMD. cpmd_prmtop is
+                    # Swap topology if explicit solvent. cpmd_prmtop is
                     # staged inside this step_dir (see _prepare_workflow_files),
                     # so reference it by basename.
                     if cpmd_prmtop:
                         cmd_parts = [cpmd_prmtop if x == topology_arg else x for x in cmd_parts]
 
-                    cpout_file = f"{step_key}.cpout"
-                    cprestrt_file = f"{step_key}.cprestrt"
-                    if prev_prod_step_key:
-                        cpin_input = f"../{prev_prod_step_key}/{prev_prod_step_key}.cprestrt"
-                    else:
-                        # First production step — cpin staged in this subdir
-                        cpin_input = cpin_filename
+                    # Each file chains from its own restart independently.
+                    step_inputs = {}
+                    for mode_key, file_path in cpmd_files.items():
+                        mode = get_titration_mode(mode_key)
+                        if prev_prod_step_key:
+                            step_inputs[mode_key] = (
+                                f"../{prev_prod_step_key}/"
+                                f"{prev_prod_step_key}.{mode.ext_restart}")
+                        else:
+                            # First production step — staged in this subdir
+                            step_inputs[mode_key] = Path(file_path).name
 
-                    cmd_parts.extend([
-                        "-cpin", cpin_input,
-                        "-cpout", cpout_file,
-                        "-cprestrt", cprestrt_file,
-                    ])
+                    cmd_parts.extend(
+                        engine_flags_for_modes(step_inputs, step_key))
                     prev_prod_step_key = step_key
 
                 f.write(f"{indent}echo \"Starting Step {i}: {sim_config.name}...\"\n")
@@ -9873,7 +10072,7 @@ MD simulations require TWO files per structure:
                 f.write(f"    echo \"Starting Extended Production Cycle $cycle/{extended_production_cycles}...\"\n")
                 f.write(f"    \n")
 
-                # Input-coord / CPIN selection for cycle 1 vs cycle N+1.
+                # Input-coord / titration-file selection for cycle 1 vs N+1.
                 # All referenced files live in this (last_step_key) subdir.
                 f.write(f"    # Cycle 1 chains from {last_step_key}.rst7; later cycles from prior extended restart.\n")
                 f.write(f"    if [ $cycle -eq 1 ]; then\n")
@@ -9881,17 +10080,27 @@ MD simulations require TWO files per structure:
                 if cpmd_active:
                     # Extended cycles only run when the last protocol step is
                     # production — at that point prev_prod_step_key is this
-                    # very step, so its cprestrt sits right here. Fall back to
-                    # the staged cpin if somehow no prior cprestrt exists.
-                    if prev_prod_step_key:
-                        f.write(f"        CPIN_INPUT=\"{last_step_key}.cprestrt\"\n")
-                    else:
-                        f.write(f"        CPIN_INPUT=\"{cpin_filename}\"\n")
+                    # very step, so its restart file sits right here. Fall back
+                    # to the staged input file if no prior restart exists.
+                    # One shell variable per titration file, since a run may
+                    # carry a cpin and a cein together.
+                    for mode in cpmd_modes:
+                        var = f"TITR_IN_{mode.file_ext.upper()}"
+                        if prev_prod_step_key:
+                            f.write(f"        {var}=\"{last_step_key}."
+                                    f"{mode.ext_restart}\"\n")
+                        else:
+                            staged_name = Path(
+                                cpmd_files[mode.key]).name
+                            f.write(f"        {var}=\"{staged_name}\"\n")
                 f.write(f"    else\n")
                 f.write(f"        prev_cycle=$((cycle - 1))\n")
                 f.write(f"        INPUT_COORD=\"{last_step_key}_extended_${{prev_cycle}}.rst7\"\n")
                 if cpmd_active:
-                    f.write(f"        CPIN_INPUT=\"{last_step_key}_extended_${{prev_cycle}}.cprestrt\"\n")
+                    for mode in cpmd_modes:
+                        var = f"TITR_IN_{mode.file_ext.upper()}"
+                        f.write(f"        {var}=\"{last_step_key}_extended_"
+                                f"${{prev_cycle}}.{mode.ext_restart}\"\n")
                 f.write(f"    fi\n")
                 f.write(f"    \n")
 
@@ -9920,11 +10129,15 @@ MD simulations require TWO files per structure:
                     ext_args.append(f"-inf {ext_prefix}.mdinfo")
 
                 if cpmd_active:
-                    ext_args.extend([
-                        f"-cpin \"$CPIN_INPUT\"",
-                        f"-cpout {ext_prefix}.cpout",
-                        f"-cprestrt {ext_prefix}.cprestrt",
-                    ])
+                    for mode in cpmd_modes:
+                        var = f"TITR_IN_{mode.file_ext.upper()}"
+                        ext_args.extend([
+                            f"{mode.flag_input} \"${var}\"",
+                            f"{mode.flag_output} {ext_prefix}."
+                            f"{mode.ext_output}",
+                            f"{mode.flag_restart} {ext_prefix}."
+                            f"{mode.ext_restart}",
+                        ])
 
                 f.write(f"    {engine_prefix} \\\n")
                 for arg in ext_args[:-1]:
@@ -16174,28 +16387,12 @@ MD simulations require TWO files per structure:
 
         # Compute the classifier hint per step (CPU vs GPU) so suggested
         # defaults match Amber recommendations.
-        npt_indices = []
-        npt_counter = 0
-        for sim in active_queue:
-            params = self._get_simulation_mdin_params(sim)
-            try:
-                imin = int(params.get('imin', 0))
-            except (ValueError, TypeError):
-                imin = 0
-            try:
-                ntp = int(params.get('ntp', 0))
-            except (ValueError, TypeError):
-                ntp = 0
-            if imin == 0 and ntp > 0:
-                npt_indices.append(npt_counter)
-                npt_counter += 1
-            else:
-                npt_indices.append(-1)
-        npt_total = npt_counter
+        # NPT steps are numbered within each structure (see _npt_positions).
+        npt_positions = self._npt_positions(active_queue)
 
         for i, sim in enumerate(active_queue):
             target, reason = self._classify_for_engine(
-                sim, npt_index=npt_indices[i], npt_total=npt_total)
+                sim, npt_index=npt_positions[i][0], npt_total=npt_positions[i][1])
             suggested_class = cpu_default if target == 'cpu' else gpu_default
             hw = sim.hardware_config or {}
             current_class = hw.get('resource_class', suggested_class)
@@ -16448,6 +16645,42 @@ MD simulations require TWO files per structure:
 
         return config.parameter_overrides or {}
 
+    def _npt_positions(self, queue) -> "list[tuple[int, int]]":
+        """(index among NPT steps, number of NPT steps) for each config,
+        counted WITHIN the config's own structure. A queue of five microstates
+        has five workflows and five 'first NPT' steps; counting across the
+        whole queue marked only the first structure's density equilibration as
+        early NPT and sent the other four to the GPU. Non-NPT steps get (-1, n).
+        """
+        def key(c):
+            return getattr(c, 'workflow_id', None) or getattr(c, 'structure_label', None) or ''
+        is_npt = []
+        for config in queue:
+            params = self._get_simulation_mdin_params(config)
+            try:
+                imin = int(params.get('imin', 0))
+            except (ValueError, TypeError):
+                imin = 0
+            try:
+                ntp = int(params.get('ntp', 0))
+            except (ValueError, TypeError):
+                ntp = 0
+            is_npt.append(imin == 0 and ntp > 0)
+        totals: dict = {}
+        for config, npt in zip(queue, is_npt):
+            if npt:
+                totals[key(config)] = totals.get(key(config), 0) + 1
+        counters: dict = {}
+        positions = []
+        for config, npt in zip(queue, is_npt):
+            k = key(config)
+            if npt:
+                positions.append((counters.get(k, 0), totals[k]))
+                counters[k] = counters.get(k, 0) + 1
+            else:
+                positions.append((-1, totals.get(k, 0)))
+        return positions
+
     def _classify_for_engine(self, config: SimulationConfig,
                              npt_index: int = 0, npt_total: int = 0) -> tuple:
         """Classify a simulation as CPU or GPU based on MDIN parameters.
@@ -16455,7 +16688,7 @@ MD simulations require TWO files per structure:
         Args:
             config: The simulation configuration to classify.
             npt_index: Zero-based index of this NPT step among all NPT steps.
-            npt_total: Total number of NPT steps in the queue.
+            npt_total: Number of NPT steps in this config's own structure/workflow.
 
         Returns:
             (target, reason) where target is 'cpu' or 'gpu' and reason is a display string.
@@ -16489,8 +16722,8 @@ MD simulations require TWO files per structure:
         """Apply recommended engine assignments based on simulation type.
 
         Minimization steps get pmemd.MPI (CPU) to avoid SPFP force overflow.
-        NPT steps: if there are more than 2, only the first gets CPU (box
-        equilibrates quickly); otherwise all NPT steps use CPU.
+        NPT steps: within each structure, the first NPT step gets CPU (box
+        equilibrates there) and later ones GPU; a single NPT step uses CPU.
         NVT and production steps get pmemd.cuda (GPU) for speed.
         """
         active_queue = self._get_active_queue()
@@ -16501,25 +16734,8 @@ MD simulations require TWO files per structure:
         from rich.table import Table
 
         # Pre-pass: identify NPT steps so we can apply the >2 NPT rule
-        npt_indices = []
-        npt_counter = 0
-        for config in active_queue:
-            params = self._get_simulation_mdin_params(config)
-            try:
-                imin = int(params.get('imin', 0))
-            except (ValueError, TypeError):
-                imin = 0
-            try:
-                ntp = int(params.get('ntp', 0))
-            except (ValueError, TypeError):
-                ntp = 0
-            if imin == 0 and ntp > 0:
-                npt_indices.append(npt_counter)
-                npt_counter += 1
-            else:
-                npt_indices.append(-1)  # not an NPT step
-
-        npt_total = npt_counter
+        # NPT steps are numbered within each structure (see _npt_positions).
+        npt_positions = self._npt_positions(active_queue)
 
         # Classify all simulations
         classifications = []
@@ -16527,7 +16743,7 @@ MD simulations require TWO files per structure:
         needs_gpu = False
 
         for i, config in enumerate(active_queue):
-            npt_index = npt_indices[i]
+            npt_index, npt_total = npt_positions[i]
             target, reason = self._classify_for_engine(
                 config, npt_index=npt_index, npt_total=npt_total)
             classifications.append((config, target, reason))
@@ -17081,7 +17297,7 @@ MD simulations require TWO files per structure:
 
             # Copy MDIN file if exists
             if sim_config.mdin_path and Path(sim_config.mdin_path).exists():
-                shutil.copy2(sim_config.mdin_path, sim_dir / "simulation.mdin")
+                self._stage_mdin_from_path(sim_config, sim_dir / "simulation.mdin")
             else:
                 # Generate MDIN from template, applying any configured
                 # restraints (mirrors what the batch path does).
@@ -17090,6 +17306,8 @@ MD simulations require TWO files per structure:
                     template_content = self._apply_configured_restraints(
                         template_content, sim_config, sim_dir
                     )
+                    # Titration namelist (icnstph/solvph, icnste/solve) for production steps.
+                    template_content = self._maybe_inject_cpmd_params(template_content, sim_config, silent=True)
                     with open(sim_dir / "simulation.mdin", 'w') as f:
                         f.write(template_content)
 
@@ -17329,13 +17547,15 @@ MD simulations require TWO files per structure:
             sim_dir.mkdir(exist_ok=True)
 
             if sim_config.mdin_path and Path(sim_config.mdin_path).exists():
-                shutil.copy2(sim_config.mdin_path, sim_dir / "simulation.mdin")
+                self._stage_mdin_from_path(sim_config, sim_dir / "simulation.mdin")
             else:
                 template_content = self._resolve_mdin_content(sim_config)
                 if template_content:
                     template_content = self._apply_configured_restraints(
                         template_content, sim_config, sim_dir
                     )
+                    # Titration namelist (icnstph/solvph, icnste/solve) for production steps.
+                    template_content = self._maybe_inject_cpmd_params(template_content, sim_config, silent=True)
                     with open(sim_dir / "simulation.mdin", 'w') as f:
                         f.write(template_content)
 
@@ -17349,19 +17569,22 @@ MD simulations require TWO files per structure:
             cpmd_flags = None
             if self._is_production_step(sim_config):
                 workflow = self._get_workflow_for_step(sim_config)
-                if workflow and workflow.cpin_file:
-                    cpin_path = Path(workflow.cpin_file)
+                staged_titration = {}
+                for _mode_key, _file in (
+                        workflow.active_titration_files().items()
+                        if workflow else []):
+                    cpin_path = Path(_file)
                     if cpin_path.exists():
                         shutil.copy2(cpin_path, sim_dir / cpin_path.name)
-                        cpmd_flags = [
-                            "-cpin", cpin_path.name,
-                            "-cpout", f"{step_key}.cpout",
-                            "-cprestrt", f"{step_key}.cprestrt",
-                        ]
-                    if workflow.cpin_config:
-                        mod_prmtop = workflow.cpin_config.get('modified_prmtop')
-                        if mod_prmtop and Path(mod_prmtop).exists():
-                            shutil.copy2(mod_prmtop, sim_dir / Path(mod_prmtop).name)
+                        staged_titration[_mode_key] = cpin_path.name
+                if staged_titration:
+                    cpmd_flags = engine_flags_for_modes(staged_titration,
+                                                        step_key)
+                # One radii-corrected prmtop serves every titration file.
+                if staged_titration and workflow.cpin_config:
+                    mod_prmtop = workflow.cpin_config.get('modified_prmtop')
+                    if mod_prmtop and Path(mod_prmtop).exists():
+                        shutil.copy2(mod_prmtop, sim_dir / Path(mod_prmtop).name)
 
             workflow_sims.append({
                 'config': sim_config,
@@ -17427,13 +17650,15 @@ MD simulations require TWO files per structure:
             # Apply any user-configured restraints (restraintmask / GROUP /
             # DISANG) so the SLURM mdin matches what the batch path writes.
             if sim_config.mdin_path and Path(sim_config.mdin_path).exists():
-                shutil.copy2(sim_config.mdin_path, sim_dir / "simulation.mdin")
+                self._stage_mdin_from_path(sim_config, sim_dir / "simulation.mdin")
             else:
                 template_content = self._resolve_mdin_content(sim_config)
                 if template_content:
                     template_content = self._apply_configured_restraints(
                         template_content, sim_config, sim_dir
                     )
+                    # Titration namelist (icnstph/solvph, icnste/solve) for production steps.
+                    template_content = self._maybe_inject_cpmd_params(template_content, sim_config, silent=True)
                     with open(sim_dir / "simulation.mdin", 'w') as f:
                         f.write(template_content)
 
@@ -17453,19 +17678,22 @@ MD simulations require TWO files per structure:
             cpmd_flags = None
             if self._is_production_step(sim_config):
                 workflow = self._get_workflow_for_step(sim_config)
-                if workflow and workflow.cpin_file:
-                    cpin_path = Path(workflow.cpin_file)
+                staged_titration = {}
+                for _mode_key, _file in (
+                        workflow.active_titration_files().items()
+                        if workflow else []):
+                    cpin_path = Path(_file)
                     if cpin_path.exists():
                         shutil.copy2(cpin_path, sim_dir / cpin_path.name)
-                        cpmd_flags = [
-                            "-cpin", cpin_path.name,
-                            "-cpout", f"{step_key}.cpout",
-                            "-cprestrt", f"{step_key}.cprestrt",
-                        ]
-                    if workflow.cpin_config:
-                        mod_prmtop = workflow.cpin_config.get('modified_prmtop')
-                        if mod_prmtop and Path(mod_prmtop).exists():
-                            shutil.copy2(mod_prmtop, sim_dir / Path(mod_prmtop).name)
+                        staged_titration[_mode_key] = cpin_path.name
+                if staged_titration:
+                    cpmd_flags = engine_flags_for_modes(staged_titration,
+                                                        step_key)
+                # One radii-corrected prmtop serves every titration file.
+                if staged_titration and workflow.cpin_config:
+                    mod_prmtop = workflow.cpin_config.get('modified_prmtop')
+                    if mod_prmtop and Path(mod_prmtop).exists():
+                        shutil.copy2(mod_prmtop, sim_dir / Path(mod_prmtop).name)
 
             workflow_sims.append({
                 'config': sim_config,

@@ -14,76 +14,76 @@ E7 32.060        2.900               same as s
 E8 32.060        2.900               same as s
  
 BOND
-E1-E6   61.6    2.3410      Created by Seminario method using MCPB.py
-E1-E7   52.4    2.3574      Created by Seminario method using MCPB.py
-E1-E8   67.3    2.3242      Created by Seminario method using MCPB.py
-E2-E7   40.1    2.4087      Created by Seminario method using MCPB.py
-E2-E8   70.6    2.3004      Created by Seminario method using MCPB.py
-E2-E5   56.2    2.3811      Created by Seminario method using MCPB.py
-E3-E6   23.1    2.5393      Created by Seminario method using MCPB.py
-E3-E8    7.3    2.6239      Created by Seminario method using MCPB.py
-E3-E5   42.6    2.4194      Created by Seminario method using MCPB.py
-E4-E6   70.7    2.2980      Created by Seminario method using MCPB.py
-E4-E7   52.4    2.4183      Created by Seminario method using MCPB.py
-E4-E5   58.1    2.3717      Created by Seminario method using MCPB.py
-EA-E1   98.8    2.2580      Created by Seminario method using MCPB.py
-EB-E2  112.2    2.2469      Created by Seminario method using MCPB.py
-EC-E3   86.8    2.2807      Created by Seminario method using MCPB.py
-ED-E4  113.5    2.2499      Created by Seminario method using MCPB.py
-CT-EA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-EB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-EC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-ED  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+E1-E6    62.10    2.3338   Created by Seminario method using MCPB.py
+E1-E7    56.80    2.3522   Created by Seminario method using MCPB.py
+E1-E8    64.80    2.3201   Created by Seminario method using MCPB.py
+E2-E7    40.60    2.4173   Created by Seminario method using MCPB.py
+E2-E8    70.40    2.2974   Created by Seminario method using MCPB.py
+E2-E5    48.60    2.3917   Created by Seminario method using MCPB.py
+E3-E6    30.30    2.5324   Created by Seminario method using MCPB.py
+E3-E8    10.90    2.6079   Created by Seminario method using MCPB.py
+E3-E5    42.00    2.4221   Created by Seminario method using MCPB.py
+E4-E6    74.00    2.3053   Created by Seminario method using MCPB.py
+E4-E7    46.50    2.4123   Created by Seminario method using MCPB.py
+E4-E5    54.40    2.3775   Created by Seminario method using MCPB.py
+EA-E1   100.50    2.2548   Created by Seminario method using MCPB.py
+EB-E2   110.20    2.2519   Created by Seminario method using MCPB.py
+EC-E3    86.10    2.2834   Created by Seminario method using MCPB.py
+ED-E4   108.70    2.2529   Created by Seminario method using MCPB.py
+CT-EA   122.00    1.8600   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
+CT-EB   125.00    1.8612   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
+CT-EC   130.00    1.8585   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
+CT-ED   120.10    1.8608   Seminario from small-model Hessian (replaces ff14SB default 237.0/1.810)
  
 ANGL
-CT-EA-E1    67.30     103.24    Created by Seminario method using MCPB.py
-CT-EB-E2    47.26      98.33    Created by Seminario method using MCPB.py
-CT-EC-E3    28.04     102.53    Created by Seminario method using MCPB.py
-CT-ED-E4    61.87     101.95    Created by Seminario method using MCPB.py
-E1-E6-E3    21.81      85.04    Created by Seminario method using MCPB.py
-E1-E6-E4    32.95      83.31    Created by Seminario method using MCPB.py
-E1-E7-E2    43.05      80.89    Created by Seminario method using MCPB.py
-E1-E7-E4    50.86      80.42    Created by Seminario method using MCPB.py
-E1-E8-E2    35.70      83.92    Created by Seminario method using MCPB.py
-E1-E8-E3    19.91      83.47    Created by Seminario method using MCPB.py
-E2-E7-E4    27.61      83.98    Created by Seminario method using MCPB.py
-E2-E8-E3    20.80      82.18    Created by Seminario method using MCPB.py
-E2-E5-E3    28.04      85.08    Created by Seminario method using MCPB.py
-E2-E5-E4    50.10      85.60    Created by Seminario method using MCPB.py
-E3-E6-E4    26.22      81.46    Created by Seminario method using MCPB.py
-E3-E5-E4    49.28      82.58    Created by Seminario method using MCPB.py
-EA-E1-E6    37.44     117.46    Created by Seminario method using MCPB.py
-EA-E1-E7    37.53     120.67    Created by Seminario method using MCPB.py
-EA-E1-E8    42.30     117.97    Created by Seminario method using MCPB.py
-E6-E3-E5    49.72      94.01    Created by Seminario method using MCPB.py
-E6-E4-E5    50.40     101.95    Created by Seminario method using MCPB.py
-E7-E1-E6    47.00      97.68    Created by Seminario method using MCPB.py
-E7-E2-E5    57.77      93.98    Created by Seminario method using MCPB.py
-E7-E4-E6    44.39      97.16    Created by Seminario method using MCPB.py
-E7-E4-E5    63.33      93.98    Created by Seminario method using MCPB.py
-E8-E1-E6    50.64     101.65    Created by Seminario method using MCPB.py
-E8-E1-E7    45.10      97.32    Created by Seminario method using MCPB.py
-E8-E2-E7    51.95      96.54    Created by Seminario method using MCPB.py
-E8-E2-E5    39.76     101.12    Created by Seminario method using MCPB.py
-E8-E3-E6    22.46      88.91    Created by Seminario method using MCPB.py
-E8-E3-E5    31.08      91.52    Created by Seminario method using MCPB.py
-EB-E2-E7    16.71     113.87    Created by Seminario method using MCPB.py
-EB-E2-E8    40.28     115.87    Created by Seminario method using MCPB.py
-EB-E2-E5    39.88     129.11    Created by Seminario method using MCPB.py
-EC-E3-E6    32.58     129.62    Created by Seminario method using MCPB.py
-EC-E3-E8    27.01     111.40    Created by Seminario method using MCPB.py
-EC-E3-E5    30.25     129.00    Created by Seminario method using MCPB.py
-ED-E4-E6    35.51     118.64    Created by Seminario method using MCPB.py
-ED-E4-E7    33.29     121.91    Created by Seminario method using MCPB.py
-ED-E4-E5    36.08     118.29    Created by Seminario method using MCPB.py
-CX-CT-EA    50.0      108.60    AA cys (was CT-CT-SH)
-CX-CT-EB    50.0      108.60    AA cys (was CT-CT-SH)
-CX-CT-EC    50.0      108.60    AA cys (was CT-CT-SH)
-CX-CT-ED    50.0      108.60    AA cys (was CT-CT-SH)
-EA-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
-EB-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
-EC-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
-ED-CT-H1    50.0      109.50    AA cyx     changed based on NMA nmodes
+CT-EA-E1   66.32  101.6200   Created by Seminario method using MCPB.py
+CT-EB-E2   40.03  100.8200   Created by Seminario method using MCPB.py
+CT-EC-E3   30.36  102.7100   Created by Seminario method using MCPB.py
+CT-ED-E4   53.21  101.7600   Created by Seminario method using MCPB.py
+E1-E6-E3   27.02   84.8900   Created by Seminario method using MCPB.py
+E1-E6-E4   30.27   82.7800   Created by Seminario method using MCPB.py
+E1-E7-E2   31.75   80.4600   Created by Seminario method using MCPB.py
+E1-E7-E4   48.29   80.1400   Created by Seminario method using MCPB.py
+E1-E8-E2   23.72   83.7100   Created by Seminario method using MCPB.py
+E1-E8-E3   26.62   83.4600   Created by Seminario method using MCPB.py
+E2-E7-E4   30.54   85.0200   Created by Seminario method using MCPB.py
+E2-E8-E3   20.67   82.9600   Created by Seminario method using MCPB.py
+E2-E5-E3   33.07   85.1700   Created by Seminario method using MCPB.py
+E2-E5-E4   29.00   86.3500   Created by Seminario method using MCPB.py
+E3-E6-E4   45.54   81.8200   Created by Seminario method using MCPB.py
+E3-E5-E4   46.79   82.7500   Created by Seminario method using MCPB.py
+EA-E1-E6   36.88  118.4900   Created by Seminario method using MCPB.py
+EA-E1-E7   34.55  120.1500   Created by Seminario method using MCPB.py
+EA-E1-E8   46.48  116.5200   Created by Seminario method using MCPB.py
+E6-E3-E5   56.03   94.0100   Created by Seminario method using MCPB.py
+E6-E4-E5   56.93  101.4200   Created by Seminario method using MCPB.py
+E7-E1-E6   44.57   98.3400   Created by Seminario method using MCPB.py
+E7-E2-E5   47.41   92.7700   Created by Seminario method using MCPB.py
+E7-E4-E6   59.26   97.4300   Created by Seminario method using MCPB.py
+E7-E4-E5   50.55   93.2500   Created by Seminario method using MCPB.py
+E8-E1-E6   40.75  101.5000   Created by Seminario method using MCPB.py
+E8-E1-E7   54.16   97.9700   Created by Seminario method using MCPB.py
+E8-E2-E7   46.99   96.7600   Created by Seminario method using MCPB.py
+E8-E2-E5   30.32  100.3900   Created by Seminario method using MCPB.py
+E8-E3-E6   46.77   89.0200   Created by Seminario method using MCPB.py
+E8-E3-E5   41.38   91.4200   Created by Seminario method using MCPB.py
+EB-E2-E7   19.12  114.6500   Created by Seminario method using MCPB.py
+EB-E2-E8   33.43  115.9500   Created by Seminario method using MCPB.py
+EB-E2-E5   38.85  129.7200   Created by Seminario method using MCPB.py
+EC-E3-E6   31.05  129.3100   Created by Seminario method using MCPB.py
+EC-E3-E8   35.72  110.9500   Created by Seminario method using MCPB.py
+EC-E3-E5   28.14  129.6000   Created by Seminario method using MCPB.py
+ED-E4-E6   48.41  116.4700   Created by Seminario method using MCPB.py
+ED-E4-E7   46.35  120.9300   Created by Seminario method using MCPB.py
+ED-E4-E5   54.67  122.1900   Created by Seminario method using MCPB.py
+CX-CT-EA   50.00  108.6000   AA cys (was CT-CT-SH)
+CX-CT-EB   50.00  108.6000   AA cys (was CT-CT-SH)
+CX-CT-EC   50.00  108.6000   AA cys (was CT-CT-SH)
+CX-CT-ED   50.00  108.6000   AA cys (was CT-CT-SH)
+EA-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
+EB-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
+EC-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
+ED-CT-H1   50.00  109.5000   AA cyx changed based on NMA nmodes
  
 DIHE
 CT-EA-E1-E6    3       0.00       0.00   3.0    Treat as zero by MCPB.py

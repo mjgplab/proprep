@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 
 from proprep.forcefield_params import (
@@ -211,7 +212,26 @@ def run_import_wizard(
 
     # Category for an imported set is whatever the user says it is.
     category = _prompt_category(console, processor)
+
+    # The residue name recorded for this entry has to be the name tLEaP will
+    # match, which is the unit inside the library -- not the filename stem.
+    # They diverge often enough to matter (a GDP.lib holding unit "gdp"), and
+    # the stem-derived name is then one no structure will ever carry.
     default_name = Path(lib).stem
+    units = library_unit_names(lib)
+    if units:
+        if units[0] != default_name:
+            console.print(
+                f"\n[grey50]The library defines unit [cyan]{units[0]}[/cyan]; the "
+                f"filename says [cyan]{default_name}[/cyan]. tLEaP matches the unit "
+                f"name and the match is case-sensitive, so [cyan]{units[0]}[/cyan] is "
+                f"recorded as the residue name.[/grey50]", highlight=False)
+        if len(units) > 1:
+            console.print(
+                f"[grey50]It declares {len(units)} units "
+                f"({', '.join(units)}); the first is used as the residue "
+                f"name.[/grey50]", highlight=False)
+        default_name = units[0]
 
     # Imported files can declare atom types; generated ones cannot. See
     # _prompt_imported_atom_types.
@@ -249,6 +269,12 @@ def _build_request_interactively(
     # A single residue name is a string; metal sites may hand us a rename map.
     primary_name = (next(iter(residue_name.values())) if isinstance(residue_name, dict)
                     else residue_name)
+
+    # The next two prompts name two DIFFERENT levels of the library, and the
+    # difference is invisible from the prompt text alone: the entry is a
+    # directory, the set is a key inside that directory's metadata. Asked back
+    # to back with similar wording, they read as the same question twice.
+    _print_naming_help(console, family, is_metal)
 
     # type_name: the path segment + identity of the entry.
     type_label = "site identifier" if is_metal else "residue name"
@@ -338,6 +364,19 @@ def _build_request_interactively(
     )
 
 
+# key, label, what it does. Printed before the prompt because options_map
+# does not render -- see the comment at the call site. The meaning is a
+# template so the version-bump line can name the set it would actually write
+# rather than a placeholder.
+_COLLISION_CHOICES = (
+    ("1", "Save as a new version",
+     "keep the existing set; write this one as {next_name}"),
+    ("2", "Overwrite the existing set",
+     "replace its files and metadata with these"),
+    ("3", "Cancel", "leave the library untouched -- the default"),
+)
+
+
 def _promote_with_collision_retry(
     console: Console,
     processor,
@@ -348,16 +387,26 @@ def _promote_with_collision_retry(
         try:
             result = promote_state(request)
         except LibraryCollisionError as exc:
-            console.print(f"[yellow]{exc}[/yellow]")
+            # escape(): the message carries the state coordinates in square
+            # brackets ("[single_state/default]"), which Rich would read as
+            # markup and swallow -- taking with it the one detail that says
+            # WHICH leaf collided.
+            console.print(f"\n[yellow]{escape(str(exc))}[/yellow]")
+            # options_map only feeds the session recorder, and passing it
+            # SUPPRESSES the inline choice list, so the options have to be
+            # printed here. See _prompt_category, which hit the same trap.
+            next_name = f"{request.set_name}_v2"
+            for key, label, meaning in _COLLISION_CHOICES:
+                # highlight=False: Rich's repr highlighter otherwise recolours
+                # bare words inside brackets and parentheses in prose.
+                console.print(f"  {key}. [green]{label}[/green] — "
+                              f"{meaning.format(next_name=next_name)}",
+                              highlight=False)
             choice = prompt_with_context(
                 processor, "How would you like to proceed?",
-                choices=["1", "2", "3"], default="3",
+                choices=[k for k, _, _ in _COLLISION_CHOICES], default="3",
                 module=_MODULE, description="Resolve library collision",
-                options_map={
-                    "1": "Save as a new version (keep the existing one)",
-                    "2": "Overwrite the existing set",
-                    "3": "Cancel",
-                },
+                options_map={k: label for k, label, _ in _COLLISION_CHOICES},
             )
             if choice == "1":
                 request.on_collision = user_library.ON_COLLISION_VERSION
@@ -368,7 +417,7 @@ def _promote_with_collision_retry(
             console.print("[grey50]Promotion cancelled.[/grey50]")
             return None
         except (UserLibraryError, FileNotFoundError) as exc:
-            console.print(f"[red]Could not save to library: {exc}[/red]")
+            console.print(f"[red]Could not save to library: {escape(str(exc))}[/red]")
             return None
 
         console.print(Panel(
@@ -385,6 +434,23 @@ def _promote_with_collision_retry(
 # --------------------------------------------------------------------------- #
 # small prompt helpers
 # --------------------------------------------------------------------------- #
+
+def _print_naming_help(console: Console, family: str, is_metal: bool) -> None:
+    """Explain entry-vs-set before asking for both."""
+    subject = "site" if is_metal else "molecule"
+    console.print(Panel(
+        f"[bold]Entry name[/bold]   which {subject} — one directory per {subject}\n"
+        f"[grey50]specialized_residues/{family}/[/grey50][cyan]<entry>[/cyan][grey50]/[/grey50]\n"
+        f"\n"
+        f"[bold]Set name[/bold]     whose numbers — one entry can hold several\n"
+        f"[grey50]  ...   /metadata.json  ->  forcefield_sets  ->  [/grey50]"
+        f"[cyan]<set>[/cyan]\n"
+        f"[grey50]A later refit, or a published set for the same {subject}, sits "
+        f"beside this one as a second set under the same entry. Exactly one is "
+        f"the default.[/grey50]",
+        title="Two names, two levels", border_style="cyan",
+    ))
+
 
 def _default_method_blurb(family: str) -> str:
     return {
@@ -467,6 +533,36 @@ def _inferred_prerequisites(paths) -> dict:
     if not groups:
         return {}
     return {"prerequisites": {"leaprc_groups": groups}}
+
+
+def library_unit_names(lib_path) -> List[str]:
+    """Unit names an OFF/lib file declares, in file order.
+
+    The unit name is what tLEaP matches a PDB residue against, and the match is
+    case-sensitive: a library whose unit is ``gdp`` will not bind a residue
+    named ``GDP``. The FILENAME is not authoritative -- ``saveoff`` names the
+    entry after the tLEaP variable it was given, which need not resemble the
+    file it was written to -- so deriving the residue name from the stem
+    records a name no structure may contain.
+    """
+    names: List[str] = []
+    try:
+        text = Path(lib_path).read_text(errors="ignore")
+    except OSError:
+        return names
+
+    in_index = False
+    for line in text.splitlines():
+        if line.startswith("!!index array str"):
+            in_index = True
+            continue
+        if in_index:
+            if line.startswith("!"):
+                break
+            match = re.match(r'\s*"([^"]+)"', line)
+            if match:
+                names.append(match.group(1).strip())
+    return names
 
 
 def library_atom_names(lib_path) -> set:
@@ -604,6 +700,25 @@ def _prompt_imported_atom_types(console: Console, processor, frcmod_path) -> Lis
         return []
 
     known = _known_atom_types()
+    if not known:
+        # Falling back to "everything is new" is the safe direction -- assuming
+        # they are all known would drop the addAtomTypes entry a genuinely new
+        # type needs and fail later inside tLEaP. But widening SILENTLY reads as
+        # "this frcmod declares unusual types" when it actually means "I could
+        # not find Amber's parameter files", which is nearly always ProPrep
+        # running outside the environment AmberTools is installed in.
+        console.print(Panel(
+            "[bold]Could not check these types against Amber's.[/bold]\n"
+            "[grey50]parm10/parm19/gaff were not found, so ProPrep cannot tell "
+            "which of this frcmod's types are already defined — every one is "
+            "listed below, standard types like CT and OS included.\n\n"
+            f"Looked in: $AMBERHOME/dat/leap/parm "
+            f"(AMBERHOME={os.environ.get('AMBERHOME') or 'unset'})\n"
+            f"           {Path(sys.prefix) / 'dat' / 'leap' / 'parm'}\n\n"
+            "Declaring a type Amber already defines writes a redundant "
+            "addAtomTypes entry. If these should not all be new, cancel and "
+            "re-run from the environment AmberTools is installed in.[/grey50]",
+            title="Atom types unverified", border_style="yellow"))
     novel = [(t, m) for t, m in declared if t not in known] if known else declared
     if not novel:
         console.print(

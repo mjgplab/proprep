@@ -30,10 +30,10 @@ TA-T1   65.2    2.3528      Created by Seminario method using MCPB.py
 TB-T2   66.5    2.3529      Created by Seminario method using MCPB.py
 TC-T3   71.2    2.3202      Created by Seminario method using MCPB.py
 TD-T4   68.8    2.3169      Created by Seminario method using MCPB.py
-CT-TA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-TB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-TC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-TD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-TA   130.5    1.8558      Seminario from small-model Hessian (was 237.0/1.810)
+CT-TB   132.8    1.8552      Seminario from small-model Hessian (was 237.0/1.810)
+CT-TC   135.1    1.8565      Seminario from small-model Hessian (was 237.0/1.810)
+CT-TD   135.5    1.8552      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-TA-T1    61.61     100.69    Created by Seminario method using MCPB.py

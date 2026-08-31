@@ -30,10 +30,10 @@ GA-G1  106.1    2.2577      Created by Seminario method using MCPB.py
 GB-G2  114.6    2.2520      Created by Seminario method using MCPB.py
 GC-G3  105.9    2.2523      Created by Seminario method using MCPB.py
 GD-G4   88.4    2.2856      Created by Seminario method using MCPB.py
-CT-GA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-GB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-GC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-GD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-GA   118.9    1.8622      Seminario from small-model Hessian (was 237.0/1.810)
+CT-GB   123.8    1.8627      Seminario from small-model Hessian (was 237.0/1.810)
+CT-GC   118.9    1.8626      Seminario from small-model Hessian (was 237.0/1.810)
+CT-GD   123.9    1.8604      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-GA-G1    73.43     101.49    Created by Seminario method using MCPB.py

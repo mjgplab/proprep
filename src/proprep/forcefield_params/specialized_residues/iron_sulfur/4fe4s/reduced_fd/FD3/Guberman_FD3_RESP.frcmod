@@ -30,10 +30,10 @@ VA-V1   62.8    2.3311      Created by Seminario method using MCPB.py
 VB-V2   66.7    2.3255      Created by Seminario method using MCPB.py
 VC-V3   75.7    2.3303      Created by Seminario method using MCPB.py
 VD-V4   66.2    2.3228      Created by Seminario method using MCPB.py
-CT-VA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-VB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-VC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-VD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-VA   131.3    1.8548      Seminario from small-model Hessian (was 237.0/1.810)
+CT-VB   137.2    1.8576      Seminario from small-model Hessian (was 237.0/1.810)
+CT-VC   127.3    1.8573      Seminario from small-model Hessian (was 237.0/1.810)
+CT-VD   133.4    1.8558      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-VA-V1    62.36     103.41    Created by Seminario method using MCPB.py

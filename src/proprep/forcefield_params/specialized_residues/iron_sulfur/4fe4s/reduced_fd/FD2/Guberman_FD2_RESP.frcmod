@@ -30,10 +30,10 @@ UA-U1   72.1    2.3233      Created by Seminario method using MCPB.py
 UB-U2   63.5    2.3213      Created by Seminario method using MCPB.py
 UC-U3   71.5    2.3486      Created by Seminario method using MCPB.py
 UD-U4   70.6    2.3499      Created by Seminario method using MCPB.py
-CT-UA  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-UB  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-UC  237.0    1.810       changed from 222.0 based on methanethiol nmodes
-CT-UD  237.0    1.810       changed from 222.0 based on methanethiol nmodes
+CT-UA   131.0    1.8555      Seminario from small-model Hessian (was 237.0/1.810)
+CT-UB   137.5    1.8557      Seminario from small-model Hessian (was 237.0/1.810)
+CT-UC   130.0    1.8556      Seminario from small-model Hessian (was 237.0/1.810)
+CT-UD   130.0    1.8553      Seminario from small-model Hessian (was 237.0/1.810)
  
 ANGL
 CT-UA-U1    54.02     101.54    Created by Seminario method using MCPB.py
