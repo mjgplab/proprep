@@ -2,7 +2,7 @@
 
 This guide assumes nothing: no conda, no Python, and no experience with the
 command line. Follow the section for your computer. Each one ends with the same
-test, so you know it worked before the workshop.
+test, so you know it worked.
 
 **What you will download:** one installer file of about 1 to 1.5 GB. It
 contains everything ProPrep needs (ProPrep itself, AmberTools, MODELLER and
@@ -233,7 +233,7 @@ and ProPrep says so when it starts.
 
 ---
 
-## Checking everything before the workshop
+## Checking that everything works
 
 Run these two lines (Terminal on a Mac, Ubuntu window on Windows):
 
