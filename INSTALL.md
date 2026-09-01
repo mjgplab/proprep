@@ -200,9 +200,12 @@ bash ~/Downloads/ProPrep-<version>-Linux-x86_64.sh -b -p ~/ProPrep
 
 The installer takes 2 to 5 minutes and puts ProPrep in `~/ProPrep`
 (`-b` skips the questions, `-p` sets the location).
-`proprep-web` opens your default browser; on a machine without a graphical
-desktop it prints the address to open instead. The installer is built for
-x86-64 Linux and has been tested on Rocky Linux.
+`proprep-web` opens your default browser. On a machine without a graphical
+desktop (a server you reached over `ssh`), the address it prints only works on
+that machine; ProPrep also prints the exact `ssh -L ...` command to run on
+your own computer, after which http://localhost:8000/ opens in your local
+browser. The installer is built for x86-64 Linux and has been tested on Rocky
+Linux.
 
 Now go to **Step 3: MODELLER license key** below.
 
@@ -215,7 +218,7 @@ is free for academic use but requires a personal license key.
 
 1. Register at https://salilab.org/modeller/registration.html (name, email,
    institution; choose the academic license). The key arrives by email
-   within a few minutes. It looks like a short string of letters and digits.
+   within a few minutes.
 2. In your terminal (Terminal on a Mac, the Ubuntu window on Windows), type
    the following, replacing `YOUR_KEY` with the key from the email, keeping
    the quotation marks:
