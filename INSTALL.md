@@ -1,8 +1,9 @@
 # Installing ProPrep
 
-This guide assumes nothing: no conda, no Python, and no experience with the
-command line. Follow the section for your computer. Each one ends with the same
-test, so you know it worked.
+This document will assist you in installing ProPrep on macOS, Windows, and
+Linux. It assumes no prior knowledge or experience with conda, Python, or the
+command line. Follow the section for your computer; each one ends with the
+same test, so you know it worked.
 
 **What you will download:** one installer file of about 1 to 1.5 GB. It
 contains everything ProPrep needs (ProPrep itself, AmberTools, MODELLER and
