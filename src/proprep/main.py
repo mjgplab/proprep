@@ -9,6 +9,7 @@ existing session files to offer replay options.
 import argparse
 import logging
 import os
+import re
 import sys
 import traceback
 from datetime import datetime
@@ -81,10 +82,34 @@ def show_welcome_banner(console: Console) -> None:
     ))
 
 def get_version():
+    """ProPrep's version string.
+
+    An installed package reports its metadata. A source checkout reports the
+    pin in its own pyproject.toml: an editable install records the version at
+    install time, so after a release bump the metadata says the OLD version
+    until `pip install -e .` is re-run, and the banner showed 1.16.0 on a
+    1.17.0 tree. The checkout's pyproject.toml is the pin that
+    scripts/check_version_lockstep.sh verifies, so it wins when present.
+    """
+    source_pin = _source_checkout_version()
+    if source_pin:
+        return source_pin
     try:
         return version("proprep")
     except Exception:
         return "unknown"
+
+
+def _source_checkout_version():
+    """Version from <checkout>/pyproject.toml when running from source, else None."""
+    try:
+        pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+        if not pyproject.is_file():
+            return None
+        match = re.search(r'^version = "([^"]+)"', pyproject.read_text(), re.M)
+        return match.group(1) if match else None
+    except Exception:
+        return None
 
 def setup_logging(verbose=False):
     """Configure logging for the application"""

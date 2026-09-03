@@ -13,6 +13,59 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.18.0] — 2026-09-02
+
+### Removed
+
+- Membrane Builder: the "preset composition" menu and its ten named
+  membranes (mammalian, bacterial, mitochondrial, thylakoid, ER, yeast).
+  They were ProPrep's own lipid strings and ratios with no literature
+  source behind them, and two used lipid names that packmol-memgen's
+  database does not contain (TLCL2; MGDG, DGDG, SQDG). The in-panel
+  "common starting points" list is gone for the same reason. Compositions
+  are built from packmol-memgen's own lipid database, entered as a raw
+  string, or set to solvate-only, as before. The lipid library's category
+  blurbs ("common in bacterial membranes" and the like) are replaced by a
+  charge summary computed from memgen.parm, and three categories that
+  matched nothing in that database (glycolipids, ceramides, ether lipids)
+  are gone with the names they listed.
+
+### Added
+
+- Redox Site Detector: the template results table now shows, for each
+  site, the residue that was farthest from the search boundary when it was
+  added, and warns when a residue belongs to more than one site. A
+  count-based search always returns the requested number of residues, so a
+  heme missing one axial His (a truncated multiheme chain) silently took the
+  next-nearest His, which already belonged to the neighbouring site; every
+  row still read ✓ because the only check was on bond length. The site
+  summary lists each residue's search distance as well.
+
+### Fixed
+
+- Banner and `proprep --version` read the checkout's `pyproject.toml` when
+  ProPrep runs from source. An editable dev install keeps the package
+  metadata of the version it was installed at, so the banner said 1.16.0 on
+  the 1.17.0 tree; the lockstep check now warns when that metadata lags.
+- ONIOM Preparer: the suggested QM (model-system) charge pooled MM partial
+  charges over every selected fragment and rounded once. Whole residues
+  sum to integers, but a side chain trimmed at CA-CB does not (ASP -0.86,
+  GLU -0.88), so four trimmed carboxylates pooled to -3.43 and were
+  suggested as -3 instead of -4. Each fragment is now rounded to its own
+  formal charge and the integers summed. The on-screen note now says what
+  is counted: the selected residues and side chains, with the formally
+  neutral capping groups (promoted C=O or N-H plus the link H) excluded.
+- Redox Site Preparer: side-chain atoms moved into a heme residue (the Cys
+  and His migrations of the c-type heme transformers) were written one
+  column short. The framework cleared the insertion code by splicing an
+  empty string into column 27, deleting the column and shifting x/y/z left
+  by one; fixed-column readers survived only by absorbing a trailing space,
+  and a coordinate such as -106.695 would have lost its sign. A His claimed
+  by two sites went through the splice twice and its coordinates became
+  unparseable, stranding its ring atoms as a separate HEC residue and
+  failing workspace validation. The chain and insertion-code fields now
+  always keep their one-column width.
+
 ## [1.17.0] — 2026-08-31
 
 ### Changed

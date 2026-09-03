@@ -9,6 +9,11 @@
 #   - install_proprep.sh (missed in 1.12.0)
 #   - update_proprep_in_ambertools.sh (sat at 1.14.0 through 1.16.0)
 #   - constructor/construct.yaml (added 2026-08-28, two lines)
+# The banner and `proprep --version` read importlib.metadata when installed,
+# and the checkout's pyproject.toml when run from source (since 1.18.0). An
+# editable dev install keeps the metadata of the version it was installed
+# at, so after a bump re-run `pip install -e . --no-deps` in the ProPrep env;
+# this script warns (does not fail) when that metadata lags the pins.
 #
 # Run this BEFORE `conda build` and again BEFORE the public snapshot on
 # every release. It exits non-zero if any pin disagrees or is missing.
@@ -83,3 +88,14 @@ fi
 
 echo
 echo "OK: all version pins agree on $first"
+
+# Advisory: the dev env's installed metadata (what `proprep --version` reports
+# from an installed package) lags the pins until `pip install -e .` is re-run.
+PY=/opt/homebrew/anaconda3/envs/ProPrep/bin/python
+if [ -x "$PY" ]; then
+    installed="$("$PY" -c 'import importlib.metadata as m; print(m.version("proprep"))' 2>/dev/null || true)"
+    if [ -n "$installed" ] && [ "$installed" != "$first" ]; then
+        echo "WARNING: the ProPrep env's installed metadata says $installed;"
+        echo "         re-run: $PY -m pip install -e . --no-deps"
+    fi
+fi

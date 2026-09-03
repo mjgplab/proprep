@@ -10,7 +10,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="proprep",
-    version="1.17.0",
+    version="1.18.0",
     description=(
         "Protein Preparation Assistant - A modular workflow manager "
         "for processing PDB structures for MD simulations."

@@ -1110,6 +1110,67 @@ def resolve_bond_residue_token(token, residue_list, on_error=None):
 
 # ===== REDOX SITE CLASS =====
 
+def _residue_key(chain: str, resid: int, insertion_code: Optional[str]) -> Tuple[str, int, str]:
+    """Residue key in the residue_groups convention (no insertion code = ' ')."""
+    return (chain, resid, insertion_code or ' ')
+
+
+def _record_residue_search_distances(site: "RedoxSite", search_result, selected_residues) -> None:
+    """Remember, for each residue just added from ``search_result``, how far its
+    nearest search-eligible atom was from the search boundary."""
+    per_residue: Dict[Tuple[str, int, str], float] = {}
+    for atom in getattr(search_result, 'detected_atoms', None) or []:
+        distance = atom.get('distance')
+        if distance is None:
+            continue
+        key = _residue_key(atom['chain'], atom['resid'], atom.get('insertion_code'))
+        per_residue[key] = min(float(distance), per_residue.get(key, float('inf')))
+    for chain, resid, icode in selected_residues:
+        key = _residue_key(chain, resid, icode)
+        if key in per_residue:
+            site.residue_search_distances[key] = per_residue[key]
+
+
+def _farthest_search_residue(site: "RedoxSite") -> Optional[Tuple[str, float]]:
+    """(label, distance) of the residue that was farthest from the search
+    boundary when it was added, or None when no search distances are known."""
+    if not getattr(site, 'residue_search_distances', None):
+        return None
+    key, distance = max(site.residue_search_distances.items(), key=lambda kv: kv[1])
+    chain, resid, icode = key
+    resname = next((a.resname for a in site.atoms
+                    if _residue_key(a.chain, a.resid, a.insertion_code) == key), '?')
+    return f"{resname} {chain}:{resid}{icode.strip()}", distance
+
+
+def _site_number(site: "RedoxSite") -> str:
+    site_id = getattr(site, 'site_id', '') or ''
+    return site_id.split('_')[-1] if site_id else '?'
+
+
+def _shared_residue_notes(sites: List["RedoxSite"]) -> Dict[str, List[str]]:
+    """For every residue that belongs to more than one site, a note for each
+    of those sites naming the others. Keyed by site_id. A ligand side chain
+    cannot coordinate two centres, so this is a definition error, not a
+    judgement call."""
+    owners: Dict[Tuple[str, int, str], List["RedoxSite"]] = {}
+    for site in sites:
+        for chain, resid, icode in getattr(site, 'residue_groups', {}):
+            owners.setdefault(_residue_key(chain, resid, icode), []).append(site)
+    notes: Dict[str, List[str]] = {}
+    for key, holders in owners.items():
+        if len(holders) < 2:
+            continue
+        chain, resid, icode = key
+        for site in holders:
+            resname = next((a.resname for a in site.atoms
+                            if _residue_key(a.chain, a.resid, a.insertion_code) == key), '?')
+            others = ", ".join(f"site {_site_number(o)}" for o in holders if o is not site)
+            notes.setdefault(site.site_id, []).append(
+                f"{resname} {chain}:{resid}{icode.strip()} also in {others}")
+    return notes
+
+
 class RedoxSite:
     """Complete redox site definition with coordinate tracking for transformations"""
     
@@ -1134,6 +1195,11 @@ class RedoxSite:
         self.boundary_definition: str = ""
         self.search_history: List[Dict[str, Any]] = []  # Track iterative searches
         self.site_type: str = ""  # User-specified site type from template categorization
+        # How far each residue added from a search was from the search
+        # boundary (Å), keyed like residue_groups. A count-based search
+        # always returns the requested number of residues, so this is the
+        # only record of whether a residue was actually near the site.
+        self.residue_search_distances: Dict[Tuple[str, int, str], float] = {}
     
     def add_center(self, center: RedoxCenter):
         """Add a redox center to the site"""
@@ -5068,6 +5134,7 @@ class SiteRefinementInterface:
         if atoms_added == 0:
             self.console.print("[yellow]No atoms were added.[/yellow]")
             return site, "continue"
+        _record_residue_search_distances(updated_site, filtered_result, selected_residues)
 
         self.console.print(f"[green]Added {atoms_added} atoms from {len(selected_residues)} complete residues to site.[/green]")
 
@@ -6235,7 +6302,10 @@ class SiteRefinementInterface:
                 atom_count = len(atoms)
                 elements = sorted(set(atom.element for atom in atoms))
                 elements_str = ", ".join(elements)
-                summary_table.add_row(f"  {resname} {chain}:{resid} ({atom_count} atoms: {elements_str})")
+                distance = getattr(site, 'residue_search_distances', {}).get(
+                    _residue_key(chain, resid, atoms[0].insertion_code))
+                distance_str = f"; {distance:.2f} Å from search boundary" if distance is not None else ""
+                summary_table.add_row(f"  {resname} {chain}:{resid} ({atom_count} atoms: {elements_str}{distance_str})")
         else:
             summary_table.add_row("  No residues in site")
         
@@ -6461,6 +6531,7 @@ class SiteRefinementInterface:
 
         # Add complete residues to site using existing method
         atoms_added = self._add_complete_residues_to_site(site, selected_residues, structure)
+        _record_residue_search_distances(site, search_result, selected_residues)
 
         # Apply bond patterns from template
         if template.bond_pairs:
@@ -7491,27 +7562,34 @@ class ComprehensiveRedoxDetector:
         results_table.add_column("Site", style="cyan", width=8)
         results_table.add_column("Status", style="green", width=8)
         results_table.add_column("Details", style="white", width=20)
-        results_table.add_column("Warnings", style="yellow", width=15)
+        results_table.add_column("Farthest residue", style="white", width=22)
+        results_table.add_column("Warnings", style="yellow")
 
-        successful_sites = []
+        successful_sites = [r['site'] for r in results if r['status'] == 'success']
         failed_sites = []
 
         # First, add any existing sites of this type that are already in final_sites
         existing_sites_of_type = [site for site in self.final_sites if hasattr(site, 'site_type') and site.site_type == site_type]
-        for site in existing_sites_of_type:
-            # Extract site number from site_id (e.g., "site_1" -> 1)
-            site_num = site.site_id.split('_')[-1] if hasattr(site, 'site_id') else "?"
 
-            # Check for long bonds (>4Å)
+        # A residue in two sites is a definition error (one side chain cannot
+        # coordinate two centres). Check across every site known so far, not
+        # just this template's, so a cross-type overlap is caught too.
+        shared_notes = _shared_residue_notes(list(self.final_sites) + successful_sites)
+
+        def _row_cells(site):
+            farthest = _farthest_search_residue(site)
+            farthest_text = f"{farthest[0]} {farthest[1]:.1f} Å" if farthest else "—"
+            warnings = []
             long_bonds = [bond for bond in site.bonds if bond.distance > 4.0]
-            warnings = f"{len(long_bonds)} bond(s) >4Å" if long_bonds else "—"
+            if long_bonds:
+                warnings.append(f"{len(long_bonds)} bond(s) >4Å")
+            warnings.extend(shared_notes.get(site.site_id, []))
+            return (f"{len(site.atoms)} atoms, {len(site.bonds)} bonds",
+                    farthest_text,
+                    "; ".join(warnings) if warnings else "—")
 
-            results_table.add_row(
-                f"Site {site_num}",
-                "✓",
-                f"{len(site.atoms)} atoms, {len(site.bonds)} bonds",
-                warnings
-            )
+        for site in existing_sites_of_type:
+            results_table.add_row(f"Site {_site_number(site)}", "✓", *_row_cells(site))
 
         # Then add the new template results
         for result in results:
@@ -7519,29 +7597,27 @@ class ComprehensiveRedoxDetector:
             status = result['status']
 
             if status == 'success':
-                site = result['site']
-                successful_sites.append(site)
-
-                # Check for long bonds (>4Å)
-                long_bonds = [bond for bond in site.bonds if bond.distance > 4.0]
-                warnings = f"{len(long_bonds)} bond(s) >4Å" if long_bonds else "—"
-
-                results_table.add_row(
-                    f"Site {site_idx}",
-                    "✓",
-                    f"{len(site.atoms)} atoms, {len(site.bonds)} bonds",
-                    warnings
-                )
+                results_table.add_row(f"Site {site_idx}", "✓", *_row_cells(result['site']))
             else:
                 failed_sites.append(result)
                 results_table.add_row(
                     f"Site {site_idx}",
                     "✗ FAILED",
                     result['error'][:50] + "..." if len(result['error']) > 50 else result['error'],
+                    "—",
                     "—"
                 )
         
         self.console.print(results_table)
+
+        flagged = [_site_number(site) for site in existing_sites_of_type + successful_sites
+                   if site.site_id in shared_notes]
+        if flagged:
+            self.console.print(
+                f"[yellow]⚠ {len(flagged)} site(s) share a residue with another site: "
+                f"{', '.join(f'site {n}' for n in flagged)}. "
+                f"Remove the residue from the site it does not coordinate (Site Review → Edit) "
+                f"before transformation.[/yellow]")
         
         # Add successful sites to final results
         self.final_sites.extend(successful_sites)

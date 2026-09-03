@@ -8,7 +8,7 @@ proper layer assignment, link atom placement, and force field parameterization.
 
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from pathlib import Path
 
 from rich.panel import Panel
@@ -79,6 +79,24 @@ ONIOM_WORKFLOW_STEPS = [
         dependencies=["oniom-6"],
     ),
 ]
+
+
+def suggested_model_charge(charges: Dict[int, float],
+                           whole_residues: Iterable[Iterable[int]],
+                           trimmed_fragments: Iterable[Iterable[int]]) -> int:
+    """Formal charge of an ONIOM model system from MM partial charges.
+
+    ``whole_residues`` and ``trimmed_fragments`` are groups of atom indices;
+    each group is one fragment whose partial charges are summed and rounded
+    to its own integer, then the integers are added. An AMBER residue sums to
+    an exact integer, a side chain cut at CA-CB does not (ASP -0.86, GLU
+    -0.88, HIP +0.94, LYS +1.03), so rounding must happen per fragment:
+    four trimmed carboxylates are -4, not round(-3.43) = -3.
+    """
+    total = 0
+    for group in list(whole_residues) + list(trimmed_fragments):
+        total += round(sum(charges.get(idx, 0.0) for idx in group))
+    return total
 
 
 class ONIOMQMMMPreparator(ProcessingModule):
@@ -1230,7 +1248,7 @@ class ONIOMQMMMPreparator(ProcessingModule):
         4. Detect boundary atoms (HIGH layer atoms bonded to LOW layer atoms)
         5. Display charge breakdown tables
         6. Boundary charge handling
-        7. Calculate suggested QM charge from HIGH layer total
+        7. Suggest the model-system formal charge (per-fragment rounding)
 
         Returns:
             True if configuration successful
@@ -2119,37 +2137,40 @@ class ONIOMQMMMPreparator(ProcessingModule):
 
     def _calculate_suggested_qm_charge(self):
         """
-        Calculate suggested QM charge for the ONIOM model system.
+        Suggest the formal charge of the ONIOM model system.
 
-        Sums atomic partial charges over the un-expanded HIGH region
-        (the residues the user originally selected, plus any sidechain
-        atoms from CA-CB-trimmed residues), then rounds once. Boundary
-        expansion atoms and link H caps are designed to be net-neutral,
-        so excluding them yields the formal charge of the model fragment.
+        The model system is what the user selected -- whole HIGH residues plus
+        the side chains of CA-CB-trimmed residues -- terminated by capping
+        groups (the promoted C=O or N-H of the flanking residue plus a link
+        H). The caps are closed-shell neutral groups, so they add no formal
+        charge and are not counted, even though their MM partial charges do
+        not sum to zero (ff19SB: C+O = +0.03, N+H = -0.14).
+
+        Formal charges are integers per fragment, so each fragment is rounded
+        on its own and the integers are summed. Pooling the partial charges
+        first and rounding once is wrong for trimmed side chains: an AMBER
+        side chain alone carries a fraction (ASP -0.86, GLU -0.88, HIP +0.94)
+        and four carboxylates pool to -3.43, which rounds to -3 instead of -4.
         """
         console = self.processor.console
 
-        # Atoms from whole-residue HIGH selections
-        contributing_atom_indices = set()
-        for res_idx in self.high_residue_indices:
-            res = self._parm.residues[res_idx]
-            for a in res.atoms:
-                contributing_atom_indices.add(a.idx)
+        whole = [[a.idx for a in self._parm.residues[res_idx].atoms]
+                 for res_idx in self.high_residue_indices]
+        trimmed: Dict[int, List[int]] = {}
+        for atom_idx in self.high_atom_indices:
+            res_idx = self._parm.atoms[atom_idx].residue.idx
+            trimmed.setdefault(res_idx, []).append(atom_idx)
 
-        # Sidechain atoms from any CA-CB-trimmed HIGH residues
-        contributing_atom_indices.update(self.high_atom_indices)
-
-        partial_sum = sum(
-            self.charges.get(idx, 0.0) for idx in contributing_atom_indices
-        )
-        self.suggested_qm_charge = round(partial_sum)
+        self.suggested_qm_charge = suggested_model_charge(
+            self.charges, whole, list(trimmed.values()))
 
         console.print(
             f"\n[bold]Suggested QM region charge: {self.suggested_qm_charge}[/bold]"
         )
         console.print(
-            "[grey50](Sum of formal charges of complete residues in the HIGH layer.\n"
-            " Boundary fragments + link atoms form neutral caps and are excluded.)[/grey50]"
+            "[grey50](Formal charge of the selected residues and trimmed side chains,\n"
+            " each rounded to an integer. Capping groups -- the promoted C=O or N-H\n"
+            " plus the link H -- are formally neutral and are not counted.)[/grey50]"
         )
 
         total_system_charge = round(

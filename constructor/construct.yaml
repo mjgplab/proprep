@@ -12,7 +12,7 @@
 # proprep.utils.modeller_license), or export KEY_MODELLER before running the
 # installer to have the package post-link script bake it in.
 name: ProPrep
-version: 1.17.0
+version: 1.18.0
 
 installer_type: sh
 license_file: ../LICENSE
@@ -31,7 +31,7 @@ channels:
 
 specs:
   - python=3.12
-  - proprep=1.17.0
+  - proprep=1.18.0
 
 # Don't touch the user's shell rc files; the conclusion text tells them how
 # to run.

@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-PROPREP_VERSION="1.17.0"
+PROPREP_VERSION="1.18.0"
 CHANNELS="-c mjgplab -c dacase -c salilab -c bioconda -c conda-forge"
 
 # --- Pick the target environment ---------------------------------

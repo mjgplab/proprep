@@ -1797,16 +1797,19 @@ class TransformationExecutor:
             new_resid = action['change_residue_id']
             modified_line = modified_line[:22] + f"{new_resid:>4}" + modified_line[26:]
         
-        # Apply chain ID change
+        # Apply chain ID change. Column 22 is exactly one character wide: an
+        # empty value must become a blank, never delete the column.
         if 'change_chain_id' in action:
-            new_chain = action['change_chain_id']
+            new_chain = f"{action['change_chain_id'] or ' ':1.1}"
             modified_line = modified_line[:21] + new_chain + modified_line[22:]
-        
-        # Apply insertion code change
+
+        # Apply insertion code change. Column 27 is exactly one character
+        # wide. Transformers clear the code with "" when they move atoms into
+        # the heme residue; splicing "" in deleted the column and shifted
+        # every field after it left by one, so a second pass over the same
+        # atom (a His claimed by two sites) left the coordinates unparseable.
         if 'change_insertion_code' in action:
-            new_insertion = action['change_insertion_code']
-            old_insertion = line[26:27]
-            atom_name = line[12:16].strip()
+            new_insertion = f"{action['change_insertion_code'] or ' ':1.1}"
             modified_line = modified_line[:26] + new_insertion + modified_line[27:]
         
         # Apply atom name changes

@@ -45,82 +45,57 @@ class LipidEntry:
         return "N/A"
 
 
-# Lipid categories based on naming conventions and head groups
+# Lipid categories keyed on packmol-memgen's naming convention (head-group
+# suffix or documented prefix). Only names present in memgen.parm are listed
+# explicitly; nothing about biological occurrence is asserted here, and any
+# category that matches no database entry is not shown.
 LIPID_CATEGORIES = {
     "Phosphatidylcholines (PC)": {
-        "description": "Zwitterionic, most abundant in mammalian membranes",
         "pattern": r"^(?:si)?[A-Z]{2}PC$|^POPC$|^SOPC$|^OSPC$|^OPPC$|^YOPC$|^LYPC$",
         "suffixes": ["PC"],
         "names": [],
     },
     "Phosphatidylethanolamines (PE)": {
-        "description": "Zwitterionic, promotes membrane curvature",
         "pattern": r"^(?:si)?[A-Z]{2}PE$|^POPE$|^SOPE$",
         "suffixes": ["PE"],
         "names": [],
     },
     "Phosphatidylserines (PS)": {
-        "description": "Anionic (-1), asymmetric distribution in cell membranes",
         "pattern": r"^[A-Z]{2}PS$|^POPS$|^SOPS$",
         "suffixes": ["PS"],
         "names": [],
     },
     "Phosphatidylglycerols (PG)": {
-        "description": "Anionic (-1), common in bacterial membranes",
         "pattern": r"^[A-Z]{2}PG$|^POPG$|^SOPG$",
         "suffixes": ["PG"],
         "names": [],
     },
     "Phosphatidic acids (PA)": {
-        "description": "Anionic (-1), signaling lipid and biosynthetic precursor",
         "pattern": r"^[A-Z]{2}PA$|^POPA$|^SOPA$",
         "suffixes": ["PA"],
         "names": [],
     },
     "Phosphatidylinositols (PI)": {
-        "description": "Anionic, signaling lipids (PIPs have higher charges)",
         "pattern": r"^[A-Z]{2}PI$|^SAPI$|^SLPI$|^PIP[123]?$|^PI[34][5P]$",
         "suffixes": ["PI"],
         "names": ["SAPI", "SLPI"],
     },
     "Sphingomyelins (SM)": {
-        "description": "Zwitterionic, requires Lipid21",
-        "pattern": r"^[A-Z]?SM$|^PSM$|^SSM$|^LSM$|^NSM$|^BNSM$",
+        "pattern": r"^[A-Z]?SM$|^PSM$|^SSM$|^LSM$",
         "suffixes": ["SM"],
-        "names": ["PSM", "SSM", "LSM", "NSM", "BNSM"],
-    },
-    "Ceramides (CER)": {
-        "description": "Sphingolipid backbone, structural roles",
-        "pattern": r"^CER|^LCER|^BCER",
-        "suffixes": [],
-        "names": [],
+        "names": ["PSM", "SSM", "LSM"],
     },
     "Sterols": {
-        "description": "Rigid planar molecules that modulate membrane fluidity",
-        "pattern": r"^CHL1$|^ERG$|^SIT$|^STI$|^CAM$|^CHSD$|^CHM1$",
+        "pattern": r"^CHL1$|^ERG$|^SIT$|^STI$|^CAM$",
         "suffixes": [],
-        "names": ["CHL1", "ERG", "SIT", "STI", "CAM", "CHSD", "CHM1"],
+        "names": ["CHL1", "ERG", "SIT", "STI", "CAM"],
     },
     "Cardiolipins (CL)": {
-        "description": "Anionic (-2), mitochondrial inner membrane",
         "pattern": r"^[A-Z]{2}CL2?$|^T[A-Z]CL2?$|^AR[0-9]*CL$",
         "suffixes": ["CL", "CL2"],
         "names": [],
     },
-    "Glycolipids": {
-        "description": "Sugar head groups, common in plant/bacterial membranes",
-        "pattern": r"^MGDG$|^DGDG$|^SQDG$|^ACGA$|^DGD[GO]$|^MGD[GO]$",
-        "suffixes": [],
-        "names": ["MGDG", "DGDG", "SQDG", "ACGA"],
-    },
-    "Ether lipids": {
-        "description": "Ether-linked tails instead of ester bonds",
-        "pattern": r"^[A-Z]{2}[A-Z]{2}O$|O-",
-        "suffixes": [],
-        "names": [],
-    },
-    "SIRAH coarse-grain": {
-        "description": "Coarse-grain lipids for the SIRAH force field",
+    "SIRAH coarse-grain (si prefix)": {
         "pattern": r"^si[A-Z]",
         "suffixes": [],
         "names": [],
@@ -356,24 +331,35 @@ class LipidLibrary:
 
     def get_categories(self) -> List[Tuple[str, str, int]]:
         """
-        Get list of categories with descriptions and counts.
+        Get list of categories with a charge summary and counts.
+
+        The summary is computed from the database entries in the category
+        (the charge column of memgen.parm), so it states only what the
+        database says.
 
         Returns:
-            List of (category_name, description, count) tuples.
+            List of (category_name, charge_summary, count) tuples.
         """
         self.load()
         result = []
-        for cat_name, cat_info in LIPID_CATEGORIES.items():
-            count = sum(1 for e in self._entries.values() if e.category == cat_name)
-            if count > 0:
-                result.append((cat_name, cat_info["description"], count))
-
-        # Add "Other" if any uncategorized
-        other_count = sum(1 for e in self._entries.values() if e.category == "Other")
-        if other_count > 0:
-            result.append(("Other", "Uncategorized lipids", other_count))
-
+        # Categories assigned from the database's own full names (the keyword
+        # fallback in _categorize) may not be in LIPID_CATEGORIES; list them
+        # too so no entry is hidden from the browser.
+        assigned = {e.category for e in self._entries.values()}
+        extra = sorted(assigned - set(LIPID_CATEGORIES) - {"Other"})
+        names = list(LIPID_CATEGORIES) + extra + ["Other"]
+        for cat_name in names:
+            members = [e for e in self._entries.values() if e.category == cat_name]
+            if members:
+                result.append((cat_name, self._charge_summary(members), len(members)))
         return result
+
+    @staticmethod
+    def _charge_summary(entries: List["LipidEntry"]) -> str:
+        charges = sorted({e.charge for e in entries})
+        if len(charges) == 1:
+            return f"charge {charges[0]:+d}" if charges[0] else "charge 0"
+        return f"charges {charges[0]:+d} to {charges[-1]:+d}"
 
     def validate_lipid_string(self, lipid_str: str) -> Tuple[bool, str]:
         """

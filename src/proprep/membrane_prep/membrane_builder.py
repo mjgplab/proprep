@@ -31,7 +31,6 @@ from proprep.utils.prompts import (
 
 from .lipid_library import LipidLibrary
 from .membrane_config import MembraneConfig, SoluteConfig
-from .membrane_presets import PRESETS
 
 logger = logging.getLogger(__name__)
 
@@ -442,12 +441,8 @@ class MembraneBuilderModule(ProcessingModule):
             Panel(
                 "Define the lipid composition of your membrane. You can use a single\n"
                 "lipid type or a mixture. For asymmetric membranes, define upper and\n"
-                "lower leaflets separately.\n\n"
-                "[bold]Common starting points:[/bold]\n"
-                "  Simple bilayer:  DOPC or POPC\n"
-                "  Mammalian-like:  DOPC:CHL1 (2:1 ratio)\n"
-                "  Bacterial inner: POPE:POPG (3:1 ratio)\n"
-                "  Thylakoid:      MGDG:DGDG:SQDG:POPG (5:3:1:1 ratio)",
+                "lower leaflets separately. Lipid names are packmol-memgen's; browse\n"
+                "or search its database (option 2) to see what is available.",
                 title="Lipid Composition",
                 border_style="bright_blue",
                 expand=False,
@@ -461,39 +456,35 @@ class MembraneBuilderModule(ProcessingModule):
             ratio = f"  ratio: {self.config.ratio}" if self.config.ratio else ""
             self.console.print(f"  Current: {current}{ratio}\n")
 
-        self.console.print("    1   Choose a preset composition")
-        self.console.print("    2   Build custom composition")
-        self.console.print("    3   Search / browse lipid library")
-        self.console.print("    4   Enter raw lipid string (packmol-memgen syntax)")
-        self.console.print("    5   No lipids (solvate only, no membrane)")
+        self.console.print("    1   Build custom composition")
+        self.console.print("    2   Search / browse lipid library")
+        self.console.print("    3   Enter raw lipid string (packmol-memgen syntax)")
+        self.console.print("    4   No lipids (solvate only, no membrane)")
         self.console.print("    b   Back")
 
         choice = prompt_with_context(
             self.processor,
             "\nSelect",
-            choices=["1", "2", "3", "4", "5", "b"],
+            choices=["1", "2", "3", "4", "b"],
             default="1",
             module=MODULE_NAME,
             description="Lipid composition method",
             options_map={
-                "1": "Choose a preset composition",
-                "2": "Build custom composition",
-                "3": "Search / browse lipid library",
-                "4": "Enter raw lipid string (packmol-memgen syntax)",
-                "5": "No lipids (solvate only, no membrane)",
+                "1": "Build custom composition",
+                "2": "Search / browse lipid library",
+                "3": "Enter raw lipid string (packmol-memgen syntax)",
+                "4": "No lipids (solvate only, no membrane)",
                 "b": "Back",
             },
         )
 
         if choice == "1":
-            self._lipid_presets()
-        elif choice == "2":
             self._lipid_custom_builder()
-        elif choice == "3":
+        elif choice == "2":
             self._lipid_browser()
-        elif choice == "4":
+        elif choice == "3":
             self._lipid_raw_string()
-        elif choice == "5":
+        elif choice == "4":
             self._lipid_solvate_only()
             return
 
@@ -538,52 +529,6 @@ class MembraneBuilderModule(ProcessingModule):
             self.console.print("[green]Solvate-only mode enabled (no lipids).[/green]")
         else:
             self.console.print("[grey50]Solvate-only mode disabled.[/grey50]")
-
-    def _lipid_presets(self):
-        """Show preset compositions."""
-        self.console.print("\n[bold]Membrane presets:[/bold]\n")
-
-        table = Table(show_header=True, header_style="bold")
-        table.add_column("#", style="grey50", width=4)
-        table.add_column("Name", min_width=20)
-        table.add_column("Composition")
-        table.add_column("Description")
-
-        for i, preset in enumerate(PRESETS, 1):
-            ratio_str = f" ({preset.ratio})" if preset.ratio != "1" else ""
-            notes = f" [grey50]{preset.notes}[/grey50]" if preset.notes else ""
-            table.add_row(
-                str(i),
-                preset.name,
-                f"{preset.lipids}{ratio_str}",
-                f"{preset.description}{notes}",
-            )
-
-        self.console.print(table)
-
-        choices = [str(i) for i in range(1, len(PRESETS) + 1)] + ["b"]
-        preset_options_map = {
-            str(i): f"{p.name} ({p.lipids})" for i, p in enumerate(PRESETS, 1)
-        }
-        preset_options_map["b"] = "Back"
-        choice = prompt_with_context(
-            self.processor,
-            "\nSelect preset (or 'b' to go back)",
-            choices=choices,
-            default="1",
-            module=MODULE_NAME,
-            description="Preset selection",
-            options_map=preset_options_map,
-        )
-
-        if choice != "b":
-            preset = PRESETS[int(choice) - 1]
-            self.config.lipids = preset.lipids
-            self.config.ratio = preset.ratio
-            self.config.symmetric = "//" not in preset.lipids
-            self.console.print(
-                f"[green]Set: {preset.lipids} (ratio {preset.ratio}) — {preset.name}[/green]"
-            )
 
     def _lipid_custom_builder(self):
         """Interactively build a lipid composition."""
