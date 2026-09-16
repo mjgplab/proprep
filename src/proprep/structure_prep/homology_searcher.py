@@ -144,21 +144,16 @@ class BLASTIntegrationModule(ProcessingModule):
         blast_results = workspace.get("blast_results")
         blast_run = blast_results is not None
 
-        # Option 1: Run BLAST - needs a loaded structure (the query
-        # sequence is read from it). Mirror option 5's can_process gate so
-        # the indicator can't say ✓ while the action would fail.
-        if blast_run:
-            blast_status, blast_dep = OptionStatus.COMPLETED, ""
-        elif self.can_process(workspace):
-            blast_status, blast_dep = OptionStatus.AVAILABLE, ""
-        else:
-            blast_status = OptionStatus.BLOCKED
-            blast_dep = self.availability_note(workspace) or "Load a structure first"
+        # Option 1: Run BLAST - structure-independent. The query sequence
+        # can be typed, read from a FASTA file, or taken from a loaded
+        # structure; only the last of those needs a structure, and the
+        # sequence-source prompt handles its absence. AVAILABLE (not READY)
+        # so the menu runner skips the module-level can_process gate.
         options.append(MenuOption(
             key="1",
             description="Run BLAST homology search",
-            status=blast_status,
-            dependency_text=blast_dep,
+            status=OptionStatus.COMPLETED if blast_run else OptionStatus.AVAILABLE,
+            dependency_text="",
         ))
 
         # Option 2: View results - requires BLAST to be run
@@ -198,8 +193,9 @@ class BLASTIntegrationModule(ProcessingModule):
             dependency_text="[Need to run BLAST first] ○" if not blast_run else ""
         ))
 
-        # Option 5: Build homology model - requires MODELLER and a loaded structure
-        has_structure = self.can_process(workspace)
+        # Option 5: Build homology model - requires MODELLER and a loaded
+        # structure (the template).
+        has_structure = self._has_structure(workspace)
         homology_model_done = workspace.get("homology_model_pdb_file") is not None
 
         if not HAS_MODELLER:
@@ -237,8 +233,12 @@ class BLASTIntegrationModule(ProcessingModule):
         blast_results = workspace.get("blast_results")
 
         if not blast_results:
-            if not self.can_process(workspace):
-                return f"{self.availability_note(workspace) or 'A structure is required'}. Load one via the Structure Loader."
+            if not self._has_structure(workspace):
+                return (
+                    "Run a BLAST search (option 1) on a typed or FASTA sequence; "
+                    "load a structure via the Structure Loader to BLAST its chains "
+                    "or build a homology model (option 5)"
+                )
             return "Start by running a BLAST search (option 1) to find homologous structures, or build a homology model (option 5)"
         else:
             return "View results with option 2, export with option 4, build a homology model with option 5, or press [m] to return to the main menu"
@@ -277,37 +277,48 @@ class BLASTIntegrationModule(ProcessingModule):
     def run_blast_search(
         self, workspace: Dict[str, Any] = None, interactive=True
     ) -> Dict[str, Any]:
-        """Run BLAST homology search on PDB structure."""
+        """Run BLAST homology search.
+
+        The query sequence comes from one of three sources chosen at the
+        prompt: typed directly, a FASTA file, or a chain of the loaded
+        structure. A loaded structure is therefore optional; without one
+        the structure-derived choices are still listed (the choice set is
+        constant for session replay) and re-prompt if picked.
+        """
         if workspace is None:
             workspace = self.processor._get_workspace()
 
-        # Use structure selector to get the structure file
-        from proprep.utils.structure_selector import get_interactive_pdb_file
+        structure_id = None
+        chain_sequences = {}
+        if self._has_structure(workspace):
+            # Use structure selector to get the structure file
+            from proprep.utils.structure_selector import get_interactive_pdb_file
 
-        pdb_file = get_interactive_pdb_file(
-            workspace,
-            self.console,
-            processor=self.processor
-        )
-
-        if not pdb_file:
-            self.processor.console.print(
-                "[yellow]No PDB file loaded. Please load a PDB file first.[/yellow]"
+            pdb_file = get_interactive_pdb_file(
+                workspace,
+                self.console,
+                processor=self.processor
             )
-            return workspace
-
-        structure_id = self._get_structure_id(workspace, pdb_file)
-        chain_sequences = self.blast_worker.extract_sequences_from_pdb(pdb_file)
-
-        if not chain_sequences:
-            self.processor.console.print(
-                "[yellow]No sequences found in PDB file.[/yellow]"
-            )
-            return workspace
+            if pdb_file:
+                structure_id = self._get_structure_id(workspace, pdb_file)
+                chain_sequences = (
+                    self.blast_worker.extract_sequences_from_pdb(pdb_file) or {}
+                )
+                if not chain_sequences:
+                    self.processor.console.print(
+                        "[yellow]No sequences found in the loaded structure; "
+                        "enter a sequence directly or load a FASTA file.[/yellow]"
+                    )
 
         if interactive:
             success = self._run_interactive_blast(structure_id, chain_sequences)
         else:
+            if not chain_sequences:
+                self.processor.console.print(
+                    "[yellow]Automated BLAST needs a loaded structure to take "
+                    "the query sequence from.[/yellow]"
+                )
+                return workspace
             success = self._run_automated_blast(chain_sequences)
 
         if success:
@@ -482,55 +493,71 @@ class BLASTIntegrationModule(ProcessingModule):
         return self.blast_worker.run_blast()
 
     def _get_sequence_input(self, structure_id, chain_sequences):
-        """Get sequence input from user."""
-        self.processor.console.print("\n[bold]Sequence input methods:[/bold]")
-        self.processor.console.print("1. Enter sequence directly", highlight=False)
-        self.processor.console.print("2. Load from FASTA file", highlight=False)
+        """Get sequence input from user.
 
-        options = ["1", "2"]
+        The choice set is constant (1/2/3) whatever the workspace holds, so
+        a recorded session replays the same keys. Option 3 is the
+        structure-derived route: chains of the loaded structure, or the
+        RCSB sequences for a 4-character PDB id when the file yielded no
+        chains. With no structure loaded it is listed as unavailable and
+        re-prompts if picked.
+        """
+        # Can option 3 actually deliver a sequence right now?
+        structure_route = None
         if structure_id and chain_sequences:
-            self.processor.console.print(f"3. Use sequence from loaded structure ({structure_id})")
-            options.append("3")
-        elif structure_id:
-            # Only offer download option for PDB IDs (4-character codes)
-            if len(structure_id) == 4 and structure_id.isalnum():
-                self.processor.console.print(f"3. Download sequences for PDB {structure_id}")
-                options.append("3")
+            structure_route = f"Use sequence from loaded structure ({structure_id})"
+        elif structure_id and len(structure_id) == 4 and structure_id.isalnum():
+            structure_route = f"Download sequences for PDB {structure_id}"
 
-        # Build options map dynamically
         options_map = {
             "1": "Enter sequence directly",
-            "2": "Load from FASTA file"
+            "2": "Load from FASTA file",
+            "3": structure_route or "Use sequence from loaded structure",
         }
-        if "3" in options:
-            if chain_sequences:
-                options_map["3"] = f"Use sequence from loaded structure ({structure_id})"
+
+        while True:
+            self.processor.console.print("\n[bold]Sequence input methods:[/bold]")
+            self.processor.console.print("1. Enter sequence directly", highlight=False)
+            self.processor.console.print("2. Load from FASTA file", highlight=False)
+            if structure_route:
+                self.processor.console.print(f"3. {structure_route}", highlight=False)
             else:
-                options_map["3"] = f"Download sequences for PDB {structure_id}"
+                self.processor.console.print(
+                    "3. Use sequence from loaded structure "
+                    "[grey50](unavailable: no structure loaded)[/grey50]",
+                    highlight=False,
+                )
 
-        choice = prompt_with_context(
-            processor=self.processor,
-            prompt="Choose input method",
-            choices=options,
-            default="1",
-            module="Homology Searcher",
-            description="Select sequence input method",
-            options_map=options_map
-        )
-
-        if choice == "1":
-            return prompt_with_context(
+            choice = prompt_with_context(
                 processor=self.processor,
-                prompt="Enter your sequence",
+                prompt="Choose input method",
+                choices=["1", "2", "3"],
+                default="1",
                 module="Homology Searcher",
-                description="Enter protein/nucleotide sequence"
+                description="Select sequence input method",
+                options_map=options_map
             )
-        elif choice == "2":
-            return self._load_sequence_from_file()
-        elif choice == "3":
-            return self._get_structure_sequence(structure_id, chain_sequences)
 
-        return None
+            if choice == "1":
+                return prompt_with_context(
+                    processor=self.processor,
+                    prompt="Enter your sequence",
+                    module="Homology Searcher",
+                    description="Enter protein/nucleotide sequence"
+                )
+            elif choice == "2":
+                return self._load_sequence_from_file()
+            elif choice == "3":
+                if structure_route:
+                    return self._get_structure_sequence(structure_id, chain_sequences)
+                self.processor.console.print(
+                    "[yellow]No structure is loaded. Enter a sequence directly, "
+                    "load a FASTA file, or load a structure via the Structure "
+                    "Loader first.[/yellow]"
+                )
+                continue
+
+            return None
 
     def _load_sequence_from_file(self):
         """Load sequence from FASTA file."""
@@ -1739,8 +1766,14 @@ class BLASTIntegrationModule(ProcessingModule):
         return self.NAME
 
     def get_workspace_requirements(self) -> List[str]:
-        """Get workspace requirements - need at least one structure loaded"""
-        return ["rcsb_pdb_file | local_pdb_file | alphafold_pdb_file | alphafill_pdb_file"]
+        """No hard requirements: BLAST runs on a typed or FASTA sequence.
+
+        A loaded structure (any of ``rcsb_pdb_file | local_pdb_file |
+        alphafold_pdb_file | alphafill_pdb_file``) is consumed when present
+        but is optional, so it is not declared here; declaring it would
+        make the default ``can_process`` gate the whole module on it.
+        """
+        return []
 
     def get_workspace_outputs(self) -> List[str]:
         """Get workspace outputs"""
@@ -1755,10 +1788,11 @@ class BLASTIntegrationModule(ProcessingModule):
             "homology_model_alignment",
         ]
 
-    def can_process(self, workspace: Dict[str, Any]) -> bool:
-        """Check if the module can process the current workspace.
+    def _has_structure(self, workspace: Dict[str, Any]) -> bool:
+        """True when any structure is loaded (StructureSelector's view).
 
-        Uses StructureSelector to check for any available structure.
+        Needed only by the structure-derived paths: option 3 of the
+        sequence-source prompt and the MODELLER build (option 5).
         """
         from proprep.utils.structure_selector import StructureSelector
 
@@ -1766,18 +1800,27 @@ class BLASTIntegrationModule(ProcessingModule):
         status = selector.get_structure_status()
         return status.get("has_any", False)
 
-    def process(self, workspace):
-        """Process the workspace"""
-        if self.can_process(workspace):
-            blast_results = workspace.get("blast_results")
-            if blast_results:
-                self.blast_results = blast_results
-                self.blast_result_file = blast_results.get("result_file")
+    def can_process(self, workspace: Dict[str, Any]) -> bool:
+        """The module is always usable: BLAST accepts a typed or FASTA
+        query, so no workspace key is a prerequisite. The structure-only
+        actions gate themselves (see ``get_enhanced_menu_options``).
+        """
+        return True
 
-            raw_results = workspace.get("blast_raw_results")
-            if raw_results:
-                self.raw_results = raw_results
-                self.blast_worker.results = raw_results
+    def availability_note(self, workspace) -> Optional[str]:
+        return None if self.can_process(workspace) else "Needs a loaded structure"
+
+    def process(self, workspace):
+        """Process the workspace: pick up any prior BLAST results."""
+        blast_results = workspace.get("blast_results")
+        if blast_results:
+            self.blast_results = blast_results
+            self.blast_result_file = blast_results.get("result_file")
+
+        raw_results = workspace.get("blast_raw_results")
+        if raw_results:
+            self.raw_results = raw_results
+            self.blast_worker.results = raw_results
 
         return workspace
 

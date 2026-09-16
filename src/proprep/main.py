@@ -49,6 +49,7 @@ configure_modeller_license()
 from proprep.application.pdbprocessor import PDBProcessor
 from proprep.utils import integrate_session_manager
 from proprep.utils.session_recorder import safe_load_session_file
+from proprep.utils.session_rewind import RewindRequested
 from proprep.utils.prompts import prompt_with_context, confirm_with_context
 
 logger = logging.getLogger(__name__)
@@ -678,6 +679,98 @@ def reload_structure_from_session_metadata(processor, session_file) -> bool:
     return True
 
 
+REWIND_TIP = "Tip: Type 'undo' at any prompt to rewind to an earlier answer"
+
+
+def _apply_launch_flags(processor, args, menu_mode):
+    """Put the launch-time flags into a processor's workspace.
+
+    Called once at startup and again after a rewind, so the rebuilt processor
+    starts exactly as the first one did. ``menu_mode`` is passed in rather than
+    recomputed: determining it may prompt, and that prompt precedes recording.
+    """
+    processor.workspace.set("menu_mode", menu_mode)
+    logger.debug(f"Menu mode set to: {menu_mode}")
+
+    # Optional per-run full-menu layout override (else the persisted
+    # SettingsManager preference applies inside the menu command).
+    if getattr(args, "menu_grid", False):
+        processor.workspace.set("menu_layout", "grid")
+    elif getattr(args, "menu_list", False):
+        processor.workspace.set("menu_layout", "list")
+
+    # Set workflow shortcut flags if specified
+    if args.analysis:
+        processor.workspace.set("jump_to_analysis", True)
+        logger.debug("Analysis shortcut flag set")
+
+    if args.pdbview:
+        processor.workspace.set("jump_to_pdbview", True)
+        processor.workspace.set("pdbview_target", args.pdbview)
+        logger.debug(f"PDB view shortcut flag set: {args.pdbview}")
+
+
+def _load_launch_structure(processor, args, session_file_to_replay):
+    """Load the structure named on the command line, or the one a replayed
+    session was launched with.
+
+    A session recorded from a ``proprep --pdbid/--pdbfile`` launch loaded its
+    structure right here, without a single prompt, so the recording holds no
+    loader interactions -- only ``metadata.pdb_id`` / ``pdb_file``. Replaying it
+    without that argument used to start at the main menu with no structure,
+    and the first module then diverged. Redo the load.
+    """
+    if session_file_to_replay and not (args.pdbid or args.pdbfile):
+        reload_structure_from_session_metadata(processor, session_file_to_replay)
+
+    if args.pdbid:
+        loader = processor.get_module_instance("Structure Loader")
+        workspace = processor._get_workspace()
+        loader._download_and_load_pdb(args.pdbid, workspace)
+        logger.info(f"Downloaded and loaded PDB: {args.pdbid}")
+
+    elif args.pdbfile:
+        if not Path(args.pdbfile).exists():
+            logger.error(f"PDB file not found: {args.pdbfile}")
+            sys.exit(1)
+        loader = processor.get_module_instance("Structure Loader")
+        workspace = processor._get_workspace()
+        loader._load_local_file_by_path(args.pdbfile, workspace)
+        logger.info(f"Loaded PDB file: {args.pdbfile}")
+
+
+def _rebuild_for_rewind(old_processor, rewind, args, project_dir, menu_mode):
+    """Replace the processor after a rewind and replay the log to the target.
+
+    The old processor's cleanup finalises the session log and uninstalls the
+    prompt interceptor. Module instances and their state die with it; a fresh
+    processor starts from the launch flags and hybrid mode replays the log to
+    the chosen answer, then records live. Module-level singletons (the viewer
+    coordinator, the transformer registry) survive on purpose: the browser
+    tab stays open and the registry is static.
+    """
+    from rich.console import Console
+    console = Console()
+
+    old_processor.cleanup()
+    os.chdir(project_dir)
+
+    processor = PDBProcessor()
+    integrate_session_manager(processor)
+    _apply_launch_flags(processor, args, menu_mode)
+    processor.workspace.set("project_directory", project_dir)
+    if args.debug:
+        processor.workspace.set("debug", True)
+
+    console.print(f"\n[bold bright_blue]Rewinding session:[/bold bright_blue] "
+                  f"{os.path.basename(rewind.session_file)}")
+    processor.start_session_hybrid(rewind.session_file, **rewind.hybrid_args())
+    logger.info(f"Rewind to interaction {rewind.index} ({rewind.mode}): {rewind.session_file}")
+
+    _load_launch_structure(processor, args, rewind.session_file)
+    return processor
+
+
 def setup_project_directory(project_name=None, interactive=True):
     """
     Create and change to a project directory for ProPrep session.
@@ -730,6 +823,12 @@ def setup_project_directory(project_name=None, interactive=True):
 
 def main():
     """Main function - entry point for the application"""
+
+    # A bare `~/ProPrep/bin/proprep` launch never activates the environment,
+    # so put the bundled AmberTools on PATH and set AMBERHOME before anything
+    # shells out to tleap/antechamber or reads $AMBERHOME/dat.
+    from proprep.utils.amber_env import bootstrap_amber_env
+    bootstrap_amber_env()
 
     # Parse command line arguments
     args = parse_arguments()
@@ -898,26 +997,8 @@ def main():
         # Determine menu mode BEFORE session recording starts
         # This allows the mode choice to be deterministic for session replay
         menu_mode = determine_menu_mode(args)
-        processor.workspace.set("menu_mode", menu_mode)
-        logger.debug(f"Menu mode set to: {menu_mode}")
+        _apply_launch_flags(processor, args, menu_mode)
 
-        # Optional per-run full-menu layout override (else the persisted
-        # SettingsManager preference applies inside the menu command).
-        if getattr(args, "menu_grid", False):
-            processor.workspace.set("menu_layout", "grid")
-        elif getattr(args, "menu_list", False):
-            processor.workspace.set("menu_layout", "list")
-
-        # Set workflow shortcut flags if specified
-        if args.analysis:
-            processor.workspace.set("jump_to_analysis", True)
-            logger.debug("Analysis shortcut flag set")
-
-        if args.pdbview:
-            processor.workspace.set("jump_to_pdbview", True)
-            processor.workspace.set("pdbview_target", args.pdbview)
-            logger.debug(f"PDB view shortcut flag set: {args.pdbview}")
-        
         # Determine session mode (variables already initialized above)
         hybrid_mode = False
         truncate_at = None
@@ -1078,34 +1159,23 @@ def main():
             console.print(f"\nSession recording to: {session_file}")
 
             # Inform user how to disable recording
-            console.print("Tip: Use --no-session to disable automatic session recording\n")
+            console.print("Tip: Use --no-session to disable automatic session recording")
+            console.print(REWIND_TIP + "\n")
 
-        # Load PDB structure if specified via command line
-        # A session recorded from a `proprep --pdbid/--pdbfile` launch loaded its
-        # structure right here, without a single prompt, so the recording holds
-        # no loader interactions -- only metadata.pdb_id / pdb_file. Replaying
-        # it without that argument used to start at the main menu with no
-        # structure, and the first module then diverged. Redo the load.
-        if session_file_to_replay and not (args.pdbid or args.pdbfile):
-            reload_structure_from_session_metadata(processor, session_file_to_replay)
+        _load_launch_structure(processor, args, session_file_to_replay)
 
-        if args.pdbid:
-            loader = processor.get_module_instance("Structure Loader")
-            workspace = processor._get_workspace()
-            loader._download_and_load_pdb(args.pdbid, workspace)
-            logger.info(f"Downloaded and loaded PDB: {args.pdbid}")
-
-        elif args.pdbfile:
-            if not Path(args.pdbfile).exists():
-                logger.error(f"PDB file not found: {args.pdbfile}")
-                sys.exit(1)
-            loader = processor.get_module_instance("Structure Loader")
-            workspace = processor._get_workspace()
-            loader._load_local_file_by_path(args.pdbfile, workspace)
-            logger.info(f"Loaded PDB file: {args.pdbfile}")
-
-        # Run the main menu
-        processor.run_main_menu()
+        # Run the main menu. Typing 'undo' at any prompt raises RewindRequested
+        # from the session interceptor; it unwinds to here, the processor is
+        # rebuilt, and the session log replays to the chosen answer.
+        while True:
+            try:
+                processor.run_main_menu()
+                break
+            except RewindRequested as rewind:
+                processor = _rebuild_for_rewind(
+                    processor, rewind, args, project_dir, menu_mode)
+                session_file_to_replay = rewind.session_file
+                hybrid_mode = True
 
     except KeyboardInterrupt:
         from rich.console import Console; console = Console()

@@ -414,7 +414,7 @@ class StructureLoaderModule(ProcessingModule):
         3. Query AlphaFill Database
         4. Load local PDB file
 
-        Loops until user selects Cancel, allowing multiple sources to be loaded.
+        Loops until user selects Done, allowing multiple sources to be loaded.
         """
         if workspace is None:
             workspace = self.processor._get_workspace()
@@ -429,7 +429,7 @@ class StructureLoaderModule(ProcessingModule):
             self.console.print("3. Query AlphaFill Database (AlphaFold + ligands/cofactors)", highlight=False)
             self.console.print("4. Load local PDB file", highlight=False)
             self.console.print("5. View local files together (spatial comparison, view-only)", highlight=False)
-            self.console.print("6. Cancel\n", highlight=False)
+            self.console.print("6. Done (return to the Structure Loader menu)\n", highlight=False)
 
             # Show submenu
             choice = prompt_with_context(
@@ -445,7 +445,7 @@ class StructureLoaderModule(ProcessingModule):
                     "3": "Query AlphaFill Database (AlphaFold + ligands/cofactors)",
                     "4": "Load local PDB file",
                     "5": "View local files together (spatial comparison, view-only)",
-                    "6": "Cancel"
+                    "6": "Done (return to the Structure Loader menu)"
                 }
             )
 
@@ -464,8 +464,8 @@ class StructureLoaderModule(ProcessingModule):
             elif choice == "5":
                 self._view_local_files_together()
 
-            else:  # Cancel
-                self.console.print("[grey50]Cancelled[/grey50]")
+            else:  # Done
+                self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
                 break
 
         return workspace
@@ -478,7 +478,7 @@ class StructureLoaderModule(ProcessingModule):
         self.console.print("1. Enter PDB ID directly", highlight=False)
         self.console.print("2. Search by entry title keyword", highlight=False)
         self.console.print("3. Search by gene/protein (UniProt)", highlight=False)
-        self.console.print("4. Cancel", highlight=False)
+        self.console.print("4. Back to source selection", highlight=False)
 
         choice = prompt_with_context(
             self.processor,
@@ -491,7 +491,7 @@ class StructureLoaderModule(ProcessingModule):
                 "1": "Enter PDB ID directly",
                 "2": "Search by entry title keyword",
                 "3": "Search by gene/protein (UniProt)",
-                "4": "Cancel"
+                "4": "Back to source selection"
             }
         )
 
@@ -502,7 +502,7 @@ class StructureLoaderModule(ProcessingModule):
         elif choice == "3":
             return self._search_uniprot_interactive(workspace)
         else:
-            self.console.print("[grey50]Cancelled[/grey50]")
+            self.console.print("[grey50]Back to source selection[/grey50]")
             return workspace
 
     def _load_pdb_by_id(self, workspace: Dict[str, Any]) -> Dict[str, Any]:
@@ -692,7 +692,7 @@ class StructureLoaderModule(ProcessingModule):
         # Show retrieval options
         self.console.print("1. Retrieve by UniProt ID", highlight=False)
         self.console.print("2. Search by gene name", highlight=False)
-        self.console.print("3. Cancel", highlight=False)
+        self.console.print("3. Back to source selection", highlight=False)
 
         choice = prompt_with_context(
             self.processor,
@@ -704,7 +704,7 @@ class StructureLoaderModule(ProcessingModule):
             options_map={
                 "1": "Retrieve by UniProt ID",
                 "2": "Search by gene name",
-                "3": "Cancel"
+                "3": "Back to source selection"
             }
         )
 
@@ -715,7 +715,7 @@ class StructureLoaderModule(ProcessingModule):
             return self._retrieve_by_gene_name(workspace)
 
         else:
-            self.console.print("[grey50]Cancelled[/grey50]")
+            self.console.print("[grey50]Back to source selection[/grey50]")
             return workspace
 
     def _retrieve_by_uniprot_id(self, workspace: Dict[str, Any]) -> Dict[str, Any]:
@@ -836,18 +836,21 @@ class StructureLoaderModule(ProcessingModule):
         self.console.print(table)
 
         # Let user select
-        choices = [str(i) for i in range(1, len(results) + 1)] + ["c"]
+        # 'b' goes back to the Structure Loader menu; 'c' is kept as a
+        # silent alias so sessions recorded with the old wording replay.
+        choices = [str(i) for i in range(1, len(results) + 1)] + ["b", "c"]
         choice = prompt_with_context(
             self.processor,
-            f"\nSelect entry (1-{len(results)}) or 'c' to cancel",
+            f"\nSelect entry (1-{len(results)}) or 'b' to go back",
             choices=choices,
             default="1",
+            show_choices=False,
             module="Structure Loader - AlphaFold",
             description="Select UniProt entry"
         )
 
-        if choice == "c":
-            self.console.print("[grey50]Cancelled[/grey50]")
+        if choice in ("b", "c"):
+            self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
             return workspace
 
         # Get selected UniProt ID and retrieve. Replay by accession so a changed
@@ -905,7 +908,7 @@ class StructureLoaderModule(ProcessingModule):
         # Show retrieval options
         self.console.print("1. Retrieve by UniProt ID", highlight=False)
         self.console.print("2. Search by gene name", highlight=False)
-        self.console.print("3. Cancel", highlight=False)
+        self.console.print("3. Back to source selection", highlight=False)
 
         choice = prompt_with_context(
             self.processor,
@@ -917,7 +920,7 @@ class StructureLoaderModule(ProcessingModule):
             options_map={
                 "1": "Retrieve by UniProt ID",
                 "2": "Search by gene name",
-                "3": "Cancel"
+                "3": "Back to source selection"
             }
         )
 
@@ -928,7 +931,7 @@ class StructureLoaderModule(ProcessingModule):
             return self._retrieve_alphafill_by_gene_name(workspace)
 
         else:
-            self.console.print("[grey50]Cancelled[/grey50]")
+            self.console.print("[grey50]Back to source selection[/grey50]")
             return workspace
 
     def _retrieve_alphafill_by_uniprot_id(self, workspace: Dict[str, Any]) -> Dict[str, Any]:
@@ -1051,18 +1054,21 @@ class StructureLoaderModule(ProcessingModule):
         self.console.print(table)
 
         # Let user select
-        choices = [str(i) for i in range(1, len(results) + 1)] + ["c"]
+        # 'b' goes back to the Structure Loader menu; 'c' is kept as a
+        # silent alias so sessions recorded with the old wording replay.
+        choices = [str(i) for i in range(1, len(results) + 1)] + ["b", "c"]
         choice = prompt_with_context(
             self.processor,
-            f"\nSelect entry (1-{len(results)}) or 'c' to cancel",
+            f"\nSelect entry (1-{len(results)}) or 'b' to go back",
             choices=choices,
             default="1",
+            show_choices=False,
             module="Structure Loader - AlphaFill",
             description="Select UniProt entry"
         )
 
-        if choice == "c":
-            self.console.print("[grey50]Cancelled[/grey50]")
+        if choice in ("b", "c"):
+            self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
             return workspace
 
         # Get selected UniProt ID and retrieve. Replay by accession so a changed
@@ -1275,7 +1281,7 @@ class StructureLoaderModule(ProcessingModule):
 
         if len(selected) < 2:
             self.console.print(
-                "[yellow]Need at least two files for a spatial comparison. Cancelled.[/yellow]"
+                "[yellow]Need at least two files for a spatial comparison. Nothing opened.[/yellow]"
             )
             return
 
@@ -1923,7 +1929,7 @@ class StructureLoaderModule(ProcessingModule):
             if current_page > 0:
                 options.append("Type 'prev' to see previous page")
             options.append("Type 'filter' to refine search")
-            options.append("Type 'cancel' to go back")
+            options.append("Type 'back' to return to the Structure Loader menu")
 
             self.console.print("\n[bold]Options:[/bold]")
             for opt in options:
@@ -1952,8 +1958,8 @@ class StructureLoaderModule(ProcessingModule):
                 # Reset to first page
                 current_page = 0
                 total_pages = (len(results) + page_size - 1) // page_size
-            elif selection == "cancel":
-                self.console.print("[grey50]Search cancelled[/grey50]")
+            elif selection in ("back", "cancel"):  # 'cancel' = legacy alias for replay
+                self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
                 return workspace
             elif selection:
                 # Parse multi-selection (supports "1", "1,3,5", "1-3", "all")
@@ -2027,7 +2033,7 @@ class StructureLoaderModule(ProcessingModule):
         self.console.print("2. Experimental method (X-ray/NMR/Cryo-EM)", highlight=False)
         self.console.print("3. Must contain metal", highlight=False)
         self.console.print("4. Clear all filters", highlight=False)
-        self.console.print("5. Cancel", highlight=False)
+        self.console.print("5. Back to results (no filter)", highlight=False)
 
         choice = prompt_with_context(
             self.processor,
@@ -2041,7 +2047,7 @@ class StructureLoaderModule(ProcessingModule):
                 "2": "Experimental method",
                 "3": "Must contain metal",
                 "4": "Clear all filters",
-                "5": "Cancel"
+                "5": "Back to results (no filter)"
             }
         )
 
@@ -2141,7 +2147,7 @@ class StructureLoaderModule(ProcessingModule):
             module="Structure Loader - PDB Search",
             description=f"Confirm download of {result.pdb_id}"
         ):
-            self.console.print("[grey50]Cancelled[/grey50]")
+            self.console.print("[grey50]Download skipped[/grey50]")
             return workspace
 
         # Download and load the structure
@@ -2248,7 +2254,7 @@ class StructureLoaderModule(ProcessingModule):
             module="Structure Loader - PDB Search",
             description=f"Confirm batch download of {len(results)} structures"
         ):
-            self.console.print("[grey50]Cancelled[/grey50]")
+            self.console.print("[grey50]Download skipped[/grey50]")
             return workspace
 
         # Perform batch download
@@ -2495,14 +2501,14 @@ class StructureLoaderModule(ProcessingModule):
         while True:
             choice_raw = prompt_with_context(
                 self.processor,
-                f"Select entry number (1-{len(entries)}) or 'c' to cancel",
+                f"Select entry number (1-{len(entries)}) or 'b' to go back",
                 module="Structure Loader - UniProt Selection",
                 description="Select UniProt entry to examine"
             )
 
             choice = choice_raw.strip() if choice_raw else ""
 
-            if choice.lower() == 'c':
+            if choice.lower() in ('b', 'c'):  # 'c' = legacy alias for replay
                 return None
 
             try:
@@ -2512,7 +2518,7 @@ class StructureLoaderModule(ProcessingModule):
                 else:
                     self.console.print(f"[yellow]Please enter a number between 1 and {len(entries)}[/yellow]")
             except ValueError:
-                self.console.print("[yellow]Please enter a valid number or 'c' to cancel[/yellow]")
+                self.console.print("[yellow]Please enter a valid number or 'b' to go back[/yellow]")
 
     def _display_uniprot_selection_table(self, entries: List[UniProtEntry]):
         """Display table of UniProt entries for selection."""
@@ -2763,7 +2769,7 @@ class StructureLoaderModule(ProcessingModule):
                 options.append("Type 'next' to see next page")
             if current_page > 0:
                 options.append("Type 'prev' to see previous page")
-            options.append("Type 'cancel' to go back")
+            options.append("Type 'back' to return to the Structure Loader menu")
 
             self.console.print("\n[bold]Options:[/bold]")
             for opt in options:
@@ -2784,8 +2790,8 @@ class StructureLoaderModule(ProcessingModule):
                 current_page += 1
             elif selection == "prev" and current_page > 0:
                 current_page -= 1
-            elif selection == "cancel":
-                self.console.print("[grey50]Selection cancelled[/grey50]")
+            elif selection in ("back", "cancel"):  # 'cancel' = legacy alias for replay
+                self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
                 return workspace
             else:
                 # Try to parse as number

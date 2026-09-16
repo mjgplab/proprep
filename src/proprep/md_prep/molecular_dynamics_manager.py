@@ -4425,7 +4425,7 @@ MD simulations require TWO files per structure:
             )
             topo_choice = int(topo_choice_str)
             selected_prmtop = all_prmtop[topo_choice - 1]
-        except:
+        except Exception:
             self.console.print("[yellow]Selection cancelled[/yellow]")
             return None
 
@@ -4445,7 +4445,7 @@ MD simulations require TWO files per structure:
             )
             coord_choice = int(coord_choice_str)
             selected_rst7 = all_rst7[coord_choice - 1]
-        except:
+        except Exception:
             self.console.print("[yellow]Selection cancelled[/yellow]")
             return None
         
@@ -10676,7 +10676,7 @@ MD simulations require TWO files per structure:
                     else:
                         self.console.print("[red]Invalid selection[/red]")
                         return
-                except:
+                except Exception:
                     return
                     
             # Create monitor for the selected simulation
@@ -14652,7 +14652,7 @@ MD simulations require TWO files per structure:
                         description="Enter template priority"
                     )
                     metadata['priority'] = int(priority_input)
-                except:
+                except Exception:
                     metadata['priority'] = 10
             if 'author' not in metadata:
                 metadata['author'] = prompt_with_context(

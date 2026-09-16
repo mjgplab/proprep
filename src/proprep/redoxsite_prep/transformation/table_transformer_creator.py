@@ -24,6 +24,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from rich.markup import escape
+
 from proprep.utils.prompts import prompt_with_context, confirm_with_context
 from proprep.redoxsite_prep.transformation.auto_rename import (
     connectivity_signature, DEFAULT_USER_TRANSFORMER_DIR,
@@ -485,6 +487,114 @@ def render_table(structure: _Structure, highlight: Optional[Set[ResidueKey]] = N
     return "\n".join(lines)
 
 
+def _wrap_names(names: List[str], indent: int, width: int = 70) -> str:
+    """Names on wrapped lines under one indent."""
+    if not names:
+        return " " * indent + "(none)"
+    lines, cur = [], ""
+    for n in names:
+        if cur and len(cur) + len(n) + 1 > width - indent:
+            lines.append(" " * indent + cur.rstrip())
+            cur = ""
+        cur += n + " "
+    lines.append(" " * indent + cur.rstrip())
+    return "\n".join(lines)
+
+
+def _is_hydrogen(name: str, element: str = "") -> bool:
+    if element:
+        return element.strip().upper() == "H"
+    return name.strip().upper().startswith("H")
+
+
+def render_library_units(units: Dict[str, List[str]], label: str) -> str:
+    """Every unit of the linked library with its atom names, as the library spells them."""
+    if not units:
+        return f"  The library ({label}) declares no units with atom tables."
+    out = [f"  Library {label}:"]
+    for unit, names in units.items():
+        heavy = [n for n in names if not _is_hydrogen(n)]
+        hyd = [n for n in names if _is_hydrogen(n)]
+        out.append(f"    unit {unit}: {len(heavy)} heavy atoms, {len(hyd)} hydrogens")
+        out.append(_wrap_names(heavy, 6))
+        if hyd:
+            out.append("      hydrogens: " + " ".join(hyd))
+    return "\n".join(out)
+
+
+def pick_library_unit(units: Dict[str, List[str]], resname: str,
+                      atom_names: List[str]) -> Optional[str]:
+    """The unit a residue should be compared with: same name, else best overlap."""
+    if not units:
+        return None
+    if resname in units:
+        return resname
+    upper = {u.upper(): u for u in units}
+    if resname.upper() in upper:
+        return upper[resname.upper()]
+    have = {n.upper() for n in atom_names}
+    best, best_score = None, 0
+    for unit, names in units.items():
+        score = len(have & {n.upper() for n in names})
+        if score > best_score:
+            best, best_score = unit, score
+    if best is None and len(units) == 1:
+        # Nothing in common, but there is only one thing to compare with;
+        # showing the comparison is more useful than refusing.
+        best = next(iter(units))
+    return best
+
+
+def render_library_comparison(structure: _Structure, key: ResidueKey,
+                              units: Dict[str, List[str]], unit: Optional[str] = None) -> str:
+    """Three-way heavy-atom comparison of one residue against a library unit.
+
+    Exact names, because that is how tLEaP binds a PDB atom to a template
+    atom: a structure's ``O5'`` is not the library's ``O5*``. Hydrogens are
+    left out -- a crystal structure normally has none, and the loader adds
+    them from the template. Case-only differences are called out separately
+    since they are the one kind of mismatch that is easy to miss by eye.
+    """
+    atoms = structure.residue_atoms(key)
+    if not atoms:
+        return "  (no such residue)"
+    chain, resid, icode = key
+    resname = atoms[0].resname
+    heavy = [a.name for a in atoms if not _is_hydrogen(a.name, a.element)]
+    unit = unit or pick_library_unit(units, resname, heavy)
+    if not unit:
+        return f"  No library unit to compare {chain} {resid} {resname} with."
+    lib_all = units.get(unit, [])
+    lib_heavy = [n for n in lib_all if not _is_hydrogen(n)]
+    lib_set = set(lib_heavy)
+    lib_upper = {n.upper(): n for n in lib_heavy}
+    both = [n for n in heavy if n in lib_set]
+    used_upper = {n.upper() for n in both}
+    rest = [n for n in heavy if n not in lib_set]
+    case_only = [(n, lib_upper[n.upper()]) for n in rest
+                 if n.upper() in lib_upper and n.upper() not in used_upper]
+    case_names = {a for a, _b in case_only}
+    struct_only = [n for n in rest if n not in case_names]
+    matched_lib = set(both) | {b for _a, b in case_only}
+    lib_only = [n for n in lib_heavy if n not in matched_lib]
+    tag = "" if unit == resname else " (closest unit by atom names)"
+    out = [f"  {chain} {resid}{icode} {resname} ({len(heavy)} heavy atoms) vs library unit "
+           f"{unit}{tag} ({len(lib_heavy)} heavy atoms):"]
+    out.append(f"    in both ({len(both)}):")
+    out.append(_wrap_names(both, 6))
+    out.append(f"    in the structure only ({len(struct_only)}) -- rename, or the library does not model them:")
+    out.append(_wrap_names(struct_only, 6))
+    if case_only:
+        out.append(f"    case differs ({len(case_only)}) -- tLEaP is case-sensitive:")
+        out.append("      " + "  ".join(f"{a} -> {b}" for a, b in case_only))
+    out.append(f"    in the library only ({len(lib_only)}) -- the structure lacks them, or they are the renamed ones:")
+    out.append(_wrap_names(lib_only, 6))
+    n_h = len(lib_all) - len(lib_heavy)
+    if n_h:
+        out.append(f"    ({n_h} library hydrogens not compared)")
+    return "\n".join(out)
+
+
 def render_summary(builder: RecipeBuilder) -> str:
     if not builder.operations:
         return "  (no operations yet)"
@@ -571,6 +681,8 @@ Commands (one operation at a time; the table redraws after each):
   param       <NAME> <opt1,opt2,...>                    declare a state axis (redox/spin)
   refstate    <param=value> ...                         set the authoring state
   vary        <op#> <val1,...> <NEWNAME>                give a rename a per-state name
+  lib         [<chain> <resid>]                         atom names the linked library expects;
+                                                        with a residue: what matches, what does not
   undo | show | summary | save | quit
 
 New names are written exactly as you type them -- case is preserved, because
@@ -600,6 +712,93 @@ class TableTransformerCreator:
         self.redox_site = redox_site
         self.console = processor.console
         self.forcefield_default = forcefield_default or {}
+        self._library_units: Optional[Dict[str, List[str]]] = None
+
+    # ---- linked library -------------------------------------------------
+    def _library_label(self) -> str:
+        fd = self.forcefield_default
+        path = fd.get("path") or "?"
+        state = "/".join(x for x in (fd.get("redox_state"), fd.get("spin_state")) if x)
+        return f"{path} [{state}]" if state else path
+
+    def _load_library_units(self) -> Dict[str, List[str]]:
+        """Atom tables of the library this transformer will point at, if known.
+
+        Read from the deposited lib file(s) of the seeded path/state. Empty
+        when nothing was seeded (the editor opened from the Redox Site
+        Preparer with no library chosen yet) or the files cannot be found.
+        """
+        fd = self.forcefield_default
+        path = fd.get("path")
+        if not path:
+            return {}
+        try:
+            from proprep.forcefield_params.loader import (
+                discover_forcefield_files, load_forcefield_metadata)
+            from proprep.forcefield_prep.library_promotion import library_unit_atoms
+            redox, spin = fd.get("redox_state"), fd.get("spin_state")
+            if not (redox and spin):
+                states = (load_forcefield_metadata(path) or {}).get("redox_states", {})
+                leaves = [(r, sp) for r, rv in sorted(states.items())
+                          for sp in sorted((rv or {}).get("spin_states", {}) or {})]
+                if len(leaves) != 1:
+                    return {}
+                redox, spin = leaves[0]
+            units: Dict[str, List[str]] = {}
+            for fset in discover_forcefield_files(path, redox, spin):
+                libs = fset.get("lib") or []
+                if isinstance(libs, str):
+                    libs = [libs]
+                for lib in libs:
+                    for unit, names in library_unit_atoms(lib).items():
+                        units.setdefault(unit, names)
+            return units
+        except Exception as exc:  # noqa: BLE001 - a display aid must never block editing
+            logger.debug("Could not read library atom tables for %s: %s", path, exc)
+            return {}
+
+    def library_units(self) -> Dict[str, List[str]]:
+        if self._library_units is None:
+            self._library_units = self._load_library_units()
+        return self._library_units
+
+    def _residue_key(self, structure: _Structure, chain: str, resid: str) -> Optional[ResidueKey]:
+        for key in structure.residue_order():
+            if key[0] == chain and str(key[1]) == str(resid):
+                return key
+        return None
+
+    def _print_startup_comparison(self, structure: _Structure) -> None:
+        """Before the first prompt: what the library expects, against the residue it fits.
+
+        The residue whose name matches a library unit is compared; failing
+        that, the residue sharing the most atom names. This is where an
+        O5'/O5* naming difference becomes visible before any edit is typed.
+        """
+        units = self.library_units()
+        if not units:
+            return
+        best_key, best_unit, best_score = None, None, -1
+        for key in structure.residue_order():
+            atoms = structure.residue_atoms(key)
+            heavy = [a.name for a in atoms if not _is_hydrogen(a.name, a.element)]
+            unit = pick_library_unit(units, atoms[0].resname, heavy)
+            if not unit:
+                continue
+            score = len({n.upper() for n in heavy} & {n.upper() for n in units[unit]})
+            if atoms[0].resname.upper() == unit.upper():
+                score += 10_000
+            if score > best_score:
+                best_key, best_unit, best_score = key, unit, score
+        if best_key is None:
+            return
+        # escape(): the state label is in square brackets, which Rich would
+        # otherwise read as markup and swallow.
+        self.console.print(f"\n[bold]Linked library:[/bold] {escape(self._library_label())}")
+        self.console.print(render_library_comparison(structure, best_key, units, best_unit),
+                           highlight=False)
+        self.console.print("[grey50]  'lib' lists every library atom; 'lib <chain> <resid>' "
+                           "compares another residue.[/grey50]")
 
     def create(self) -> Optional[str]:
         if self.redox_site is None or not getattr(self.redox_site, "atoms", None):
@@ -612,6 +811,7 @@ class TableTransformerCreator:
         self.console.print("[grey50]Apply one edit at a time; order matters. Type 'help' for "
                            "commands, 'save' to finish.[/grey50]")
         self.console.print(render_table(structure))
+        self._print_startup_comparison(structure)
 
         while True:
             raw = prompt_with_context(
@@ -630,6 +830,24 @@ class TableTransformerCreator:
                 continue
             if verb == "summary":
                 self.console.print(render_summary(builder))
+                continue
+            if verb == "lib":
+                units = self.library_units()
+                if not units:
+                    self.console.print(
+                        "  [yellow]No library is linked yet (or its atom tables could not be "
+                        "read); the link is chosen at 'save'.[/yellow]")
+                    continue
+                if len(tokens) >= 3:
+                    key = self._residue_key(structure, tokens[1], tokens[2])
+                    if key is None:
+                        self.console.print(f"  [red]! No residue {tokens[1]} {tokens[2]} in this site[/red]")
+                        continue
+                    self.console.print(render_library_comparison(structure, key, units),
+                                       highlight=False)
+                else:
+                    self.console.print(render_library_units(units, self._library_label()),
+                                       highlight=False)
                 continue
             if verb == "quit":
                 if confirm_with_context(self.processor, "Discard this transformer?",

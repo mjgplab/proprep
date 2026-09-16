@@ -17,6 +17,11 @@ import queue
 
 from rich.prompt import Prompt, Confirm, IntPrompt, FloatPrompt
 
+from .session_rewind import (
+    RewindConfirm, RewindFloatPrompt, RewindIntPrompt, RewindPrompt,
+    ask_original, input_original,
+)
+
 
 def detect_and_recover_json_corruption(file_path: str, backup: bool = True) -> Optional[Dict[str, Any]]:
     """
@@ -693,7 +698,8 @@ class InterceptedPrompt:
         # double-recording the same interaction
         self._in_rich_prompt = True
         try:
-            response = self._original_prompt_ask(prompt, **kwargs)
+            response = ask_original(self, self._original_prompt_ask, RewindPrompt,
+                                    prompt, **kwargs)
         finally:
             self._in_rich_prompt = False
 
@@ -732,7 +738,8 @@ class InterceptedPrompt:
 
         self._in_rich_prompt = True
         try:
-            value = original(prompt, **kwargs)
+            rewind_cls = RewindIntPrompt if cast is int else RewindFloatPrompt
+            value = ask_original(self, original, rewind_cls, prompt, **kwargs)
         finally:
             self._in_rich_prompt = False
 
@@ -766,7 +773,8 @@ class InterceptedPrompt:
         # Normal confirm — guard prevents double-recording
         self._in_rich_prompt = True
         try:
-            response = self._original_confirm_ask(prompt, **kwargs)
+            response = ask_original(self, self._original_confirm_ask, RewindConfirm,
+                                    prompt, **kwargs)
         finally:
             self._in_rich_prompt = False
 
@@ -795,7 +803,7 @@ class InterceptedPrompt:
             return response
 
         # Normal input
-        response = self._original_input(prompt)
+        response = input_original(self, self._original_input, prompt)
 
         # Record the interaction
         if self.recorder and self.recorder.recording:
@@ -895,7 +903,8 @@ class HybridInterceptor:
         # double-recording the same interaction
         self._in_rich_prompt = True
         try:
-            response = self._original_prompt_ask(prompt, **kwargs)
+            response = ask_original(self, self._original_prompt_ask, RewindPrompt,
+                                    prompt, **kwargs)
         finally:
             self._in_rich_prompt = False
 
@@ -944,7 +953,8 @@ class HybridInterceptor:
 
         self._in_rich_prompt = True
         try:
-            value = original(prompt, **kwargs)
+            rewind_cls = RewindIntPrompt if cast is int else RewindFloatPrompt
+            value = ask_original(self, original, rewind_cls, prompt, **kwargs)
         finally:
             self._in_rich_prompt = False
 
@@ -990,7 +1000,8 @@ class HybridInterceptor:
         # Normal confirm — guard prevents double-recording
         self._in_rich_prompt = True
         try:
-            response = self._original_confirm_ask(prompt, **kwargs)
+            response = ask_original(self, self._original_confirm_ask, RewindConfirm,
+                                    prompt, **kwargs)
         finally:
             self._in_rich_prompt = False
 
@@ -1031,7 +1042,7 @@ class HybridInterceptor:
                 # else: No match for THIS prompt, but continue trying for future prompts
 
         # Normal input (record if recorder is active)
-        response = self._original_input(prompt)
+        response = input_original(self, self._original_input, prompt)
 
         # Record the interaction
         if self.recorder and self.recorder.recording:
@@ -1167,7 +1178,11 @@ class SessionManager:
         if truncate_at is not None and not keep_following_interactions:
             # Discard all interactions after truncate_at
             self.replayer.truncate_at(truncate_at + 1)  # +1 to keep the edited interaction
-            print(f"[Session truncated after interaction {truncate_at} - following interactions discarded]")
+            if truncate_at < 0:
+                # A rewind to the very first answer: replay nothing, ask it live.
+                print("[Session truncated to nothing - the first question will be asked live]")
+            else:
+                print(f"[Session truncated after interaction {truncate_at} - following interactions discarded]")
 
         self.replayer.start_replay()
 
@@ -1206,6 +1221,7 @@ class SessionManager:
             mode_desc = "smart replay" if keep_following_interactions else "truncated"
             console.print(f"  Edit at: interaction {truncate_at} ({mode_desc})")
         console.print(f"  Mode: Replay existing → Record new")
+        console.print("  Tip: Type 'undo' at any prompt to rewind to an earlier answer")
         console.print()
         
     def stop(self):

@@ -691,8 +691,10 @@
             for (const structInfo of config.structures) {
                 const idx = structInfo.index;
                 try {
+                    // ``ext`` comes from the server (file suffix); without it
+                    // an AlphaFold mmCIF would be parsed as PDB and show nothing.
                     const component = await stage.loadFile(`/structure/${idx}`, {
-                        ext: "pdb", firstModelOnly: true
+                        ext: structInfo.ext || "pdb", firstModelOnly: true
                     });
                     components[idx] = component;
                     repState[idx] = {};

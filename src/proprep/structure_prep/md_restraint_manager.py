@@ -1559,7 +1559,7 @@ class RestraintManager:
                 return residue_groups[selected_residue]
             else:
                 return None
-        except:
+        except Exception:
             return None
     
     def _compute_geometric_value(self, restraint_type, atoms):

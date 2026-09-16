@@ -647,7 +647,13 @@ class ONIOMAtomTyper:
         # The ff_collector has paths to leaprc files which reference .lib files
         try:
             # Try to find all.lib or amino*.lib in the AMBER dat directory
-            amberhome = os.getenv('AMBERHOME', '/opt/homebrew/anaconda3/envs/proprep_env')
+            from proprep.utils.amber_env import find_amber_home
+            amberhome = find_amber_home()
+            if amberhome is None:
+                self.logger.warning(
+                    "AMBERHOME is not set and no bundled AmberTools was found; "
+                    f"cannot load the standard .lib for {resname}")
+                return
             possible_lib_files = [
                 f"{amberhome}/dat/leap/lib/amino19.lib",
                 f"{amberhome}/dat/leap/lib/amino12.lib",

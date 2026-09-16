@@ -1357,7 +1357,8 @@ quit
         }
 
 
-def run_parmchk2(prep_file, frcmod_file, parm_set=None, frc_file=None, parm_dat_file=None):
+def run_parmchk2(prep_file, frcmod_file, parm_set=None, frc_file=None, parm_dat_file=None,
+                 afrc_file=None):
     """
     Run parmchk2 on a prep file to generate an frcmod file.
 
@@ -1378,6 +1379,14 @@ def run_parmchk2(prep_file, frcmod_file, parm_set=None, frc_file=None, parm_dat_
     --------
     dict
         Dictionary containing the result of the parmchk2 command
+
+    ``afrc_file``: full path to an additional frcmod for the -afrc flag.
+    parmchk2's -frc shortcuts stop at ff14SB, so ff19SB's corrections
+    (frcmod.ff19SB) can only reach it this way. Without them the -a Y copies
+    of the residue's standard terms carry parm19.dat values, and loading that
+    frcmod after leaprc.protein.ff19SB replaces ff19SB's definitions of those
+    terms for EVERY residue in the system (measured: the ARG guanidinium and
+    TYR hydroxyl torsions lose their multi-term ff19SB form).
     """
     import os
     import subprocess
@@ -1393,6 +1402,8 @@ def run_parmchk2(prep_file, frcmod_file, parm_set=None, frc_file=None, parm_dat_
         # Add additional frcmod if specified
         if frc_file:
             cmd.extend(["-frc", frc_file])
+        if afrc_file:
+            cmd.extend(["-afrc", afrc_file])
 
         # Add full parameter file path if specified (overrides -s)
         if parm_dat_file:
@@ -1614,15 +1625,27 @@ def generate_bonded_parameters(residue_symbol=None, processor=None, standalone_u
         parm_set = None
         frc_file = None
         parm_dat_file = None
+        afrc_file = None
 
         if choice == "1":
-            # ff19SB - not in -s shortcuts, need full path
+            # ff19SB - not in -s shortcuts, need full path. The corrections in
+            # frcmod.ff19SB must go in too (see run_parmchk2): parmchk2 -a Y
+            # copies every standard term of the residue, and those copies are
+            # loaded after the leaprc, so they must equal what the leaprc loads.
             amberhome = os.environ.get("AMBERHOME", "")
             parm_dat_file = os.path.join(amberhome, "dat", "leap", "parm", "parm19.dat")
+            afrc_file = os.path.join(amberhome, "dat", "leap", "parm", "frcmod.ff19SB")
             if not os.path.exists(parm_dat_file):
                 _console.print(f"[yellow]⚠ Warning: {parm_dat_file} not found. Using GAFF2 default.[/yellow]")
                 parm_set = "gaff2"
                 parm_dat_file = None
+                afrc_file = None
+            elif not os.path.exists(afrc_file):
+                _console.print(
+                    f"[yellow]⚠ Warning: {afrc_file} not found; the residue's standard terms "
+                    "will be copied from parm19.dat alone, which differs from ff19SB for a "
+                    "few torsions (ARG guanidinium, TYR hydroxyl).[/yellow]")
+                afrc_file = None
         elif choice == "2":
             # ff14SB - use parm10 base with ff14SB corrections
             parm_set = "parm10"
@@ -1647,6 +1670,8 @@ def generate_bonded_parameters(residue_symbol=None, processor=None, standalone_u
     # Build description of parameter set used
     if parm_dat_file:
         param_description = os.path.basename(parm_dat_file)
+        if afrc_file:
+            param_description += f" + {os.path.basename(afrc_file)}"
     elif parm_set and frc_file:
         param_description = f"{parm_set} + {frc_file}"
     elif parm_set:
@@ -1657,7 +1682,8 @@ def generate_bonded_parameters(residue_symbol=None, processor=None, standalone_u
     # Run parmchk2
     parmchk2_result = run_parmchk2(
         selected_prep, frcmod_file,
-        parm_set=parm_set, frc_file=frc_file, parm_dat_file=parm_dat_file
+        parm_set=parm_set, frc_file=frc_file, parm_dat_file=parm_dat_file,
+        afrc_file=afrc_file,
     )
 
     if not parmchk2_result["success"]:
@@ -6383,10 +6409,12 @@ MODIFIED_AA_STEPS = [
     ),
     WorkflowStep(
         id="aa-9", name="Bonded Parameters",
-        description="Generate frcmod with parmchk2",
+        description="parmchk2 + GAFF2 patching; optional Seminario and torsion-scan refinement",
         handler="_checklist_aa_9_parmchk2",
         section="Parameter Fitting",
         dependencies=["aa-8"],
+        checkpoint=True,
+        checkpoint_message="Run the relaxed dihedral scan job(s), then re-run this step.",
     ),
     WorkflowStep(
         id="aa-10", name="Force Field Integration",
@@ -6804,15 +6832,23 @@ class ModifiedAAWorkflowManager:
         return cand if os.path.exists(cand) else None
 
     def _from_structure_ac_on_disk(self):
-        """The step-7 antechamber AC path, resolved from disk (Route B, resume).
+        """The step-7 antechamber AC path, resolved from disk (resume).
 
-        step 7 writes ``{AA}.ac`` (uppercased 3-char residue symbol). On a resumed
-        run step 7's in-memory result is gone, so anything that reaches back to it
-        — residuegen (step 8) and the Seminario connectivity MOL2 (inside step 9)
-        — must recover the path by its canonical name. Returns the path or None.
+        Route B writes ``{AA}.ac`` (uppercased 3-char residue symbol), so that
+        name is tried first. Route A writes ``{custom name}.ac`` under a name
+        the user typed at step 7, which is not recoverable by rule; when the
+        canonical name is absent and the run directory holds exactly one AC
+        file, that one is it. Antechamber's own ``ANTECHAMBER_*`` scratch files
+        are never candidates. Returns the path or None (also None when several
+        AC files make the choice ambiguous).
         """
         cand = f"{self.amino_acid.upper()[:3]}.ac"
-        return cand if os.path.exists(cand) else None
+        if os.path.exists(cand):
+            return cand
+        found = sorted(
+            f for f in glob.glob("*.ac")
+            if not os.path.basename(f).upper().startswith("ANTECHAMBER"))
+        return found[0] if len(found) == 1 else None
 
     def _run_step_1_from_structure(self, **kwargs):
         """Ingest the capped model(s) and curate hydrogens (Route B, step 1).
@@ -8263,6 +8299,15 @@ class ModifiedAAWorkflowManager:
         if result and result.get("success"):
             frcmod = result.get("final_frcmod") or result.get("frcmod_file")
             prep = result.get("prep_file")
+            # Same torsion refinement as Route B: reuse the step-3 sidechain
+            # scan(s) and any dihedral picked from the penalty table.
+            refit, pending = self._maybe_dihedral_refinement(
+                residue_symbol, frcmod, prep, interactive=kwargs.get("interactive", True))
+            if pending:
+                return {"success": True, "status": self.PAUSE_STATUS,
+                        "message": "Run the relaxed dihedral scan job(s), then re-run this step."}
+            if refit:
+                frcmod = refit
             return {"success": True, "message": "Bonded parameters generated",
                     "frcmod_file": frcmod, "prep_file": prep}
         return {"success": False, "message": "Parameter generation failed"}
@@ -8307,200 +8352,289 @@ class ModifiedAAWorkflowManager:
         if refined:
             frcmod = refined
 
-        # Opt-in torsion refit of the scanned dihedral against the relaxed-scan
-        # energies (only offered if a scan actually ran in this parameterization).
-        refit = self._maybe_torsion_refit(
+        # Opt-in torsion refinement: the step-3 scan(s) plus any dihedral picked
+        # from the penalty table, fitted together against the scan energies.
+        refit, pending = self._maybe_dihedral_refinement(
             residue_symbol, frcmod, prep, interactive=kwargs.get("interactive", True))
+        if pending:
+            return {"success": True, "status": self.PAUSE_STATUS,
+                    "message": "Run the relaxed dihedral scan job(s), then re-run this step."}
         if refit:
             frcmod = refit
 
         return {"success": True, "message": "Bonded parameters generated",
                 "frcmod_file": frcmod, "prep_file": prep}
 
-    def _recover_scan_indices(self, label):
-        """1-based (i,j,k,l) of the scanned torsion, read from its scan input.
+    # ── Step 9: dihedral refinement (both routes) ──────────────────
+    # The linkage torsion is picked at step 3 because it is known to need
+    # parameters before any QM runs; every OTHER flagged dihedral only appears
+    # once parmchk2 has run, so it is picked here, from the penalty table.
 
-        Read from the ``D … S`` line in ``{aa}_{label}_scan.gjf`` so the scanned
-        dihedral is recoverable even on a fresh-session resume (where the
-        in-memory ``_scan_spec`` is gone). Returns a 4-tuple or None.
+    _TORSION_DIR = "torsion_refit"
+
+    def _existing_torsion_scans(self, mol2_file):
+        """Every relaxed scan already run for this residue, as engine datasets.
+
+        Route B: the step-3 scan(s) ``{aa}_{label}_scan.gjf``, one per scanned
+        conformer, ALL pooled (they drive the same torsion at different
+        backbone conformations, which is more data for one fitted term).
+        Route A: the auto-generated sidechain scan(s) ``{aa}_{conf}_pes.gjf``.
+        Both: scans added at this step under ``torsion_refit/``. Recovered
+        from disk, so a resumed session sees them.
         """
+        from proprep.forcefield_prep import torsion_refinement as tr
         aa = self.amino_acid.lower()
-        gjf = f"{aa}_{label}_scan.gjf"
-        if not os.path.exists(gjf):
-            return None
-        try:
-            with open(gjf) as f:
-                for line in f:
-                    m = re.match(r"\s*D\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+S\b", line)
-                    if m:
-                        return tuple(int(g) for g in m.groups())
-        except Exception:
-            return None
-        return None
+        found = []
+        for label in self.conformers:
+            for gjf, source in ((f"{aa}_{label}_scan.gjf", f"step-3 scan, {label}"),
+                                (f"{aa}_{label}_pes.gjf", f"step-3 sidechain scan, {label}")):
+                if not os.path.exists(gjf):
+                    continue
+                sc = tr.scan_from_gjf(gjf, gjf[:-4] + ".log", label=source,
+                                      mol2_file=mol2_file, source=source)
+                if sc:
+                    found.append(sc)
+        for gjf in sorted(glob.glob(os.path.join(self._TORSION_DIR, f"{aa}_*_scan_*.gjf"))):
+            sc = tr.scan_from_gjf(gjf, gjf[:-4] + ".log",
+                                  label=os.path.basename(gjf)[:-4],
+                                  mol2_file=mol2_file, source="added at step 9")
+            if sc:
+                found.append(sc)
+        return found
 
-    def _maybe_torsion_refit(self, residue_symbol, frcmod_file, prep_file,
-                             interactive=True):
-        """Offer a paramfit refit of the scanned torsion to the scan energies.
+    def _scan_template(self):
+        """``(template_gjf, optimized_coords)`` to derive a new scan from.
 
-        Only meaningful if a relaxed scan ran. Always writes the paramfit inputs
-        (scan mdcrd + QM energies) so the fit can be done manually when paramfit
-        is unavailable; runs the automated paramfit chain and splices the fitted
-        DIHE term when paramfit + tleap are present. Returns the refit frcmod path
-        if the automated fit succeeded, else None (caller keeps the current one).
+        The reference conformer's own scan input when one exists (identical
+        route, restraints and atom order), else its optimization input; the
+        geometry is the optimized one read back from the template's log.
+        """
+        from proprep.forcefield_prep import torsion_refinement as tr
+        aa = self.amino_acid.lower()
+        ref = self.conformers[0]
+        for gjf in (f"{aa}_{ref}_scan.gjf", f"{aa}_{ref}_pes.gjf",
+                    f"{aa}_{ref}_opt.gjf", f"{aa}_{ref}.gjf"):
+            if not os.path.exists(gjf):
+                continue
+            log = gjf[:-4] + ".log"
+            coords = None
+            if os.path.exists(log):
+                coords = tr.last_orientation(log, len(tr.gjf_elements(gjf)))
+            return gjf, coords
+        return None, None
+
+    def _build_fit_prmtop(self, mol2_file, frcmod_file):
+        """Topology of the capped model, in the scans' atom order, from the CURRENT frcmod.
+
+        Built from the AC-derived mol2 (antechamber on the ESP output, so its
+        atom order is the Gaussian order every scan uses) with ``loadmol2``,
+        which keeps that order. A PDB-based build would reorder atoms to the
+        prep's template and, worse, the prep carries antechamber's atom names
+        rather than the PDB's, so tleap could not even match them.
+        """
+        from proprep.forcefield_prep.torsion_refinement import build_mol2_prmtop
+        return build_mol2_prmtop(
+            mol2_file, frcmod_file,
+            os.path.join(self._TORSION_DIR, f"{self.amino_acid.lower()}_fit"),
+            self.console, sources=("leaprc.protein.ff14SB", "leaprc.gaff2"))
+
+    def _maybe_dihedral_refinement(self, residue_symbol, frcmod_file, prep_file,
+                                   interactive=True):
+        """Offer scan-based refinement of dihedrals (both routes).
+
+        Shows the penalty table's DIHE rows next to every scan already run,
+        lets the user refit the scanned torsion(s) and add any other flagged
+        dihedral (a relaxed scan is derived for each), then fits them all
+        together through the shared engine. Returns ``(frcmod, pending)``:
+        ``frcmod`` is the merged file when the fit ran, else None; ``pending``
+        is True when scan inputs were written that Gaussian has not run yet
+        (the caller pauses the step).
         """
         if not interactive:
-            return None  # opt-in feature; never auto-run in batch mode
-        scanned = [l for l in self.conformers if self._is_scanned(l)]
-        if not scanned:
-            return None  # no scan → nothing to refit
-
-        scan_label = scanned[0]
-        idxs = self._recover_scan_indices(scan_label)
-        if not idxs:
-            self.console.print(
-                "[yellow]⚠ A scan ran but its scanned-dihedral indices could not be "
-                "recovered; skipping the torsion refit.[/yellow]")
-            return None
-
-        # Atom-type key of the scanned dihedral, via the AMBER-typed MOL2.
-        mol2 = self._ac_to_mol2(residue_symbol)
-        type_quad = None
-        if mol2 and os.path.exists(mol2):
-            try:
-                from proprep.forcefield_prep.seminario_refinement import parse_mol2_connectivity
-                atom_types = parse_mol2_connectivity(mol2)["atom_types"]
-                if all(1 <= i <= len(atom_types) for i in idxs):
-                    type_quad = tuple(atom_types[i - 1] for i in idxs)
-            except Exception:
-                type_quad = None
-
-        dihe_name = "-".join(type_quad) if type_quad else None
-        penalty_txt = ""
-        if dihe_name:
-            cand = _group_frcmod_candidates(_index_frcmod_params(frcmod_file))
-            hit = _match_dihedral_penalty(cand, type_quad)
-            if hit is not None:
-                pen = hit.get("penalty")
-                penalty_txt = (f" Its current parmchk2 term is an ATTN placeholder."
-                               if hit.get("attn") else
-                               f" Its current parmchk2 term carries a penalty of {pen:.1f}."
-                               if pen is not None else "")
-            else:
-                penalty_txt = " It is well parameterized by parmchk2 (no penalty flagged)."
-
-        self.console.print(Panel(
-            f"[bold]Torsion refit (optional)[/bold]\n\n"
-            f"A relaxed scan of dihedral "
-            f"[cyan]{dihe_name or '-'.join(str(i) for i in idxs)}[/cyan] was run on conformer "
-            f"[cyan]{scan_label}[/cyan].{penalty_txt}\n\n"
-            "Fitting this single torsion to the scan energies (paramfit) replaces the\n"
-            "analogy-based term with one derived from your own QM profile.",
-            title="Bonded Parameters — Torsion Refit", border_style="blue", expand=False))
-
-        if not confirm_with_context(
-                self.processor, "Refit the scanned torsion to the scan energies?",
-                default=bool(penalty_txt and "penalty" in penalty_txt),
-                module="Modified Amino Acid Parameterizer",
-                description="Refit scanned torsion"):
-            return None
-
-        # Always emit the paramfit inputs from the scan (usable for a manual fit).
-        from proprep.forcefield_prep.pes_scan_refinement import (
-            write_scan_mdcrd, write_scan_energy_file, merge_dihedral_into_frcmod)
-        from proprep.forcefield_prep.paramfit_refinement import check_paramfit_availability
-        scan = self._parse_scan(scan_label)
-        if not scan.get("success") or not scan.get("geometries"):
-            self.console.print("[yellow]⚠ Could not read the scan profile; skipping refit.[/yellow]")
-            return None
-        outdir = "torsion_refit"
+            return None, False  # opt-in feature; never auto-run in batch mode
+        from proprep.forcefield_prep import torsion_refinement as tr
+        from proprep.forcefield_prep.small_molecule_parameterizer import analyze_frcmod_penalties
         aa = self.amino_acid.lower()
-        mdcrd = write_scan_mdcrd(scan, aa, outdir, self.console)
-        energies = write_scan_energy_file(scan, aa, outdir, self.console)
+        mol2 = self._ac_to_mol2(residue_symbol) if residue_symbol else None
+        if not mol2:
+            self.console.print(
+                "[yellow]⚠ Could not build the typed MOL2 for this residue; "
+                "torsion refinement is unavailable. Keeping the current parameters.[/yellow]")
+            return None, False
+        existing = self._existing_torsion_scans(mol2)
+        penalties = analyze_frcmod_penalties(frcmod_file, self.console)
+        rows = tr.dihedral_penalty_rows(penalties)
+        if not existing and not rows:
+            self.console.print(
+                "[grey50]No dihedral carries a penalty and no scan was run; "
+                "nothing to refine.[/grey50]")
+            return None, False
 
-        prmtop = self._build_scratch_prmtop(residue_symbol, prep_file, frcmod_file, outdir)
-        paramfit_ok, paramfit_msg = check_paramfit_availability()
-        if not (paramfit_ok and prmtop):
-            reason = paramfit_msg if not paramfit_ok else "a scratch prmtop could not be built (tleap?)"
-            self.console.print(Panel(
-                f"[yellow]Automated fit unavailable ({reason}).[/yellow]\n\n"
-                f"The scan data for a manual fit has been written:\n"
-                f"  • trajectory: [cyan]{mdcrd}[/cyan]\n"
-                f"  • QM energies (Hartree): [cyan]{energies}[/cyan]\n"
-                f"  • dihedral to fit: [cyan]{dihe_name or '-'.join(str(i) for i in idxs)}[/cyan]\n\n"
-                "Keeping the parmchk2/GAFF2 term for now.",
-                border_style="yellow", expand=False))
-            return None
+        def _flag(quad):
+            hit = next((r for r in rows if tr.quad_matches(r[1], quad)), None)
+            if hit is None:
+                return "no penalty flagged"
+            return "ATTN placeholder" if hit[3] == "ATTN" else f"penalty {hit[2]:.1f}"
 
-        if not dihe_name:
-            self.console.print("[yellow]⚠ Could not resolve the scanned dihedral's atom "
-                               "types; skipping the automated fit.[/yellow]")
-            return None
-        fitted = self._run_paramfit_torsion(
-            residue_symbol, prmtop, mdcrd, energies, type_quad, len(scan["geometries"]))
-        if not fitted:
-            return None
-        merged = os.path.join(outdir, f"{aa}_torsionfit.frcmod")
-        try:
-            merge_dihedral_into_frcmod(frcmod_file, fitted, dihe_name, merged, self.console)
-        except Exception as e:
-            self.console.print(f"[yellow]⚠ Could not splice the fitted torsion: {e}[/yellow]")
-            return None
-        self.console.print(f"[green]✓ Torsion refit merged → {merged}[/green]")
-        return merged
+        # A refit is written under the residue's (shared, standard) atom types
+        # and loaded after the protein leaprc, so it reaches every residue
+        # that uses the same type quad. Refuse exactly when the force field
+        # defines the quad explicitly or a standard residue contains it; a
+        # quad covered only by a wildcard and absent from every standard
+        # residue (the usual covalent-linkage case) is local to this residue.
+        from proprep.forcefield_prep.shared_type_terms import (
+            amber_data_available, shared_type_dihedral_conflict)
 
-    def _build_scratch_prmtop(self, residue_symbol, prep_file, frcmod_file, outdir):
-        """Build a throwaway prmtop of the capped model for paramfit (best-effort).
+        def _conflict(quad):
+            return shared_type_dihedral_conflict(quad)
 
-        Uses tleap: loadamberprep + loadamberparams + saveamberparm on the capped
-        residue. Returns the prmtop path, or None if tleap is unavailable/failed.
-        """
-        import shutil, subprocess
-        if not shutil.which("tleap") or not (prep_file and frcmod_file):
-            return None
-        os.makedirs(outdir, exist_ok=True)
-        prmtop = os.path.join(outdir, f"{residue_symbol.lower()}_scratch.prmtop")
-        inpcrd = os.path.join(outdir, f"{residue_symbol.lower()}_scratch.inpcrd")
-        script = os.path.join(outdir, "scratch_leap.in")
-        try:
-            with open(script, "w") as f:
-                f.write("source leaprc.protein.ff14SB\nsource leaprc.gaff2\n")
-                f.write(f"loadamberprep {prep_file}\n")
-                f.write(f"loadamberparams {frcmod_file}\n")
-                f.write(f"m = loadpdb {self.starting_pdb}\n")
-                f.write(f"saveamberparm m {prmtop} {inpcrd}\nquit\n")
-            subprocess.run(["tleap", "-f", script], check=True,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        except Exception:
-            return None
-        return prmtop if os.path.exists(prmtop) else None
+        covered = [s for s in existing if s.quad]
+        uncovered = [r for r in rows
+                     if not any(tr.quad_matches(s.quad, r[1]) for s in covered)]
+        text = ("[bold]Torsion refinement (optional)[/bold]\n\n"
+                "A relaxed scan maps one dihedral's energy profile; paramfit then fits\n"
+                "that term's barrier and phase to it (periodicity is kept). Every scan is\n"
+                "fitted TOGETHER against a topology built from the parameters as they\n"
+                "stand now, so neighbouring torsions see each other's refined values.\n")
+        if existing:
+            text += "\n[bold]Scans already run:[/bold]\n"
+            for s in existing:
+                status = _flag(s.quad) if s.quad else "types unresolved"
+                if s.quad and _conflict(s.quad):
+                    status += " -- NOT refittable: shared with the protein force field (see below)"
+                elif status == "no penalty flagged":
+                    status += " (covered only by a wildcard; a refit is local to this residue)"
+                text += (f"  • [cyan]{s.quad_name}[/cyan] ({s.source}; "
+                         f"{'log present' if s.log_exists else 'log MISSING'}; {status})\n")
+        if uncovered:
+            text += "\n[bold]Flagged dihedrals with no scan yet[/bold] (table numbers):\n"
+            for num, quad, score, status in uncovered:
+                sc = "ATTN" if status == "ATTN" else f"{score:.1f}"
+                text += f"  • #{num}: [cyan]{tr.quad_name(quad)}[/cyan] ({sc})\n"
+        self.console.print(Panel(text.rstrip(), title="Bonded Parameters — Torsion Refinement",
+                                 border_style="blue", expand=False))
 
-    def _run_paramfit_torsion(self, residue_symbol, prmtop, mdcrd, energies,
-                              type_quad, n_structures):
-        """Run the paramfit K-fit → set-params → fit chain for one DIHE term.
+        use_existing = []
+        if existing:
+            default = any((s.quad and _flag(s.quad) != "no penalty flagged")
+                          or s.source == "added at step 9" for s in existing)
+            if confirm_with_context(
+                    self.processor, "Refit the scanned torsion(s) to the scan energies?",
+                    default=default, module="Modified Amino Acid Parameterizer",
+                    description="Refit scanned torsion"):
+                if not amber_data_available():
+                    self.console.print(
+                        "[yellow]  Amber's parameter files and residue libraries were not found "
+                        "(AMBERHOME?), so it cannot be checked whether a refit would reach other "
+                        "residues; proceeding on the penalty table alone.[/yellow]")
+                for s in existing:
+                    why = _conflict(s.quad) if s.quad else None
+                    if why:
+                        self.console.print(
+                            f"[yellow]  {s.quad_name} ({s.source}) is not refit: {why}. Its scan "
+                            "stays in the RESP data.[/yellow]", highlight=False)
+                        continue
+                    use_existing.append(s)
 
-        Returns a fitted-parameter frcmod path, or None on failure.
-        """
-        from proprep.forcefield_prep.paramfit_refinement import (
-            run_paramfit_k_fitting, run_paramfit_set_params_automated,
-            run_paramfit_parameter_fitting)
-        try:
-            k = run_paramfit_k_fitting(prmtop, mdcrd, energies, n_structures, self.console)
-            if k is None:
-                return None
-            outdir = os.path.dirname(mdcrd) or "."
-            params_file = os.path.join(outdir, f"{residue_symbol.lower()}_paramfit.params")
-            selected = [("-".join(type_quad), float("inf"), "SCAN", "DIHE")]
-            if not run_paramfit_set_params_automated(
-                    prmtop, params_file, selected, self.console, force_constants_only=False):
-                return None
-            fitted = os.path.join(outdir, f"{residue_symbol.lower()}_fitted.frcmod")
-            if not run_paramfit_parameter_fitting(
-                    prmtop, mdcrd, energies, params_file, n_structures, k, fitted, self.console):
-                return None
-            return fitted if os.path.exists(fitted) else None
-        except Exception as e:
-            self.console.print(f"[yellow]⚠ paramfit torsion fit failed: {e}[/yellow]")
-            return None
+        new_scans = []
+        if uncovered:
+            numbers = [r[0] for r in uncovered]
+            ans = prompt_with_context(
+                self.processor,
+                "Additional dihedrals to scan (table numbers, e.g. '2,5' or '2-4', 'all', or 'none')",
+                default="none", module="Modified Amino Acid Parameterizer",
+                description="Additional dihedrals to scan").strip()
+            picked = tr.parse_selection(ans, numbers)
+            if picked is None:
+                self.console.print("[yellow]Could not parse the selection; no scans added.[/yellow]")
+                picked = []
+            if picked:
+                template, coords = self._scan_template()
+                if not template:
+                    self.console.print(
+                        "[yellow]⚠ No Gaussian input found for the reference conformer to "
+                        "derive scans from; no scans added.[/yellow]")
+                else:
+                    n_steps = int_prompt_with_context(
+                        self.processor, "Number of scan steps", default=24,
+                        module="Modified Amino Acid Parameterizer", description="Scan steps")
+                    step_str = prompt_with_context(
+                        self.processor, "Step size (degrees)", default="15.0",
+                        module="Modified Amino Acid Parameterizer", description="Scan step size")
+                    try:
+                        step_size = float(step_str)
+                    except ValueError:
+                        step_size = 15.0
+                    os.makedirs(self._TORSION_DIR, exist_ok=True)
+                    ref = self.conformers[0]
+                    for num, quad, _score, _status in uncovered:
+                        if num not in picked:
+                            continue
+                        idxs = tr.atoms_for_quad(quad, mol2)
+                        if not idxs:
+                            self.console.print(
+                                f"[yellow]⚠ No atoms of types {tr.quad_name(quad)} found in "
+                                f"{mol2}; skipping.[/yellow]")
+                            continue
+                        safe = "_".join(quad)
+                        gjf = os.path.join(self._TORSION_DIR, f"{aa}_{ref}_scan_{safe}.gjf")
+                        if not os.path.exists(gjf):
+                            try:
+                                tr.derive_scan_input(
+                                    template, gjf, idxs, int(n_steps), step_size, coords=coords,
+                                    title=f"{self.amino_acid} relaxed scan of {tr.quad_name(quad)} [{ref}]")
+                            except ValueError as e:
+                                self.console.print(f"[yellow]⚠ {e}; skipping {tr.quad_name(quad)}.[/yellow]")
+                                continue
+                            self.console.print(
+                                f"[green]✓ Wrote {gjf}[/green] [grey50](atoms "
+                                f"{'-'.join(str(i) for i in idxs)}, {int(n_steps)} × {step_size:g}°, "
+                                f"derived from {template})[/grey50]")
+                        sc = tr.scan_from_gjf(gjf, gjf[:-4] + ".log",
+                                              label=os.path.basename(gjf)[:-4],
+                                              mol2_file=mol2, source="added at step 9")
+                        if sc:
+                            if sc.quad is None:
+                                sc.quad = quad
+                            new_scans.append(sc)
+
+        scans = use_existing + new_scans
+        if not scans:
+            self.console.print("[grey50]Keeping the current dihedral parameters.[/grey50]")
+            return None, False
+
+        pending = []
+        for sc in scans:
+            if not (sc.log_exists and tr.collect_scan(sc, self.console)):
+                pending.append(sc)
+        if pending:
+            tr.print_scan_action_panel(
+                pending, self.console,
+                "Then re-run this step (Bonded Parameters); every scan is fitted together.")
+            return None, True
+
+        ok, why = tr.check_atom_order(mol2, scans[0].gjf)
+        if not ok:
+            self.console.print(
+                f"[yellow]⚠ The typed MOL2 and the scan input do not list the same atoms "
+                f"({why}); a fit would evaluate MM energies on the wrong atoms. "
+                "Keeping the current parameters.[/yellow]")
+            return None, False
+        prmtop = self._build_fit_prmtop(mol2, frcmod_file)
+        if not prmtop:
+            self.console.print("[yellow]⚠ Could not build the fitting topology; "
+                               "keeping the current parameters.[/yellow]")
+            return None, False
+        res = tr.run_joint_torsion_fit(
+            scans, mol_name=aa, prmtop=prmtop, frcmod=frcmod_file,
+            work_dir=self._TORSION_DIR, console=self.console, fit_equilibrium=True)
+        if res.get("refinement_success") and res.get("merged_frcmod"):
+            self.console.print(f"[green]✓ Torsion refinement merged → {res['merged_frcmod']}[/green]")
+            return res["merged_frcmod"], False
+        self.console.print(
+            f"[yellow]⚠ Torsion refinement did not complete: {res.get('message', 'unknown error')}. "
+            "Keeping the current parameters.[/yellow]")
+        return None, False
 
     def _ac_to_mol2(self, residue_symbol):
         """Convert the step-7 antechamber AC file to MOL2 for Seminario.
@@ -8602,12 +8736,13 @@ class ModifiedAAWorkflowManager:
             "terms — [bold]every[/bold] penalty-scored / ATTN term, including the ones now at\n"
             "penalty 0.0 — are empirical guesses. Seminario replaces a guess with a\n"
             "value derived directly from the step-2 QM Hessian of THIS adduct.\n\n"
-            "You'll pick the scope next: just those by-analogy terms, or EVERY\n"
-            "bond/angle term in the frcmod (a fully QM-derived custom set, including\n"
-            "the terms parmchk2 matched directly). Either way Seminario sets both the\n"
+            "Only those by-analogy terms can be refined. The frcmod also lists the\n"
+            "terms parmchk2 matched directly, but those are keyed by the standard\n"
+            "atom types every residue shares: a refined value for them would be\n"
+            "loaded after the protein force field and replace its definition for\n"
+            "EVERY residue in the system, not just this one. Seminario sets both the\n"
             "force constant (from the Hessian) AND the equilibrium length/angle (from\n"
-            "the QM geometry); it does not touch dihedrals or impropers, and standard\n"
-            "backbone terms remain ff14SB.\n"
+            "the QM geometry); it does not touch dihedrals or impropers.\n"
             f"[cyan]Source:[/cyan] {chk_file} (step 2 opt+freq Hessian).",
             title="Bonded Parameters — Seminario",
             border_style="blue",
@@ -8655,14 +8790,30 @@ class ModifiedAAWorkflowManager:
             )
             default_choice = "n"
 
-        choice = prompt_with_context(
-            self.processor,
-            "\nSeminario scope — \\[b]y-analogy terms only, \\[a]ll frcmod bond/angle terms, or \\[n]o refinement?",
-            default=default_choice,
-            choices=["b", "a", "n"],
-            module="Modified Amino Acid Parameterizer",
-            description="Seminario refinement scope (Route B): by-analogy / all / none",
-        ).lower()
+        while True:
+            choice = prompt_with_context(
+                self.processor,
+                "\nSeminario scope — \\[b]y-analogy terms only, \\[a]ll frcmod bond/angle terms, or \\[n]o refinement?",
+                default=default_choice,
+                choices=["b", "a", "n"],
+                module="Modified Amino Acid Parameterizer",
+                description="Seminario refinement scope (Route B): by-analogy / all / none",
+            ).lower()
+            if choice != "a":
+                break
+            # The option stays listed (recorded sessions keep their choice
+            # set) but cannot be applied with shared atom types: the directly
+            # matched terms are the protein force field's own, and a refined
+            # copy loaded after the leaprc would rewrite them for every
+            # residue. Measured on an ff19SB peptide: a term-for-term global
+            # replacement. Explain, then ask again.
+            _console.print(
+                f"[yellow]'all' is not available: the {len(all_ba) - len(flagged)} directly "
+                "matched bond/angle term(s) are keyed by standard atom types shared with "
+                "every residue in the protein. Refining them from this residue's Hessian "
+                "would replace the force field's values for all of them. Choose "
+                "[b]y-analogy (this residue's own terms) or [n]o refinement.[/yellow]",
+                highlight=False)
 
         if choice == "n" or (choice == "b" and not flagged):
             _console.print("[grey50]Keeping the Amber/GAFF2 parameters.[/grey50]")
@@ -8876,8 +9027,14 @@ class ModifiedAAWorkflowManager:
         return {'summary': result.get("message", "RESP charges fitted")}
 
     def _checklist_aa_9_parmchk2(self):
-        """Handler: generate bonded parameters with parmchk2."""
+        """Handler: generate bonded parameters with parmchk2.
+
+        Pauses (checkpoint) when the dihedral refinement wrote scan inputs
+        that Gaussian has not run yet; re-running the step then collects them.
+        """
         result = self._run_step_9(interactive=True)
+        if result.get("status") == self.PAUSE_STATUS:
+            return {'checkpoint': True}
         if not result.get("success"):
             raise RuntimeError(result.get("message", "Parameter generation failed"))
         self.step_results["step_9"] = result

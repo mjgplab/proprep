@@ -257,8 +257,9 @@ def test_each_file_type_is_filtered_to_its_extensions(user_lib, tmp_path, monkey
     library_promotion.run_import_wizard(Console(quiet=True), processor=None)
 
     assert calls[0]["extensions"] == [".frcmod"]
-    assert calls[1]["extensions"] == [".lib", ".off"]
-    assert calls[2]["extensions"] == [".prep", ".prepi", ".prepin"]
+    # the library prompt also takes a prep, which is converted to a lib
+    assert calls[1]["extensions"] == [".lib", ".off", ".prep", ".prepi", ".prepin", ".in"]
+    assert calls[2]["extensions"] == [".prep", ".prepi", ".prepin", ".in"]
 
 
 def test_the_companion_files_start_beside_the_frcmod(user_lib, tmp_path, monkeypatch):

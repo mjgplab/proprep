@@ -53,6 +53,12 @@ def _find_free_port(host: str, start_port: int,
 
 
 def main() -> int:
+    # `~/ProPrep/bin/proprep-web` is launched by absolute path, without
+    # activating the environment, so tleap is not on PATH and AMBERHOME is
+    # unset. Repair both here; the PTY child copies os.environ.
+    from proprep.utils.amber_env import bootstrap_amber_env
+    bootstrap_amber_env()
+
     parser = argparse.ArgumentParser(prog="proprep.web", description="ProPrep Web Shell")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000,

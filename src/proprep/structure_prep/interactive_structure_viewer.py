@@ -65,6 +65,34 @@ def _stop_active_viewer_server() -> None:
 atexit.register(_stop_active_viewer_server)
 
 
+
+# NGL picks its parser from the ``ext`` passed to ``loadFile``; the viewer
+# serves every file from ``/structure/<index>`` with no suffix, so the
+# extension has to travel in the config. AlphaFold DB downloads are mmCIF
+# (``AF-P00520-F1-model_v4.cif``): parsed as PDB they render nothing.
+_NGL_EXT = {
+    '.pdb': 'pdb', '.ent': 'pdb', '.pqr': 'pqr', '.pdbqt': 'pdbqt',
+    '.cif': 'cif', '.mmcif': 'cif', '.mcif': 'cif',
+    '.mol2': 'mol2', '.sdf': 'sdf', '.mol': 'mol', '.gro': 'gro', '.xyz': 'xyz',
+}
+
+
+def structure_file_ext(path: str) -> str:
+    """NGL ``ext`` for a structure file, ``'pdb'`` when the suffix is unknown."""
+    suffix = os.path.splitext(str(path))[1].lower()
+    if suffix == '.gz':
+        suffix = os.path.splitext(str(path)[:-3])[1].lower()
+    return _NGL_EXT.get(suffix, 'pdb')
+
+
+def structure_display_name(path: str) -> str:
+    """Basename without its structure-file suffix (``.pdb``, ``.cif``, ...)."""
+    base = os.path.basename(str(path))
+    if base.lower().endswith('.gz'):
+        base = base[:-3]
+    stem, suffix = os.path.splitext(base)
+    return stem if suffix.lower() in _NGL_EXT else base
+
 @register_module
 class InteractiveStructureViewer(ProcessingModule):
     """
@@ -230,7 +258,7 @@ class InteractiveStructureViewer(ProcessingModule):
                 rel = os.path.relpath(ap, scene_dir)
             except ValueError:  # different drive on Windows
                 rel = ap
-            structures.append({"index": idx, "name": os.path.basename(path).replace('.pdb', ''),
+            structures.append({"index": idx, "name": structure_display_name(path),
                                "path": rel})
         reps = payload.get("representations") or {}
         return {
@@ -1238,12 +1266,14 @@ class InteractiveStructureViewer(ProcessingModule):
             scene = None   # a different structure set was launched since the scene was loaded
         structures = []
         for idx, structure_file in enumerate(self.selected_structures):
-            structure_name = os.path.basename(structure_file).replace('.pdb', '')
+            structure_name = structure_display_name(structure_file)
+            structure_ext = structure_file_ext(structure_file)
             if scene is not None:
                 # A loaded scene replaces the default + annotation reps outright.
                 structures.append({
                     'index': idx,
                     'name': structure_name,
+                    'ext': structure_ext,
                     'representations': [dict(r) for r in scene['representations'].get(idx, [])],
                 })
                 continue
@@ -1353,6 +1383,7 @@ class InteractiveStructureViewer(ProcessingModule):
             structures.append({
                 'index': idx,
                 'name': structure_name,
+                'ext': structure_ext,
                 'representations': reps,
             })
 

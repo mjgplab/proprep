@@ -13,6 +13,143 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.19.0] — 2026-09-15
+
+### Added
+
+- The Transformer Creator shows what the linked library expects. When it
+  opens after an import it prints, for the residue the library fits, which
+  heavy atoms share a name with the library unit, which exist only in the
+  structure, which exist only in the library, and which differ only in
+  case; a new `lib` command lists every library atom, and `lib <chain>
+  <resid>` compares any residue. The site-match line after an import now
+  reports the residue-name match and the atom-name overlap separately
+  instead of calling a name match "100% of its atoms".
+
+- The Force Field Parameterizer's import accepts a prep file in place of a
+  library. Published parameter sets (the Bryce database, journal SI) often
+  ship a residue as prep + frcmod; ProPrep's library, loader and
+  transformers want an OFF library, so the wizard now converts the prep
+  with tLEaP at import time, deposits the resulting library, and keeps the
+  prep alongside it. The residue name is read from inside the prep, every
+  residue of a multi-residue prep is saved, and a digit-leading residue
+  name is refused with an explanation rather than failing inside tLEaP.
+- Dihedral refinement is the same in every parameterizer and fits jointly.
+  The small-molecule step sm-7 and the modified-amino-acid step 9 (both
+  routes) share one engine: pick dihedrals from the parmchk2 penalty table,
+  reuse any relaxed scan already run (the amino-acid linkage scan chosen at
+  step 3, every scanned conformer, the de-novo sidechain scan), derive
+  further scan inputs from the molecule's own optimization input at the
+  optimized geometry, pause at a checkpoint until Gaussian has run, then fit
+  every selected dihedral together in one paramfit run against a topology
+  built from the current frcmod (after Seminario). Previously each dihedral
+  was fitted alone against the topology built before any refinement, and
+  the amino-acid routes could only refit the one torsion scanned at step 3.
+  A refit is written under the residue's shared atom types and loaded after
+  the protein force field, so before fitting, each scanned dihedral is
+  checked against Amber's parameter files and residue libraries: a quad the
+  force field defines explicitly, or that any standard residue contains, is
+  shown but not refit; a quad covered only by a wildcard and absent from
+  every standard residue, the usual covalent-linkage case, is refit.
+
+
+- Undo. Typing `undo` at any prompt lists the answers recorded so far and
+  rewinds the session to one of them, either asking that question again or
+  replacing its answer and replaying what followed. ProPrep unwinds to the
+  top, rebuilds its state, and replays the session log to that point in the
+  same process, so the exit, relaunch, edit-the-log, replay cycle is no
+  longer needed. The replaced tail is kept in a timestamped backup of the
+  log. Requires session recording, which is on by default.
+
+### Changed
+
+- The Structure Loader no longer says "cancel", which read as cancelling
+  the structure just loaded. The source menu's last item is "Done (return
+  to the Structure Loader menu)", the RCSB, AlphaFold, and AlphaFill method
+  menus end in "Back to source selection", the search-refinement menu ends
+  in "Back to results (no filter)", and a declined download says "Download
+  skipped". The AlphaFold, AlphaFill, and UniProt entry prompts offer 'b'
+  to go back, and the PDB search and UniProt structure pages offer 'back';
+  the old 'c' and 'cancel' still work so recorded sessions replay. Menu
+  numbers are unchanged.
+
+### Fixed
+
+- `~/ProPrep/bin/proprep` and `~/ProPrep/bin/proprep-web`, launched by
+  absolute path as INSTALL.md says, could not find tLEaP ("not found in
+  PATH") and had no `AMBERHOME`. A console script never activates the
+  environment it lives in, so the bundled AmberTools was invisible unless
+  the user first sourced `amber.sh`. Both entry points now locate the
+  Amber tree next to the running interpreter and set `AMBERHOME` and
+  `PATH` themselves; an `AMBERHOME` that is already set and valid is kept.
+  The ONIOM atom typer no longer falls back to a developer-machine path.
+- CREST dihedral refinement handed tLEaP paramfit's output, which contains
+  only the fitted terms; the final topology was built from an incomplete
+  frcmod. The fitted terms are now spliced into the full frcmod.
+- Re-running sm-7 in a new session found no refinement selection and
+  skipped; the sm-5 choice is now persisted and sm-7 can also make it.
+  Waiting for Gaussian no longer marks sm-7 completed.
+- Replacing a fitted dihedral matched the reversed orientation by reversing
+  the character string, so two-character types (``c3-c3-os-c``) never
+  matched their reverse; multi-term dihedrals are now replaced whole.
+- Scan angles were reported as 15-degree steps whatever step size was chosen.
+- Resuming a de-novo modified-amino-acid run in a new session could not
+  find the step-7 AC file when it had been given a custom residue name, so
+  step 9 skipped the torsion refinement; a lone AC file in the run
+  directory is now accepted.
+- paramfit was allowed to fit dihedral periodicity as a continuous number
+  and could return values such as 2.93; periodicity is now held at the
+  parmchk2 value and only the barrier and phase are fitted.
+- A modified amino acid parameterized against ff19SB changed every
+  arginine and tyrosine in the protein. parmchk2 runs with -a Y, so the
+  residue's frcmod carries a copy of each of its standard bonded terms,
+  and tLEaP gives that file priority once it is loaded after the leaprc.
+  The ff19SB path gave parmchk2 parm19.dat without frcmod.ff19SB, so the
+  copies held the older single-term values for the guanidinium and
+  hydroxyl torsions and replaced ff19SB's multi-term definitions system
+  wide. parmchk2 now receives frcmod.ff19SB too, and a regression test
+  loads a generated frcmod into an ff19SB peptide and checks that no
+  parameter of any standard residue changes. ff14SB and ff99SB already
+  passed their correction files and were unaffected.
+- Seminario's "all" scope in the modified amino acid route refined the
+  residue's standard bonded terms and wrote them under the shared atom
+  types, which would have replaced the protein force field's values for
+  every residue. The option stays listed, but choosing it now explains
+  why only the by-analogy terms can be refined and asks again.
+
+- An AlphaFold structure loaded from the AlphaFold Database did not appear
+  in the Structure Viewer. The download is mmCIF, but the viewer told NGL
+  every served file was PDB, so the model parsed as empty. The viewer now
+  passes each file's format from its suffix (pdb, cif, mol2, ...), and
+  structure names in the viewer and saved scenes drop whichever suffix the
+  file has.
+- Site templates in the Redox Site Detector now resolve bonds and custom
+  boundary atoms by identity instead of position. A template recorded each
+  bond as a row number in the residue table and each boundary atom as an
+  index into the site's atom list, then replayed both as positions in every
+  other site. Rows of same-type residues are ordered by a distance sort that
+  is a near-tie, so the two Cys, two His, or two propionates swapped in
+  about half the sites and produced 6 to 12 Å "bonds". Transformed HCO hemes
+  also carry their grafted atoms in per-site order, so the boundary indices
+  pointed at other atoms in 48 of 64 hemes of a multiheme structure, and at
+  three sites the search then picked a neighbouring heme's His over the true
+  one. Bonds now store residue names and bond the closest unused residue
+  pair of those names; boundary atoms store residue name, ordinal, and atom
+  name and fall back to the index only when the name is absent. The
+  applied-bond log line now names both residues.
+- The Homology Searcher no longer requires a loaded structure to run a
+  BLAST search. The entry point checked for a structure before it ever
+  reached the sequence-source prompt, so the "enter a sequence directly"
+  and "load from FASTA" choices were unreachable without one, and since
+  1.17 the menu greyed out the option to match. A structure is now
+  optional: the prompt always lists the same three sources (typed, FASTA,
+  loaded structure) so session replay is unaffected, and picking the
+  structure source with nothing loaded explains and asks again. The
+  MODELLER build still needs a template structure.
+- Eleven bare `except:` clauses in the MD Manager, workflow editor, and
+  restraint manager wrapped a prompt and would have swallowed the rewind
+  signal (and a `SystemExit`); they now catch `Exception`.
+
 ## [1.18.0] — 2026-09-02
 
 ### Removed

@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
+from proprep.utils.amber_env import bootstrap_amber_env
+
 logger = logging.getLogger(__name__)
 
 # Bytes-per-read from the master fd. xterm.js handles short writes fine, so
@@ -145,6 +147,10 @@ class PtySession:
             except OSError:
                 pass
             env = os.environ.copy()
+            # The launcher already bootstrapped AmberTools into os.environ;
+            # re-assert it on the child's copy so a server started some other
+            # way (uvicorn directly) still hands the CLI a working tleap.
+            bootstrap_amber_env(env)
             env["PROPREP_WEB_SHELL"] = "1"
             if self._shell_url:
                 # ViewerServer.start() POSTs {port:N} to

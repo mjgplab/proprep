@@ -808,7 +808,7 @@ class WorkflowEditor:
                 
                 return copied_step
             return None
-        except:
+        except Exception:
             return None
             
     def _choose_insertion_position(self, steps: List[Dict]) -> int:
@@ -828,7 +828,7 @@ class WorkflowEditor:
                 description="Step insert position",
             )
             return max(0, min(position, len(steps)))
-        except:
+        except Exception:
             return len(steps)
             
     def _edit_workflow_step(self, workflow: Dict):
@@ -852,7 +852,7 @@ class WorkflowEditor:
             if 1 <= choice <= len(steps):
                 step = steps[choice - 1]
                 self._edit_single_step(step)
-        except:
+        except Exception:
             pass
             
     def _edit_single_step(self, step: Dict):
@@ -1186,7 +1186,7 @@ class WorkflowEditor:
                     # Finish editing
                     break
                     
-            except:
+            except Exception:
                 break
                 
         # Store updated config as parameter overrides on the step
@@ -1218,7 +1218,7 @@ class WorkflowEditor:
                 self._update_workflow_dependencies(workflow)
                 
                 self.console.print(f"[green]✅ Removed step '{removed_step.get('name', 'step')}'[/green]")
-        except:
+        except Exception:
             pass
             
     def _reorder_workflow_steps(self, workflow: Dict):
@@ -1354,7 +1354,7 @@ class WorkflowEditor:
                 if 1 <= choice <= len(steps):
                     step = steps[choice - 1]
                     self._preview_step_template(step)
-            except:
+            except Exception:
                 pass
                 
     def _preview_step_template(self, step: Dict):

@@ -22,7 +22,7 @@
 
 # Version of ProPrep to install/verify. Bump this ONE line each release;
 # every install command and the post-install check below read from it.
-PROPREP_VERSION="1.18.0"
+PROPREP_VERSION="1.19.0"
 
 show_help() {
 cat << HELPTEXT

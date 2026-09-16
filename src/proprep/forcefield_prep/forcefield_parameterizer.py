@@ -112,6 +112,26 @@ def _rank_sites_for_library(redox_sites, residue_name, lib_atom_names):
     return ranked
 
 
+def _residue_atom_overlap(site, resname, lib_atom_names):
+    """``(matched, total, unmatched_names)`` for one residue against the library.
+
+    Heavy atoms only, exact (case-insensitive) names. ``unmatched_names`` are
+    the structure's atoms the library has no name for -- the ones a transformer
+    would have to rename, or that the library simply does not model.
+    """
+    wanted = (resname or "").strip().upper()
+    names = []
+    for atom in getattr(site, "atoms", None) or []:
+        if (getattr(atom, "resname", "") or "").strip().upper() != wanted:
+            continue
+        name = (getattr(atom, "atom_name", "") or "").strip()
+        if name and not name.upper().startswith("H"):
+            names.append(name)
+    lib = {n.upper() for n in (lib_atom_names or set())}
+    unmatched = [n for n in names if n.upper() not in lib]
+    return len(names) - len(unmatched), len(names), unmatched
+
+
 @register_module
 class ForcefieldParameterizer(ProcessingModule):
     """Module for parameterizing non-standard residues for MD simulations"""
@@ -899,11 +919,29 @@ class ForcefieldParameterizer(ProcessingModule):
                 _imported_library_atom_names(result))
             strong = [r for r in ranked if r[2] >= 0.8]
             if strong:
+                lib_names = _imported_library_atom_names(result)
+                wanted = str(seed.get("residue_name") or "").strip().upper()
                 for site, matched, score in strong:
-                    self.console.print(
-                        f"[grey50]  {getattr(site, 'site_id', '?')} contains "
-                        f"{matched} - {score:.0%} of its atoms match the "
-                        f"imported library[/grey50]")
+                    site_id = getattr(site, 'site_id', '?')
+                    # A residue-NAME match ranks the site first, but says
+                    # nothing about atom names -- and atom names are exactly
+                    # what a transformer may have to fix (O5' vs O5*). Report
+                    # the two facts separately instead of calling a name
+                    # match "100% of its atoms".
+                    hit, total, unmatched = _residue_atom_overlap(site, matched, lib_names)
+                    if matched == wanted:
+                        head = f"  {site_id} contains {matched} (same name as the library)"
+                    else:
+                        head = f"  {site_id} contains {matched}"
+                    if lib_names and total:
+                        body = f"; {hit} of {total} heavy atoms have a name in the library"
+                        if unmatched:
+                            shown = ", ".join(unmatched[:8])
+                            more = f" (+{len(unmatched) - 8} more)" if len(unmatched) > 8 else ""
+                            body += f"; not in the library: {shown}{more}"
+                        self.console.print(f"[grey50]{head}{body}[/grey50]", highlight=False)
+                    else:
+                        self.console.print(f"[grey50]{head}[/grey50]", highlight=False)
             else:
                 self.console.print(
                     "[yellow]  No detected site resembles these parameters."

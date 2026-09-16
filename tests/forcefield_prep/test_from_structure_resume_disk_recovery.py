@@ -91,7 +91,7 @@ def test_step9_recovers_residue_symbol_on_resume(run_dir, monkeypatch):
         or {"success": True, "final_frcmod": "cs1.frcmod", "prep_file": "cs1.prep"})
     m = _mgr(run_dir)
     monkeypatch.setattr(m, "_maybe_seminario", lambda *a, **k: None)
-    monkeypatch.setattr(m, "_maybe_torsion_refit", lambda *a, **k: None)
+    monkeypatch.setattr(m, "_maybe_dihedral_refinement", lambda *a, **k: (None, False))
 
     r = m._run_step_9_from_structure(interactive=False)
     assert r["success"] is True
@@ -137,6 +137,18 @@ def test_ac_on_disk_helper_finds_and_misses(run_dir):
     m = _mgr(run_dir)
     assert m._from_structure_ac_on_disk() == "CS1.ac"
     os.remove(run_dir / "CS1.ac")
+    assert m._from_structure_ac_on_disk() is None
+
+
+def test_ac_on_disk_helper_accepts_a_single_custom_named_ac(run_dir):
+    # Route A names the AC after the residue name typed at step 7; on resume
+    # that name is unknown, but a lone AC file in the run directory is it.
+    m = _mgr(run_dir)
+    os.remove(run_dir / "CS1.ac")
+    (run_dir / "MYRES.ac").write_text("ac")
+    (run_dir / "ANTECHAMBER_AC.AC").write_text("scratch")   # never a candidate
+    assert m._from_structure_ac_on_disk() == "MYRES.ac"
+    (run_dir / "OTHER.ac").write_text("ac")                 # two → ambiguous
     assert m._from_structure_ac_on_disk() is None
 
 

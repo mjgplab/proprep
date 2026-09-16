@@ -1115,6 +1115,78 @@ def _residue_key(chain: str, resid: int, insertion_code: Optional[str]) -> Tuple
     return (chain, resid, insertion_code or ' ')
 
 
+def _site_residue_order(site: 'RedoxSite') -> List[Tuple[str, str, int, str]]:
+    """Residues of a site in first-appearance order of their atoms.
+
+    Key: (chain, resname, resid, insertion_code) — the same tuple the
+    bond-definition tables and ``_apply_template_bonds`` group by.
+    """
+    seen: List[Tuple[str, str, int, str]] = []
+    for atom in site.atoms:
+        key = (atom.chain, atom.resname, atom.resid, atom.insertion_code)
+        if key not in seen:
+            seen.append(key)
+    return seen
+
+
+def _boundary_atom_identities(site: 'RedoxSite', indices: List[int]) -> List[Tuple[str, int, str]]:
+    """Describe ``site.atoms[i]`` for each index as (resname, ordinal, atom_name).
+
+    ``ordinal`` counts residues of that resname in site order, so a
+    two-heme site can still tell its hemes apart without depending on
+    chain or resid (which differ between sites).
+    """
+    order = _site_residue_order(site)
+    out: List[Tuple[str, int, str]] = []
+    for i in indices:
+        if i < 0 or i >= len(site.atoms):
+            continue
+        atom = site.atoms[i]
+        key = (atom.chain, atom.resname, atom.resid, atom.insertion_code)
+        same_name = [k for k in order if k[1] == atom.resname]
+        out.append((atom.resname, same_name.index(key), atom.atom_name))
+    return out
+
+
+def _resolve_boundary_atoms(site: 'RedoxSite',
+                            identities: Optional[List[Tuple[str, int, str]]],
+                            indices: Optional[List[int]]) -> Tuple[List[Tuple[float, float, float]], List[str]]:
+    """Coordinates of the template's boundary atoms in ``site``.
+
+    Each atom is looked up by (resname, ordinal, atom_name); the stored
+    index is used only when that lookup fails (older template or an atom
+    this site lacks). Returns (coords, warnings).
+    """
+    coords: List[Tuple[float, float, float]] = []
+    warnings: List[str] = []
+    order = _site_residue_order(site)
+    by_res: Dict[Tuple[str, str, int, str], Dict[str, Any]] = {}
+    for atom in site.atoms:
+        by_res.setdefault((atom.chain, atom.resname, atom.resid, atom.insertion_code), {})[atom.atom_name] = atom
+    n = max(len(identities or []), len(indices or []))
+    for pos in range(n):
+        atom = None
+        ident = identities[pos] if identities and pos < len(identities) else None
+        if ident is not None:
+            resname, ordinal, atom_name = ident
+            same_name = [k for k in order if k[1] == resname]
+            if ordinal < len(same_name):
+                atom = by_res[same_name[ordinal]].get(atom_name)
+            if atom is None:
+                warnings.append(f"boundary atom {resname} {atom_name} not found by name")
+        if atom is None and indices and pos < len(indices):
+            idx = indices[pos]
+            if 0 <= idx < len(site.atoms):
+                atom = site.atoms[idx]
+                if ident is not None:
+                    warnings.append(f"  using site atom index {idx} ({atom.resname} {atom.atom_name}) instead")
+            else:
+                warnings.append(f"boundary atom index {idx} out of range")
+        if atom is not None:
+            coords.append(atom.coords)
+    return coords, warnings
+
+
 def _record_residue_search_distances(site: "RedoxSite", search_result, selected_residues) -> None:
     """Remember, for each residue just added from ``search_result``, how far its
     nearest search-eligible atom was from the search boundary."""
@@ -2631,6 +2703,12 @@ class SiteTemplate:
 
     # Optional fields (must come after required fields)
     custom_boundary_atom_indices: Optional[List[int]] = None  # Atom indices for custom boundary (relative to site)
+    # Same atoms by identity: (resname, ordinal of that resname within the
+    # site, atom_name). Resolved by name when the template is applied;
+    # the indices above are only a fallback. Atom order inside a residue
+    # is not stable across sites (transformed HCO hemes append grafted
+    # atoms in per-site order), so an index alone picks the wrong atom.
+    custom_boundary_atoms: Optional[List[Tuple[str, int, str]]] = None
 
     # Distance-based search parameters (if search used distance cutoff)
     search_constraint: Optional[str] = None  # "distance" or "count"
@@ -4199,9 +4277,10 @@ class SiteRefinementInterface:
                 distance_target_coordination=answers.get('target_coordination'),
             )
 
-        # Store custom boundary indices in template if in template mode
+        # Store custom boundary atoms in template if in template mode
         if boundary_choice == '3' and self.template_mode and self.current_template:
             self.current_template.custom_boundary_atom_indices = custom_indices
+            self.current_template.custom_boundary_atoms = _boundary_atom_identities(site, custom_indices or [])
 
         # Get atom filtering (not part of navigation loop since it's a complex sub-workflow)
         search_metals, search_nonmetals = self._configure_search_atom_filtering(previous_search_metals, previous_search_nonmetals)
@@ -4368,9 +4447,10 @@ class SiteRefinementInterface:
                 custom_indices=custom_indices,
             )
 
-            # Store custom boundary indices in template if in template mode
+            # Store custom boundary atoms in template if in template mode
             if self.template_mode and self.current_template:
                 self.current_template.custom_boundary_atom_indices = custom_indices
+                self.current_template.custom_boundary_atoms = _boundary_atom_identities(site, custom_indices)
 
         # Get previous search parameters if available
         previous_search_metals = None
@@ -6072,7 +6152,14 @@ class SiteRefinementInterface:
                                 self.current_template.bond_selections[bond_pair_key] = []
                             self.current_template.bond_selections[bond_pair_key].append({
                                 'source_atom': selected_source_atom.atom_name,
-                                'target_atom': selected_target_atom.atom_name
+                                'target_atom': selected_target_atom.atom_name,
+                                # Residue identity for name-based matching on
+                                # apply; the row-number key above is only a
+                                # fallback (rows are ordered by a distance
+                                # sort that is a near-tie for same-type
+                                # residues, so they swap between sites).
+                                'source_resname': selected_source_atom.resname,
+                                'target_resname': selected_target_atom.resname,
                             })
                         
                         # Classify bond properly. Pass atom names so SG-SG
@@ -6349,8 +6436,21 @@ class SiteRefinementInterface:
         return refined_site, template
         
     def _apply_template_bonds(self, site: RedoxSite, template: SiteTemplate):
-        """Apply bond patterns from template to site"""
-        
+        """Apply bond patterns from template to site.
+
+        Each captured bond names its atoms and, when captured by this
+        version, its residue names. The residues are matched by NAME: among
+        the site's residues with the source resname and the target resname,
+        the pair whose named atoms are closest is bonded. A pairing that
+        was already made for an identical bond is skipped, so a template
+        with two "HIS NE2 - FE" bonds lands on two different His.
+
+        The row-number key ("2-1") that older captures relied on is used
+        only when a bond carries no residue names. Row order comes from a
+        distance sort that is a near-tie for same-type residues, so the
+        same row is a different residue from site to site.
+        """
+
         # Group atoms by residue for bond matching
         residue_groups = {}
         for atom in site.atoms:
@@ -6358,94 +6458,121 @@ class SiteRefinementInterface:
             if res_key not in residue_groups:
                 residue_groups[res_key] = []
             residue_groups[res_key].append(atom)
-        
+
         residue_list = list(residue_groups.keys())
         bonds_created = 0
-        
+        made: set = set()  # (source_key, source_atom, target_key, target_atom)
+
+        def _row_key(idx_1based: int):
+            idx = idx_1based - 1
+            return residue_list[idx] if 0 <= idx < len(residue_list) else None
+
+        def _candidates(resname: Optional[str], row_key, atom_name: str):
+            """(res_key, atom) pairs offering ``atom_name``: every residue
+            named ``resname`` when known, else the template's row."""
+            keys = [k for k in residue_list if k[1] == resname] if resname else ([row_key] if row_key else [])
+            out = []
+            for k in keys:
+                a = next((a for a in residue_groups[k] if a.atom_name == atom_name), None)
+                if a is not None:
+                    out.append((k, a))
+            return out
+
         # Apply each captured bond selection
         for bond_pair, bond_list in template.bond_selections.items():
             try:
                 # Parse bond pair (e.g., "1-2")
                 res1_idx, res2_idx = map(int, bond_pair.split('-'))
-                res1_idx -= 1  # Convert to 0-based
-                res2_idx -= 1
-                
-                if res1_idx >= len(residue_list) or res2_idx >= len(residue_list):
-                    self.console.print(f"[yellow]Skipping bond pair {bond_pair}: residue index out of range[/yellow]")
-                    continue
-                    
-                source_key = residue_list[res1_idx]
-                target_key = residue_list[res2_idx]
-                
-                # Apply each bond in this bond pair
+                source_row = _row_key(res1_idx)
+                target_row = _row_key(res2_idx)
+
                 for bond_info in bond_list:
-                    # Find source atom by name
-                    source_atoms = residue_groups[source_key]
-                    source_atom = next((a for a in source_atoms if a.atom_name == bond_info['source_atom']), None)
-                    
-                    # Find target atom by name
-                    target_atoms = residue_groups[target_key]
-                    target_atom = next((a for a in target_atoms if a.atom_name == bond_info['target_atom']), None)
-                    
-                    if source_atom and target_atom:
-                        # Calculate distance
-                        distance = np.linalg.norm(
-                            np.array(source_atom.coords) - np.array(target_atom.coords)
-                        )
-                        
-                        # Classify bond properly
-                        bond_type, chemical_type = classify_bond_types(
-                            atom1_element=source_atom.element,
-                            atom2_element=target_atom.element,
-                            distance=distance,
-                            atom1_residue=source_atom.resname,
-                            atom2_residue=target_atom.resname,
-                            atom1_resid=source_atom.resid,
-                            atom2_resid=target_atom.resid,
-                            atom1_chain=source_atom.chain,
-                            atom2_chain=target_atom.chain,
-                            atom1_name=source_atom.atom_name,
-                            atom2_name=target_atom.atom_name
-                        )
-                        
-                        # Create bond using same format as interactive mode
-                        bond = RedoxSiteBond(
-                            atom1_coords=source_atom.coords,
-                            atom2_coords=target_atom.coords,
-                            bond_type=bond_type,
-                            chemical_type=chemical_type,
-                            distance=distance,
-                            atom1_element=source_atom.element,
-                            atom2_element=target_atom.element,
-                            atom1_residue_info={
-                                'chain': source_atom.chain,
-                                'resname': source_atom.resname,
-                                'resid': source_atom.resid,
-                                'atom_name': source_atom.atom_name
-                            },
-                            atom2_residue_info={
-                                'chain': target_atom.chain,
-                                'resname': target_atom.resname,
-                                'resid': target_atom.resid,
-                                'atom_name': target_atom.atom_name
-                            }
-                        )
-                        
-                        site.bonds.append(bond)
-                        bonds_created += 1
-                        self.console.print(f"[green]Applied template bond: {source_atom.atom_name} ↔ {target_atom.atom_name} ({distance:.2f}Å)[/green]")
-                    else:
-                        missing_atoms = []
-                        if not source_atom:
-                            missing_atoms.append(f"source {bond_info['source_atom']}")
-                        if not target_atom:
-                            missing_atoms.append(f"target {bond_info['target_atom']}")
-                        self.console.print(f"[yellow]Skipping bond {bond_pair}: {', '.join(missing_atoms)} not found[/yellow]")
-                    
+                    src_name = bond_info['source_atom']
+                    tgt_name = bond_info['target_atom']
+                    src_res = bond_info.get('source_resname')
+                    tgt_res = bond_info.get('target_resname')
+
+                    if not src_res and source_row is None or not tgt_res and target_row is None:
+                        self.console.print(f"[yellow]Skipping bond pair {bond_pair}: residue index out of range[/yellow]")
+                        continue
+
+                    sources = _candidates(src_res, source_row, src_name)
+                    targets = _candidates(tgt_res, target_row, tgt_name)
+
+                    best = None
+                    for sk, sa in sources:
+                        for tk, ta in targets:
+                            if sk == tk:
+                                continue
+                            if (sk, src_name, tk, tgt_name) in made or (tk, tgt_name, sk, src_name) in made:
+                                continue
+                            d = float(np.linalg.norm(np.array(sa.coords) - np.array(ta.coords)))
+                            if best is None or d < best[0]:
+                                best = (d, sk, sa, tk, ta)
+
+                    if best is None:
+                        missing = []
+                        if not sources:
+                            missing.append(f"source {src_res or ''} {src_name}".strip())
+                        if not targets:
+                            missing.append(f"target {tgt_res or ''} {tgt_name}".strip())
+                        what = ', '.join(missing) + ' not found' if missing else 'no unused residue pair left'
+                        self.console.print(f"[yellow]Skipping bond {bond_pair}: {what}[/yellow]")
+                        continue
+
+                    distance, source_key, source_atom, target_key, target_atom = best
+                    made.add((source_key, src_name, target_key, tgt_name))
+
+                    # Classify bond properly
+                    bond_type, chemical_type = classify_bond_types(
+                        atom1_element=source_atom.element,
+                        atom2_element=target_atom.element,
+                        distance=distance,
+                        atom1_residue=source_atom.resname,
+                        atom2_residue=target_atom.resname,
+                        atom1_resid=source_atom.resid,
+                        atom2_resid=target_atom.resid,
+                        atom1_chain=source_atom.chain,
+                        atom2_chain=target_atom.chain,
+                        atom1_name=source_atom.atom_name,
+                        atom2_name=target_atom.atom_name
+                    )
+
+                    # Create bond using same format as interactive mode
+                    bond = RedoxSiteBond(
+                        atom1_coords=source_atom.coords,
+                        atom2_coords=target_atom.coords,
+                        bond_type=bond_type,
+                        chemical_type=chemical_type,
+                        distance=distance,
+                        atom1_element=source_atom.element,
+                        atom2_element=target_atom.element,
+                        atom1_residue_info={
+                            'chain': source_atom.chain,
+                            'resname': source_atom.resname,
+                            'resid': source_atom.resid,
+                            'atom_name': source_atom.atom_name
+                        },
+                        atom2_residue_info={
+                            'chain': target_atom.chain,
+                            'resname': target_atom.resname,
+                            'resid': target_atom.resid,
+                            'atom_name': target_atom.atom_name
+                        }
+                    )
+
+                    site.bonds.append(bond)
+                    bonds_created += 1
+                    self.console.print(
+                        f"[green]Applied template bond: {source_atom.resname} {source_atom.chain}:{source_atom.resid} "
+                        f"{source_atom.atom_name} ↔ {target_atom.resname} {target_atom.chain}:{target_atom.resid} "
+                        f"{target_atom.atom_name} ({distance:.2f}Å)[/green]"
+                    )
+
             except (ValueError, IndexError) as e:
                 self.console.print(f"[yellow]Skipping invalid bond pattern {bond_pair}: {e}[/yellow]")
                 continue
-        
+
         self.console.print(f"[green]Template bonds applied: {bonds_created} bonds created[/green]")
 
     def apply_template_to_site(self, site: RedoxSite, structure: Structure, template: SiteTemplate) -> RedoxSite:
@@ -6469,16 +6596,15 @@ class SiteRefinementInterface:
             _highlight_site_bonds(getattr(self, 'processor', None), site)
             return site
 
-        # Reconstruct custom boundary coords if needed
+        # Reconstruct custom boundary coords if needed: by atom identity,
+        # falling back to the stored site-atom index.
         custom_coords = None
-        if template.boundary_definition == BoundaryDefinition.MIN_DISTANCE_CUSTOM and template.custom_boundary_atom_indices:
-            # Use the stored indices to get coordinates from this site's atoms
-            custom_coords = []
-            for idx in template.custom_boundary_atom_indices:
-                if idx < len(site.atoms):
-                    custom_coords.append(site.atoms[idx].coords)
-                else:
-                    self.console.print(f"[yellow]Warning: Template boundary atom index {idx} out of range for site {site.site_id}[/yellow]")
+        if template.boundary_definition == BoundaryDefinition.MIN_DISTANCE_CUSTOM and (
+                template.custom_boundary_atoms or template.custom_boundary_atom_indices):
+            custom_coords, warnings = _resolve_boundary_atoms(
+                site, template.custom_boundary_atoms, template.custom_boundary_atom_indices)
+            for w in warnings:
+                self.console.print(f"[yellow]Warning: {w} for site {site.site_id}[/yellow]")
 
         # Create SearchParameters from template
         if template.search_constraint == "distance":

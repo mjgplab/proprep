@@ -1417,10 +1417,16 @@ def run_paramfit_set_params_automated(
     params_file: str,
     selected_params: List[Tuple[str, float, str, str]],
     console: Console,
-    force_constants_only: bool = True
+    force_constants_only: bool = True,
+    fit_periodicity: bool = False,
 ) -> bool:
     """
     Run paramfit SET_PARAMS mode with automated responses based on pre-selected parameters.
+
+    Periodicity (NP) is held fixed unless ``fit_periodicity`` is True: paramfit
+    treats it as a continuous variable, and a fitted value such as 2.93 is
+    not a torsion periodicity at all (a real fit produced exactly that). With
+    NP fixed, ``force_constants_only=False`` frees the barrier and the phase.
 
     This uses pty to interact with paramfit's prompts, answering based on the
     parameters the user selected from the penalty table earlier.
@@ -1431,7 +1437,8 @@ def run_paramfit_set_params_automated(
         selected_params: List of (param_name, score, status, section) tuples
         console: Rich console for output
         force_constants_only: If True, only fit force constants (KR, KT, KP).
-                             If False, also fit equilibrium values (REQ, THEQ, NP, PHASE).
+                             If False, also fit equilibrium values (REQ, THEQ, PHASE;
+                             NP only with fit_periodicity).
 
     Returns:
         True if parameter file was created successfully
@@ -1588,7 +1595,9 @@ PARAMETER_FILE_NAME={params_file}
                 response = "y" if (has_angles and not force_constants_only) else "n"
             elif "Any dihedral KP?" in prompt_line:
                 response = "y" if has_dihedrals else "n"
-            elif "Any dihedral NP?" in prompt_line or "Any dihedral PHASE?" in prompt_line:
+            elif "Any dihedral NP?" in prompt_line:
+                response = "y" if (has_dihedrals and not force_constants_only and fit_periodicity) else "n"
+            elif "Any dihedral PHASE?" in prompt_line:
                 response = "y" if (has_dihedrals and not force_constants_only) else "n"
 
             # Individual parameter prompts

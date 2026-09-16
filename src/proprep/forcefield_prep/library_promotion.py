@@ -199,16 +199,28 @@ def run_import_wizard(
     # The companion files are almost always beside the frcmod, so start there
     # rather than sending the user back to the working directory.
     beside = str(Path(frcmod).parent)
+    # A published set (the Bryce database, an SI) often ships the residue as a
+    # PREP rather than a lib. The library, the loader and the transformers all
+    # want a lib, so a prep is converted here, once, and the lib is what gets
+    # deposited; the prep rides along as an extra file.
     lib = _prompt_existing_file(
-        console, processor, ".lib / .off library file",
-        suffixes=(".lib", ".off"), required=True, start_dir=beside,
+        console, processor, ".lib / .off library file, or a .prep to convert",
+        suffixes=(".lib", ".off", ".prep", ".prepi", ".prepin", ".in"),
+        required=True, start_dir=beside,
     )
     if lib is None:
         return None
-    prep = _prompt_existing_file(
-        console, processor, ".prep file (optional)",
-        suffixes=(".prep", ".prepi", ".prepin"), required=False, start_dir=beside,
-    )
+    prep = None
+    if Path(lib).suffix.lower() in _PREP_SUFFIXES:
+        prep = lib
+        lib = _convert_prep_for_import(console, prep, frcmod)
+        if lib is None:
+            return None
+    else:
+        prep = _prompt_existing_file(
+            console, processor, ".prep file (optional)",
+            suffixes=(".prep", ".prepi", ".prepin", ".in"), required=False, start_dir=beside,
+        )
 
     # Category for an imported set is whatever the user says it is.
     category = _prompt_category(console, processor)
@@ -535,6 +547,100 @@ def _inferred_prerequisites(paths) -> dict:
     return {"prerequisites": {"leaprc_groups": groups}}
 
 
+_PREP_SUFFIXES = (".prep", ".prepi", ".prepin", ".in")
+
+
+def prep_residue_names(prep_path) -> List[str]:
+    """Residue names a prep (prepi) file defines, in file order.
+
+    Each residue block opens with ``NAME  INT|XYZ  KFORM`` (after the control,
+    title and output-file lines), and tLEaP names the unit after that NAME,
+    not after the file. A prep can hold many residues (Amber's own do), so a
+    list comes back.
+    """
+    names: List[str] = []
+    try:
+        text = Path(prep_path).read_text(errors="ignore")
+    except OSError:
+        return names
+    for line in text.splitlines():
+        m = re.match(r"\s*(\S+)\s+(INT|XYZ)\s+-?\d", line)
+        if m:
+            names.append(m.group(1))
+    return names
+
+
+def prep_to_lib(prep_path, out_dir, frcmod_path=None, lib_name=None):
+    """Write an OFF library holding every unit of a prep file, via tLEaP.
+
+    ``loadAmberPrep`` creates one unit per residue, named after the residue;
+    ``saveOff`` with a list writes them all into one file. Returns
+    ``(lib_path, "")`` or ``(None, reason)``. Refuses digit-leading residue
+    names up front: tLEaP lexes ``9E2`` as a number, and since it names the
+    unit itself there is no safe handle to save it under.
+    """
+    import shutil
+    import subprocess
+
+    names = prep_residue_names(prep_path)
+    if not names:
+        return None, f"no residue definition (a 'NAME INT/XYZ n' line) found in {prep_path}"
+    from proprep.utils.tleap_utils import tleap_safe_unit_var
+    bad = [n for n in names if tleap_safe_unit_var(n) != n]
+    if bad:
+        return None, (f"residue name(s) {', '.join(bad)} cannot be referenced in tLEaP "
+                      "(a digit-leading or punctuated name is read as a number); "
+                      "rename the residue in the prep first")
+    if not shutil.which("tleap"):
+        return None, "tleap is not on PATH; it is needed to convert a prep to a library"
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    lib_path = out_dir / f"{lib_name or names[0]}.lib"
+    script = out_dir / f"{lib_path.stem}_prep2lib.in"
+    log = out_dir / f"{lib_path.stem}_prep2lib.log"
+    if lib_path.exists():
+        lib_path.unlink()
+    units = names[0] if len(names) == 1 else "{ " + " ".join(names) + " }"
+    lines = []
+    if frcmod_path:
+        lines.append(f'loadAmberParams "{Path(frcmod_path).resolve()}"')
+    lines += [f'loadAmberPrep "{Path(prep_path).resolve()}"',
+              f'saveOff {units} "{lib_path.resolve()}"', "quit"]
+    script.write_text("\n".join(lines) + "\n")
+    try:
+        run = subprocess.run(["tleap", "-f", str(script.resolve())], capture_output=True, text=True,
+                             timeout=300, cwd=str(out_dir))
+        log.write_text((run.stdout or "") + (run.stderr or ""))
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"tleap failed: {exc}"
+    if not lib_path.exists():
+        tail = "\n".join((run.stdout or "").strip().splitlines()[-8:])
+        return None, f"tleap wrote no library (see {log}):\n{tail}"
+    written = library_unit_names(lib_path)
+    missing = [n for n in names if n not in written]
+    if missing:
+        return None, f"library is missing unit(s) {', '.join(missing)} (see {log})"
+    return str(lib_path), ""
+
+
+def _convert_prep_for_import(console: Console, prep: str, frcmod: str) -> Optional[str]:
+    """Convert a prep chosen at the library prompt; explain and return None on failure."""
+    names = prep_residue_names(prep)
+    if names:
+        console.print(
+            f"[grey50]{Path(prep).name} defines "
+            f"{'unit' if len(names) == 1 else 'units'} [cyan]{', '.join(names)}[/cyan]; "
+            "converting to an OFF library with tLEaP so it can be deposited and "
+            "loaded like any other.[/grey50]", highlight=False)
+    lib, why = prep_to_lib(prep, os.getcwd(), frcmod_path=frcmod)
+    if lib is None:
+        console.print(f"[red]Could not convert {Path(prep).name} to a library: {escape(why)}[/red]")
+        return None
+    console.print(f"[green]Wrote {lib}[/green] [grey50](the prep is kept alongside it)[/grey50]",
+                  highlight=False)
+    return lib
+
+
 def library_unit_names(lib_path) -> List[str]:
     """Unit names an OFF/lib file declares, in file order.
 
@@ -563,6 +669,37 @@ def library_unit_names(lib_path) -> List[str]:
             if match:
                 names.append(match.group(1).strip())
     return names
+
+
+def library_unit_atoms(lib_path) -> Dict[str, List[str]]:
+    """``{unit_name: [atom_name, ...]}`` for every unit in an OFF/lib, in file order.
+
+    All atoms, hydrogens included, spelled exactly as the library spells them:
+    tLEaP matches PDB atom names to these case-sensitively and verbatim, so a
+    structure's ``O5'`` does not bind a library's ``O5*``. This is the list a
+    user needs beside the structure when deciding what to rename.
+    """
+    units: Dict[str, List[str]] = {}
+    try:
+        text = Path(lib_path).read_text(errors="ignore")
+    except OSError:
+        return units
+    current = None
+    for line in text.splitlines():
+        if line.startswith("!entry."):
+            m = re.match(r"!entry\.(.+?)\.unit\.atoms table", line)
+            current = m.group(1) if m else None
+            if current is not None:
+                units.setdefault(current, [])
+            continue
+        if current is not None:
+            if line.startswith("!"):
+                current = None
+                continue
+            m = re.match(r'\s*"([^"]*)"\s+"', line)
+            if m and m.group(1).strip():
+                units[current].append(m.group(1).strip())
+    return units
 
 
 def library_atom_names(lib_path) -> set:

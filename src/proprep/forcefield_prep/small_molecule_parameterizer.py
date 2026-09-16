@@ -1615,10 +1615,10 @@ def ask_refinement_selection(penalties, console, interactive=True, processor=Non
 
         console.print(Panel(
             "[bold]Dihedral Refinement Method[/bold]\n\n"
-            "[cyan]1) PES scan[/cyan] - Systematic scan of each dihedral\n"
-            "   • Thorough sampling of torsional potential\n"
-            "   • Scans one dihedral at a time\n"
-            "   • Recommended for 1-2 dihedrals\n\n"
+            "[cyan]1) PES scan[/cyan] - Relaxed scan of each dihedral\n"
+            "   • Thorough sampling of each torsional profile\n"
+            "   • One Gaussian scan per dihedral; all fitted together\n"
+            "   • Recommended for a few dihedrals\n\n"
             "[cyan]2) CREST[/cyan] - Conformer ensemble sampling\n"
             "   • Samples all rotatable bonds together\n"
             "   • Faster for multiple dihedrals\n"
@@ -1962,6 +1962,9 @@ SMALL_MOL_WORKFLOW_STEPS = [
         section="Bonded Parameter Generation",
         dependencies=["sm-6"],
         optional=True,
+        checkpoint=True,
+        checkpoint_message=("Run Gaussian on the relaxed-scan .gjf file(s) "
+                            "(or the CREST single points), then re-run this step."),
     ),
     # Last, so it registers the REFINED frcmod when sm-7 ran. Depending on an
     # optional step is safe: _check_dependencies treats "skipped" as satisfied.
@@ -2268,6 +2271,13 @@ class SmallMolWorkflowRunner:
         ):
             if os.path.exists(fname):
                 setattr(self, attr, fname)
+        # sm-7 copies its result to {base}_refined.frcmod so a resumed sm-8
+        # registers the refined parameters, not the parmchk2 ones.
+        refined = f"{base}_refined.frcmod"
+        if os.path.exists(refined):
+            self.current_frcmod = refined
+        elif self.current_frcmod is None:
+            self.current_frcmod = self.frcmod_file
 
         if self.gaussian_file and os.path.exists(self.gaussian_file):
             try:
@@ -2590,6 +2600,7 @@ class SmallMolWorkflowRunner:
             mol_name=self.mol_name_lower,
         )
 
+        self._save_refinement_selection()
         n_penalties = len(self.penalties)
         return {'summary': f'Parameters generated ({n_penalties} penalty scores analyzed)'}
 
@@ -2635,7 +2646,29 @@ class SmallMolWorkflowRunner:
     # end to produce final topology files with the updated frcmod.
 
     def _step_refinement(self):
-        """Optional parameter refinement (Seminario for bonds/angles, PES/CREST for dihedrals)."""
+        """Optional parameter refinement (Seminario for bonds/angles, PES/CREST for dihedrals).
+
+        Re-runnable: always starts from the parmchk2 frcmod (sm-5), so a
+        re-entry after the Gaussian checkpoint, or a deliberate re-run, never
+        refines an already-refined file. The selection made at sm-5 is read
+        back from disk when this is a fresh session, and can be made here
+        when sm-5 recorded none.
+        """
+        self.current_frcmod = self.frcmod_file
+        if not self.refinement_config.get('bonds_angles') and not self.refinement_config.get('dihedrals'):
+            self._load_refinement_selection()
+        if (not self.refinement_config.get('bonds_angles')
+                and not self.refinement_config.get('dihedrals') and self.interactive):
+            if not self.penalties and self.frcmod_file and os.path.exists(self.frcmod_file):
+                self.penalties = analyze_frcmod_penalties(self.frcmod_file, self.console)
+            if self.penalties:
+                fchk = f"{self.mol_name_lower}.fchk"
+                self.refinement_config = ask_refinement_selection(
+                    self.penalties, self.console, self.interactive, self.processor,
+                    fchk_file=fchk if os.path.exists(fchk) else None,
+                    mol_name=self.mol_name_lower,
+                )
+                self._save_refinement_selection()
         if not self.refinement_config.get('bonds_angles') and not self.refinement_config.get('dihedrals'):
             return {'summary': 'No refinement selected — skipped'}
 
@@ -2673,74 +2706,33 @@ class SmallMolWorkflowRunner:
         else:
             self.console.print(f"[grey50]    Skipped — no bond/angle parameters selected for refinement[/grey50]")
 
-        # 8b: Dihedral refinement (PES scan or CREST)
+        # 8b: Dihedral refinement (PES scan or CREST), through the shared
+        # torsion engine: every selected dihedral is fitted jointly against a
+        # topology rebuilt from the frcmod as it stands after 8a.
         if self.refinement_config.get('dihedrals') and self.refinement_config.get('dihedral_method'):
             dihe_params = [self.penalties[i] for i in self.refinement_config['dihedrals']]
             dihe_method = self.refinement_config['dihedral_method']
-
             self.console.print(f"\n[cyan]8b) Dihedral refinement via {dihe_method.upper()} ({len(dihe_params)} parameters)[/cyan]")
-
             if dihe_method == 'pes':
-                try:
-                    from proprep.forcefield_prep.pes_scan_refinement import run_pes_scan_workflow
-
-                    pes_results = run_pes_scan_workflow(
-                        mol_name=self.mol_name_lower, mol2_file=self.mol2_file,
-                        prmtop_file=self.prmtop_file, frcmod_file=self.current_frcmod,
-                        selected_dihedrals=dihe_params, charge=self.net_charge,
-                        multiplicity=self.multiplicity, console=self.console,
-                        interactive=self.interactive, processor=self.processor,
-                        gaussian_settings=self.gaussian_settings,
-                    )
-
-                    if pes_results.get("refinement_success"):
-                        self.results["pes_refinement"] = pes_results
-                        if pes_results.get("fitted_frcmod"):
-                            self.current_frcmod = pes_results["fitted_frcmod"]
-                            self.results["parameter_files"]["frcmod_file"] = os.path.abspath(self.current_frcmod)
-                            self.console.print(f"[green]✓ PES scan refinement complete: {self.current_frcmod}[/green]")
-                    else:
-                        msg = pes_results.get('message', 'Unknown error')
-                        self.console.print(f"[yellow]PES scan refinement did not complete: {msg}[/yellow]")
-
-                except ImportError as e:
-                    self.console.print(f"[yellow]PES scan module not yet implemented: {e}[/yellow]")
-                    self.console.print(f"[grey50]Dihedral refinement skipped[/grey50]")
-                except Exception as e:
-                    self.console.print(f"[yellow]PES scan error: {e}[/yellow]")
-
+                outcome = self._refine_dihedrals_pes(dihe_params)
             elif dihe_method == 'crest':
-                if not os.path.exists(self.prmtop_file):
-                    self.console.print(f"[yellow]Prmtop file not found: {self.prmtop_file}[/yellow]")
-                    self.console.print(f"[grey50]CREST/Paramfit requires a prmtop file. Skipping.[/grey50]")
-                else:
-                    try:
-                        from proprep.forcefield_prep.paramfit_refinement import run_paramfit_refinement_workflow
-
-                        crest_results = run_paramfit_refinement_workflow(
-                            mol_name=self.mol_name_lower, mol2_file=self.mol2_file,
-                            prmtop_file=self.prmtop_file, frcmod_file=self.current_frcmod,
-                            charge=self.net_charge, multiplicity=self.multiplicity,
-                            console=self.console, selected_params=dihe_params,
-                            processor=self.processor,
-                        )
-
-                        if crest_results.get("refinement_success"):
-                            self.results["crest_refinement"] = crest_results
-                            if crest_results.get("fitted_frcmod"):
-                                self.current_frcmod = crest_results["fitted_frcmod"]
-                                self.results["parameter_files"]["frcmod_file"] = os.path.abspath(self.current_frcmod)
-                                self.console.print(f"[green]✓ CREST/Paramfit refinement complete: {self.current_frcmod}[/green]")
-                        else:
-                            self.console.print(f"[yellow]CREST refinement did not complete: {crest_results.get('message', 'Unknown error')}[/yellow]")
-
-                    except ImportError as e:
-                        self.console.print(f"[red]Paramfit module not available: {e}[/red]")
-                    except Exception as e:
-                        self.console.print(f"[yellow]CREST/Paramfit error: {e}[/yellow]")
+                outcome = self._refine_dihedrals_crest(dihe_params)
+            else:
+                outcome = 'skipped'
+            if outcome == 'pending':
+                # A checkpoint, not a completion: the step re-enters once the
+                # scans exist and starts again from the parmchk2 frcmod.
+                return {'checkpoint': True}
 
         # Re-run tLEaP if frcmod was updated, so topology reflects refined parameters
         if self.current_frcmod != self.frcmod_file:
+            # Canonical on-disk name so a resumed sm-8 finds the refined file.
+            refined = f"{self.mol_name_lower}_refined.frcmod"
+            if os.path.abspath(self.current_frcmod) != os.path.abspath(refined):
+                import shutil
+                shutil.copy(self.current_frcmod, refined)
+            self.current_frcmod = refined
+            self.results["parameter_files"]["frcmod_file"] = os.path.abspath(refined)
             self.console.print(f"\n[cyan]Re-running tLEaP with refined parameters ({self.current_frcmod})...[/cyan]")
             tleap_mode = choose_tleap_mode(interactive=False, processor=self.processor)
             success_files = create_and_run_tleap_inputs(
@@ -2757,6 +2749,221 @@ class SmallMolWorkflowRunner:
                 self.console.print(f"[yellow]tLEaP re-run had issues — check output[/yellow]")
 
         return {'summary': 'Parameter refinement completed'}
+
+    # ── Step 7 helpers ─────────────────────────────────────────────
+
+    def _refinement_selection_file(self):
+        return f"{self.mol_name_lower}_refinement_selection.json"
+
+    def _save_refinement_selection(self):
+        """Persist the sm-5 choice by parameter NAME (indices shift if the
+        frcmod is regenerated), so a fresh-session resume at sm-7 still knows
+        what to refine."""
+        cfg = self.refinement_config or {}
+        names = lambda idxs: [self.penalties[i][0] for i in idxs if i < len(self.penalties)]
+        data = {
+            "bonds_angles": names(cfg.get("bonds_angles", [])),
+            "dihedrals": names(cfg.get("dihedrals", [])),
+            "dihedral_method": cfg.get("dihedral_method"),
+        }
+        try:
+            with open(self._refinement_selection_file(), "w") as f:
+                json.dump(data, f, indent=2)
+        except OSError:
+            pass
+
+    def _load_refinement_selection(self):
+        """Rebuild refinement_config from the persisted names (resume path)."""
+        path = self._refinement_selection_file()
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return
+        if not self.penalties and self.frcmod_file and os.path.exists(self.frcmod_file):
+            self.penalties = analyze_frcmod_penalties(self.frcmod_file, self.console)
+        by_name = {}
+        for i, p in enumerate(self.penalties):
+            by_name.setdefault(p[0], i)
+        cfg = {
+            "bonds_angles": [by_name[n] for n in data.get("bonds_angles", []) if n in by_name],
+            "dihedrals": [by_name[n] for n in data.get("dihedrals", []) if n in by_name],
+            "dihedral_method": data.get("dihedral_method"),
+            "selected_params": [],
+        }
+        if cfg["bonds_angles"] or cfg["dihedrals"]:
+            self.refinement_config = cfg
+            self.console.print(
+                f"[grey50]Refinement selection restored from {path}: "
+                f"{len(cfg['bonds_angles'])} bond/angle, {len(cfg['dihedrals'])} dihedral(s)[/grey50]")
+
+    def _fit_prmtop(self, work_dir):
+        """A topology built from the CURRENT frcmod for paramfit's MM side.
+
+        sm-6's prmtop carries the parmchk2 parameters; after 8a the bonds and
+        angles may differ, and the torsion fit must see those, not the old ones.
+        """
+        from proprep.forcefield_prep.torsion_refinement import build_gaff2_prmtop
+        prmtop = build_gaff2_prmtop(
+            self.mol2_file, self.current_frcmod,
+            os.path.join(work_dir, f"{self.mol_name_lower}_fit"), self.console)
+        if prmtop:
+            return prmtop
+        if self.prmtop_file and os.path.exists(self.prmtop_file):
+            self.console.print(
+                f"[yellow]Falling back to {self.prmtop_file} (sm-6); refined bond/angle "
+                "terms will not be seen by the torsion fit[/yellow]")
+            return os.path.abspath(self.prmtop_file)
+        return None
+
+    def _refine_dihedrals_pes(self, dihe_params):
+        """Relaxed scans for every selected dihedral, then one joint fit.
+
+        Returns 'done', 'pending' (scan logs still to be produced) or 'failed'.
+        Scan inputs are derived from this molecule's own optimization input, so
+        they keep its level of theory (and any implicit solvent), starting
+        from the optimized geometry.
+        """
+        from proprep.forcefield_prep import torsion_refinement as tr
+        mol = self.mol_name_lower
+        scan_dir = f"{mol}_pes_scans"
+        os.makedirs(scan_dir, exist_ok=True)
+
+        template = self.gaussian_file if self.gaussian_file and os.path.exists(self.gaussian_file) else None
+        if not template:
+            self.console.print(f"[red]Optimization input {mol}.gjf not found; cannot derive scan inputs[/red]")
+            return 'failed'
+        elements = tr.gjf_elements(template)
+        coords = None
+        if self.gaussian_log_file and os.path.exists(self.gaussian_log_file):
+            coords = tr.last_orientation(self.gaussian_log_file, len(elements))
+        if coords is None:
+            self.console.print("[yellow]Optimized geometry not readable; scans start from the input geometry[/yellow]")
+
+        n_steps = None
+        scans = []
+        for param in dihe_params:
+            name = param[0]
+            quad = tr.quad_from_name(name)
+            if not quad or "X" in quad:
+                self.console.print(f"[yellow]Skipping {name}: not a specific four-type dihedral[/yellow]")
+                continue
+            safe = name.replace(' ', '').replace('-', '_')
+            gjf = os.path.join(scan_dir, f"{mol}_{safe}_scan.gjf")
+            log = os.path.join(scan_dir, f"{mol}_{safe}_scan.log")
+            if not os.path.exists(gjf):
+                idxs = tr.atoms_for_quad(quad, self.mol2_file)
+                if not idxs:
+                    self.console.print(f"[yellow]Could not find atoms for dihedral {name}; skipping[/yellow]")
+                    continue
+                if n_steps is None:
+                    n_steps = 24
+                    if self.interactive:
+                        n_steps = int_prompt_with_context(
+                            self.processor,
+                            "Number of scan steps (24 = 15° increments for 360°)",
+                            default=24, module="PES Scan Refinement",
+                            description="Number of PES scan steps")
+                    n_steps = max(int(n_steps), 4)
+                tr.derive_scan_input(template, gjf, idxs, n_steps, 360.0 / n_steps,
+                                     coords=coords, title=f"{mol} relaxed scan of {name}")
+                self.console.print(f"[green]✓ Wrote {gjf}[/green] [grey50](atoms "
+                                   f"{'-'.join(str(i) for i in idxs)}, {n_steps} × {360.0/n_steps:g}°)[/grey50]")
+            scan = tr.scan_from_gjf(gjf, log, label=name, mol2_file=self.mol2_file,
+                                    source="selected from the penalty table")
+            if scan is None:
+                self.console.print(f"[yellow]{gjf} has no scan line; skipping[/yellow]")
+                continue
+            if scan.quad is None:
+                scan.quad = quad
+            scans.append(scan)
+        if not scans:
+            self.console.print("[yellow]No dihedral could be mapped to atoms; nothing to scan[/yellow]")
+            return 'failed'
+
+        def _collect():
+            pend = []
+            for sc in scans:
+                if sc.ready:
+                    continue
+                if not sc.log_exists or not tr.collect_scan(sc, self.console):
+                    pend.append(sc)
+            return pend
+
+        pending = _collect()
+        if pending:
+            tr.print_scan_action_panel(
+                pending, self.console,
+                "After Gaussian completes, re-run this step; all selected dihedrals are fitted together.")
+            if self.interactive and confirm_with_context(
+                    self.processor, "Have you completed the PES scan calculations?",
+                    default=False, module="PES Scan Refinement",
+                    description="Confirm PES scan calculations completed"):
+                pending = _collect()
+            if pending:
+                self.console.print(f"[yellow]{len(pending)} scan(s) still outstanding; "
+                                   "the fit runs once every selected scan is available[/yellow]")
+                return 'pending'
+
+        prmtop = self._fit_prmtop(scan_dir)
+        if not prmtop:
+            return 'failed'
+        res = tr.run_joint_torsion_fit(scans, mol_name=mol, prmtop=prmtop,
+                                       frcmod=self.current_frcmod, work_dir=scan_dir,
+                                       console=self.console, fit_equilibrium=True)
+        if res.get("refinement_success") and res.get("merged_frcmod"):
+            self.results["pes_refinement"] = res
+            self.current_frcmod = res["merged_frcmod"]
+            self.console.print(f"[green]✓ PES scan refinement complete: {self.current_frcmod}[/green]")
+            return 'done'
+        self.console.print(f"[yellow]PES scan refinement did not complete: {res.get('message', 'unknown error')}[/yellow]")
+        return 'failed'
+
+    def _refine_dihedrals_crest(self, dihe_params):
+        """CREST ensemble + single points + one paramfit fit, merged into the frcmod.
+
+        paramfit writes only the fitted terms; without the merge the CREST
+        result was an incomplete frcmod that tLEaP could not build from.
+        """
+        from proprep.forcefield_prep import torsion_refinement as tr
+        mol = self.mol_name_lower
+        work_dir = f"{mol}_paramfit"
+        prmtop = self._fit_prmtop(work_dir)
+        if not prmtop:
+            return 'failed'
+        try:
+            from proprep.forcefield_prep.paramfit_refinement import run_paramfit_refinement_workflow
+        except ImportError as e:
+            self.console.print(f"[red]Paramfit module not available: {e}[/red]")
+            return 'failed'
+        try:
+            crest_results = run_paramfit_refinement_workflow(
+                mol_name=mol, mol2_file=self.mol2_file,
+                prmtop_file=prmtop, frcmod_file=self.current_frcmod,
+                charge=self.net_charge, multiplicity=self.multiplicity,
+                console=self.console, selected_params=dihe_params,
+                processor=self.processor,
+            )
+        except Exception as e:
+            self.console.print(f"[yellow]CREST/Paramfit error: {e}[/yellow]")
+            return 'failed'
+        if crest_results.get("refinement_success") and crest_results.get("fitted_frcmod"):
+            quads = [q for q in (tr.quad_from_name(p[0]) for p in dihe_params) if q]
+            merged = os.path.join(work_dir, f"{mol}_crest_merged.frcmod")
+            tr.merge_fitted_dihedrals(self.current_frcmod, crest_results["fitted_frcmod"],
+                                      quads, merged, self.console)
+            crest_results["merged_frcmod"] = merged
+            self.results["crest_refinement"] = crest_results
+            self.current_frcmod = merged
+            self.console.print(f"[green]✓ CREST/Paramfit refinement complete: {self.current_frcmod}[/green]")
+            return 'done'
+        msg = crest_results.get('message', 'Unknown error')
+        if 'Waiting for Gaussian' in msg:
+            return 'pending'
+        self.console.print(f"[yellow]CREST refinement did not complete: {msg}[/yellow]")
+        return 'failed'
 
     # ── Step 8: Force Field Integration ────────────────────────────
     # The other two parameterizers deposit their finished parameters into the
