@@ -167,6 +167,37 @@ class ViewerCoordinator:
         with self._lock:
             self._safely(lambda: self._show_structures_impl(paths, force=force))
 
+    def show_trajectory(
+        self, structure_path: str, trajectory_path: str, *,
+        show_waters: bool = False, force: bool = True,
+    ) -> None:
+        """Display ``structure_path`` with ``trajectory_path`` attached as
+        playable frames (NGL reads Amber NetCDF, DCD and XTC in the browser).
+
+        The structure and the trajectory must have the same atoms: write both
+        from one cpptraj run (see ``md_prep.trajectory_view``). Replaces any
+        prior view. ``show_waters`` turns the default water representation
+        on, for a trajectory that kept its solvent.
+        """
+        if not structure_path or not trajectory_path:
+            return
+        with self._lock:
+            self._safely(lambda: self._show_trajectory_impl(
+                str(structure_path), str(trajectory_path), show_waters=show_waters, force=force))
+
+    def _show_trajectory_impl(self, structure_path: str, trajectory_path: str, *,
+                              show_waters: bool, force: bool) -> None:
+        v = self._ensure_viewer()
+        v.selected_structures = [structure_path]
+        v.annotation_config = {}
+        v.viewer_config = {'show_waters': show_waters, 'show_ions': show_waters}
+        v.shape_config = {}
+        v.trajectory_files = {0: trajectory_path}
+        if self.is_running() or _is_web_shell_mode() or force:
+            v._launch_viewer(open_browser=force)
+            logger.debug("ViewerCoordinator: showing %s with trajectory %s",
+                         structure_path, trajectory_path)
+
     def refresh_structure(self) -> None:
         """Re-read the current structure file from disk.
 
@@ -408,6 +439,7 @@ class ViewerCoordinator:
         v.annotation_config = {}
         v.viewer_config = {}
         v.shape_config = {}
+        v.trajectory_files = {}
 
         if running:
             # Relaunch only to swap the structure list. Open a fresh browser
@@ -450,6 +482,7 @@ class ViewerCoordinator:
         v.annotation_config = {}
         v.viewer_config = {}
         v.shape_config = {}
+        v.trajectory_files = {}
 
         if running:
             # Different structure on a live viewer — relaunch is the only

@@ -367,6 +367,14 @@ class AMBERMonitor:
             
         return result
 
+    @property
+    def is_minimization(self) -> bool:
+        """True when the parsed output is a minimization (imin=1, or the
+        minimizer's NSTEP/ENERGY/GMAX table was seen and no temperature)."""
+        if self.mdin_params.get('imin') == 1:
+            return True
+        return bool(self.data.get('gmax')) and not self.data.get('temperature')
+
     def infer_simulation_stage(self):
         """
         Infer simulation stage from mdin parameters and data trends.

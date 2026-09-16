@@ -10570,6 +10570,34 @@ MD simulations require TWO files per structure:
         self.console.print(f"[green]✓ Preparation '{step_name}' completed[/green]")
         return True
 
+    @staticmethod
+    def _scan_recent_mdouts(simulations_dir: Path, active_sims) -> list:
+        """Every step output under ``simulations/``, newest first, labelled
+        ``<batch>/<step directory>``.
+
+        A protocol run is ``simulations/<batch>/<NN_step>/<name>.mdout``.
+        This used to list one entry per batch, labelled by the batch and
+        opened on the newest ``.mdout`` anywhere beneath it, so once a
+        later step had auto-started the entry silently showed that step's
+        numbers (heating at 4 ps and 76 K under a minimization's name).
+        """
+        found = []
+        if not simulations_dir.exists():
+            return found
+        tracked_files = {str(info['mdout_file']) for _, info, _ in active_sims}
+        tracked_dirs = {Path(info['sim_dir']) for _, info, _ in active_sims}
+        for batch_dir in simulations_dir.iterdir():
+            if not batch_dir.is_dir() or batch_dir.name.startswith('.'):
+                continue
+            for mdout_file in batch_dir.rglob("*.mdout"):
+                step_dir = mdout_file.parent
+                if str(mdout_file) in tracked_files or step_dir in tracked_dirs:
+                    continue
+                label = batch_dir.name if step_dir == batch_dir else f"{batch_dir.name}/{step_dir.name}"
+                found.append((label, mdout_file))
+        found.sort(key=lambda item: os.path.getmtime(item[1]), reverse=True)
+        return found
+
     def _monitor_simulation(self):
         """Monitor running simulation using integrated AMBERMonitor."""
         while True:
@@ -10587,27 +10615,7 @@ MD simulations require TWO files per structure:
                         active_sims.append((name, sim_info, 'finished'))
             
             # Also look for recent simulation directories (fallback for older simulations)
-            recent_sims = []
-            simulations_dir = Path.cwd() / "simulations"
-            if simulations_dir.exists():
-                for sim_dir in simulations_dir.iterdir():
-                    if sim_dir.is_dir() and not sim_dir.name.startswith('.'):
-                        # Look for .mdout files
-                        mdout_files = list(sim_dir.rglob("*.mdout"))
-                        if mdout_files:
-                            # Get most recent mdout file
-                            mdout_file = max(mdout_files, key=os.path.getmtime)
-                            # Check if this simulation is not already in active_sims
-                            # Compare by both directory path and mdout file path to avoid duplicates
-                            already_tracked = False
-                            for _, sim_info, _ in active_sims:
-                                if (sim_info['sim_dir'] == sim_dir or 
-                                    str(sim_info['mdout_file']) == str(mdout_file)):
-                                    already_tracked = True
-                                    break
-                            
-                            if not already_tracked:
-                                recent_sims.append((sim_dir, mdout_file))
+            recent_sims = self._scan_recent_mdouts(Path.cwd() / "simulations", active_sims)
             
             # Combine and display options
             all_options = []
@@ -10628,10 +10636,10 @@ MD simulations require TWO files per structure:
             if recent_sims:
                 if active_sims:
                     self.console.print("\n[grey50]Other recent simulations:[/grey50]")
-                for sim_dir, mdout_file in recent_sims:
+                for label, mdout_file in recent_sims:
                     mod_time = datetime.fromtimestamp(os.path.getmtime(mdout_file))
-                    self.console.print(f"  • {sim_dir.name} (modified: {mod_time.strftime('%H:%M:%S')})")
-                    all_options.append((sim_dir.name, mdout_file, None))
+                    self.console.print(f"  • {label} (modified: {mod_time.strftime('%H:%M:%S')})")
+                    all_options.append((label, mdout_file, None))
             
             if not all_options:
                 self.console.print("[yellow]No simulations found for monitoring[/yellow]")
@@ -10815,16 +10823,26 @@ MD simulations require TWO files per structure:
         status_table.add_column("Property", style="bright_blue")
         status_table.add_column("Value", style="green")
         
-        status_table.add_row("Step", f"{latest_step:,}")
-        status_table.add_row("Time (ps)", f"{latest_time:.3f}")
-        if latest_temp is not None:
-            status_table.add_row("Temperature (K)", f"{latest_temp:.2f}")
-        if latest_energy is not None:
-            status_table.add_row("Total Energy (kcal/mol)", f"{latest_energy:.2f}")
-            
-        # Calculate progress if we can estimate
-        if latest_time > 0:
-            status_table.add_row("Progress", f"Step {latest_step:,} at {latest_time:.1f} ps")
+        if monitor.is_minimization:
+            # The parser stores the cycle number in 'time' as a placeholder;
+            # a minimization has no time axis and no temperature.
+            status_table.add_row("Cycle", f"{latest_step:,}")
+            if latest_energy is not None:
+                status_table.add_row("Energy (kcal/mol)", f"{latest_energy:.2f}")
+            if monitor.data.get('gmax'):
+                status_table.add_row("Max gradient (kcal/mol/Å)", f"{monitor.data['gmax'][-1]:.4f}")
+            status_table.add_row("Progress", f"Cycle {latest_step:,}")
+        else:
+            status_table.add_row("Step", f"{latest_step:,}")
+            status_table.add_row("Time (ps)", f"{latest_time:.3f}")
+            if latest_temp is not None:
+                status_table.add_row("Temperature (K)", f"{latest_temp:.2f}")
+            if latest_energy is not None:
+                status_table.add_row("Total Energy (kcal/mol)", f"{latest_energy:.2f}")
+
+            # Calculate progress if we can estimate
+            if latest_time > 0:
+                status_table.add_row("Progress", f"Step {latest_step:,} at {latest_time:.1f} ps")
             
         self.console.print(status_table)
 
@@ -11082,6 +11100,64 @@ MD simulations require TWO files per structure:
 
         return True  # Indicate successful execution
 
+    def _view_trajectory_in_viewer(self, sim_dir: Path, nc_files, prmtop_files):
+        """Play a trajectory in the structure viewer.
+
+        One cpptraj run re-images the solute and, if the user wants, strips
+        water and ions, writing a first-frame PDB and a NetCDF with matching
+        atoms; the viewer loads the PDB and attaches the NetCDF as frames.
+        """
+        from proprep.md_prep.trajectory_view import write_view_files, frame_count
+        from proprep.structure_prep.viewer_coordinator import viewer as _viewer
+
+        nc_files = sorted(nc_files, key=os.path.getmtime, reverse=True)
+        if len(nc_files) == 1:
+            nc_file = nc_files[0]
+        else:
+            self.console.print("\n[bold]Trajectory files (newest first):[/bold]")
+            for i, f in enumerate(nc_files, 1):
+                self.console.print(f"  {i}. {f.name}  ({f.stat().st_size / 1e6:.1f} MB)")
+            pick = prompt_with_context(
+                self.processor, "Select trajectory",
+                choices=[str(i) for i in range(1, len(nc_files) + 1)], default="1",
+                module="MD Manager - Trajectory Viewer", description="Select trajectory to view",
+                options_map={str(i): f.name for i, f in enumerate(nc_files, 1)})
+            pick = remap_recorded_index(self.processor, nc_files, str(pick))
+            nc_file = nc_files[int(pick) - 1]
+            annotate_selected_path(self.processor, nc_file)
+
+        prmtop = prmtop_files[0]
+        if len(prmtop_files) > 1:
+            self.console.print("\n[bold]Topology files:[/bold]")
+            for i, f in enumerate(prmtop_files, 1):
+                self.console.print(f"  {i}. {f.name}")
+            pick = prompt_with_context(
+                self.processor, f"Select topology file (1-{len(prmtop_files)})", default="1",
+                module="MD Manager - Trajectory Viewer", description="Select topology")
+            pick = remap_recorded_index(self.processor, prmtop_files, str(pick))
+            prmtop = prmtop_files[int(pick) - 1]
+            annotate_selected_path(self.processor, prmtop)
+
+        strip = confirm_with_context(
+            self.processor,
+            "Strip water and ions from the viewed trajectory? (no = keep them visible)",
+            default=True, module="MD Manager - Trajectory Viewer",
+            description="Strip solvent for viewing")
+
+        self.console.print(f"[grey50]Running cpptraj (autoimage{', strip solvent' if strip else ''}) "
+                           f"on {nc_file.name}...[/grey50]")
+        try:
+            pdb, nc = write_view_files(str(prmtop), str(nc_file), str(sim_dir / "viewer"),
+                                       strip_solvent=strip)
+        except RuntimeError as exc:
+            self.console.print(f"[red]{exc}[/red]")
+            return
+        n = frame_count(str(nc))
+        self.console.print(f"[green]✓ {pdb.name} + {nc.name}"
+                           f"{f' ({n} frames)' if n else ''} written to {pdb.parent}[/green]")
+        _viewer.show_trajectory(str(pdb), str(nc), show_waters=not strip, force=True)
+        self.console.print("[grey50]Use the Trajectory panel in the viewer to play or scrub frames.[/grey50]")
+
     def _analyze_single_simulation(self, sim_dir: Path):
         """Analyze a single completed simulation (energetics and/or trajectory)."""
         self.console.print(f"\n[bold]Analyzing Simulation: {sim_dir.name}[/bold]")
@@ -11113,6 +11189,8 @@ MD simulations require TWO files per structure:
             analysis_options["2"] = "Trajectory analysis (structural)"
         if mdout_files and nc_files and prmtop_files:
             analysis_options["3"] = "Combined analysis (recommended)"
+        if nc_files and prmtop_files:
+            analysis_options["4"] = "View trajectory in the structure viewer"
 
         # If only one option, do it automatically
         if len(analysis_options) == 1:
@@ -11180,6 +11258,9 @@ MD simulations require TWO files per structure:
 
                 # Run trajectory analysis
                 self._analyze_trajectory(selected_nc_files, prmtop, sim_dir.name)
+
+            elif choice == "4":
+                self._view_trajectory_in_viewer(sim_dir, nc_files, prmtop_files)
 
             elif choice == "3":
                 # Combined analysis
@@ -12411,8 +12492,11 @@ MD simulations require TWO files per structure:
             total_steps = len(monitor.data['step'])
             final_step = monitor.data['step'][-1] if monitor.data['step'] else 0
             final_time = monitor.data['time'][-1] if monitor.data['time'] else 0
-            overview_table.add_row("Total Steps", f"{final_step:,}", f"{total_steps} data points")
-            overview_table.add_row("Final Time", f"{final_time:.3f} ps", f"{final_time/1000:.3f} ns")
+            if monitor.is_minimization:
+                overview_table.add_row("Total Cycles", f"{final_step:,}", f"{total_steps} data points")
+            else:
+                overview_table.add_row("Total Steps", f"{final_step:,}", f"{total_steps} data points")
+                overview_table.add_row("Final Time", f"{final_time:.3f} ps", f"{final_time/1000:.3f} ns")
         
         # Energy information
         if monitor.data.get('total_energy'):

@@ -116,6 +116,9 @@ class InteractiveStructureViewer(ProcessingModule):
         self.annotation_config = {}
         self.viewer_config = {}
         self.shape_config = {}
+        # {structure index: trajectory path} to play in the viewer (NGL reads
+        # Amber NetCDF directly; see ViewerServer.serve_trajectory).
+        self.trajectory_files = {}
         # A loaded scene: {'representations': {idx: [rep...]}, 'camera',
         # 'background', 'camera_type', 'scene_id'}. Replaces the default +
         # annotation representations in _build_viewer_config while the same
@@ -1140,6 +1143,7 @@ class InteractiveStructureViewer(ProcessingModule):
                 structure_files=self.selected_structures,
                 port=8765,
                 scene_sink=self._save_scene_payload,
+                trajectory_files=dict(getattr(self, 'trajectory_files', None) or {}),
             )
 
             # Start server. ViewerServer.start() additionally consults
@@ -1404,6 +1408,15 @@ class InteractiveStructureViewer(ProcessingModule):
                 'color': sc.get('color', '#ffaa00'),
                 'opacity': sc.get('opacity', 0.5),
             })
+
+        for entry in structures:
+            traj = (getattr(self, 'trajectory_files', None) or {}).get(entry['index'])
+            if traj:
+                entry['trajectory'] = {
+                    'url': f"/trajectory/{entry['index']}",
+                    'name': os.path.basename(traj),
+                    'ext': os.path.splitext(traj)[1].lstrip('.').lower() or 'nc',
+                }
 
         out = {
             'structures': structures,

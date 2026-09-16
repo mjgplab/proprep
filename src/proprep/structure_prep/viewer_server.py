@@ -116,6 +116,9 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         elif self.path.startswith("/structure/"):
             # Serve PDB structure files
             self.serve_structure()
+        elif self.path.startswith("/trajectory/"):
+            # Serve a trajectory (Amber NetCDF) attached to a structure index
+            self.serve_trajectory()
         elif self.path == "/favicon.ico":
             # Silently ignore favicon requests (browsers always request this)
             self.send_response(204)  # No Content
@@ -264,6 +267,39 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._handle_serve_error("structure", e)
 
+    def serve_trajectory(self):
+        """Serve the trajectory file attached to a structure index.
+
+        NGL parses Amber NetCDF (and DCD/XTC) in the browser, so the bytes go
+        out untouched. The URL carries the structure index; the path comes
+        from ``trajectory_files`` on the server.
+        """
+        try:
+            index = int(self.path.split('/')[2].split('?')[0])
+            trajectory_files = getattr(self, 'trajectory_files', None) or {}
+            trajectory_file = trajectory_files.get(index)
+            if not trajectory_file or not os.path.exists(trajectory_file):
+                self.send_error(404, f"No trajectory for structure {index}")
+                return
+            size = os.path.getsize(trajectory_file)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/x-netcdf')
+            self.send_header('Content-Disposition',
+                             f'inline; filename="{os.path.basename(trajectory_file)}"')
+            self.send_header('Content-Length', str(size))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            with open(trajectory_file, 'rb') as f:
+                while True:
+                    chunk = f.read(1 << 20)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except ValueError:
+            self.send_error(400, "Invalid trajectory index")
+        except Exception as e:
+            self._handle_serve_error("trajectory", e)
+
     def log_message(self, format, *args):
         """Override to suppress routine HTTP request logging."""
         # Suppress routine GET request logs to avoid cluttering console
@@ -294,7 +330,7 @@ class ViewerServer:
     """
 
     def __init__(self, config: Dict, structure_files: List[str], port: int = 8765,
-                 scene_sink=None):
+                 scene_sink=None, trajectory_files: Optional[Dict[int, str]] = None):
         """
         Initialize the viewer server.
 
@@ -307,6 +343,8 @@ class ViewerServer:
         """
         self.config = config
         self.structure_files = structure_files
+        # {structure index: trajectory path}; served at /trajectory/<index>
+        self.trajectory_files = dict(trajectory_files or {})
         self._scene_token = 0
         self.port = port
         self.server = None
@@ -323,6 +361,7 @@ class ViewerServer:
         ViewerHTTPRequestHandler.config = self.config
         ViewerHTTPRequestHandler.config_version = 1
         ViewerHTTPRequestHandler.structure_files = self.structure_files
+        ViewerHTTPRequestHandler.trajectory_files = self.trajectory_files
         ViewerHTTPRequestHandler.template_path = self.template_path
         ViewerHTTPRequestHandler.scene_sink = scene_sink
         ViewerHTTPRequestHandler.scene_request = None

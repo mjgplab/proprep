@@ -13,6 +13,31 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.20.0] — 2026-09-16
+
+### Added
+
+- The structure viewer plays MD trajectories. In the MD Manager's analysis
+  menu, "View trajectory in the structure viewer" takes a simulation's
+  NetCDF trajectory, runs one cpptraj pass that re-images the solute and,
+  if asked, strips water and ions, writes a first-frame PDB and a NetCDF
+  with matching atoms, and opens them in the viewer with a Trajectory panel
+  (play, pause, frame slider, single-frame step, speed, smooth
+  interpolation, loop/once, forward/backward/bounce, stride, superpose on a
+  selection, remove/center PBC; space and the arrow keys work when no field
+  has focus). NGL reads the NetCDF directly; no format conversion.
+
+### Fixed
+
+- MD Manager monitor: a minimization was reported with a "Time (ps)" row
+  holding the cycle number; it now shows Cycle, Energy and Max gradient,
+  and the analysis overview shows Total Cycles. The "other recent
+  simulations" list offered one entry per batch, labelled by the batch
+  and reading the newest output anywhere beneath it, so after a later step
+  had auto-started it showed that step's numbers under the earlier step's
+  name (heating at 4 ps and 76 K under "Energy Minimization"). Every step
+  output is now listed separately, labelled batch/step, newest first.
+
 ## [1.19.1] — 2026-09-16
 
 ### Added
