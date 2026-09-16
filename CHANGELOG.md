@@ -13,6 +13,46 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.19.1] — 2026-09-16
+
+### Added
+
+- A `sander.MPI` engine in the MD Manager. AmberTools ships `sander` and
+  `sander.MPI` but not `pmemd`, so on the installers the only multi-core
+  choice, `pmemd.MPI`, and the default, `pmemd`, did not exist. The engine
+  menus now list sander, sander.MPI, pmemd, pmemd.MPI, pmemd.cuda in that
+  order, mark any engine that is not installed, default to the best engine
+  that is, and the automatic recommendation uses sander.MPI when pmemd.MPI
+  is absent. Selecting sander.MPI asks for the number of MPI tasks.
+- A "Workshop Protocol (CPU, under an hour)" workflow with its own
+  templates: 1000-cycle minimization, 20 ps heating, 100 ps NPT, 300 ps
+  production. Measured end to end on a 3923-atom peptide box: 41 minutes
+  with sander.MPI on 4 laptop cores.
+
+### Changed
+
+- Session replay matches a recorded menu answer by the option's label, not
+  only its number. A recording stores both; when a menu has been reordered
+  since (the engine menu above), replay picks the key that now carries the
+  recorded label and says so.
+
+### Fixed
+
+- MD Manager: on entering execution with a simulation still running from an
+  earlier session, restoring it printed "Warning: Could not restore process
+  ...: 'MolecularDynamicsManager' object has no attribute
+  '_restore_workflow_pending_steps'" and forgot the running process. The
+  call was to a method that never existed; the workflow's pending steps are
+  restored by the existing file-wide restore that follows.
+- Protonation State Analyzer failed with "'int' object has no attribute
+  'items'" on any multi-model structure (NMR ensembles such as 1UAO) when
+  one model was selected in PDB Filter. The chosen model index was stored
+  inside `filter_selections` next to the per-chain selections, so the
+  analyzer, the structure viewer's annotation summary and the disulfide
+  detector's chain mapping could all trip over it. The index now has its
+  own workspace key, `selected_model_idx`, and the consumers ignore any
+  non-chain entry left by an older run.
+
 ## [1.19.0] — 2026-09-15
 
 ### Added

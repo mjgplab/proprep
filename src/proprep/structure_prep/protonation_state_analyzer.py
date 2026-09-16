@@ -23,6 +23,7 @@ from rich.table import Table
 
 from proprep.utils.module_registry import ProcessingModule, register_module, registry
 from proprep.utils.prompts import prompt_with_context, confirm_with_context
+from proprep.utils.workspace import chain_selections
 from .protonation_worker import ProtonationStateAnalyzer, PKA_VALUES
 from .protonation_commands import (
     AnalyzeProtonationStatesCommand,
@@ -1330,7 +1331,9 @@ class ProtonationStateModule(ProcessingModule):
             )
         else:
             # For non-transformed structures, use filter_selections if available
-            filter_selections = self.get_from_workspace("filter_selections", {})
+            filter_selections = chain_selections(
+                self.get_from_workspace("filter_selections", {})
+            )
 
             if filter_selections:
                 selected_chains = list(filter_selections.keys())
@@ -1601,7 +1604,9 @@ class ProtonationStateModule(ProcessingModule):
 
         # Get selected chains
         selected_chains = []
-        filter_selections = self.get_from_workspace("filter_selections", {})
+        filter_selections = chain_selections(
+            self.get_from_workspace("filter_selections", {})
+        )
         if filter_selections:
             selected_chains = list(filter_selections.keys())
 

@@ -1,0 +1,24 @@
+! TEMPLATE: Workshop Minimization
+! DESCRIPTION: Short restrained minimization sized for a laptop CPU (1000 cycles)
+! TYPE: minimization
+! PRIORITY: 1
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Basic protocol (AMBER Tutorial 33) shortened for a 3-hour workshop on CPU-only laptops
+
+Workshop minimization
+Relieve bad contacts with the backbone restrained
+
+&cntrl
+  imin=1,                           ! Energy minimization
+  ntmin=1,                          ! Steepest descent for ncyc cycles, then conjugate gradient
+  ncyc=500,                         ! Steepest-descent cycles
+  maxcyc=1000,                      ! Total minimization cycles
+  ntb=1,                            ! Periodic boundaries, constant volume
+  cut=10.0,                         ! Nonbonded cutoff (Angstroms)
+  ntwr=500,                         ! Restart file write frequency
+  ntpr=50,                          ! Energy output frequency
+  ntr=1,                            ! Positional restraints on the mask below
+  restraint_wt=10.0,                ! Restraint force constant (kcal/mol-A2)
+  restraintmask='@CA,C,O,N&!:WAT',  ! Backbone atoms of the solute
+/

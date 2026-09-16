@@ -6637,6 +6637,7 @@ MD simulations require TWO files per structure:
         
         self.console.print(f"\n[bold]Available AMBER Engines:[/bold]")
         self.console.print("  • sander      — Standard CPU engine with broadest feature support")
+        self.console.print("  • sander.MPI  — Standard CPU engine parallelized across multiple cores (AmberTools)")
         self.console.print("  • pmemd       — Optimized CPU engine (single core)")
         self.console.print("  • pmemd.MPI   — Optimized CPU engine parallelized across multiple cores")
         self.console.print("  • pmemd.cuda  — GPU-accelerated engine, requires NVIDIA GPU")
@@ -6886,31 +6887,31 @@ MD simulations require TWO files per structure:
                         
                 elif modify_choice == "4":
                     self.console.print("Available engines:")
-                    self.console.print("1. sander      [grey50]— standard CPU, broadest feature support[/grey50]", highlight=False)
-                    self.console.print("2. pmemd       [grey50]— optimized CPU, single core[/grey50]", highlight=False)
-                    self.console.print("3. pmemd.MPI   [grey50]— optimized CPU, multi-core parallel[/grey50]", highlight=False)
-                    self.console.print("4. pmemd.cuda  [grey50]— GPU-accelerated, requires NVIDIA GPU[/grey50]", highlight=False)
+                    self.console.print("1. sander      [grey50]— standard CPU, single core, broadest feature support[/grey50]", highlight=False)
+                    self.console.print("2. sander.MPI  [grey50]— standard CPU, multi-core parallel (AmberTools)[/grey50]", highlight=False)
+                    self.console.print("3. pmemd       [grey50]— optimized CPU, single core[/grey50]", highlight=False)
+                    self.console.print("4. pmemd.MPI   [grey50]— optimized CPU, multi-core parallel[/grey50]", highlight=False)
+                    self.console.print("5. pmemd.cuda  [grey50]— GPU-accelerated, requires NVIDIA GPU[/grey50]", highlight=False)
+                    for _e in self.ENGINES:
+                        if not self._engine_installed(_e):
+                            self.console.print(f"   [grey50]{_e}: not installed on this machine[/grey50]", highlight=False)
 
                     engine_choice = prompt_with_context(
                         self.processor,
                         "Select engine",
-                        choices=["1","2","3","4"],
-                        default="2",
+                        choices=["1","2","3","4","5"],
+                        default=str(self.ENGINES.index(self._default_engine()) + 1),
                         module="MD Manager - Queue Modification",
                         description="Select MD engine",
                         options_map={
                             "1": "sander (single CPU)",
-                            "2": "pmemd (single CPU, optimized)",
-                            "3": "pmemd.MPI (multi-CPU)",
-                            "4": "pmemd.cuda (GPU acceleration)"
+                            "2": "sander.MPI (multi-CPU, AmberTools)",
+                            "3": "pmemd (single CPU, optimized)",
+                            "4": "pmemd.MPI (multi-CPU)",
+                            "5": "pmemd.cuda (GPU acceleration)"
                         }
                     )
-                    engine_map = {
-                        "1": "sander",
-                        "2": "pmemd",
-                        "3": "pmemd.MPI",
-                        "4": "pmemd.cuda"
-                    }
+                    engine_map = dict(zip("12345", self.ENGINES))
 
                     new_engine = engine_map[engine_choice]
                     config.engine = new_engine
@@ -6920,7 +6921,7 @@ MD simulations require TWO files per structure:
                     config.gpu_ids = None
 
                     # Set new hardware settings if needed
-                    if new_engine == "pmemd.MPI":
+                    if new_engine.endswith(".MPI"):
                         cpu_info = self._get_cpu_info()
                         tasks_str = prompt_with_context(
                             self.processor,
@@ -6944,7 +6945,7 @@ MD simulations require TWO files per structure:
                     self.console.print(f"[green]✓ Updated engine to: {new_engine}[/green]")
                     
                 elif modify_choice == "5":
-                    if config.engine == "pmemd.MPI":
+                    if config.engine.endswith(".MPI"):
                         new_tasks_str = prompt_with_context(
                             self.processor,
                             "Number of MPI tasks",
@@ -7812,16 +7813,17 @@ MD simulations require TWO files per structure:
         self.console.print(f"\n[bold]Configure hardware for: {sim_name}[/bold]")
         
         # Show available options
-        engines = ["sander", "pmemd", "pmemd.MPI", "pmemd.cuda"]
+        engines = self._get_available_engines()
         engine = prompt_with_context(
             self.processor,
             "Select AMBER engine",
             choices=engines,
-            default="pmemd.cuda",
+            default=self._default_engine(),
             module="MD Manager - Hardware Configuration",
             description="Select MD engine",
             options_map={
                 "sander": "Single CPU",
+                "sander.MPI": "Multi-CPU (MPI, AmberTools)",
                 "pmemd": "Single CPU (optimized)",
                 "pmemd.MPI": "Multi-CPU (MPI)",
                 "pmemd.cuda": "GPU acceleration"
@@ -7830,7 +7832,7 @@ MD simulations require TWO files per structure:
 
         config = {"engine": engine}
 
-        if engine == "pmemd.MPI":
+        if engine.endswith(".MPI"):
             # Get system info for default
             total_cpus = os.cpu_count()
             try:
@@ -8835,9 +8837,9 @@ MD simulations require TWO files per structure:
                             'restored': True
                         }
 
-                        # Add to pending workflow steps if it's part of a workflow
-                        if hasattr(sim_config, 'workflow_id') and sim_config.workflow_id:
-                            self._restore_workflow_pending_steps(sim_config)
+                        # The workflow's later steps are restored for every
+                        # workflow at once by _restore_pending_workflow_steps()
+                        # below, from .pending_workflows.json.
 
                         processes_to_keep[sim_name] = process_info
                         restored_count += 1
@@ -9173,9 +9175,9 @@ MD simulations require TWO files per structure:
             return ["sander"] + base_args
         elif engine == "pmemd":
             return ["pmemd"] + base_args
-        elif engine == "pmemd.MPI":
+        elif engine.endswith(".MPI"):
             mpi_tasks = hardware_config.get('mpi_tasks', 4)
-            return ["mpirun", "-np", str(mpi_tasks), "pmemd.MPI"] + base_args
+            return ["mpirun", "-np", str(mpi_tasks), engine] + base_args
         elif engine == "pmemd.cuda":
             # Set GPU environment variable if specified
             gpu_ids = hardware_config.get('gpu_ids')
@@ -9967,10 +9969,10 @@ MD simulations require TWO files per structure:
                         "-ref", input_coord,
                         "-inf", info_file,
                     ]
-                elif engine == "pmemd.MPI":
+                elif engine.endswith(".MPI"):
                     mpi_tasks = hw_config.get('mpi_tasks', 4)
                     cmd_parts = [
-                        "mpirun", "-np", str(mpi_tasks), "pmemd.MPI",
+                        "mpirun", "-np", str(mpi_tasks), engine,
                         "-O",
                         "-i", mdin_arg,
                         "-p", topology_arg,
@@ -10109,9 +10111,9 @@ MD simulations require TWO files per structure:
                 # Otherwise the shared prmtop is one level up.
                 ext_prmtop = cpmd_prmtop if (cpmd_active and cpmd_prmtop) else f"../{prmtop_name}"
 
-                if last_engine == "pmemd.MPI":
+                if last_engine.endswith(".MPI"):
                     mpi_tasks = last_hw_config.get('mpi_tasks', 4)
-                    engine_prefix = f"mpirun -np {mpi_tasks} pmemd.MPI"
+                    engine_prefix = f"mpirun -np {mpi_tasks} {last_engine}"
                 else:
                     engine_prefix = last_engine
 
@@ -13745,31 +13747,31 @@ MD simulations require TWO files per structure:
         self.console.print(f"\n[bold cyan]===== Hardware Configuration =====[/bold cyan]")
         self.console.print("\nSelect AMBER engine:")
         self.console.print("1. sander (single CPU)", highlight=False)
-        self.console.print("2. pmemd (single CPU, optimized)", highlight=False)
-        self.console.print("3. pmemd.MPI (multi-CPU)", highlight=False)
-        self.console.print("4. pmemd.cuda (GPU acceleration)", highlight=False)
+        self.console.print("2. sander.MPI (multi-CPU, AmberTools)", highlight=False)
+        self.console.print("3. pmemd (single CPU, optimized)", highlight=False)
+        self.console.print("4. pmemd.MPI (multi-CPU)", highlight=False)
+        self.console.print("5. pmemd.cuda (GPU acceleration)", highlight=False)
+        for _e in self.ENGINES:
+            if not self._engine_installed(_e):
+                self.console.print(f"   [grey50]{_e}: not installed on this machine[/grey50]", highlight=False)
         
         choice = prompt_with_context(
             self.processor,
             "Select engine",
-            choices=["1","2","3","4"],
-            default="2",
+            choices=["1","2","3","4","5"],
+            default=str(self.ENGINES.index(self._default_engine()) + 1),
             module="MD Manager - Hardware Configuration",
             description="Select AMBER engine",
             options_map={
                 "1": "sander (single CPU)",
-                "2": "pmemd (single CPU, optimized)",
-                "3": "pmemd.MPI (multi-CPU)",
-                "4": "pmemd.cuda (GPU acceleration)"
+                "2": "sander.MPI (multi-CPU, AmberTools)",
+                "3": "pmemd (single CPU, optimized)",
+                "4": "pmemd.MPI (multi-CPU)",
+                "5": "pmemd.cuda (GPU acceleration)"
             }
         )
 
-        engine_map = {
-            "1": "sander",
-            "2": "pmemd",
-            "3": "pmemd.MPI",
-            "4": "pmemd.cuda"
-        }
+        engine_map = dict(zip("12345", self.ENGINES))
 
         selected_engine = engine_map[choice]
         self.console.print(f"[green]Selected: {selected_engine}[/green]")
@@ -13779,7 +13781,7 @@ MD simulations require TWO files per structure:
             workspace = self.processor.workspace
             workspace.set("preferred_amber_engine", selected_engine)
 
-            if selected_engine == "pmemd.MPI":
+            if selected_engine.endswith(".MPI"):
                 cpu_info = self._get_cpu_info()
                 cores_str = prompt_with_context(
                     self.processor,
@@ -16325,9 +16327,9 @@ MD simulations require TWO files per structure:
             self.console.print("\nAvailable engines:")
             for j, engine in enumerate(available_engines, 1):
                 if engine == config.engine:
-                    self.console.print(f"  {j}. {engine} [grey50](current)[/grey50]")
+                    self.console.print(f"  {j}. {self._engine_label(engine)} [grey50](current)[/grey50]")
                 else:
-                    self.console.print(f"  {j}. {engine}")
+                    self.console.print(f"  {j}. {self._engine_label(engine)}")
 
             engine_choices = [str(j) for j in range(1, len(available_engines)+1)]
 
@@ -16784,7 +16786,7 @@ MD simulations require TWO files per structure:
 
         def row_for(i, config, target, reason):
             display_name = config.step_name or config.name
-            engine = "pmemd.MPI" if target == 'cpu' else "pmemd.cuda"
+            engine = self._cpu_parallel_engine() if target == 'cpu' else "pmemd.cuda"
             row = [str(i), display_name, reason, engine]
             if profile is not None:
                 class_name = profile.defaults['cpu_class'] if target == 'cpu' else profile.defaults['gpu_class']
@@ -16869,7 +16871,7 @@ MD simulations require TWO files per structure:
 
         for config, target, reason in classifications:
             if target == 'cpu':
-                config.engine = "pmemd.MPI"
+                config.engine = self._cpu_parallel_engine()
                 config.hardware_config = mpi_config
             else:
                 config.engine = "pmemd.cuda"
@@ -16880,7 +16882,7 @@ MD simulations require TWO files per structure:
         cpu_count = sum(1 for _, t, _ in classifications if t == 'cpu')
         gpu_count = sum(1 for _, t, _ in classifications if t == 'gpu')
         if cpu_count:
-            self.console.print(f"  {cpu_count}x pmemd.MPI ({mpi_config.get('mpi_tasks', '?')} processes)")
+            self.console.print(f"  {cpu_count}x {self._cpu_parallel_engine()} ({mpi_config.get('mpi_tasks', '?')} processes)")
         if gpu_count:
             self.console.print(f"  {gpu_count}x pmemd.cuda (GPU {gpu_config.get('gpu_ids', '0')})")
 
@@ -17793,6 +17795,7 @@ MD simulations require TWO files per structure:
         self.console.print("  • [bold]pmemd.MPI[/bold] - Parallel CPU version for multi-core systems")
         self.console.print("  • [bold]pmemd[/bold] - Serial optimized CPU version")
         self.console.print("  • [bold]sander[/bold] - Standard CPU version with full feature support")
+        self.console.print("  • [bold]sander.MPI[/bold] - Parallel sander; the multi-core choice when only AmberTools is installed")
         
         # Best practices
         self.console.print("\n[bold]Recommended Engine Selection:[/bold]")
@@ -17839,11 +17842,34 @@ MD simulations require TWO files per structure:
         self.console.print("\n[grey50]Press Enter to continue...[/grey50]")
         input()
             
+    # The engine menus never change with what is installed, so this list is
+    # constant: serial then parallel for each program. AmberTools alone ships
+    # sander and sander.MPI; pmemd, pmemd.MPI and pmemd.cuda come with Amber.
+    ENGINES = ["sander", "sander.MPI", "pmemd", "pmemd.MPI", "pmemd.cuda"]
+
     def _get_available_engines(self):
-        """Get list of available AMBER engines."""
-        # This would normally detect available engines on the system
-        # For now, return a standard list
-        return ["sander", "pmemd", "pmemd.MPI", "pmemd.cuda"]
+        """The engine menu (constant; see ENGINES)."""
+        return list(self.ENGINES)
+
+    @staticmethod
+    def _engine_installed(engine: str) -> bool:
+        return shutil.which(engine) is not None
+
+    def _engine_label(self, engine: str) -> str:
+        """Menu text for an engine: its name plus '(not installed)' when the
+        binary is absent from PATH, so an AmberTools-only install is told
+        which options are dead instead of failing at run time."""
+        return engine if self._engine_installed(engine) else f"{engine} (not installed)"
+
+    def _cpu_parallel_engine(self) -> str:
+        """The multi-core CPU engine to recommend: pmemd.MPI when Amber is
+        installed, otherwise AmberTools' sander.MPI."""
+        return "pmemd.MPI" if self._engine_installed("pmemd.MPI") else "sander.MPI"
+
+    def _default_engine(self) -> str:
+        """Menu default: the GPU engine if installed, else the parallel CPU
+        engine that is."""
+        return "pmemd.cuda" if self._engine_installed("pmemd.cuda") else self._cpu_parallel_engine()
         
     def _configure_gpu_resources(self):
         """Configure GPU resources for CUDA engines."""

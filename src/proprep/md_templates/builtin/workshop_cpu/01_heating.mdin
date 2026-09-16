@@ -1,0 +1,44 @@
+! TEMPLATE: Workshop Heating
+! DESCRIPTION: Heat 0 to 300 K over 15 ps, hold 5 ps, backbone restrained (20 ps total)
+! TYPE: heating
+! PRIORITY: 2
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Basic protocol (AMBER Tutorial 33) shortened for a 3-hour workshop on CPU-only laptops
+
+Workshop heating
+Ramp the temperature to 300 K at constant volume with light backbone restraints
+
+&cntrl
+  ntt=3,                           ! Langevin thermostat
+  tempi=0.0,                       ! Initial temperature (K)
+  temp0=300.0,                     ! Target temperature (K)
+  gamma_ln=5.0,                    ! Collision frequency (1/ps)
+  ig=-1,                           ! Random seed from the wall clock
+  ntc=2,                           ! SHAKE on bonds to hydrogen
+  ntf=2,                           ! Omit forces on SHAKE-constrained bonds
+  ntb=1,                           ! Periodic boundaries, constant volume
+  cut=10.0,                        ! Nonbonded cutoff (Angstroms)
+  dt=0.002,                        ! 2 fs time step
+  nstlim=10000,                    ! 20 ps
+  ntwr=5000,                       ! Restart file write frequency
+  ntwx=500,                        ! Trajectory write frequency (every 1 ps)
+  ntpr=500,                        ! Energy output frequency (every 1 ps)
+  ioutfm=1,                        ! NetCDF trajectory
+  iwrap=1,                         ! Wrap coordinates into the primary box
+  ntr=1,                           ! Positional restraints on the mask below
+  restraint_wt=1.0,                ! Restraint force constant (kcal/mol-A2)
+  restraintmask='@CA,C,O,N&!:WAT', ! Backbone atoms of the solute
+  nmropt=1,                        ! Temperature ramp defined in the &wt blocks
+/
+&wt                                ! Ramp 0 to 300 K over the first 15 ps
+  TYPE='TEMP0', ISTEP1=0, ISTEP2=7500,
+  VALUE1=0.0, VALUE2=300.0,
+/
+&wt                                ! Hold at 300 K for the last 5 ps
+  TYPE='TEMP0', ISTEP1=7501, ISTEP2=10000,
+  VALUE1=300.0, VALUE2=300.0,
+/
+&wt
+  TYPE='END'
+/

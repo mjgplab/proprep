@@ -1,0 +1,37 @@
+! TEMPLATE: Workshop NPT Equilibration
+! DESCRIPTION: 100 ps at 1 bar and 300 K to settle the box density, weak backbone restraints
+! TYPE: equilibration
+! PRIORITY: 3
+! AUTHOR: Matthew J. Guberman-Pfeffer
+! VERSION: 1.0
+! SOURCE: Basic protocol (AMBER Tutorial 33) shortened for a 3-hour workshop on CPU-only laptops
+
+Workshop NPT equilibration
+Let the water density relax at constant pressure
+
+&cntrl
+  ntt=3,                           ! Langevin thermostat
+  temp0=300.0,                     ! Target temperature (K)
+  gamma_ln=2.0,                    ! Collision frequency (1/ps)
+  ig=-1,                           ! Random seed from the wall clock
+  ntp=1,                           ! Isotropic pressure coupling
+  barostat=2,                      ! Monte Carlo barostat
+  pres0=1.0,                       ! Reference pressure (bar)
+  taup=1.0,                        ! Pressure relaxation time (ps)
+  ntc=2,                           ! SHAKE on bonds to hydrogen
+  ntf=2,                           ! Omit forces on SHAKE-constrained bonds
+  ntb=2,                           ! Periodic boundaries, constant pressure
+  cut=10.0,                        ! Nonbonded cutoff (Angstroms)
+  dt=0.002,                        ! 2 fs time step
+  nstlim=50000,                    ! 100 ps
+  irest=1,                         ! Continue from the heating restart
+  ntx=5,                           ! Read coordinates and velocities
+  ntwr=5000,                       ! Restart file write frequency
+  ntwx=500,                        ! Trajectory write frequency (every 1 ps)
+  ntpr=500,                        ! Energy output frequency (every 1 ps)
+  ioutfm=1,                        ! NetCDF trajectory
+  iwrap=1,                         ! Wrap coordinates into the primary box
+  ntr=1,                           ! Positional restraints on the mask below
+  restraint_wt=0.1,                ! Restraint force constant (kcal/mol-A2)
+  restraintmask='@CA,C,O,N&!:WAT', ! Backbone atoms of the solute
+/

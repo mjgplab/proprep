@@ -577,9 +577,11 @@ class PDBFilterModule(ProcessingModule):
 
         filter_selections = {}
 
-        #Only store model selection for multi-model structures
-        if model_count > 1:
-            filter_selections["selected_model"] = selected_model_idx
+        # The chosen model gets its own workspace key. It used to be stored
+        # inside filter_selections as an int under "selected_model", which
+        # made that dict mixed-type and crashed every consumer that iterated
+        # its values (see utils.workspace.chain_selections).
+        workspace.set("selected_model_idx", selected_model_idx)
 
         self.processor.console.print(
             "\n[bold underline blue]Chain Composition Overview[/bold underline blue]"

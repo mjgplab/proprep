@@ -524,7 +524,8 @@ class InteractiveStructureViewer(ProcessingModule):
                 logger.info(f"Found {len(titratable_residues)} titratable residues in workspace")
 
         # 3. Filter Selections - Context Visualization (HIGH PRIORITY)
-        filter_selections = self.workspace.get('filter_selections')
+        from proprep.utils.workspace import chain_selections
+        filter_selections = chain_selections(self.workspace.get('filter_selections'))
         if filter_selections and len(filter_selections) > 0:
             # Count total kept residues across all chains
             total_kept = sum(

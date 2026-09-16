@@ -58,6 +58,37 @@ class NavigationException(Exception):
     pass
 
 
+def resolve_replayed_key(processor, response, options_map):
+    """On replay, match a recorded menu answer by its label, not its number.
+
+    A recorded interaction stores the key the user typed and, when the prompt
+    had an ``options_map``, the label of the option that key meant at the
+    time. Menus are reordered between releases (the MD engine menu in 1.19.1
+    moved pmemd from 2 to 3), so if the recorded label now sits under a
+    different key, that key is the faithful replay. Returns the response
+    unchanged when not replaying, when no label was recorded, when the key
+    still means the same thing, or when the label is not unique.
+    """
+    if not options_map or processor is None:
+        return response
+    manager = getattr(processor, "session_manager", None)
+    replayer = getattr(manager, "replayer", None)
+    if replayer is None or not getattr(replayer, "replaying", False):
+        return response
+    interaction = getattr(replayer, "last_returned_interaction", None) or {}
+    label = (interaction.get("context") or {}).get("option_label")
+    if not label or options_map.get(str(response)) == label:
+        return response
+    keys = [k for k, v in options_map.items() if v == label]
+    if len(keys) != 1:
+        return response
+    resolved = keys[0]
+    if resolved != str(response):
+        print(f"[REPLAY: '{response}' now means a different option; "
+              f"using '{resolved}' → {label}]")
+    return resolved
+
+
 def prompt_with_context(
     processor,
     prompt: str,
@@ -110,6 +141,7 @@ def prompt_with_context(
     if default is not None:
         ask_kwargs["default"] = default
     response = Prompt.ask(prompt, **ask_kwargs)
+    response = resolve_replayed_key(processor, response, options_map)
 
     # Add rich context to the session recording
     if processor and hasattr(processor, 'session_manager'):
@@ -243,6 +275,10 @@ def int_prompt_with_context(
     if default is not None:
         ask_kwargs["default"] = default
     response = IntPrompt.ask(prompt, **ask_kwargs)
+    if options_map:
+        resolved = resolve_replayed_key(processor, str(response), options_map)
+        if resolved != str(response):
+            response = int(resolved)
 
     # Add rich context to the session recording
     if processor and hasattr(processor, 'session_manager'):

@@ -43,6 +43,26 @@ class Workspace(ABC):
         return iter(self.items())
 
 
+def chain_selections(filter_selections: Any) -> Dict[str, Dict[str, list]]:
+    """The per-chain part of a ``filter_selections`` workspace value.
+
+    ``filter_selections`` is ``{chain_id: {component_type: [resid, ...]}}``.
+    Releases up to 1.19.0 also stored the chosen model index in the same
+    dict under the key ``selected_model`` (an int) for multi-model
+    structures, and any consumer that iterated the values crashed with
+    ``'int' object has no attribute 'items'``. The index now lives under its
+    own key, ``selected_model_idx``; this keeps consumers safe on a value
+    written by the old code.
+    """
+    if not filter_selections:
+        return {}
+    return {
+        chain_id: sel
+        for chain_id, sel in filter_selections.items()
+        if isinstance(sel, dict)
+    }
+
+
 def unwrap_serialized(value: Any) -> Any:
     """Strip workspace serialization wrappers from a value, recursively.
 

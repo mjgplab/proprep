@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 from rich.panel import Panel
 from proprep.utils.prompts import prompt_with_context, confirm_with_context
+from proprep.utils.workspace import chain_selections
 from rich.status import Status
 from rich.table import Table
 from Bio.PDB import PDBParser
@@ -869,7 +870,7 @@ class DisulfideBondModule(ProcessingModule):
         # MODELLER renames chains to A, B, C... sequentially
         if filter_selections and original_chain in filter_selections:
             # Chain was filtered - map to corresponding position in repaired structure
-            filtered_chains = [k for k in filter_selections.keys() if k != "selected_model"]
+            filtered_chains = list(chain_selections(filter_selections).keys())
             if filtered_chains and original_chain in filtered_chains:
                 chain_index = filtered_chains.index(original_chain)
                 # MODELLER uses A, B, C... sequentially
