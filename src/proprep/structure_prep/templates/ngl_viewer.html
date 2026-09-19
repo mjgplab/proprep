@@ -7,6 +7,33 @@
 
     <!-- NGL Viewer from CDN -->
     <script src="https://cdn.jsdelivr.net/gh/arose/ngl@latest/dist/ngl.js"></script>
+    <script>
+        // NGL fix: superposition of raw coordinate arrays.
+        // NGL's Superposition.transform() is wrong for a Float32Array, which is
+        // what Trajectory hands it for every superposed frame (NGL 2.3.1 to
+        // 2.5.0 at least). prepCoords copies the flat xyz array into a 4-wide
+        // matrix using the SAME index for the source (3 per atom) and the
+        // destination (4 per atom), so every atom after the first is built
+        // from pieces of other atoms. The fitted matrix is right; applying it
+        // scrambles the coordinates. With NGL 2.5.0, fitting a rigid, tumbled
+        // 8-atom chain onto itself gave RMSD 15.6 A and a 25.6 A "bond" (true
+        // 1.97 A); with this, RMSD 0.000 A. The same matrix, applied atom by
+        // atom. A Structure argument keeps NGL's own (correct) path.
+        (function patchSuperposition() {
+            if (typeof NGL === 'undefined' || !NGL.Superposition) return;
+            const original = NGL.Superposition.prototype.transform;
+            NGL.Superposition.prototype.transform = function (coords) {
+                if (!(coords instanceof Float32Array)) return original.call(this, coords);
+                const m = this.transformationMatrix.elements;   // column-major Matrix4
+                for (let i = 0; i < coords.length; i += 3) {
+                    const x = coords[i], y = coords[i + 1], z = coords[i + 2];
+                    coords[i]     = m[0] * x + m[4] * y + m[8]  * z + m[12];
+                    coords[i + 1] = m[1] * x + m[5] * y + m[9]  * z + m[13];
+                    coords[i + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+                }
+            };
+        })();
+    </script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -100,6 +127,11 @@
         .traj-row input[type=number] { width: 52px; }
         .traj-row input[type=text] { flex: 1; min-width: 120px; }
         .traj-row select { font-size: 12px; }
+        #movie-status.error { color: #e06c75; }
+        /* Blocks orbit/zoom while recording, so the movie keeps the camera it started with. */
+        #rec-shield { position: absolute; inset: 0; z-index: 4; cursor: progress; }
+        #rec-badge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6;
+                     background: #b3261ecc; color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 5px; }
 
         /* ── Structure panels ── */
         .structure-panel {
@@ -328,7 +360,7 @@
             <button id="sidebar-toggle" class="header-btn" type="button"
                     aria-controls="sidebar" aria-expanded="true"
                     onclick="toggleSidebar()"
-                    title="Collapse the control panel so the structure fills the window">
+                    title="Collapse the control panel so the structure fills the window (h)">
                 Hide Panel
             </button>
         </div>
@@ -336,6 +368,8 @@
 
     <div id="container">
         <div id="viewport">
+            <div id="rec-shield" class="hidden"></div>
+            <div id="rec-badge" class="hidden" aria-hidden="true">&#9679; REC</div>
             <div id="loading">
                 <div class="spinner"></div>
                 <div>Loading structures...</div>
@@ -432,7 +466,130 @@
                         <label title="Recenter the periodic box each frame">
                             <input type="checkbox" id="traj-centerpbc" onchange="setTrajectoryOption('centerPbc', this.checked)"> center PBC</label>
                     </div>
-                    <div class="dim-text traj-name">space = play/pause, &larr;/&rarr; = step a frame</div>
+                    <div class="dim-text traj-name">space = play/pause, &larr;/&rarr; = step a frame, m = record movie, h = hide/show this panel</div>
+                </div>
+            </div>
+
+            <!-- Movie: shown with the trajectory player -->
+            <div class="section hidden" id="movie-section">
+                <div class="section-header" onclick="toggleSectionCollapse('movie')">
+                    <span class="collapse-icon" id="movie-collapse-icon">&#9660;</span>
+                    Movie
+                </div>
+                <div id="movie-content">
+                    <div class="dim-text traj-name">Renders the trajectory frame by frame to an MP4 with the current
+                        camera, representations and background. Hide the panel first (<b>h</b>) for a wider shot,
+                        then <b>m</b> records and <b>Esc</b> cancels. Keep this tab visible while it records.</div>
+                    <div class="traj-row"><span class="k">frames</span>
+                        <input type="number" id="mv-start" min="0" step="1" value="0" title="First frame (0-based)">
+                        <span class="k" style="min-width:auto">to</span>
+                        <input type="number" id="mv-end" min="0" step="1" value="" placeholder="last" title="Last frame (blank = last). Smaller than the first frame records backwards.">
+                    </div>
+                    <div class="traj-row"><span class="k">stride</span>
+                        <input type="number" id="mv-stride" min="1" step="1" value="1" title="Use every Nth frame">
+                        <span class="k" style="min-width:auto">in-between</span>
+                        <input type="number" id="mv-interp" min="0" max="10" step="1" value="0"
+                               title="Interpolated frames inserted between each pair (0 = none)">
+                    </div>
+                    <div class="traj-row"><span class="k">frame rate</span>
+                        <select id="mv-fps">
+                            <option value="10">10 fps</option><option value="15">15 fps</option>
+                            <option value="24">24 fps</option><option value="30" selected>30 fps</option>
+                            <option value="60">60 fps</option>
+                        </select>
+                        <span class="k" style="min-width:auto">size</span>
+                        <select id="mv-scale" title="Multiple of the viewport size">
+                            <option value="1">1&times;</option><option value="2" selected>2&times;</option>
+                            <option value="3">3&times;</option>
+                        </select>
+                    </div>
+                    <div class="traj-row"><span class="k">quality</span>
+                        <select id="mv-quality">
+                            <option value="0.08">standard (smaller file)</option>
+                            <option value="0.15" selected>high</option>
+                            <option value="0.3">maximum</option>
+                        </select>
+                        <label title="Supersample each frame for smooth edges (slower)">
+                            <input type="checkbox" id="mv-aa" checked> antialias</label>
+                    </div>
+                    <div class="dim-text traj-name" id="movie-est"></div>
+                    <button class="view-btn" id="mv-record" onclick="toggleMovie()">Record movie</button>
+                    <progress id="movie-progress" class="hidden" max="1" value="0" style="width:100%"></progress>
+                    <div class="dim-text traj-name" id="movie-status" role="status" aria-live="polite"></div>
+                </div>
+            </div>
+
+            <!-- Electron density: shown only when a structure carries maps -->
+            <div class="section hidden" id="density-section">
+                <div class="section-header" onclick="toggleSectionCollapse('density')">
+                    <span class="collapse-icon" id="density-collapse-icon">&#9660;</span>
+                    Electron Density
+                </div>
+                <div id="density-content">
+                    <div class="dim-text traj-name" id="density-name"></div>
+                    <div class="traj-row" title="The density the model was built into. Calculated from the data AND the model, so biased towards the model.">
+                        <label><input type="checkbox" id="density-2fofc-on" checked
+                               onchange="setDensityVisible('2fofc', this.checked)"> <span style="color:#6aa9ff">2mFo-DFc</span></label>
+                        <input type="range" id="density-2fofc-level" min="0.3" max="5" step="0.1" value="1.0"
+                               oninput="setDensityLevel('2fofc', +this.value)" style="flex:1; min-width:80px">
+                        <span id="density-2fofc-label" style="min-width:52px">1.0 &sigma;</span>
+                    </div>
+                    <div class="traj-row" title="Difference map: green = density the model does not explain, red = model where the data show none.">
+                        <label><input type="checkbox" id="density-fofc-on" checked
+                               onchange="setDensityVisible('fofc', this.checked)"> <span style="color:#5fd35f">+</span>/<span style="color:#ff6b6b">&minus;</span> mFo-DFc</label>
+                        <input type="range" id="density-fofc-level" min="1.5" max="8" step="0.1" value="3.0"
+                               oninput="setDensityLevel('fofc', +this.value)" style="flex:1; min-width:80px">
+                        <span id="density-fofc-label" style="min-width:52px">&plusmn;3.0 &sigma;</span>
+                    </div>
+                    <div class="traj-row" title="Show density only near a ligand or residue. The box stays on it when you move the view.">
+                        <span class="k">around</span>
+                        <select id="density-target" onchange="centreDensityOnTarget(this.value)" style="flex:1; min-width:120px">
+                            <option value="">whole structure</option>
+                        </select>
+                    </div>
+                    <div class="traj-row" title="An NGL selection, e.g.  79:A   or   [HBI]   or   :A and 250-260. The number of atoms it matches is shown below.">
+                        <span class="k">or select</span>
+                        <input type="text" id="density-sele" placeholder="e.g. 79:A  or  [HBI]"
+                               onchange="centreDensityOnSelection(this.value)">
+                    </div>
+                    <div class="traj-row" title="Half the edge of the cube of density that is drawn. 0 = the whole map.">
+                        <span class="k">box</span>
+                        <input type="range" id="density-box" min="0" max="60" step="1" value="0"
+                               oninput="setDensityBox(+this.value)" style="flex:1; min-width:80px">
+                        <span id="density-box-label" style="min-width:64px">whole map</span>
+                    </div>
+                    <div class="traj-row">
+                        <label title="As in Coot: the box stays at the centre of the screen and the model moves through it when you pan.">
+                            <input type="checkbox" id="density-follow" onchange="setDensityFollow(this.checked)"> box follows the centre of the view</label>
+                    </div>
+                    <div class="traj-row" title="Colour the mesh near the atoms you choose differently from the mesh elsewhere.">
+                        <label><input type="checkbox" id="density-hl-on" checked onchange="refreshDensityColours()"> highlight mesh within</label>
+                        <input type="range" id="density-hl-radius" min="1" max="6" step="0.5" value="2"
+                               oninput="setDensityHighlightRadius(+this.value)" style="flex:1; min-width:60px">
+                        <span id="density-hl-radius-label" style="min-width:44px">2.0 &Aring;</span>
+                        <span>of chosen atoms</span>
+                    </div>
+                    <div class="traj-row">
+                        <span class="k">colours</span>
+                        <label title="2mFo-DFc mesh">mesh <input type="color" id="density-colour-mesh" value="#6aa9ff" onchange="refreshDensityColours()"></label>
+                        <label title="Mesh near the chosen atoms">highlight <input type="color" id="density-colour-hl" value="#ffe600" onchange="refreshDensityColours()"></label>
+                    </div>
+                    <div class="traj-row" title="How bright the mesh AWAY from the chosen atoms stays, difference map included. Contrast is the difference between the two: yellow on the undimmed blue mesh is only 1.9 : 1, so dimming the rest does far more than a brighter highlight. 40% is the brightest setting at which the default colours reach 7 : 1.">
+                        <span class="k">the rest at</span>
+                        <input type="range" id="density-rest" min="10" max="100" step="5" value="40"
+                               oninput="refreshDensityColours()" style="flex:1; min-width:80px">
+                        <span id="density-rest-label" style="min-width:44px">40%</span>
+                    </div>
+                    <div class="traj-row" title="Click atoms in the view to add them to, or take them out of, the highlight. Choosing from 'around' or typing a selection sets the highlight too.">
+                        <label><input type="checkbox" id="density-pick" checked> click to choose</label>
+                        <label><input type="radio" name="density-pick-by" value="atom" checked> atoms</label>
+                        <label><input type="radio" name="density-pick-by" value="residue"> whole residues</label>
+                        <button class="mode-btn" onclick="clearDensityHighlight()">clear</button>
+                    </div>
+                    <div class="dim-text traj-name" id="density-hl-status"></div>
+                    <div class="dim-text traj-name" id="density-status"></div>
+                    <div class="dim-text traj-name">&sigma; is that of the whole unit cell. Maps calculated by PDBe from the
+                        deposited structure factors and model. Beyond the model, the density is that of its neighbours in the crystal.</div>
                 </div>
             </div>
 
@@ -474,6 +631,8 @@
                 <button class="view-btn" onclick="saveScene()" title="Save every representation, the camera and the background to a scene file in the project directory; reload it from the Structure Viewer menu">Save Scene</button>
                 <button id="background-btn" class="view-btn" onclick="cycleBackground()">Background: Dark</button>
                 <button id="camera-btn" class="view-btn" onclick="toggleCameraType()">Camera: Orthographic</button>
+                <button id="fog-btn" class="view-btn" onclick="toggleDepthCue()"
+                        title="Fade distant atoms toward the background colour (NGL fog). Off gives a cleaner figure of a small solute.">Depth cue: On</button>
             </div>
         </div>
     </div>
@@ -621,6 +780,7 @@
                 camera: orientation ? { orientation: orientation } : null,
                 camera_type: CAMERA_TYPES[cameraIndex].type,
                 background: BACKGROUNDS[backgroundIndex].color,
+                depth_cue: depthCue,
             };
         }
         async function postScene(name) {
@@ -649,6 +809,7 @@
         }
         function applySceneView(cfg) {
             // Camera, background and camera type come only from a loaded scene.
+            if (cfg.depth_cue !== undefined && cfg.depth_cue !== null) { applyDepthCue(cfg.depth_cue); }
             if (cfg.background) {
                 const i = BACKGROUNDS.findIndex(b => b.color.toLowerCase() === String(cfg.background).toLowerCase());
                 if (i >= 0) { backgroundIndex = i; }
@@ -778,6 +939,9 @@
                     if (structInfo.trajectory) {
                         await attachTrajectory(idx, structInfo);
                     }
+                    if (structInfo.density) {
+                        await attachDensity(idx, structInfo);
+                    }
                 } catch (error) {
                     console.error(`Error loading structure ${idx}:`, error);
                 }
@@ -793,6 +957,353 @@
                 lastSceneId = config.scene_id;
                 applySceneView(config);
             }
+        }
+
+        // ---------------- Electron density ----------------
+        // The server re-cut each PDBe map around the deposited model (a PDBe
+        // map is one unit cell at the origin; models mostly lie outside it), so
+        // the volume is already where the atoms are. Contour levels are
+        // ABSOLUTE values, mean + n * sigma with the WHOLE-CELL statistics
+        // from /config: NGL's own 'sigma' mode would use the re-cut region,
+        // which holds more density than the cell and would shift every level.
+        const densityReprs = { '2fofc': [], 'fofc': [] };   // kind -> [{repr, sign, mean, sigma}]
+        const DENSITY_COLORS = { '2fofc': ['#6aa9ff'], 'fofc': ['#5fd35f', '#ff6b6b'] };
+        let densityStructIdx = null;      // the structure the maps belong to
+        let densityCentre = null;         // where a box is anchored, in model coordinates
+        const densityTargets = {};        // option value -> {x, y, z, label}
+
+        // <density-highlight-core>
+        // Which mesh vertices lie within `radius` of any chosen atom. A whole-map
+        // mesh has hundreds of thousands of vertices, so the atoms are binned in
+        // a grid of cell size `radius` and a vertex looks only at its 27 cells.
+        // The integer hash may put two cells in one bucket; the distance test
+        // decides, so that costs time, never correctness.
+        function densityCellKey(kx, ky, kz) {
+            return ((kx * 73856093) ^ (ky * 19349663) ^ (kz * 83492791)) | 0;
+        }
+
+        function buildDensityAtomGrid(points, radius) {
+            const grid = new Map();
+            for (const p of points) {
+                const key = densityCellKey(Math.floor(p.x / radius), Math.floor(p.y / radius), Math.floor(p.z / radius));
+                let bucket = grid.get(key);
+                if (!bucket) { bucket = []; grid.set(key, bucket); }
+                bucket.push(p);
+            }
+            return grid;
+        }
+
+        function nearDensityAtom(grid, radius, x, y, z) {
+            if (!grid || grid.size === 0) { return false; }
+            const kx = Math.floor(x / radius), ky = Math.floor(y / radius), kz = Math.floor(z / radius);
+            const r2 = radius * radius;
+            for (let i = -1; i <= 1; i++) { for (let j = -1; j <= 1; j++) { for (let k = -1; k <= 1; k++) {
+                const bucket = grid.get(densityCellKey(kx + i, ky + j, kz + k));
+                if (!bucket) { continue; }
+                for (const p of bucket) {
+                    const dx = p.x - x, dy = p.y - y, dz = p.z - z;
+                    if (dx * dx + dy * dy + dz * dz <= r2) { return true; }
+                }
+            } } }
+            return false;
+        }
+
+        function densityHexToInt(hex) { return parseInt(String(hex).replace('#', ''), 16); }
+
+        // Darkened towards black, keeping the hue, for "dim the rest"
+        function densityDimmed(colour, factor) {
+            const r = (colour >> 16) & 255, g = (colour >> 8) & 255, b = colour & 255;
+            return (Math.round(r * factor) << 16) | (Math.round(g * factor) << 8) | Math.round(b * factor);
+        }
+
+        // WCAG relative luminance and contrast ratio (1 = none, 21 = black on white), so the
+        // panel can say what the chosen colours actually give instead of leaving it to the eye
+        function densityLuminance(colour) {
+            const lin = [(colour >> 16) & 255, (colour >> 8) & 255, colour & 255].map(function (c) {
+                c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+            });
+            return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+        }
+
+        function densityContrast(a, b) {
+            const la = densityLuminance(a), lb = densityLuminance(b);
+            return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+        }
+
+        // The colour of one mesh vertex. `state` = {on, grid, radius, highlight, rest};
+        // `base` is the map's own colour; only the 2mFo-DFc mesh takes the highlight
+        // colour, the difference map keeps its green and red, which carry meaning.
+        function densityVertexColour(state, base, takesHighlight, x, y, z) {
+            if (!state.on || !state.grid || state.grid.size === 0) { return base; }
+            if (nearDensityAtom(state.grid, state.radius, x, y, z)) { return takesHighlight ? state.highlight : base; }
+            return state.rest < 1 ? densityDimmed(base, state.rest) : base;
+        }
+        // </density-highlight-core>
+
+        const densityChosen = new Map();     // atom index -> {x, y, z, label}
+        const densityColourState = { on: true, grid: null, radius: 2, highlight: 0xffe600, rest: 0.4 };
+
+        function densityBaseColour(kind, i) {
+            return kind === '2fofc' ? densityHexToInt(document.getElementById('density-colour-mesh').value)
+                                    : densityHexToInt(DENSITY_COLORS[kind][i]);
+        }
+
+        function refreshDensityColours() {
+            const state = densityColourState;
+            state.on = document.getElementById('density-hl-on').checked;
+            state.radius = +document.getElementById('density-hl-radius').value;
+            state.highlight = densityHexToInt(document.getElementById('density-colour-hl').value);
+            state.rest = +document.getElementById('density-rest').value / 100;
+            document.getElementById('density-rest-label').textContent = Math.round(state.rest * 100) + '%';
+            state.grid = buildDensityAtomGrid(Array.from(densityChosen.values()), state.radius);
+            eachDensityRepr(function (d) {
+                try { d.repr.repr.update({ color: true }); }
+                catch (e) { d.repr.setParameters({ colorScheme: d.schemeId }); }
+            });
+            const labels = Array.from(new Set(Array.from(densityChosen.values()).map(function (a) { return a.label; })));
+            const meshColour = densityBaseColour('2fofc', 0);
+            const contrast = densityContrast(state.highlight, densityDimmed(meshColour, state.rest));
+            document.getElementById('density-hl-status').textContent = densityChosen.size
+                ? 'Highlighted: mesh near ' + densityChosen.size + ' atom(s) of ' + labels.slice(0, 6).join(', ') +
+                  (labels.length > 6 ? ', and ' + (labels.length - 6) + ' more residues' : '') +
+                  '. Contrast, highlight to the rest: ' + contrast.toFixed(1) + ' : 1' +
+                  (contrast < 3 ? ' (low: dim the rest, or choose colours further apart in brightness)' : '')
+                : 'No atoms chosen: click atoms, pick from "around", or type a selection.';
+        }
+
+        function setDensityHighlightRadius(r) {
+            document.getElementById('density-hl-radius-label').innerHTML = r.toFixed(1) + ' &Aring;';
+            refreshDensityColours();
+        }
+
+        function densityAtomRecord(ap) {
+            return { x: ap.x, y: ap.y, z: ap.z, label: ap.resname + ' ' + ap.resno + (ap.chainname ? ':' + ap.chainname : '') };
+        }
+
+        function setDensityChosen(records) {          // [{index, x, y, z, label}]: replaces the choice
+            densityChosen.clear();
+            for (const a of records) { densityChosen.set(a.index, a); }
+            refreshDensityColours();
+        }
+
+        function clearDensityHighlight() { setDensityChosen([]); }
+
+        function toggleDensityAtoms(records) {        // all already chosen -> take them out; otherwise add
+            const allIn = records.every(function (a) { return densityChosen.has(a.index); });
+            for (const a of records) { if (allIn) { densityChosen.delete(a.index); } else { densityChosen.set(a.index, a); } }
+            refreshDensityColours();
+        }
+
+        function onDensityPick(pickingProxy) {
+            if (measurementMode || !pickingProxy || densityStructIdx === null) { return; }
+            if (!document.getElementById('density-pick').checked) { return; }
+            if (pickingProxy.component !== components[densityStructIdx]) { return; }   // other structures are not in this map's frame
+            const atom = pickingProxy.atom || pickingProxy.closestBondAtom;
+            if (!atom) { return; }
+            const byResidue = document.querySelector('input[name="density-pick-by"]:checked').value === 'residue';
+            const records = [];
+            if (byResidue) {
+                atom.structure.getResidueProxy(atom.residueIndex).eachAtom(function (ap) {
+                    records.push(Object.assign({ index: ap.index }, densityAtomRecord(ap)));
+                });
+            } else {
+                records.push(Object.assign({ index: atom.index }, densityAtomRecord(atom)));
+            }
+            toggleDensityAtoms(records);
+        }
+
+        function densityControl(kind) {
+            return +document.getElementById('density-' + kind + '-level').value;
+        }
+
+        function eachDensityRepr(fn) {
+            for (const kind in densityReprs) { for (const d of densityReprs[kind]) { fn(d); } }
+        }
+
+        // NGL pins a volume's box to the centre of the VIEW: every frame its
+        // setBox() copies the view centre into boxCenter, so on panning the
+        // model slides through a box that stays mid-screen. Here the box
+        // belongs to the model instead: setBox is taken off the frame signal
+        // and boxCenter is set to a point on the structure. "follows the
+        // centre of the view" puts NGL's behaviour back.
+        function anchorDensityRepr(d, anchored) {
+            const r = d.repr.repr;
+            if (!r || typeof r.setBox !== 'function' || !r.viewer || !r.viewer.signals) { return false; }
+            if (anchored && !d.anchored) { r.viewer.signals.ticked.remove(r.setBox, r); }
+            if (!anchored && d.anchored) { r.viewer.signals.ticked.add(r.setBox, r); }
+            d.anchored = anchored;
+            return true;
+        }
+
+        function applyDensityCentre() {
+            if (document.getElementById('density-follow').checked || !densityCentre) { return; }
+            let ok = true;
+            eachDensityRepr(function (d) {
+                if (anchorDensityRepr(d, true)) {
+                    d.repr.setParameters({ boxCenter: new NGL.Vector3(densityCentre.x, densityCentre.y, densityCentre.z) });
+                } else { ok = false; }
+            });
+            if (!ok) {
+                densityStatus('This NGL build does not allow the box to be anchored; it follows the centre of the view.');
+            }
+        }
+
+        function densityStatus(text) {
+            document.getElementById('density-status').textContent = text || '';
+        }
+
+        // Ligands, ions and other non-polymer residues (not water), with their
+        // centres computed from the atoms: no selection string to mis-parse.
+        function listDensityTargets(component) {
+            const select = document.getElementById('density-target');
+            component.structure.eachResidue(function (rp) {
+                if (!rp.isHetero() || rp.isWater()) { return; }
+                let n = 0, x = 0, y = 0, z = 0;
+                const atoms = [];
+                rp.eachAtom(function (ap) {
+                    x += ap.x; y += ap.y; z += ap.z; n += 1;
+                    atoms.push(Object.assign({ index: ap.index }, densityAtomRecord(ap)));
+                });
+                if (!n) { return; }
+                const label = rp.resname + ' ' + rp.resno + (rp.chainname ? ':' + rp.chainname : '');
+                const key = 'r' + rp.index;
+                densityTargets[key] = { x: x / n, y: y / n, z: z / n, label: label, atoms: atoms };
+                const option = document.createElement('option');
+                option.value = key; option.textContent = label;
+                select.appendChild(option);
+            });
+        }
+
+        function ensureDensityBox() {
+            // Centring on something while the whole map is shown changes nothing
+            // visible; bring the box in, and say so on the slider.
+            const slider = document.getElementById('density-box');
+            if (+slider.value === 0) { slider.value = 8; setDensityBox(8); }
+        }
+
+        function centreDensityAt(point, label, nAtoms) {
+            densityCentre = point;
+            document.getElementById('density-follow').checked = false;
+            ensureDensityBox();
+            applyDensityCentre();
+            stage.animationControls.move(new NGL.Vector3(point.x, point.y, point.z), 400);
+            densityStatus('Density around ' + label + (nAtoms ? ' (' + nAtoms + ' atoms)' : '') +
+                          '. The box stays there when you move the view.');
+        }
+
+        function centreDensityOnTarget(key) {
+            document.getElementById('density-sele').value = '';
+            if (!key) {
+                document.getElementById('density-box').value = 0;
+                setDensityBox(0);
+                densityStatus('');
+                return;
+            }
+            const t = densityTargets[key];
+            if (t) { centreDensityAt(t, t.label, 0); setDensityChosen(t.atoms); }
+        }
+
+        function centreDensityOnSelection(text) {
+            text = (text || '').trim();
+            if (!text || densityStructIdx === null) { return; }
+            const structure = components[densityStructIdx].structure;
+            let n = 0, x = 0, y = 0, z = 0;
+            const matched = [];
+            try {
+                structure.eachAtom(function (ap) {
+                    x += ap.x; y += ap.y; z += ap.z; n += 1;
+                    matched.push(Object.assign({ index: ap.index }, densityAtomRecord(ap)));
+                }, new NGL.Selection(text));
+            } catch (e) { n = 0; }
+            if (!n) { densityStatus('"' + text + '" matches no atoms.'); return; }
+            if (n === structure.atomCount) {
+                // NGL does not reject what it cannot parse (PyMOL's "resname HIS", "within 4 of"): it matches everything
+                densityStatus('"' + text + '" matches every atom, which is what NGL does with a selection it cannot read. ' +
+                              'Residue names go in brackets: [HBI]; residues as 79:A.');
+                return;
+            }
+            document.getElementById('density-target').value = '';
+            centreDensityAt({ x: x / n, y: y / n, z: z / n }, '"' + text + '"', n);
+            setDensityChosen(matched);
+        }
+
+        function setDensityFollow(on) {
+            if (on) {
+                eachDensityRepr(function (d) { anchorDensityRepr(d, false); });
+                densityStatus('The box is at the centre of the screen; pan (ctrl-drag) to move the model through it.');
+                ensureDensityBox();
+            } else {
+                if (!densityCentre) {
+                    const c = stage.viewerControls.position.clone().negate();
+                    densityCentre = { x: c.x, y: c.y, z: c.z };
+                }
+                applyDensityCentre();
+                densityStatus('The box stays on the model.');
+            }
+        }
+
+        async function attachDensity(idx, structInfo) {
+            const names = [];
+            densityStructIdx = idx;
+            for (const map of structInfo.density.maps) {
+                try {
+                    const volume = await stage.loadFile(map.url, { ext: 'ccp4', name: map.label });
+                    const signs = map.kind === 'fofc' ? [1, -1] : [1];
+                    signs.forEach(function (sign, i) {
+                        // NGL asks a scheme's positionColor() for the colour of every mesh vertex,
+                        // so one mesh carries both colours: no second mesh to flicker against the first
+                        const schemeId = NGL.ColormakerRegistry.addScheme(function () {
+                            this.positionColor = function (v) {
+                                return densityVertexColour(densityColourState, densityBaseColour(map.kind, i),
+                                                           map.kind === '2fofc', v.x, v.y, v.z);
+                            };
+                        }, 'proprep-density-' + map.kind + '-' + i);
+                        const repr = volume.addRepresentation('surface', {
+                            isolevelType: 'value',
+                            isolevel: map.mean + sign * densityControl(map.kind) * map.sigma,
+                            colorScheme: schemeId,
+                            contour: true, opaqueBack: false, useWorker: false,
+                            boxSize: +document.getElementById('density-box').value,
+                            visible: document.getElementById('density-' + map.kind + '-on').checked,
+                        });
+                        densityReprs[map.kind].push({ repr: repr, sign: sign, mean: map.mean, sigma: map.sigma,
+                                                      anchored: false, schemeId: schemeId });
+                    });
+                    names.push(map.label);
+                } catch (e) {
+                    console.error('density map failed to load:', map.url, e);
+                }
+            }
+            if (names.length) {
+                document.getElementById('density-name').textContent =
+                    structInfo.density.pdb_id + ': ' + names.join(', ') + ' on ' + (structInfo.name || 'structure');
+                document.getElementById('density-section').classList.remove('hidden');
+                listDensityTargets(components[idx]);
+                stage.signals.clicked.add(onDensityPick);
+                refreshDensityColours();
+                // A box, once asked for, sits on the model: start it at the structure's centre
+                const c = components[idx].structure.atomCenter();
+                densityCentre = { x: c.x, y: c.y, z: c.z };
+                applyDensityCentre();
+            }
+        }
+
+        function setDensityLevel(kind, n) {
+            document.getElementById('density-' + kind + '-label').innerHTML =
+                (kind === 'fofc' ? '&plusmn;' : '') + n.toFixed(1) + ' &sigma;';
+            for (const d of densityReprs[kind]) {
+                d.repr.setParameters({ isolevel: d.mean + d.sign * n * d.sigma });
+            }
+        }
+
+        function setDensityVisible(kind, on) {
+            for (const d of densityReprs[kind]) { d.repr.setVisibility(on); }
+        }
+
+        function setDensityBox(size) {
+            document.getElementById('density-box-label').innerHTML = size ? '&plusmn;' + size + ' &Aring;' : 'whole map';
+            eachDensityRepr(function (d) { d.repr.setParameters({ boxSize: size }); });
+            applyDensityCentre();
         }
 
         // ---------------- Trajectory player ----------------
@@ -826,6 +1337,7 @@
 
             document.getElementById('trajectory-name').textContent = info.name || 'trajectory';
             document.getElementById('trajectory-section').classList.remove('hidden');
+            document.getElementById('movie-section').classList.remove('hidden');
             traj.signals.frameChanged.add(updateTrajectoryFrame);
             traj.signals.countChanged.add(updateTrajectoryCount);
             updateTrajectoryCount(traj.frameCount);
@@ -836,6 +1348,7 @@
             const slider = document.getElementById('traj-slider');
             slider.max = Math.max(0, n - 1);
             updateTrajectoryFrame(trajState ? trajState.traj.currentFrame : 0);
+            updateMovieEstimate();
         }
 
         function updateTrajectoryFrame(frame) {
@@ -902,18 +1415,316 @@
             setTrajectoryOption('superpose', !!sele);
         }
 
-        // Keyboard: space plays/pauses, arrows step a frame. Inert while typing
-        // in a field so a selection box never scrubs the trajectory.
+        // Keyboard: h hides/shows the control panel (any structure); with a
+        // trajectory, space plays/pauses, arrows step a frame, m records a
+        // movie. Inert while typing in a field, so an "h" in a selection box is
+        // a letter and a space there never scrubs the trajectory.
         function isTypingInField() {
             const t = document.activeElement;
             return t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
         }
         document.addEventListener('keydown', function (e) {
-            if (!trajState || isTypingInField() || e.metaKey || e.ctrlKey || e.altKey) return;
-            if (e.key === ' ') { e.preventDefault(); toggleTrajectoryPlay(); }
+            // While recording every key but Esc is inert: a stray space or arrow
+            // would move the trajectory under the capture loop.
+            if (movie) {
+                if (e.key === 'Escape') { e.preventDefault(); toggleMovie(); }
+                return;
+            }
+            if (isTypingInField() || e.metaKey || e.ctrlKey || e.altKey) return;
+            if (e.key === 'h' || e.key === 'H') { e.preventDefault(); toggleSidebar(); return; }
+            if (!trajState) return;
+            if (e.key === 'm') { e.preventDefault(); toggleMovie(); }
+            else if (e.key === ' ') { e.preventDefault(); toggleTrajectoryPlay(); }
             else if (e.key === 'ArrowRight') { e.preventDefault(); stepTrajectory(1); }
             else if (e.key === 'ArrowLeft') { e.preventDefault(); stepTrajectory(-1); }
         });
+
+        // ---------------- Depth cue ----------------
+        // Depth cueing (NGL calls it fog) fades atoms toward the background with
+        // distance. It reads as depth in a crowded box, but it also darkens
+        // whatever sits at the back, so a figure of a small solute is cleaner
+        // without it. NGL has no fog on/off switch: fog runs between fogNear and
+        // fogFar (percentages of the camera's near/far span), so pushing
+        // fogNear out to fogFar leaves nothing in front of it to fade.
+        // 50/100 are NGL's Stage defaults.
+        const DEPTH_CUE = { on: { fogNear: 50, fogFar: 100 }, off: { fogNear: 100, fogFar: 100 } };
+        let depthCue = true;
+        function applyDepthCue(on) {
+            depthCue = !!on;
+            if (stage) stage.setParameters(depthCue ? DEPTH_CUE.on : DEPTH_CUE.off);
+            const btn = document.getElementById('fog-btn');
+            if (btn) btn.textContent = 'Depth cue: ' + (depthCue ? 'On' : 'Off');
+        }
+        function toggleDepthCue() { applyDepthCue(!depthCue); }
+
+        // ---------------- Movie export ----------------
+        // Frame-exact, not a screen recording: each trajectory frame is set and
+        // waited on, rendered through stage.makeImage (the supersampled path
+        // Save Screenshot uses) and handed to the browser's WebCodecs encoder
+        // with an explicit timestamp. The movie therefore plays at the chosen
+        // frame rate however long a frame took to render. H.264 in MP4 is what
+        // Keynote, PowerPoint and QuickTime open. Encoding happens in the
+        // browser and the file downloads like a screenshot; the server writes
+        // nothing.
+        //
+        // The MP4 writer (mp4-muxer 5.2.2, MIT) ships with ProPrep and is served
+        // by the viewer's own server, so saving a movie works offline. It is
+        // loaded only when a recording starts.
+        const MP4_MUXER_URL = '/vendor/mp4-muxer.min.js';
+        // H.264 level 5.1 caps a frame at 36864 macroblocks (about 4096 x 2304);
+        // encoders reject anything larger, so bigger renders are scaled to fit.
+        const MOVIE_MAX_PIXELS = 36864 * 256;
+        // H.264 High, Main, Baseline, then VP9: the first the browser will
+        // configure wins. VP9 is for browsers with no H.264 encoder (Firefox on
+        // Linux); that MP4 plays in Chrome/Firefox/VLC but not in Keynote,
+        // PowerPoint or QuickTime.
+        const MOVIE_CODECS = [
+            { codec: 'avc1.640033', mux: 'avc' }, { codec: 'avc1.4d0033', mux: 'avc' },
+            { codec: 'avc1.42e033', mux: 'avc' }, { codec: 'vp09.00.51.08', mux: 'vp9' },
+        ];
+        const MOVIE_CANCELLED = new Error('cancelled');
+        const MOVIE_FRAME_TIMEOUT_MS = 120000;
+        let movie = null;   // live recording state; null when idle
+
+        function loadMp4Muxer() {
+            if (typeof Mp4Muxer !== 'undefined') return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const tag = document.createElement('script');
+                tag.src = MP4_MUXER_URL;
+                tag.onload = () => resolve();
+                tag.onerror = () => reject(new Error('could not load the MP4 writer from ' + MP4_MUXER_URL));
+                document.head.appendChild(tag);
+            });
+        }
+
+        function movieSettings() {
+            const n = trajState ? (trajState.traj.frameCount || 0) : 0;
+            const last = Math.max(0, n - 1);
+            const int = (id, def) => {
+                const v = parseInt(document.getElementById(id).value, 10);
+                return Number.isFinite(v) ? v : def;
+            };
+            const start  = Math.max(0, Math.min(last, int('mv-start', 0)));
+            const end    = Math.max(0, Math.min(last, int('mv-end', last)));   // blank = last frame
+            const stride = Math.max(1, int('mv-stride', 1));
+            const interp = Math.max(0, Math.min(10, int('mv-interp', 0)));
+            const frames = [];
+            const dir = end >= start ? 1 : -1;                                  // start > end records backwards
+            for (let i = start; dir > 0 ? i <= end : i >= end; i += dir * stride) frames.push(i);
+            return {
+                frames, interp,
+                fps: +document.getElementById('mv-fps').value,
+                scale: +document.getElementById('mv-scale').value,
+                bpp: +document.getElementById('mv-quality').value,              // bits per pixel per frame
+                antialias: document.getElementById('mv-aa').checked,
+                total: frames.length ? frames.length + (frames.length - 1) * interp : 0,
+            };
+        }
+
+        // Even dimensions (H.264 needs them), scaled down under the level cap.
+        function movieDims(w, h) {
+            const k = Math.min(1, Math.sqrt(MOVIE_MAX_PIXELS / (w * h)));
+            const even = v => Math.max(2, Math.floor(v * k / 2) * 2);
+            return { width: even(w), height: even(h) };
+        }
+
+        function updateMovieEstimate() {
+            const el = document.getElementById('movie-est');
+            if (!el) return;
+            if (!trajState || !(trajState.traj.frameCount > 0) || !stage) { el.textContent = ''; return; }
+            document.getElementById('mv-end').placeholder = 'last (' + (trajState.traj.frameCount - 1) + ')';
+            const s = movieSettings();
+            const d = movieDims(stage.viewer.width * s.scale, stage.viewer.height * s.scale);
+            el.textContent = s.total + ' movie frames, ' + (s.total / s.fps).toFixed(1) + ' s, about ' +
+                             d.width + ' x ' + d.height + ' px';
+        }
+
+        function setMovieStatus(text, isError) {
+            const el = document.getElementById('movie-status');
+            el.textContent = text;
+            el.classList.toggle('error', !!isError);
+        }
+
+        function setRecordingUi(on) {
+            document.getElementById('rec-shield').classList.toggle('hidden', !on);
+            document.getElementById('rec-badge').classList.toggle('hidden', !on);
+            document.getElementById('movie-progress').classList.toggle('hidden', !on);
+            document.getElementById('mv-record').textContent = on ? 'Cancel recording' : 'Record movie';
+            ['mv-start', 'mv-end', 'mv-stride', 'mv-interp', 'mv-fps', 'mv-scale', 'mv-quality', 'mv-aa',
+             'traj-play-btn', 'traj-slider']
+                .forEach(id => { document.getElementById(id).disabled = on; });
+            if (on) document.getElementById('movie-progress').value = 0;
+        }
+
+        // A frame that never arrives must fail the recording, not hang it with
+        // the controls locked.
+        function awaitTrajectory(start, what) {
+            return new Promise((resolve, reject) => {
+                const t = setTimeout(() => reject(new Error(what + ' timed out')), MOVIE_FRAME_TIMEOUT_MS);
+                start(() => { clearTimeout(t); resolve(); });
+            });
+        }
+
+        // NGL 2.5.0's Trajectory.loadFrame(array, callback) never calls its
+        // callback, and setFrameInterpolated() hands it an array whenever a
+        // frame it needs is not cached yet, so an in-between frame would hang
+        // until the timeout. Get both neighbours into NGL's cache first; with
+        // everything cached setFrameInterpolated completes synchronously.
+        // Polling the cache is deliberate: loadFrame also drops the callback
+        // for a frame that is already cached or already queued.
+        function ensureFrameCached(traj, i) {
+            if (traj.frameCache[i]) return Promise.resolve();
+            traj.loadFrame(i);
+            return new Promise((resolve, reject) => {
+                const started = Date.now();
+                const poll = () => {
+                    if (traj.frameCache[i]) resolve();
+                    else if (movie && movie.cancelled) reject(MOVIE_CANCELLED);
+                    else if (Date.now() - started > MOVIE_FRAME_TIMEOUT_MS) reject(new Error('frame ' + i + ' timed out'));
+                    else setTimeout(poll, 10);
+                };
+                poll();
+            });
+        }
+
+        async function openMovieEncoder(w, h, s) {
+            const { width, height } = movieDims(w, h);
+            const bitrate = Math.round(Math.min(100e6, Math.max(1e6, width * height * s.fps * s.bpp)));
+            let config = null, mux = null;
+            for (const cand of MOVIE_CODECS) {
+                const c = { codec: cand.codec, width, height, bitrate, framerate: s.fps };
+                if (cand.mux === 'avc') c.avc = { format: 'avc' };
+                try {
+                    if ((await VideoEncoder.isConfigSupported(c)).supported) { config = c; mux = cand.mux; break; }
+                } catch (e) { /* try the next codec */ }
+            }
+            if (!config) throw new Error('this browser has no video encoder for ' + width + ' x ' + height +
+                                         '; try a smaller size');
+            const target = new Mp4Muxer.ArrayBufferTarget();
+            const muxer = new Mp4Muxer.Muxer({
+                target, fastStart: 'in-memory',
+                video: { codec: mux, width, height, frameRate: s.fps },
+            });
+            const encoder = new VideoEncoder({
+                output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                error: e => { if (movie) movie.error = e; },
+            });
+            encoder.configure(config);
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            return { encoder, muxer, target, canvas, ctx: canvas.getContext('2d'), mux };
+        }
+
+        async function recordMovie() {
+            if (movie) return;
+            if (!trajState || !(trajState.traj.frameCount > 0)) { setMovieStatus('No trajectory is loaded.', true); return; }
+            if (typeof VideoEncoder === 'undefined') {
+                setMovieStatus("This browser can't encode video. Use a current Chrome, Edge, Safari (17 or later) " +
+                               'or Firefox (130 or later).', true);
+                return;
+            }
+            const s = movieSettings();
+            if (!s.total) { setMovieStatus('No frames in that range.', true); return; }
+            const traj = trajState.traj;
+
+            movie = { cancelled: false, error: null, out: null, resume: { frame: traj.currentFrame | 0 } };
+            if (trajState.playing) toggleTrajectoryPlay();      // real-time playback would advance between captures
+            setRecordingUi(true);
+            setMovieStatus('Recording ' + s.total + ' frames...');
+
+            const usec = 1e6 / s.fps;
+            const bar = document.getElementById('movie-progress');
+            let written = 0, announcedTenth = 0;
+
+            const capture = async () => {
+                if (movie.cancelled) throw MOVIE_CANCELLED;
+                // transparent + our own background fill: see renderOnBackground()
+                const blob = await stage.makeImage({ factor: s.scale, antialias: s.antialias, trim: false, transparent: true });
+                const bmp = await createImageBitmap(blob);
+                if (!movie.out) movie.out = await openMovieEncoder(bmp.width, bmp.height, s);
+                const { encoder, canvas, ctx } = movie.out;
+                // Fit, don't stretch: if the viewport is resized mid-recording the
+                // frame is letterboxed instead of distorting the molecule.
+                const k = Math.min(canvas.width / bmp.width, canvas.height / bmp.height);
+                const dw = bmp.width * k, dh = bmp.height * k;
+                ctx.fillStyle = BACKGROUNDS[backgroundIndex].color;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(bmp, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+                bmp.close();
+
+                const vf = new VideoFrame(canvas, { timestamp: Math.round(written * usec), duration: Math.round(usec) });
+                encoder.encode(vf, { keyFrame: written % (s.fps * 2) === 0 });
+                vf.close();
+                written++;
+                if (movie.error) throw movie.error;
+                while (encoder.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 5));
+
+                bar.value = written / s.total;
+                const tenth = Math.floor(10 * written / s.total);   // the status region is live: speak at each tenth only
+                if (tenth > announcedTenth && written < s.total) {
+                    announcedTenth = tenth;
+                    setMovieStatus('Recording... ' + tenth * 10 + '% (' + written + ' of ' + s.total + ' frames)');
+                }
+            };
+
+            try {
+                await loadMp4Muxer();
+                for (let k = 0; k < s.frames.length; k++) {
+                    const to = s.frames[k];
+                    if (k > 0) {
+                        const from = s.frames[k - 1];
+                        if (s.interp > 0) { await ensureFrameCached(traj, from); await ensureFrameCached(traj, to); }
+                        for (let j = 1; j <= s.interp; j++) {
+                            if (movie.cancelled) throw MOVIE_CANCELLED;
+                            await awaitTrajectory(done => traj.setFrameInterpolated(
+                                to, from, from, from, j / (s.interp + 1), 'linear', done), 'frames ' + from + '-' + to);
+                            await capture();
+                        }
+                    }
+                    if (movie.cancelled) throw MOVIE_CANCELLED;
+                    await awaitTrajectory(done => traj.setFrame(to, done), 'frame ' + to);
+                    await capture();
+                }
+
+                await movie.out.encoder.flush();
+                if (movie.error) throw movie.error;
+                movie.out.muxer.finalize();
+                const blob = new Blob([movie.out.target.buffer], { type: 'video/mp4' });
+                const first = s.frames[0], last = s.frames[s.frames.length - 1];
+                const d = new Date(), pad = v => String(v).padStart(2, '0');
+                const stamp = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' +
+                              pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+                const name = 'proprep-movie-f' + first + '-' + last + '-' + stamp + '.mp4';
+                NGL.download(blob, name);
+                setMovieStatus('Saved ' + name + ': ' + written + ' frames, ' + (written / s.fps).toFixed(1) + ' s, ' +
+                               movie.out.canvas.width + ' x ' + movie.out.canvas.height + ' px, ' +
+                               (blob.size / 1048576).toFixed(1) + ' MB.' +
+                               (movie.out.mux === 'vp9' ? ' Encoded as VP9 because this browser has no H.264 encoder; ' +
+                                "Keynote, PowerPoint and QuickTime won't open it. Record from Chrome or Safari for that." : ''));
+            } catch (e) {
+                if (e === MOVIE_CANCELLED) setMovieStatus('Recording cancelled. Nothing was saved.');
+                else { setMovieStatus('Movie failed: ' + ((e && e.message) || e), true); console.error(e); }
+            } finally {
+                if (movie.out && movie.out.encoder.state !== 'closed') {
+                    try { movie.out.encoder.close(); } catch (e) { /* already closed */ }
+                }
+                const r = movie.resume;
+                movie = null;
+                setRecordingUi(false);
+                try { traj.setFrame(r.frame); } catch (e) { /* ok */ }
+            }
+        }
+
+        function toggleMovie() {
+            if (!movie) { recordMovie(); return; }
+            movie.cancelled = true;
+            setMovieStatus('Cancelling...');
+        }
+
+        ['mv-start', 'mv-end', 'mv-stride', 'mv-interp', 'mv-fps', 'mv-scale'].forEach(id =>
+            document.getElementById(id).addEventListener('input', updateMovieEstimate));
+        window.addEventListener('resize', updateMovieEstimate);
 
         function setupPickingHandler() {
             stage.signals.clicked.add(function (pickingProxy) {
@@ -1900,12 +2711,29 @@
             }
         }
 
+        // NGL 2.5.0's makeImage writes an OPAQUE background in linear light
+        // without encoding it back to sRGB: the default "Dark" #1e1e1e (30,30,30)
+        // comes out as (3,3,3), nearly black, while the molecule is right. White
+        // and black are unaffected (0 and 1 are fixed points of the curve). So
+        // images are rendered with a transparent background, which NGL gets
+        // right, and the background the user sees is painted underneath.
+        async function renderOnBackground(params) {
+            const blob = await stage.makeImage(Object.assign({}, params, { transparent: true }));
+            const bmp = await createImageBitmap(blob);
+            const canvas = document.createElement('canvas');
+            canvas.width = bmp.width;
+            canvas.height = bmp.height;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = BACKGROUNDS[backgroundIndex].color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bmp, 0, 0);
+            bmp.close();
+            return canvas;
+        }
+
         function captureScreenshot() {
-            stage.makeImage({
-                factor: 2, antialias: true,
-                trim: false, transparent: false
-            }).then(function (blob) {
-                NGL.download(blob, "proprep-structure.png");
+            renderOnBackground({ factor: 2, antialias: true, trim: false }).then(function (canvas) {
+                canvas.toBlob(function (blob) { NGL.download(blob, "proprep-structure.png"); }, 'image/png');
             });
         }
 

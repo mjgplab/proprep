@@ -9,11 +9,15 @@ import argparse
 import logging
 import os
 import sys
+import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from proprep.utils.debug_utils import debug_workspace
 from proprep.utils.module_registry import ProcessingModule, register_module, registry
+from proprep.structure_prep.publication_lookup import (
+    PublicationLookupError, doi_url, lookup_publication, pubmed_url
+)
 from proprep.utils.prompts import prompt_with_context
 
 # Configure logging
@@ -1842,10 +1846,40 @@ class PDBMetadataExtractor:
                 print(f"  Publisher: {publisher}")
 
             if "pmid" in jrnl:
-                print(f"  PubMed ID: {jrnl['pmid']}")
+                print(f"  PubMed ID: {jrnl['pmid']}  {pubmed_url(jrnl['pmid'])}")
 
             if "doi" in jrnl:
-                print(f"  DOI: {jrnl['doi']}")
+                print(f"  DOI: {jrnl['doi']}  {doi_url(jrnl['doi'])}")
+
+            if "pmid" in jrnl or "doi" in jrnl:
+                self._display_europe_pmc_record(jrnl.get("pmid"), jrnl.get("doi"))
+
+    @staticmethod
+    def _display_europe_pmc_record(pmid, doi):
+        """Show the article's abstract and where a free full text is, from Europe PMC."""
+        try:
+            publication = lookup_publication(pmid=pmid, doi=doi)
+        except PublicationLookupError as e:
+            print(f"  Abstract and full-text availability: Europe PMC could not be reached ({e})")
+            return
+        if publication is None:
+            print("  Abstract and full-text availability: Europe PMC has no record of this article")
+            return
+
+        if publication.abstract:
+            print("  Abstract (Europe PMC):")
+            for line in textwrap.wrap(publication.abstract, width=96):
+                print(f"    {line}")
+        else:
+            print("  Abstract: none in Europe PMC")
+
+        if publication.free_full_text_urls:
+            kind = "open access" if publication.open_access else "free to read"
+            print(f"  Full text ({kind}):")
+            for url in publication.free_full_text_urls:
+                print(f"    {url}")
+        else:
+            print("  Full text: no free version known to Europe PMC; the DOI link leads to the publisher")
 
     def display_all(self):
         """Display all metadata information."""

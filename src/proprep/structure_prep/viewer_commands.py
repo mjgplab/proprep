@@ -23,6 +23,18 @@ class LaunchViewerCommand(ModuleActionCommand):
         )
 
 
+class LaunchDensityViewerCommand(ModuleActionCommand):
+    """Command to launch the viewer with a structure's electron density."""
+
+    def __init__(self, processor):
+        super().__init__(
+            processor=processor,
+            module_name="Structure Viewer",
+            action_name="_launch_density_workflow",
+            args={},
+        )
+
+
 class ShowAnnotationInfoCommand(ModuleActionCommand):
     """Command to show available annotation information."""
 
@@ -79,5 +91,17 @@ class LoadSceneCommand(ModuleActionCommand):
             processor=processor,
             module_name="Structure Viewer",
             action_name="_load_scene_workflow",
+            args={},
+        )
+
+
+class ViewTrajectoryCommand(ModuleActionCommand):
+    """Pick a topology and a trajectory from disk and play them."""
+
+    def __init__(self, processor):
+        super().__init__(
+            processor=processor,
+            module_name="Structure Viewer",
+            action_name="_view_trajectory_workflow",
             args={},
         )

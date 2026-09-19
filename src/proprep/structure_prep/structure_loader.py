@@ -27,13 +27,16 @@ from rich.table import Table
 
 from proprep.utils.debug_utils import debug_workspace
 from proprep.utils.module_registry import ProcessingModule, register_module
-from proprep.utils.prompts import prompt_with_context, confirm_with_context
+from proprep.utils.prompts import prompt_with_context, confirm_with_context, prompt_int_with_retry
 from proprep.utils.file_browser import remap_recorded_index_by_key, annotate_recorded_key
 from proprep.structure_prep.pdb_fetcher import PDBFetcher
 from proprep.structure_prep.alphafold_fetcher import AlphaFoldFetcher
 from proprep.structure_prep.alphafill_fetcher import AlphaFillFetcher
-from proprep.structure_prep.pdb_searcher import PDBSearcher, PDBSearchResult
+from proprep.structure_prep.pdb_searcher import (
+    PDBSearcher, PDBSearchResult, PDBSearchError, LigandDefinition
+)
 from proprep.structure_prep.uniprot_searcher import UniProtSearcher, UniProtEntry
+from proprep.structure_prep.publication_lookup import doi_url, pubmed_url
 
 # Import metadata extractor and viewer from existing pdb_loader
 from proprep.structure_prep.pdb_loader import PDBMetadataExtractor, display_metadata_menu
@@ -478,12 +481,13 @@ class StructureLoaderModule(ProcessingModule):
         self.console.print("1. Enter PDB ID directly", highlight=False)
         self.console.print("2. Search by entry title keyword", highlight=False)
         self.console.print("3. Search by gene/protein (UniProt)", highlight=False)
-        self.console.print("4. Back to source selection", highlight=False)
+        self.console.print("4. Search by ligand (code or name)", highlight=False)
+        self.console.print("5. Back to source selection", highlight=False)
 
         choice = prompt_with_context(
             self.processor,
             "\nSelect method",
-            choices=["1", "2", "3", "4"],
+            choices=["1", "2", "3", "4", "5"],
             default="1",
             module="Structure Loader - RCSB",
             description="Select PDB retrieval method",
@@ -491,7 +495,8 @@ class StructureLoaderModule(ProcessingModule):
                 "1": "Enter PDB ID directly",
                 "2": "Search by entry title keyword",
                 "3": "Search by gene/protein (UniProt)",
-                "4": "Back to source selection"
+                "4": "Search by ligand (code or name)",
+                "5": "Back to source selection"
             }
         )
 
@@ -501,6 +506,8 @@ class StructureLoaderModule(ProcessingModule):
             return self._search_pdb_interactive(workspace)
         elif choice == "3":
             return self._search_uniprot_interactive(workspace)
+        elif choice == "4":
+            return self._search_pdb_by_ligand_interactive(workspace)
         else:
             self.console.print("[grey50]Back to source selection[/grey50]")
             return workspace
@@ -1540,8 +1547,33 @@ class StructureLoaderModule(ProcessingModule):
             if extractor.resolution:
                 self.console.print(f"Resolution: {extractor.resolution} Å")
 
+            self._show_primary_publication(extractor)
+
         except Exception as e:
             logger.warning(f"Could not extract basic metadata: {e}")
+
+    def _show_primary_publication(self, extractor: PDBMetadataExtractor):
+        """Show the article the structure was published in, from the file's JRNL records."""
+        if not extractor.jrnl_records:
+            return
+        jrnl = extractor.jrnl_records[0]
+        reference = " ".join(jrnl.get("reference", []))
+
+        self.console.print("\nPublication:", highlight=False)
+        if "pmid" not in jrnl and "doi" not in jrnl and "TO BE PUBLISHED" in reference.upper():
+            self.console.print("  Not published: the entry says 'to be published'", highlight=False)
+            return
+        if "title" in jrnl:
+            self.console.print(f"  {' '.join(jrnl['title'])}", highlight=False, markup=False)
+        if "authors" in jrnl:
+            self.console.print(f"  {' '.join(jrnl['authors'])}", highlight=False, markup=False)
+        if reference:
+            self.console.print(f"  {' '.join(reference.split())}", highlight=False, markup=False)
+        if "pmid" in jrnl:
+            self.console.print(f"  PubMed: {pubmed_url(jrnl['pmid'])}", highlight=False)
+        if "doi" in jrnl:
+            self.console.print(f"  DOI: {doi_url(jrnl['doi'])}", highlight=False)
+        self.console.print("[grey50]  Abstract and free full text, if any: View structure metadata[/grey50]")
 
     def _check_residue_numbering(self, structure):
         """Check if the first residue in each chain starts with number 1."""
@@ -1872,11 +1904,31 @@ class StructureLoaderModule(ProcessingModule):
                           (f' in "{organism}"...[/grey50]' if organism else '...[/grey50]'))
 
         searcher = PDBSearcher()
-        results, total_count = searcher.search_and_filter(
-            protein_name=protein_name,
-            organism=organism if organism else None,
-            max_results=100
-        )
+        try:
+            total_count = searcher.count_by_name(protein_name, organism if organism else None)
+        except PDBSearchError as e:
+            self.console.print(f"[red]The RCSB search service could not be reached: {e}[/red]")
+            self.console.print("[grey50]A PDB search needs an internet connection.[/grey50]")
+            return workspace
+
+        results = []
+        if total_count:
+            self.console.print(f"[green]{total_count} structures match[/green]")
+            max_results = prompt_int_with_retry(
+                self.processor,
+                "Maximum number of structures to list, most relevant first",
+                default=100,
+                module="Structure Loader - PDB Search",
+                description="Enter how many structures to list",
+                min_value=1,
+                max_value=PDBSearcher.MAX_ROWS
+            )
+            self.console.print("[grey50]Fetching structure details...[/grey50]")
+            results, total_count = searcher.search_and_filter(
+                protein_name=protein_name,
+                organism=organism if organism else None,
+                max_results=max_results
+            )
 
         if not results:
             self.console.print(f"[yellow]No structures found for '{protein_name}'[/yellow]")
@@ -1889,7 +1941,8 @@ class StructureLoaderModule(ProcessingModule):
 
         # Display total count information
         if len(results) < total_count:
-            self.console.print(f"[green]Showing {len(results)} of {total_count} structures[/green]\n")
+            self.console.print(f"[green]Showing the {len(results)} most relevant of {total_count} structures, "
+                               f"best resolution first[/green]\n")
         else:
             self.console.print(f"[green]Found {len(results)} structures[/green]\n")
 
@@ -1900,6 +1953,147 @@ class StructureLoaderModule(ProcessingModule):
 
         # Interactive results browser
         return self._browse_search_results(results, total_count, workspace)
+
+    def _search_pdb_by_ligand_interactive(self, workspace: Dict[str, Any]) -> Dict[str, Any]:
+        """Find PDB entries by the ligand they contain: name or code, related ligands, entries."""
+        module = "Structure Loader - Ligand Search"
+        self.console.print("\n[bold]Search Protein Data Bank by Ligand[/bold]\n")
+        self.console.print("[grey50]Every ligand in the PDB has a code (HEM, H4B, ...). Enter a code, or words from[/grey50]")
+        self.console.print("[grey50]the ligand's name to look the code up. Names match on whole words:[/grey50]")
+        self.console.print("[grey50]'biopterin' does not find 'tetrahydrobiopterin'.[/grey50]\n")
+
+        text = (prompt_with_context(
+            self.processor,
+            'Enter ligand code or name (e.g., "HEM", "H4B", "tetrahydrobiopterin")',
+            module=module,
+            description="Enter a ligand code or name to look up"
+        ) or "").strip()
+
+        if not text:
+            self.console.print("[yellow]No ligand entered[/yellow]")
+            return workspace
+
+        searcher = PDBSearcher()
+        try:
+            ligands, name_total = searcher.lookup_ligands(text)
+            if not ligands:
+                self.console.print(f"[yellow]No PDB ligand has the code or name '{text}'[/yellow]")
+                self.console.print("\n[grey50]Tips:[/grey50]")
+                self.console.print("[grey50]  • Names match on whole words; try the full chemical name[/grey50]")
+                self.console.print("[grey50]  • Try the name of one form you know, then look for related ligands from its code[/grey50]")
+                return workspace
+
+            if name_total > searcher.NAME_MATCH_ROWS:
+                self.console.print(f"[yellow]{name_total} ligand names match; the first "
+                                   f"{searcher.NAME_MATCH_ROWS} are listed. A longer name narrows the list.[/yellow]")
+            self._display_ligand_table("Ligands matching your entry", ligands, searcher)
+
+            # Other forms of the same ligand carry different codes
+            self.console.print("\n[grey50]One compound can be in the PDB under several codes: each redox or protonation[/grey50]")
+            self.console.print("[grey50]state, tautomer and stereoisomer has its own. ProPrep can list the ligands made of the[/grey50]")
+            self.console.print("[grey50]same atoms with a different number of hydrogens, and the ligands RCSB scores as[/grey50]")
+            self.console.print("[grey50]structurally similar.[/grey50]")
+            while True:
+                seed_code = (prompt_with_context(
+                    self.processor,
+                    "Ligand code to find related ligands for (press Enter to skip)",
+                    default="",
+                    module=module,
+                    description="Look for other redox or protonation states, stereoisomers and similar ligands"
+                ) or "").strip().upper()
+                if not seed_code:
+                    break
+                seed = searcher.get_ligand_definitions([seed_code])
+                if not seed:
+                    self.console.print(f"[red]'{seed_code}' is not a PDB ligand code[/red]")
+                    continue
+                self.console.print(f"[grey50]Looking for ligands related to {seed_code}...[/grey50]")
+                related, notes = searcher.find_related_ligands(seed[0])
+                for note in notes:
+                    self.console.print(f"[yellow]{note}[/yellow]")
+                if related:
+                    self._display_ligand_table(f"Ligands related to {seed_code}", related, searcher)
+                    self.console.print("[grey50]Similarity is RCSB's fingerprint score (1 = identical fingerprints). Same atoms or a high[/grey50]")
+                    self.console.print("[grey50]score does not make a ligand a form of yours: read the names.[/grey50]")
+                else:
+                    self.console.print(f"[yellow]No related ligands found for {seed_code}[/yellow]")
+                break
+
+            # Codes are typed, not picked by row number, so a recorded session
+            # replays the same search whatever the tables list by then
+            exact = [ligand.comp_id for ligand in ligands if ligand.relation == "code"]
+            while True:
+                codes_raw = (prompt_with_context(
+                    self.processor,
+                    "Ligand codes to search for, separated by commas (or 'back')",
+                    default=exact[0] if exact else "",
+                    module=module,
+                    description="Enter the ligand codes whose structures to find"
+                ) or "").strip()
+                if codes_raw.lower() == "back":
+                    self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
+                    return workspace
+                codes = list(dict.fromkeys(c.upper() for c in codes_raw.replace(",", " ").split()))
+                if not codes:
+                    self.console.print("[red]Enter at least one ligand code, or 'back'[/red]")
+                    continue
+                defined = {ligand.comp_id for ligand in searcher.get_ligand_definitions(codes)}
+                unknown = [code for code in codes if code not in defined]
+                if unknown:
+                    self.console.print(f"[red]Not a PDB ligand code: {', '.join(unknown)}[/red]")
+                    continue
+                break
+
+            total_count, per_code = searcher.count_entries_by_ligand(codes)
+            for code in codes:
+                self.console.print(f"  {code}: {per_code.get(code, 0)} structures", highlight=False)
+            if not total_count:
+                self.console.print("[yellow]No experimental structure contains these ligands[/yellow]")
+                return workspace
+            self.console.print(f"[green]{total_count} structures contain {' or '.join(codes)}[/green]")
+
+            max_results = prompt_int_with_retry(
+                self.processor,
+                "Maximum number of structures to list, best resolution first",
+                default=100,
+                module=module,
+                description="Enter how many structures to list",
+                min_value=1,
+                max_value=PDBSearcher.MAX_ROWS
+            )
+
+            self.console.print("[grey50]Fetching structure details...[/grey50]")
+            results, total_count = searcher.search_by_ligands(codes, max_results)
+        except PDBSearchError as e:
+            self.console.print(f"[red]The RCSB search service could not be reached: {e}[/red]")
+            self.console.print("[grey50]A ligand search needs an internet connection.[/grey50]")
+            return workspace
+
+        if len(results) < total_count:
+            self.console.print(f"[green]Listing the {len(results)} best-resolved of {total_count} structures[/green]")
+        self.console.print("[grey50]The ligand code is the depositors' choice and does not always match the state they[/grey50]")
+        self.console.print("[grey50]describe (a dihydrobiopterin deposited under the code of another form, for example):[/grey50]")
+        self.console.print("[grey50]check the title, and the paper, before relying on it.[/grey50]")
+
+        return self._browse_search_results(results, total_count, workspace)
+
+    def _display_ligand_table(self, title: str, ligands: List[LigandDefinition], searcher: PDBSearcher):
+        """Display ligands with the number of structures containing each."""
+        _, per_code = searcher.count_entries_by_ligand([ligand.comp_id for ligand in ligands])
+
+        self.console.print(f"\n[bold bright_blue]═══ {title} ═══[/bold bright_blue]\n")
+        table = Table(show_header=True, header_style="bold bright_blue", box=None)
+        table.add_column("Code", style="bold bright_blue", width=6)
+        table.add_column("Name", style="white", no_wrap=False)
+        table.add_column("Formula", style="grey50")
+        table.add_column("Found by", style="yellow")
+        table.add_column("Similarity", style="green", justify="right")
+        table.add_column("Structures", style="green", justify="right")
+        for ligand in ligands:
+            similarity = f"{ligand.similarity:.2f}" if ligand.similarity is not None else ""
+            table.add_row(ligand.comp_id, ligand.name, ligand.formula, ligand.relation,
+                          similarity, str(per_code.get(ligand.comp_id, 0)))
+        self.console.print(table)
 
     def _browse_search_results(
         self,
@@ -1962,9 +2156,21 @@ class StructureLoaderModule(ProcessingModule):
                 self.console.print("[grey50]Back to the Structure Loader menu[/grey50]")
                 return workspace
             elif selection:
-                # Parse multi-selection (supports "1", "1,3,5", "1-3", "all")
-                selected_results = self._parse_multi_selection(selection, page_results)
+                # The PDB grows, so the same search lists the same entry under another
+                # number later. A single selection is recorded with its PDB ID and, on
+                # replay, found again by that ID anywhere in the results.
+                replayed = selection
+                if selection.isdigit():
+                    replayed = remap_recorded_index_by_key(
+                        self.processor, results, lambda r: r.pdb_id, selection)
+                if replayed != selection:
+                    selected_results = [results[int(replayed) - 1]]
+                else:
+                    # Parse multi-selection (supports "1", "1,3,5", "1-3", "all")
+                    selected_results = self._parse_multi_selection(selection, page_results)
                 if selected_results:
+                    if len(selected_results) == 1:
+                        annotate_recorded_key(self.processor, selected_results[0].pdb_id)
                     return self._load_selected_structures(selected_results, workspace)
                 else:
                     self.console.print(f"[yellow]Invalid selection: '{selection}'. Use numbers (1-{len(page_results)}), ranges (1-3), or 'all'[/yellow]")
@@ -1993,6 +2199,11 @@ class StructureLoaderModule(ProcessingModule):
         table.add_column("Title", style="white", no_wrap=False)  # No width limit, allow wrapping
         table.add_column("Method", style="yellow", width=10)
         table.add_column("Res (Å)", style="green", width=8)
+        table.add_column("Metals", style="yellow")
+        by_ligand = any(result.matched_ligands for result in results)
+        if by_ligand:
+            table.add_column("Ligand", style="bright_blue")
+            table.add_column("RSCC", style="green", width=6)
 
         for i, result in enumerate(results, start=1):
             # Format resolution
@@ -2013,16 +2224,18 @@ class StructureLoaderModule(ProcessingModule):
             elif "ELECTRON" in method.upper() or "CRYO" in method.upper():
                 method = "Cryo-EM"
 
-            # Add ligand indicator
-            if result.has_ligands:
-                metal_count = sum(1 for lig in result.ligand_info
-                                 if lig.get('id', '') in ['ZN', 'FE', 'CU', 'MN', 'NI', 'CO', 'MG', 'CA'])
-                if metal_count > 0:
-                    title = f"{title} [M×{metal_count}]"
-
-            table.add_row(str(i), result.pdb_id, title, method, res_str)
+            row = [str(i), result.pdb_id, title, method, res_str, "  ".join(result.metal_components())]
+            if by_ligand:
+                rscc = f"{result.ligand_rscc:.2f}" if result.ligand_rscc is not None else ""
+                row += [" ".join(result.matched_ligands), rscc]
+            table.add_row(*row)
 
         self.console.print(table)
+        self.console.print("[grey50]Metals: the non-polymer components containing a metal, by PDB code, with the metal in brackets[/grey50]")
+        self.console.print("[grey50]when the component is more than the ion, e.g. HEM (Fe). Not the residues that coordinate it.[/grey50]")
+        if by_ligand:
+            self.console.print("[grey50]RSCC: real-space correlation between the ligand and the electron density, from the[/grey50]")
+            self.console.print("[grey50]wwPDB validation report (1 = perfect agreement); the best copy in the entry. Blank = not reported.[/grey50]")
 
     def _apply_search_filters(self, results: List[PDBSearchResult]) -> List[PDBSearchResult]:
         """Apply additional filters to search results."""
@@ -2107,19 +2320,25 @@ class StructureLoaderModule(ProcessingModule):
                 description="Enter metal ion type"
             )
 
-            metal = metal_raw.strip().upper() if metal_raw else ""
+            # The answer is an element, looked for in the formulas of the non-polymer
+            # components, so iron is found in FE, FE2, a heme or an iron-sulfur cluster alike
+            metal = metal_raw.strip().title() if metal_raw else ""
+            present = sorted({m for r in results for m in r.metals()})
 
-            if metal:
-                # Specific metal
-                results = [r for r in results
-                          if any(lig.get('id', '') == metal for lig in r.ligand_info)]
-                self.console.print(f"[green]Filtered to {len(results)} structures containing {metal}[/green]")
+            if not present:
+                self.console.print("[yellow]No structure in these results contains a metal; "
+                                   "the results are unchanged[/yellow]")
+            elif metal and metal not in present:
+                self.console.print(f"[red]No structure in these results contains '{metal}'. "
+                                   f"Metals present: {', '.join(present)}. The results are unchanged[/red]")
+            elif metal:
+                results = [r for r in results if r.metal_components(metal)]
+                self.console.print(f"[green]Filtered to {len(results)} structures containing {metal}, "
+                                   f"as an ion or within a cofactor[/green]")
             else:
-                # Any metal
-                common_metals = ['ZN', 'FE', 'CU', 'MN', 'NI', 'CO', 'MG', 'CA']
-                results = [r for r in results
-                          if any(lig.get('id', '') in common_metals for lig in r.ligand_info)]
-                self.console.print(f"[green]Filtered to {len(results)} structures containing metals[/green]")
+                results = [r for r in results if r.metal_components()]
+                self.console.print(f"[green]Filtered to {len(results)} structures containing a metal "
+                                   f"({', '.join(present)})[/green]")
 
         elif choice == "4":
             # This would require re-doing the original search - just inform user
@@ -2926,7 +3145,8 @@ class StructureLoaderModule(ProcessingModule):
                 f"\n[green]✓ Loaded topology + {len(traj_paths)} trajectory segment(s) into workspace[/green]"
             )
             self.console.print(
-                "[grey50]Use the Molecular Dynamics Manager (analysis) or QM/MM Preparator to process these files.[/grey50]"
+                "[grey50]Play it with Structure Viewer > View the loaded MD trajectory, or process it with the "
+                "Molecular Dynamics Manager (analysis) or QM/MM Preparator.[/grey50]"
             )
         else:
             try:

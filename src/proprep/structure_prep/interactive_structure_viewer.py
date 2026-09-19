@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 
 from rich.console import Console
-from proprep.utils.prompts import prompt_with_context, confirm_with_context
+from proprep.utils.prompts import prompt_with_context, confirm_with_context, prompt_float_with_retry
 from rich.panel import Panel
 from rich.table import Table
 
@@ -119,8 +119,14 @@ class InteractiveStructureViewer(ProcessingModule):
         # {structure index: trajectory path} to play in the viewer (NGL reads
         # Amber NetCDF directly; see ViewerServer.serve_trajectory).
         self.trajectory_files = {}
+        # {absolute structure path: density record} for structures shown against
+        # their electron density (see _attach_density). Keyed by file, not by
+        # viewer index, because the viewer is relaunched with other structure
+        # lists; the record holds the file's size and mtime so a structure
+        # rewritten in place loses its maps instead of showing them misplaced.
+        self.density_by_file = {}
         # A loaded scene: {'representations': {idx: [rep...]}, 'camera',
-        # 'background', 'camera_type', 'scene_id'}. Replaces the default +
+        # 'background', 'camera_type', 'depth_cue', 'scene_id'}. Replaces the default +
         # annotation representations in _build_viewer_config while the same
         # structure set is shown.
         self.scene_override = None
@@ -160,7 +166,7 @@ class InteractiveStructureViewer(ProcessingModule):
 
     def availability_note(self, workspace):
         """Menu note when unavailable (○). Mirrors can_process exactly."""
-        return None if self.can_process(workspace) else "Needs a loaded structure"
+        return None if self.can_process(workspace) else "Needs a loaded structure, or a loaded topology + trajectory"
 
     def can_process(self, workspace) -> bool:
         """
@@ -174,15 +180,14 @@ class InteractiveStructureViewer(ProcessingModule):
         Returns:
             True if at least one structure exists in workspace
         """
-        selector = StructureSelector(workspace, self.console)
-        available = selector.get_available_structures()
+        if self._has_structures(workspace) or self._loaded_trajectory(workspace) is not None:
+            return True
+        logger.debug("No structure and no topology + trajectory in workspace - viewer unavailable")
+        return False
 
-        has_structures = len(available) > 0
-
-        if not has_structures:
-            logger.debug("No structures found in workspace - viewer unavailable")
-
-        return has_structures
+    def _has_structures(self, workspace) -> bool:
+        """At least one structure from the Structure Loader (what Launch needs)."""
+        return len(StructureSelector(workspace, self.console).get_available_structures()) > 0
 
     def get_menu_options(self) -> Dict[str, str]:
         """
@@ -193,10 +198,39 @@ class InteractiveStructureViewer(ProcessingModule):
         """
         return {
             "launch": "Launch interactive viewer",
+            "trajectory": "View the loaded MD trajectory",
             "info": "Show available annotations",
             "save_scene": "Save the scene shown in the open viewer",
             "load_scene": "Load a saved scene",
+            "density": "Launch viewer with electron density (X-ray structures from the PDB)",
         }
+
+    def get_enhanced_menu_options(self, workspace):
+        """Per-option availability, in the order of get_menu_options().
+
+        Each option is gated on what its handler really consumes: a trajectory
+        needs the topology + trajectory the Structure Loader put in the
+        workspace, a scene names its own structures, and everything else,
+        including any option added later, needs a loaded structure. An option
+        marked AVAILABLE runs without the module-level gate.
+        """
+        from proprep.utils.enhanced_menu import MenuOption, OptionStatus
+
+        def gate(ready: bool, note: str):
+            return (OptionStatus.AVAILABLE, "") if ready else (OptionStatus.BLOCKED, note)
+
+        structure = gate(self._has_structures(workspace), "[Load a structure first] ○")
+        gates = {
+            "trajectory": gate(self._loaded_trajectory(workspace) is not None,
+                               "[Load a topology + trajectory in the Structure Loader first] ○"),
+            "save_scene": gate(True, ""),
+            "load_scene": gate(True, ""),
+        }
+        return [
+            MenuOption(key=str(i), description=description,
+                       status=gates.get(option, structure)[0], dependency_text=gates.get(option, structure)[1])
+            for i, (option, description) in enumerate(self.get_menu_options().items(), 1)
+        ]
 
     def handle_menu_option(self, option: str) -> bool:
         """
@@ -212,6 +246,9 @@ class InteractiveStructureViewer(ProcessingModule):
             from proprep.structure_prep.viewer_commands import LaunchViewerCommand
             command = LaunchViewerCommand(self.processor)
             return command.execute()
+        elif option == "trajectory":
+            from proprep.structure_prep.viewer_commands import ViewTrajectoryCommand
+            return ViewTrajectoryCommand(self.processor).execute()
         elif option == "info":
             from proprep.structure_prep.viewer_commands import ShowAnnotationInfoCommand
             command = ShowAnnotationInfoCommand(self.processor)
@@ -222,8 +259,50 @@ class InteractiveStructureViewer(ProcessingModule):
         elif option == "load_scene":
             from proprep.structure_prep.viewer_commands import LoadSceneCommand
             return LoadSceneCommand(self.processor).execute()
+        elif option == "density":
+            from proprep.structure_prep.viewer_commands import LaunchDensityViewerCommand
+            return LaunchDensityViewerCommand(self.processor).execute()
 
         return False
+
+    # ========================================================================
+    # Trajectories: a topology and a trajectory, straight from disk
+    # ========================================================================
+
+    LOAD_TRAJECTORY_HINT = ("Load a topology and trajectory first: Structure Loader > "
+                            "Load AMBER topology & coordinate files > trajectory")
+
+    def _loaded_trajectory(self, workspace=None):
+        """``(prmtop, [segments])`` as the Structure Loader stored them, or None."""
+        ws = workspace if workspace is not None else self.processor._get_workspace()
+        prmtop = ws.get("parm7_file") if ws else None
+        segments = [str(t) for t in (ws.get("trajectory_files") or [])] if ws else []
+        return (str(prmtop), segments) if prmtop and segments else None
+
+    def _view_trajectory_workflow(self) -> bool:
+        """Play the topology + trajectory that the Structure Loader loaded."""
+        from proprep.md_prep.trajectory_view import prepare_and_show
+
+        loaded = self._loaded_trajectory()
+        if loaded is None:
+            self.console.print(f"[yellow]No topology and trajectory in the workspace.[/yellow]\n{self.LOAD_TRAJECTORY_HINT}")
+            return False
+        prmtop, segments = loaded
+        missing = [f for f in [prmtop] + segments if not os.path.exists(f)]
+        if missing:
+            self.console.print("[red]Loaded file(s) no longer exist:[/red] " + ", ".join(missing))
+            return False
+
+        self.console.print("\n[bold bright_blue]View an MD trajectory[/bold bright_blue]")
+        self.console.print(f"  Topology:   {prmtop}")
+        for i, segment in enumerate(segments, 1):
+            self.console.print(f"  Trajectory: {segment}" if len(segments) == 1 else f"  Segment {i}:  {segment}")
+        self.console.print("[grey50]cpptraj re-images the solute and writes a first-frame PDB and a NetCDF with "
+                           "matching atoms to the project directory; the loaded files are not changed.[/grey50]")
+
+        return prepare_and_show(self.processor, self.console, prmtop, segments,
+                                os.path.join(self._scene_dir(), "viewer"),
+                                module="Structure Viewer - Trajectory")
 
     # ========================================================================
     # Scenes: save and reload the view as prepared
@@ -273,6 +352,7 @@ class InteractiveStructureViewer(ProcessingModule):
             "camera": payload.get("camera"),
             "camera_type": payload.get("camera_type"),
             "background": payload.get("background"),
+            "depth_cue": payload.get("depth_cue"),
         }
 
     def _save_scene_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -342,6 +422,7 @@ class InteractiveStructureViewer(ProcessingModule):
             "camera": scene.get("camera"),
             "camera_type": scene.get("camera_type"),
             "background": scene.get("background"),
+            "depth_cue": scene.get("depth_cue"),
             "scene_id": os.path.basename(scene_path) + "@" + str(scene.get("saved_at")),
         }
         server = getattr(self, "server", None)
@@ -1095,6 +1176,158 @@ class InteractiveStructureViewer(ProcessingModule):
         # Step 4: Launch viewer (Phase 5)
         return self._launch_viewer()
 
+    # ========================================================================
+    # Electron density
+    # ========================================================================
+
+    def _launch_density_workflow(self) -> bool:
+        """Select structures, fetch and fit their electron density maps, launch the viewer."""
+        self.console.print(Panel(
+            "[bold cyan]Electron Density[/bold cyan]\n\n"
+            "For an X-ray entry deposited with its structure factors, PDBe provides two maps:\n"
+            "  2mFo-DFc   the density the model was built into\n"
+            "  mFo-DFc    the difference map: where data and model disagree\n\n"
+            "PDBe calculates both from the deposited data AND the deposited model, so the\n"
+            "2mFo-DFc map is biased towards the model. Trust the difference map more.\n\n"
+            "A map belongs to the coordinate frame of the deposited entry. It is shown for a\n"
+            "structure that still lies there (as downloaded, filtered, protonated, renamed),\n"
+            "not for one superposed onto another structure. NMR entries have no density.",
+            border_style="cyan", expand=False))
+
+        selected_files = self._select_structures_for_viewing()
+        if not selected_files:
+            self.console.print("[yellow]No structures selected - viewer not launched[/yellow]")
+            return False
+
+        margin = prompt_float_with_retry(
+            self.processor,
+            "Density margin around the model (Angstroms)",
+            default=5.0,
+            module="Structure Viewer - Electron Density",
+            description="Enter how far beyond the outermost atoms the maps extend",
+            min_value=0.0,
+        )
+
+        attached = 0
+        for structure_file in selected_files:
+            if self._attach_density(structure_file, margin):
+                attached += 1
+        if not attached:
+            self.console.print("[yellow]No electron density could be shown; launching the viewer without it[/yellow]")
+
+        self.available_annotations = self._detect_available_annotations()
+        if self.available_annotations:
+            self.annotation_config = self._configure_annotation_display()
+        return self._launch_viewer()
+
+    def _deposited_candidates(self, structure_file: str) -> List[str]:
+        """PDB files that may be the deposited entry a structure came from."""
+        candidates = []
+        single = self.workspace.get("rcsb_pdb_file")
+        for path in [single, *(self.workspace.get("rcsb_pdb_files") or []), structure_file]:
+            if isinstance(path, str) and os.path.exists(path):
+                path = os.path.abspath(path)
+                if path not in candidates:
+                    candidates.append(path)
+        return candidates
+
+    def _attach_density(self, structure_file: str, margin: float) -> bool:
+        """Fetch, re-cut and register the maps for one structure; say why when it cannot be done."""
+        import numpy as np
+        from proprep.structure_prep import density_map as dm
+
+        name = os.path.basename(structure_file)
+        structure_file = os.path.abspath(structure_file)
+        self.density_by_file.pop(structure_file, None)
+
+        own_cell, _, _, own_id = dm.read_pdb_frame(structure_file)
+        if own_id and (own_cell is None or min(own_cell[:3]) <= 1.0):
+            self.console.print(f"[yellow]{name}: no density. {own_id} has no unit cell (CRYST1), so it is not a "
+                               f"crystal structure; NMR entries have no electron density[/yellow]")
+            return False
+
+        # Which crystal entry does this structure lie on? Compared by position, not by atom
+        # names, which ProPrep changes along the way. The structure itself is a candidate
+        # so that a local copy of a PDB entry works without a download.
+        try:
+            own_atoms = dm.heavy_atom_coordinates(structure_file)
+        except OSError as e:
+            self.console.print(f"[red]{name}: {e}[/red]")
+            return False
+        best = None
+        for candidate in self._deposited_candidates(structure_file):
+            cell, _, _, idcode = dm.read_pdb_frame(candidate)
+            if cell is None or not idcode or min(cell[:3]) <= 1.0:      # CRYST1 1 1 1: not a crystal
+                continue
+            reference = dm.heavy_atom_coordinates(candidate)
+            if not len(own_atoms) or not len(reference):
+                continue
+            median = float(np.median(dm.nearest_distances(own_atoms, reference)))
+            if best is None or median < best[2]:
+                best = (candidate, idcode, median)
+
+        if best is None:
+            self.console.print(f"[yellow]{name}: no density. No crystal structure from the PDB is loaded that it "
+                               f"could belong to (the maps are found from an entry's PDB ID and unit cell)[/yellow]")
+            return False
+        deposited_file, pdb_id, _ = best
+
+        self.console.print(f"[grey50]{name}: fetching the maps of {pdb_id} from PDBe...[/grey50]")
+        try:
+            map_paths = dm.fetch_density_maps(pdb_id, os.path.dirname(deposited_file))
+            if map_paths is None:
+                self.console.print(f"[yellow]{name}: PDBe has no maps for {pdb_id}. They exist for X-ray entries "
+                                   f"deposited with their structure factors, not for NMR or cryo-EM entries[/yellow]")
+                return False
+            spacing = dm.read_ccp4(map_paths["2fofc"]).spacing
+            check = dm.frame_check(structure_file, deposited_file, spacing)
+            if not check.same_frame:
+                self.console.print(
+                    f"[yellow]{name}: no density. It does not lie on a crystal structure loaded from the PDB. The "
+                    f"closest is {pdb_id}: its atoms are a median {check.median_distance:.2f} A from the nearest "
+                    f"deposited atom, and the map cannot show a displacement below {check.tolerance:.2f} A (half its "
+                    f"grid spacing). A structure superposed onto another has left its map behind; view it as "
+                    f"downloaded instead[/yellow]")
+                return False
+            in_density = dm.mean_density_at_atoms(map_paths["2fofc"], structure_file, deposited_file)
+            if in_density < dm.IN_DENSITY_SIGMA:
+                self.console.print(
+                    f"[yellow]{name}: no density. Its atoms sit at {in_density:+.2f} sigma of the 2mFo-DFc map of "
+                    f"{pdb_id} on average; a model in its own density sits near +3 sigma, atoms placed anywhere else "
+                    f"at 0. It is not where {pdb_id} was deposited (superposed onto another structure?), whatever "
+                    f"its header says. The level required is {dm.IN_DENSITY_SIGMA:.1f} sigma[/yellow]")
+                return False
+            prepared = dm.prepare_maps_for_structure(deposited_file, map_paths, os.path.dirname(deposited_file), margin)
+        except dm.DensityMapError as e:
+            self.console.print(f"[red]{name}: {e}[/red]")
+            return False
+
+        stat = os.stat(structure_file)
+        self.density_by_file[structure_file] = {
+            "pdb_id": pdb_id,
+            "size": stat.st_size, "mtime": stat.st_mtime,
+            "maps": prepared,
+        }
+        levels = ", ".join(f"{m['label']} sigma {m['sigma']:.3f}" for m in prepared)
+        self.console.print(f"[green]✓ {name}: density of {pdb_id} ({levels}). Its atoms sit at {in_density:+.2f} sigma "
+                           f"of the 2mFo-DFc map on average[/green]")
+        return True
+
+    def _density_for_index(self) -> Dict[int, Dict[str, Any]]:
+        """Density records of the structures now selected, by viewer index."""
+        by_index = {}
+        for index, path in enumerate(self.selected_structures or []):
+            record = (getattr(self, "density_by_file", None) or {}).get(os.path.abspath(path))
+            if not record:
+                continue
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            if (stat.st_size, stat.st_mtime) == (record["size"], record["mtime"]):
+                by_index[index] = record
+        return by_index
+
     def _launch_viewer(self, open_browser: bool = True) -> bool:
         """
         Launch the web-based viewer with HTTP server.
@@ -1144,6 +1377,8 @@ class InteractiveStructureViewer(ProcessingModule):
                 port=8765,
                 scene_sink=self._save_scene_payload,
                 trajectory_files=dict(getattr(self, 'trajectory_files', None) or {}),
+                density_files={index: {m["kind"]: m["path"] for m in record["maps"]}
+                               for index, record in self._density_for_index().items()},
             )
 
             # Start server. ViewerServer.start() additionally consults
@@ -1418,13 +1653,25 @@ class InteractiveStructureViewer(ProcessingModule):
                     'ext': os.path.splitext(traj)[1].lstrip('.').lower() or 'nc',
                 }
 
+        density = self._density_for_index()
+        for entry in structures:
+            record = density.get(entry['index'])
+            if record:
+                # Contour levels are absolute values computed in the page from the
+                # WHOLE-CELL mean and sigma given here, not from the re-cut region
+                entry['density'] = {
+                    'pdb_id': record['pdb_id'],
+                    'maps': [{'kind': m['kind'], 'label': m['label'], 'mean': m['mean'], 'sigma': m['sigma'],
+                              'url': f"/density/{entry['index']}/{m['kind']}"} for m in record['maps']],
+                }
+
         out = {
             'structures': structures,
             'shapes': shapes,
             'focused_mode': focused_mode,
         }
         if scene is not None:
-            for key in ('camera', 'camera_type', 'background', 'scene_id'):
+            for key in ('camera', 'camera_type', 'background', 'depth_cue', 'scene_id'):
                 if scene.get(key) is not None:
                     out[key] = scene[key]
         return out

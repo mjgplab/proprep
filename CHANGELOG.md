@@ -13,6 +13,300 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.21.0] — 2026-09-19
+
+### Added
+
+- MD Manager trajectory analysis: method choices that used to be fixed inside
+  the code are now yours to make. Each is a prompt with its default shown, and
+  each is recorded in the session log.
+  - Clustering and Pairwise RMSD: the distance between frames can be best-fit
+    RMSD, RMSD without fitting, or distance RMSD. K-means asks for its random
+    seed (the same seed reproduces the same clusters); hierarchical clustering
+    asks for average, single or complete linkage.
+  - Density maps can be accumulated in the solute's frame: molecules are made
+    whole around the solute (autoimage) and every frame is fitted on a mask to
+    the first frame, on a copy of the trajectory. This is what density around
+    a tumbling solute needs, and it is the default; the lab frame is still
+    offered. The grid point limit and the number of peaks listed are asked.
+  - RMSF and B-factors ask for the alignment mask and reference frame. PCA
+    asks whether to fit to the average structure.
+  - Contacts and Salt bridges ask for the persistence threshold; Contact
+    frequency asks for its distance cutoff; Autocorrelation asks for the RMSD
+    reference frame and the maximum lag.
+  - Ramachandran asks for the bounds of the alpha and beta regions and for the
+    flexibility threshold; omega asks for the planarity tolerance.
+- A trajectory file that stores no frame times: ProPrep says so and asks for
+  the time between frames. With none given, plots use the frame number.
+- Results state the definitions behind them: the charged atoms used for salt
+  bridges (now including AMBER's charged histidine, `HIP`), the water mask
+  used for water shells, how DSSP codes are grouped into helix, sheet, turn
+  and coil, that vector ends are geometric centres, and that contact
+  distances are not imaged.
+- Structure Viewer: a structure against its electron density (option 6,
+  "Launch viewer with electron density"). For an X-ray entry deposited with
+  its structure factors, ProPrep fetches the two maps PDBe provides, the
+  2mFo-DFc map and the mFo-DFc difference map, and shows them in the viewer
+  with a new Electron Density panel: each map on or off, and its contour level
+  (starting at the usual 1.0 and +/-3.0 sigma, green for unexplained density
+  and red for model without density). The whole map is shown to begin with.
+  To look at one place, pick a ligand, ion or cofactor from the panel's list,
+  or type a selection such as `79:A` or `[HBI]`: the view moves there and the
+  density is drawn in a box around it, whose size you set. The box belongs to
+  the model and stays on it when you move the view; a checkbox gives the other
+  convention, used by Coot, where the box stays mid-screen and the model moves
+  through it. A selection that NGL cannot read matches every atom instead of
+  failing, so the panel says how many atoms matched and refuses that case.
+  - For contrast, the mesh near the atoms you choose is coloured differently
+    from the mesh elsewhere. Choose atoms by clicking them (one at a time or
+    a whole residue per click; click again to take them out), from the panel's
+    list of ligands, or with a selection; none of these needs a precise
+    pointer. You set how near counts (default 2 A), the two colours, and how
+    bright the rest of the mesh stays. Dimming the rest is what makes the
+    difference: the default yellow on the default blue mesh is only 1.9 : 1,
+    below the 3 : 1 asked of graphics, because both are bright; with the rest
+    at 40%, the default, it is 7.8 : 1. The panel states the contrast ratio
+    for whatever colours you pick and warns below 3 : 1. The difference map
+    keeps its green and red near your atoms, since those colours carry
+    meaning, and is dimmed elsewhere with the rest.
+  - The maps are calculated by PDBe from the deposited data and the deposited
+    model, so the 2mFo-DFc map leans towards the model; ProPrep says so, and
+    the difference map is the more honest of the two.
+  - A PDBe map covers one unit cell at the origin, while models mostly lie in
+    neighbouring cells (no cofactor atom of 1LTZ or 1J8U is inside its map).
+    ProPrep re-cuts the periodic density around the model, an exact copy of
+    grid values, so density appears where the atoms are. Sigma levels are
+    those of the whole unit cell, the crystallographic convention, not of the
+    re-cut box.
+  - Density is shown only for a structure that still lies where the entry was
+    deposited: as downloaded, filtered, protonated or renamed. A structure
+    superposed onto another has left its map behind. ProPrep decides this from
+    the map itself (a model in its own density sits near +3 sigma on average,
+    the same atoms anywhere else at 0) and tells you the number, so a moved
+    structure is refused even if its file still carries the entry's header.
+    NMR and cryo-EM entries, and entries without deposited structure factors,
+    are told why they have no density. The margin of density kept around the
+    model is asked (default 5 A).
+- Structure Loader: the article behind a structure. When a structure is
+  loaded, from the PDB or from a local file, ProPrep shows the publication
+  recorded in the file: title, authors, journal reference, and PubMed and DOI
+  links, or says that the entry was never published. This needs no internet
+  connection and asks nothing. Under View structure metadata, the
+  publications view adds the article's abstract and says whether a free full
+  text exists and where, from Europe PMC. The abstract is often what says
+  which form of a cofactor is really in the structure. ProPrep does not
+  download articles: most are behind a subscription, and PubMed Central and
+  the publishers refuse scripted PDF downloads, so it gives links to open in
+  a browser, where your own access applies.
+- Structure Loader: search the Protein Data Bank by ligand (Query Protein Data
+  Bank, option 4). Enter a ligand code or words from its name; ProPrep lists
+  the matching ligands and how many structures contain each. From any code it
+  can then list the related ligands, because one compound is in the PDB under
+  several codes: those made of the same atoms with a different number of
+  hydrogens (other redox and protonation states, tautomers, stereoisomers) and
+  those RCSB scores as structurally similar, each labelled with how it was
+  found. Starting from tetrahydrobiopterin (`H4B`) this finds its 6S epimer
+  `BHS`, the dihydrobiopterins `HBI` and `H2B`, and biopterin `BIO`. You type
+  the codes to search for and how many structures to list; they come best
+  resolution first, with the ligand code each contains and the real-space
+  correlation of that ligand with the electron density. Nothing is filtered
+  out for you: lookalikes are shown and labelled, and a reminder is printed
+  that the code is the depositors' choice and does not always match the state
+  their title describes. A search that cannot reach RCSB says so, and is not
+  reported as "no results".
+
+- Structure Viewer: "View the loaded MD trajectory" plays the topology and
+  trajectory loaded with Structure Loader > Load AMBER topology & coordinate
+  files. Every loaded segment is read in order as one trajectory, in any
+  format cpptraj reads (NetCDF, mdcrd, DCD, XTC, TRR, binpos), and no PDB
+  structure needs to be loaded. The option is available once a topology and
+  trajectory are in the workspace, and says where to load them until then;
+  the Structure Loader now points to it. In 1.20.0 the only way to a playing
+  trajectory was MD Manager > Analyze completed simulations > a simulation >
+  "Select analysis type" > 4, which is still there and shares the same code.
+- Structure viewer: save a trajectory movie. The Movie panel (shown with the
+  Trajectory panel; `m` records, `Esc` cancels) renders the trajectory frame
+  by frame to an MP4 with the current camera, representations and background:
+  frame range (backwards too), stride, interpolated in-between frames, frame
+  rate, size (1-3x the viewport), quality and antialiasing. It is frame-exact
+  rather than a screen recording, so it plays at the chosen frame rate however
+  long a frame took to render, and H.264 MP4 opens in Keynote, PowerPoint and
+  QuickTime. Encoding happens in the browser (WebCodecs; a current Chrome,
+  Edge, Safari 17+ or Firefox 130+) and the file downloads like a screenshot.
+  The MP4 writer (mp4-muxer 5.2.2, MIT) ships with ProPrep and is served by the
+  viewer's own server, so saving a movie works offline.
+- Structure viewer: a Depth cue button turns NGL's distance fog off and on.
+  Off gives a cleaner figure of a small solute. The setting is saved with a
+  scene.
+- Structure viewer: `h` hides and shows the control panel, for any structure,
+  so the molecule fills the window (for a figure, or a wider movie). The Hide
+  Panel button was already there; the key is ignored while typing in a field.
+
+### Changed
+
+- Every menu and yes/no question: an answer that is not accepted is now
+  named. `Received "'4", which is not one of the available options` replaces
+  "Please select one of the available options", which read as though the
+  option were unavailable. The usual cause is a key pressed while ProPrep was
+  busy printing: the terminal holds it and puts it in front of your next
+  answer, and shows it where the cursor was at the time, not at the prompt, so
+  the prompt line itself looks correct. The answer is shown exactly as
+  received, so a stray quote, space or arrow key is visible. Nothing else
+  changes: the question is asked again as before, and session recordings still
+  hold only the accepted answer.
+- Structure Loader, search by entry title: the number of structures listed
+  was fixed at 100 inside the code and never mentioned. ProPrep now reports
+  how many structures match, then asks how many to list (default 100, up to
+  the 10,000 that RCSB returns for one search). The most relevant are kept and
+  shown best resolution first, and the results heading says so. A session
+  recorded before this release asks this one question live on replay, then
+  carries on from the recording; Enter gives the old behaviour. With no
+  internet connection the search now says RCSB could not be reached, where it
+  used to report that no structures were found.
+- "Protein residues" in the analysis region menu, and the default residue
+  range for Ramachandran and Water shells, are read from the topology
+  (residues with an N, CA, C backbone). They were a guess (the first 80% of
+  all residues, or residues 1-500), which in a solvated small system is mostly
+  water.
+- DSSP widens an atom selection such as C-alpha to the whole protein residues
+  it touches, and says so; DSSP cannot find backbone hydrogen bonds otherwise.
+  Secondary structure is assigned with the whole protein present and the
+  selected residues are reported: assigned on a partial selection alone, a
+  residue whose hydrogen-bond partner lies outside the selection was
+  misassigned. The notes that DSSP needs a separate `dssp` executable were
+  wrong (it is cpptraj's own) and are gone.
+- DSSP is run by the `cpptraj` program, not through pytraj. On Linux, pytraj's
+  DSSP call damages the program's memory, and ProPrep then stopped without
+  warning at a later analysis: in the Linux installer, DSSP followed by other
+  analyses ended the session in 11 of 20 tries, against 0 of 20 without DSSP.
+  The cpptraj program gives identical assignments and ran clean in all 60
+  tries, and then so did every other trajectory analysis. macOS was not
+  affected.
+- Water shells use cpptraj's `watershell`, so waters are placed with periodic
+  imaging.
+- Pairwise RMSD always asks about subsampling, not only above 500 frames.
+- Frame times are never assumed. A file without them used to be treated as
+  2 ps per frame.
+- Density maps say when the grid limit made the spacing coarser than asked
+  for. This used to go to the log only.
+- All trajectory-analysis prompt text, choices and option labels are constant
+  strings, with no frame counts or residue ranges in them, so a recorded
+  analysis replays on any trajectory. The RMSD reference-frame prompt and the
+  region menu's "Protein residues" label did not meet this. Session logs of
+  these analyses recorded with earlier versions will not replay one to one.
+- Contacts, Pairwise RMSD, Water shells and Contact frequency are far faster:
+  one vectorised or cpptraj pass rather than a Python loop per atom pair per
+  frame.
+
+- The MD Manager's six "Select topology file" prompts no longer carry the
+  number of files in their text, so a recorded choice replays in a directory
+  with a different number of topologies.
+
+### Fixed
+
+- Structure Loader, PDB search results: metals. Search results never carried
+  their ligands, organism or chains, because these were read from an RCSB
+  record that does not hold them, so the "Must contain metal" filter always
+  removed every result. The details now come from RCSB's GraphQL service, in
+  one request per 100 structures instead of one per structure, so results
+  also appear sooner. With the real components of each entry to work from,
+  metals are now read from chemical formulas and no longer from a fixed list
+  of eight PDB codes (`ZN`, `FE`, `CU`, ...), which did not know `FE2`, a heme
+  or an iron-sulfur cluster:
+  - The results table has a "Metals" column naming the non-polymer components
+    that contain a metal: the PDB code, which for an ion carries the deposited
+    oxidation state (`FE2`, `FE`), with the metal in brackets when the
+    component is more than the ion. A nitric oxide synthase reads
+    `HEM (Fe)  ZN`. These are the metal-containing components, not the
+    residues that coordinate the metal. The column replaces a `[Mxn]` count
+    that was appended to titles, was never explained, and had never been
+    displayed.
+  - The metal filter takes an element. `Fe` keeps every structure with iron,
+    as an ion under either of its codes or within a heme or a cluster. It
+    used to compare what you typed with the PDB code, so `Fe` found only the
+    component named `FE`. A metal that no result contains is reported,
+    together with the metals that are present, and the results are left as
+    they were.
+  - A metal is any element that is not a nonmetal, metalloid, halogen or
+    noble gas. The definition is written that way round so that it cannot go
+    out of date: the PDB holds curium, americium and californium ligands
+    that no list of metals in ProPrep includes. A metal that is part of the
+    polymer chain itself is not reported.
+- Structure tables (Structure Viewer and every tool that asks which structure
+  to use): after downloading several PDB structures at once, the last one was
+  listed twice, so downloading two structures showed three and choosing "all"
+  loaded one of them twice. ProPrep keeps the downloaded files in a list and
+  also records one of them, the last, as the structure its other tools use;
+  the table showed both records. That structure is now listed once, named, and
+  marked "current", with a line under the table saying what that means. A
+  session recorded with the longer table replays onto the merged row.
+- Structure Loader, search results: a structure picked by its row number is
+  now recorded with its PDB ID and found again by that ID on replay. The PDB
+  grows, so the same search lists the same structure under another number
+  later, and a replayed session would have loaded a different structure.
+  Selections of several structures at once are still replayed by row number.
+- MD Manager trajectory analysis was checked, analysis by analysis, against
+  the pytraj API and run end to end on real solvated trajectories, with
+  results compared against independent calculations. In 1.20.0 only RMSD,
+  RMSF, Ramachandran, hydrogen bonds and radius of gyration ran at all.
+  Analyses that failed and now work:
+  - PCA, Clustering, Pairwise RMSD, B-factors, Autocorrelation and Contact
+    frequency handed the region menu's whole result to the analyzer instead of
+    the mask in it. The first four also called the region helper without its
+    arguments (`_get_analysis_region_selection() missing 2 required positional
+    arguments`), and Contact frequency crashed ProPrep outright (a
+    segmentation fault inside pytraj). A mask that is not a string is now
+    rejected with an error.
+  - Nine analyses lost their error message and dropped out of the analysis
+    menu with `name 'logger' is not defined`.
+  - Clustering (hierarchical), Water RDF and chi1 dihedrals called pytraj
+    functions that do not exist; SASA passed a keyword pytraj does not take;
+    DSSP and PCA misread pytraj's return values; Contacts, Salt bridges, Water
+    shells, Pairwise RMSD and cluster spreads called pytraj on single frames,
+    which carry no topology; Density maps and Vector misread a frame's shape.
+  - Line plots, the SASA summary and the Density slice failed in the display
+    code once the analysis itself worked, and analyses failed on a trajectory
+    that stores no frame times.
+- Trajectory analyses that ran but gave wrong results:
+  - RMSD, RMSF, PCA and B-factors superposed the shared trajectory in place.
+    The periodic box is not rotated with the coordinates, so every later
+    analysis that uses imaging (Water RDF, Water shells) changed depending on
+    what had been run before it. Nothing moves the loaded trajectory now.
+  - RMSD against the "Average structure" was RMSD against the last frame.
+  - DSSP on the default C-alpha selection reported everything as coil.
+  - PCA "variance explained" was a share of the requested components only, so
+    it always summed to 100%. It is now a share of all the motion.
+  - Ramachandran paired each residue's phi with its neighbour's psi, averaged
+    angles arithmetically (a strand's psi near +/-180 came out near 0), drew
+    the plot with its axes swapped, and numbered residues by position.
+  - Chi1 and omega results also averaged angles arithmetically, so a trans
+    peptide bond fluctuating about +/-180 averaged to about 0 and was counted
+    as cis; residues were numbered by position. Both now use circular
+    statistics and the real residue numbers.
+  - Cluster representative frames were off by one (pytraj reports them
+    1-based).
+  - B-factors were computed without removing overall tumbling.
+- A number typed wrongly at a trajectory-analysis prompt (`4,5` for a cutoff)
+  was silently replaced by the default in nine places, and crashed out of the
+  analysis menu in six others. It is now reported and asked again.
+- The Density map grid could exceed its point limit by one along an axis.
+- MD Manager "Monitor running simulation" failed with `name 'sim_dir' is not
+  defined` for every simulation that had data, and repeated the error instead
+  of returning to the menu. The Performance Summary and the simulation-type
+  check also used `re` without importing it.
+- Structure viewer: the Trajectory panel's "superpose" box scrambled the
+  molecule instead of fitting it. NGL (2.3.1 to 2.5.0 at least) copies the raw
+  coordinates of each frame into its fit matrix with one index for both the
+  3-wide source and the 4-wide destination, so every atom after the first is
+  built from pieces of other atoms. With NGL 2.5.0, fitting a rigid, tumbled
+  8-atom chain onto itself gave an RMSD of 15.6 A and a 25.6 A "bond"; the
+  viewer now applies the fitted matrix itself and gets 0.000 A, and chignolin's
+  bonds stay at 1.59 A under superpose.
+- Structure viewer: Save Screenshot wrote the default Dark background as nearly
+  black, (3,3,3) instead of (30,30,30), because NGL writes an opaque image
+  background in linear light. Screenshots and movies are now rendered on a
+  transparent background and painted onto the colour shown on screen.
+
 ## [1.20.0] — 2026-09-16
 
 ### Added

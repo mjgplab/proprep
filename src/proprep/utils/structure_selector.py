@@ -15,6 +15,7 @@ Date: 2025-11-08
 """
 
 import os
+import re
 import logging
 from typing import Optional, List, Dict, Any, Tuple, Union
 from dataclasses import dataclass, field
@@ -88,6 +89,15 @@ class StructureInfo:
     file_path: str
     exists: bool = field(init=False)
     file_size: Optional[int] = field(init=False, default=None)
+    # True for the one structure of a batch that the single workspace key also points to,
+    # i.e. the one ProPrep's other tools use. Shown in tables, kept out of recorded labels.
+    is_current: bool = False
+
+    @property
+    def table_label(self) -> str:
+        """Display name for tables, marking the current structure of a batch."""
+        name = self.structure_type.display_name
+        return f"{name}, current" if self.is_current else name
 
     def __post_init__(self):
         """Validate file existence and get size"""
@@ -743,7 +753,53 @@ class StructureSelector:
                 if not require_file_path or info.exists:
                     available.append(info)
 
-        return available
+        return self._fold_batch_duplicates(available)
+
+    def _print_current_legend(self, available: List[StructureInfo]) -> None:
+        """Say what "current" means, under a table that uses it."""
+        if any(info.is_current for info in available):
+            self.console.print("[grey50]current: of the structures downloaded together, "
+                               "the one ProPrep's other tools use.[/grey50]")
+
+    @staticmethod
+    def _fold_batch_duplicates(available: List[StructureInfo]) -> List[StructureInfo]:
+        """
+        List once the structure that a batch key and its single key both hold.
+
+        A batch download fills a list key (rcsb_pdb_files) and also points the single
+        key (rcsb_pdb_file) at one of its files, the one ProPrep's other tools use. That
+        is one structure, not two. The single key's entry stays, in its place and under
+        its workspace key (callers ask which key was chosen), takes the batch item's
+        name so the table says which structure it is, and is marked current. The batch
+        item is dropped. The name is exactly the batch item's, so a session recorded when
+        both rows were listed replays a choice of either row onto this one.
+        """
+        by_key = {info.structure_type.workspace_key: info for info in available}
+        folded_away = set()
+        replacements = {}
+
+        for info in available:
+            match = re.fullmatch(r"(.+_file)s\[\d+\]", info.structure_type.workspace_key)
+            if not match:
+                continue
+            single = by_key.get(match.group(1))
+            if single is None or not info.file_path or not single.file_path:
+                continue
+            if os.path.realpath(info.file_path) != os.path.realpath(single.file_path):
+                continue
+
+            # A display copy: the registered StructureType and the cached entry stay as they are
+            merged_type = StructureType.__new__(StructureType)
+            merged_type.workspace_key = single.structure_type.workspace_key
+            merged_type.display_name = info.structure_type.display_name
+            merged_type.priority = single.structure_type.priority
+            merged_type.description = single.structure_type.description
+            replacements[single.structure_type.workspace_key] = StructureInfo(
+                structure_type=merged_type, file_path=single.file_path, is_current=True)
+            folded_away.add(info.structure_type.workspace_key)
+
+        return [replacements.get(info.structure_type.workspace_key, info)
+                for info in available if info.structure_type.workspace_key not in folded_away]
 
     def _priority_selection(
         self,
@@ -830,13 +886,14 @@ class StructureSelector:
 
             table.add_row(
                 str(idx),
-                info.structure_type.display_name,
+                info.table_label,
                 info.file_path,
                 size_str
             )
             options_map[str(idx)] = info
 
         self.console.print(table)
+        self._print_current_legend(available)
 
         # Prompt for selection with session recording context
         if self.processor:
@@ -921,12 +978,13 @@ class StructureSelector:
 
             table.add_row(
                 str(idx),
-                info.structure_type.display_name,
+                info.table_label,
                 info.file_path,
                 size_str
             )
 
         self.console.print(table)
+        self._print_current_legend(available)
         self.console.print("\n[grey50]Enter selection: number (e.g., 1), range (e.g., 1-3), comma-separated (e.g., 1,3,5), or 'all'[/grey50]")
 
         # Get selection with session recording - retry loop for invalid input
@@ -1023,13 +1081,14 @@ class StructureSelector:
         for info in available:
             table.add_row(
                 str(info.structure_type.priority),
-                info.structure_type.display_name,
+                info.table_label,
                 info.structure_type.workspace_key,
                 info.file_path,
                 "✓" if info.exists else "✗"
             )
 
         self.console.print(table)
+        self._print_current_legend(available)
 
     def clear_cache(self):
         """Clear the structure info cache (call if workspace changes)"""

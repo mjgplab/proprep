@@ -6,6 +6,7 @@ Provides structural analysis to complement energetic analysis.
 """
 
 import logging
+import os
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -97,17 +98,77 @@ class TrajectoryAnalyzer:
                    f"{self.system_info['n_frames']} frames")
 
     def _extract_timing_info(self):
-        """Extract frame timing from trajectory metadata."""
-        # Try to get times from trajectory
-        try:
-            if hasattr(self.traj, 'time'):
-                self.frame_times = self.traj.time.tolist()
-            else:
-                # Fall back to frame indices * 2 ps (common default)
-                self.frame_times = [i * 2.0 for i in range(len(self.traj))]
-        except Exception as e:
-            logger.warning(f"Could not extract timing info: {e}, using defaults")
-            self.frame_times = [i * 2.0 for i in range(len(self.traj))]
+        """Frame times from the trajectory file, or frame indices if it stores none."""
+        times = getattr(self.traj, 'time', None)
+        if times is not None:
+            self.frame_times = [float(t) for t in times]
+            self.has_frame_times = True
+        else:
+            # No times in the file. Plot against the frame index rather than guess
+            # a time step; set_frame_interval() supplies one if the user knows it.
+            self.frame_times = [float(i) for i in range(len(self.traj))]
+            self.has_frame_times = False
+
+    def set_frame_interval(self, picoseconds: float):
+        """Time between frames, for a trajectory file that does not store times."""
+        self.frame_times = [i * picoseconds for i in range(len(self.traj))]
+        self.has_frame_times = True
+
+    @property
+    def time_label(self) -> str:
+        """Axis label that matches what frame_times holds."""
+        return "Time (ps)" if self.has_frame_times else "Frame"
+
+    def _select(self, mask: str) -> np.ndarray:
+        """Atom indices for an AMBER mask.
+
+        pytraj's Topology.select() segfaults on a non-string argument instead of
+        raising, which would take the whole ProPrep session down with it.
+        """
+        if not isinstance(mask, str):
+            raise TypeError(f"AMBER mask must be a string, got {type(mask).__name__}: {mask!r}")
+        return self.traj.top.select(mask)
+
+    def _superpose(self, traj, alignment_mask: str, reference: int):
+        """Fit `traj` (a copy, never self.traj) on alignment_mask to one of its frames."""
+        if len(self._select(alignment_mask)) < 3:
+            raise ValueError(f"Alignment mask '{alignment_mask}' selects fewer than 3 atoms; choose another")
+        if not 0 <= reference < traj.n_frames:
+            raise ValueError(f"Alignment reference frame {reference} outside 0-{traj.n_frames - 1}")
+        pt.superpose(traj, ref=reference, mask=alignment_mask)
+
+    def _selected_residue_ids(self, mask: str) -> List[int]:
+        """Sorted 1-based ids of the residues that a mask touches."""
+        top = self.traj.top
+        return sorted({top.atom(int(i)).resid + 1 for i in self._select(mask)})
+
+    @staticmethod
+    def _residue_ids_to_range(residue_ids: List[int]) -> str:
+        """[1, 2, 3, 7, 8] -> '1-3,7-8' (AMBER mask / cpptraj resrange syntax)."""
+        ids = sorted(set(residue_ids))
+        if not ids:
+            return ''
+        runs = []
+        start = prev = ids[0]
+        for rid in ids[1:]:
+            if rid != prev + 1:
+                runs.append((start, prev))
+                start = rid
+            prev = rid
+        runs.append((start, prev))
+        return ','.join(str(a) if a == b else f'{a}-{b}' for a, b in runs)
+
+    def get_protein_residue_ids(self) -> List[int]:
+        """1-based ids of residues that have a peptide backbone (N, CA and C atoms).
+
+        Read from the topology, so it is exact whatever the solvent fraction is.
+        """
+        backbone = [set(self._selected_residue_ids(f'@{name}')) for name in ('N', 'CA', 'C')]
+        return sorted(set.intersection(*backbone))
+
+    def get_protein_residue_range(self) -> str:
+        """Protein residues as a range string, e.g. '1-10'; '' if there are none."""
+        return self._residue_ids_to_range(self.get_protein_residue_ids())
 
     def calculate_rmsd(self, mask: str = '@CA', reference: int = 0,
                       label: str = None) -> np.ndarray:
@@ -125,8 +186,19 @@ class TrajectoryAnalyzer:
         try:
             logger.info(f"Calculating RMSD with mask '{mask}', reference frame {reference}")
 
-            # Calculate RMSD using pytraj
-            rmsd_values = pt.rmsd(self.traj, mask=mask, ref=reference)
+            if reference == -1:
+                # Average structure. pytraj has no sentinel for it (ref=-1 is the
+                # LAST frame), so build it: fit a stripped copy to its first
+                # frame, average, and measure against that average.
+                fitted = self.traj[mask]
+                pt.superpose(fitted, ref=0)
+                average = pt.mean_structure(fitted)
+                rmsd_values = pt.rmsd(fitted, ref=average)
+            else:
+                # update_coordinate=False: pt.rmsd otherwise superposes self.traj in
+                # place. The box is not rotated with it, so every later analysis that
+                # images (RDF, water shells) would silently change with run order.
+                rmsd_values = pt.rmsd(self.traj, mask=mask, ref=reference, update_coordinate=False)
 
             # Store with descriptive label
             key = label or f'rmsd_{mask.replace(",", "_").replace(":", "_").replace("@", "")}'
@@ -141,13 +213,16 @@ class TrajectoryAnalyzer:
             logger.error(f"Error calculating RMSD: {e}")
             raise
 
-    def calculate_rmsf(self, mask: str = '@CA', label: str = None) -> np.ndarray:
+    def calculate_rmsf(self, mask: str = '@CA', label: str = None,
+                       alignment_mask: str = '@CA,C,N', reference: int = 0) -> np.ndarray:
         """
         Calculate per-atom/residue RMSF (root mean square fluctuation).
 
         Args:
             mask: AMBER atom selection mask
             label: Storage label (auto-generated if None)
+            alignment_mask: Atoms the trajectory is fitted on before measuring fluctuations
+            reference: Frame the trajectory is fitted to (0-based)
 
         Returns:
             np.ndarray: RMSF values per atom in selection (Angstroms)
@@ -155,15 +230,13 @@ class TrajectoryAnalyzer:
         try:
             logger.info(f"Calculating RMSF with mask '{mask}'")
 
-            # RMSF requires an aligned trajectory
-            # Create a copy of the trajectory to avoid modifying the original
-            aligned_traj = self.traj[:]
+            # RMSF requires an aligned trajectory. Fit a real copy: self.traj[:] is a
+            # VIEW that shares coordinates, so superposing it rotates self.traj too.
+            aligned_traj = self.traj.copy()
 
-            # Align trajectory to first frame using backbone atoms for alignment
-            # This removes overall translation and rotation
+            # Fitting removes overall translation and rotation.
             # Note: atomicfluct/rmsf does NOT automatically align, so we must do it explicitly
-            alignment_mask = '@CA,C,N'  # Use backbone atoms for alignment
-            pt.superpose(aligned_traj, ref=0, mask=alignment_mask)
+            self._superpose(aligned_traj, alignment_mask, reference)
 
             # Calculate per-residue RMSF using pytraj with byres option
             # Returns array of shape (n_residues, 2) where columns are [residue_index, rmsf_value]
@@ -177,6 +250,8 @@ class TrajectoryAnalyzer:
             key = label or f'rmsf_{mask.replace(",", "_").replace(":", "_").replace("@", "")}'
             self.data[key] = rmsf_array.tolist() if hasattr(rmsf_array, 'tolist') else list(rmsf_array)
             self.data[f'{key}_mask'] = mask
+            self.data[f'{key}_alignment_mask'] = alignment_mask
+            self.data[f'{key}_alignment_reference'] = reference
             # Store residue indices for proper labeling
             self.data[f'{key}_residue_indices'] = rmsf_data[:, 0].astype(int).tolist()
 
@@ -418,18 +493,19 @@ class TrajectoryAnalyzer:
         try:
             logger.info(f"Calculating RDF: '{solute_mask}' to '{solvent_mask}'")
 
-            # Calculate RDF using pytraj
-            rdf_data = pt.radial(
-                self.traj,
-                mask=f"{solute_mask} {solvent_mask}",
-                spacing=bin_spacing,
-                maximum=max_distance
-            )
+            if len(self._select(solute_mask)) == 0:
+                raise ValueError(f"No atoms selected with solute mask: {solute_mask}")
+            if len(self._select(solvent_mask)) == 0:
+                raise ValueError(f"No atoms selected with solvent mask: {solvent_mask}")
 
-            # rdf_data is typically a 2D array where:
-            # column 0 = distances, column 1 = g(r)
-            distances = rdf_data[:, 0]
-            gr_values = rdf_data[:, 1]
+            # pt.rdf returns (bin centers, g(r)) and images by default
+            distances, gr_values = pt.rdf(
+                self.traj,
+                solvent_mask=solvent_mask,
+                solute_mask=solute_mask,
+                maximum=max_distance,
+                bin_spacing=bin_spacing
+            )
 
             # Store results
             key = label or f'rdf_{solute_mask}_to_{solvent_mask}'.replace(':', '_').replace('@', '')
@@ -462,7 +538,7 @@ class TrajectoryAnalyzer:
             logger.info(f"Calculating SASA with mask '{mask}', probe radius {probe_radius}")
 
             # Calculate SASA using pytraj
-            sasa = pt.molsurf(self.traj, mask=mask, probe_radius=probe_radius)
+            sasa = pt.molsurf(self.traj, mask=mask, probe=probe_radius)
 
             # Store with descriptive label
             key = label or f'sasa_{mask.replace(",", "_").replace(":", "_").replace("@", "")}'
@@ -491,19 +567,28 @@ class TrajectoryAnalyzer:
         try:
             logger.info("Calculating secondary structure (DSSP)")
 
-            # DSSP assigns secondary structure codes:
-            # H = α-helix, E = β-sheet, T = turn, C = coil
-            # Additional: G = 3-10 helix, I = π-helix, B = β-bridge, S = bend
+            # DSSP finds backbone N-H...O=C hydrogen bonds, so it needs whole
+            # residues. Handed '@CA' it sees no H-bonds and calls everything coil.
+            # Widen whatever was selected to the protein residues it touches.
+            protein_ids = self.get_protein_residue_ids()
+            touched = set(protein_ids) if not mask else set(protein_ids).intersection(self._selected_residue_ids(mask))
+            if not touched:
+                raise ValueError(f"No protein residues in selection: {mask or 'all'}")
+            reported = sorted(touched)
+            residue_mask = ':' + self._residue_ids_to_range(reported)
 
-            # Calculate DSSP
-            # Returns: array of secondary structure codes per frame
-            dssp_data = pt.dssp(self.traj, mask=mask if mask else '', simplified=True)
-
-            # Process DSSP output to get per-frame statistics
-            # dssp_data format: (n_frames, n_residues) array of SS codes
+            # The whole protein is assigned, and the selected residues reported: a
+            # residue's H-bond partner may lie outside the selection, and assigned
+            # on the selection alone a strand loses its ladder.
+            protein_codes = self._dssp_codes_from_cpptraj(protein_ids)
+            columns = [protein_ids.index(resid) for resid in reported]
+            dssp_data = protein_codes[:, columns]
+            # cpptraj saw a stripped copy numbered from 1, so label from the real topology
+            residue_names = {res.index + 1: res.name for res in self.traj.top.residues}
+            residue_labels = [f"{residue_names[resid]}:{resid}" for resid in reported]
+            helix_codes, sheet_codes, turn_codes = ('H', 'G', 'I'), ('B', 'b'), ('T',)
 
             # Count secondary structure types per frame
-            n_frames = len(self.traj)
             helix_pct = []
             sheet_pct = []
             turn_pct = []
@@ -519,11 +604,10 @@ class TrajectoryAnalyzer:
                     coil_pct.append(0.0)
                     continue
 
-                # Count each type (simplified codes: H=helix, E=sheet, T=turn, C=coil)
-                n_helix = np.sum(frame_ss == 'H')
-                n_sheet = np.sum(frame_ss == 'E')
-                n_turn = np.sum(frame_ss == 'T')
-                n_coil = np.sum(frame_ss == 'C')
+                n_helix = np.sum(np.isin(frame_ss, helix_codes))
+                n_sheet = np.sum(np.isin(frame_ss, sheet_codes))
+                n_turn = np.sum(np.isin(frame_ss, turn_codes))
+                n_coil = total - n_helix - n_sheet - n_turn  # bend and unassigned
 
                 helix_pct.append((n_helix / total) * 100)
                 sheet_pct.append((n_sheet / total) * 100)
@@ -537,7 +621,8 @@ class TrajectoryAnalyzer:
             self.data[f'{key}_turn_pct'] = turn_pct
             self.data[f'{key}_coil_pct'] = coil_pct
             self.data[f'{key}_per_residue'] = dssp_data.tolist()  # Full per-residue assignments
-            self.data[f'{key}_mask'] = mask if mask else 'all protein'
+            self.data[f'{key}_residue_labels'] = list(residue_labels)
+            self.data[f'{key}_mask'] = residue_mask
 
             logger.info(f"DSSP calculation complete: {len(dssp_data[0])} residues analyzed")
             return {
@@ -545,14 +630,57 @@ class TrajectoryAnalyzer:
                 'sheet_pct': sheet_pct,
                 'turn_pct': turn_pct,
                 'coil_pct': coil_pct,
-                'per_residue': dssp_data
+                'per_residue': dssp_data,
+                'residue_labels': list(residue_labels),
+                'mask': residue_mask
             }
 
         except Exception as e:
             logger.error(f"Error calculating DSSP: {e}")
-            logger.warning("DSSP calculation requires dssp executable in PATH")
-            logger.warning("Install via: conda install -c salilab dssp")
             raise
+
+    # cpptraj secstruct writes one integer per residue per frame
+    _CPPTRAJ_DSSP_CODES = "0bBGHITS"   # 0 none, 1 parallel, 2 antiparallel, 3 3-10, 4 alpha, 5 pi, 6 turn, 7 bend
+
+    def _dssp_codes_from_cpptraj(self, protein_ids: List[int]) -> np.ndarray:
+        """DSSP codes[n_frames, n_protein_residues] from the cpptraj PROGRAM.
+
+        Not pt.dssp: on the linux-64 pytraj shipped with AmberTools 26 it corrupts
+        the heap, and a LATER pytraj call aborts the whole process ("corrupted size
+        vs. prev_size", "munmap_chunk(): invalid pointer"). Measured on Rocky from
+        the 1.21.0 installer: DSSP followed by other analyses aborted mid-run in 11
+        of 20 sessions; with no DSSP, 0 of 20. Neither a mask-free call on a
+        stripped copy (10 of 20) nor other arguments cure it. The cpptraj
+        executable runs the same algorithm without pytraj's wrapper: 40 of 40 clean,
+        codes identical to pt.dssp's. macOS never showed the fault.
+        """
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+
+        cpptraj = shutil.which("cpptraj") or os.path.join(os.path.dirname(sys.executable), "cpptraj")
+        if not os.path.exists(cpptraj):
+            raise RuntimeError("cpptraj not found (is AmberTools installed?)")
+
+        protein_only = self.traj[':' + self._residue_ids_to_range(protein_ids)]   # a copy; solvent is of no use here
+        with tempfile.TemporaryDirectory(prefix="proprep_dssp_") as work:
+            top, nc, out = (os.path.join(work, name) for name in ("protein.parm7", "protein.nc", "dssp.dat"))
+            pt.write_parm(top, protein_only.top, overwrite=True)
+            pt.write_traj(nc, protein_only, overwrite=True)
+            script = f"parm {top}\ntrajin {nc}\nsecstruct out {out}\nrun\nquit\n"
+            result = subprocess.run([cpptraj], input=script, capture_output=True, text=True)
+            if result.returncode != 0 or not os.path.exists(out):
+                tail = "\n".join((result.stdout + result.stderr).splitlines()[-8:])
+                raise RuntimeError(f"cpptraj secstruct failed (exit {result.returncode})\n{tail}")
+            with open(out) as f:
+                rows = [line.split()[1:] for line in f if line.strip() and not line.startswith('#')]
+
+        numbers = np.array([[int(float(value)) for value in row] for row in rows], dtype=int)
+        if numbers.shape != (self.traj.n_frames, len(protein_ids)):
+            raise RuntimeError(f"cpptraj secstruct returned {numbers.shape}, expected "
+                               f"({self.traj.n_frames}, {len(protein_ids)})")
+        return np.array(list(self._CPPTRAJ_DSSP_CODES))[numbers]
 
     def calculate_ramachandran(self, residue_selection: str = None,
                               dihedral_type: str = 'phi-psi',
@@ -573,14 +701,9 @@ class TrajectoryAnalyzer:
 
             # Determine residue range
             if residue_selection is None:
-                # Auto-detect protein residues (first 80% if >100 residues)
-                n_residues = self.traj.top.n_residues
-                if n_residues > 100:
-                    # Conservative estimate: first 80% are protein
-                    protein_end = int(n_residues * 0.8)
-                    resrange = f'1-{protein_end}'
-                else:
-                    resrange = f'1-{n_residues}'
+                resrange = self.get_protein_residue_range()
+                if not resrange:
+                    raise ValueError("No protein residues (N, CA, C backbone) found in topology")
             else:
                 resrange = residue_selection
 
@@ -594,31 +717,44 @@ class TrajectoryAnalyzer:
                 logger.info(f"Calculating psi angles for residues {resrange}")
                 psi_data = pt.calc_psi(self.traj, resrange=resrange)
 
-                # phi_data and psi_data are DatasetList objects
-                # Convert to numpy arrays: shape (n_residues, n_frames)
-                phi_array = np.array([data.values for data in phi_data])
-                psi_array = np.array([data.values for data in psi_data])
+                # Datasets are keyed 'phi:<resid>' / 'psi:<resid>'. The first residue
+                # of a chain has no phi and the last has no psi, so the two lists
+                # cover DIFFERENT residues; pair them by residue id, not by position.
+                phi_by_res = {int(d.key.split(':')[1]): d.values for d in phi_data}
+                psi_by_res = {int(d.key.split(':')[1]): d.values for d in psi_data}
+                residues = sorted(set(phi_by_res) & set(psi_by_res))
+                if not residues:
+                    raise ValueError(f"No residues with both phi and psi in {resrange}")
+
+                # shape (n_residues, n_frames)
+                phi_array = np.array([phi_by_res[r] for r in residues])
+                psi_array = np.array([psi_by_res[r] for r in residues])
 
                 # Store results
                 key = label or 'ramachandran'
                 self.data[f'{key}_phi'] = phi_array.tolist()
                 self.data[f'{key}_psi'] = psi_array.tolist()
+                self.data[f'{key}_residues'] = residues
                 self.data[f'{key}_resrange'] = resrange
                 self.data[f'{key}_type'] = 'phi-psi'
 
                 results = {
                     'phi': phi_array,
                     'psi': psi_array,
+                    'residues': residues,
                     'resrange': resrange
                 }
 
-                logger.info(f"Ramachandran calculation complete: {len(phi_data)} residues analyzed")
+                logger.info(f"Ramachandran calculation complete: {len(residues)} residues analyzed")
 
             elif dihedral_type in ['chi1', 'chi2', 'chi3', 'chi4']:
                 # Calculate sidechain chi angles
                 logger.info(f"Calculating {dihedral_type} angles for residues {resrange}")
-                chi_type = int(dihedral_type[-1])  # Extract number from 'chi1', 'chi2', etc.
-                chi_data = pt.calc_chi(self.traj, resrange=resrange, chi_type=chi_type)
+                # cpptraj calls the protein chi1 'chip' ('chin' is the nucleic acid chi)
+                cpptraj_type = 'chip' if dihedral_type == 'chi1' else dihedral_type
+                chi_data = pt.multidihedral(self.traj, dihedral_types=cpptraj_type, resrange=resrange)
+                if len(chi_data) == 0:
+                    raise ValueError(f"No {dihedral_type} dihedrals found in residues {resrange}")
 
                 # Convert to numpy array
                 chi_array = np.array([data.values for data in chi_data])
@@ -631,6 +767,7 @@ class TrajectoryAnalyzer:
 
                 results = {
                     'chi': chi_array,
+                    'residues': [int(d.key.split(':')[1]) for d in chi_data],
                     'resrange': resrange,
                     'type': dihedral_type
                 }
@@ -651,6 +788,7 @@ class TrajectoryAnalyzer:
 
                 results = {
                     'omega': omega_array,
+                    'residues': [int(d.key.split(':')[1]) for d in omega_data],
                     'resrange': resrange
                 }
 
@@ -667,7 +805,8 @@ class TrajectoryAnalyzer:
                           mask2: str = None,
                           distance_cutoff: float = 4.5,
                           reference_frame: int = 0,
-                          label: str = None) -> dict:
+                          label: str = None,
+                          persistence_threshold: float = 0.5) -> dict:
         """
         Calculate contact maps and native contact analysis.
 
@@ -690,66 +829,60 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Calculating contacts between '{mask1}' and '{mask2}' with cutoff {distance_cutoff} Å")
 
-            # Get atom indices for selections
-            atoms1 = self.traj.top.select(mask1)
-            atoms2 = self.traj.top.select(mask2)
+            from scipy.spatial.distance import cdist
+
+            atoms1 = self._select(mask1)
+            atoms2 = self._select(mask2)
 
             n_atoms1 = len(atoms1)
             n_atoms2 = len(atoms2)
             n_frames = self.traj.n_frames
 
+            if n_atoms1 == 0 or n_atoms2 == 0:
+                raise ValueError(f"No atoms selected (mask1 '{mask1}': {n_atoms1}, mask2 '{mask2}': {n_atoms2})")
+            if not 0 <= reference_frame < n_frames:
+                raise ValueError(f"Reference frame {reference_frame} outside 0-{n_frames - 1}")
+
             logger.info(f"Selection 1: {n_atoms1} atoms, Selection 2: {n_atoms2} atoms")
 
-            # Initialize contact matrix (n_atoms1 x n_atoms2 x n_frames)
-            # We'll compute contacts frame by frame to avoid memory issues
-            contact_matrix = np.zeros((n_atoms1, n_atoms2, n_frames), dtype=bool)
+            # An atom is never in contact with itself
+            same_atom = atoms1[:, None] == atoms2[None, :]
+            xyz = self.traj.xyz
 
-            # Calculate distances for all frames
-            for frame_idx in range(n_frames):
-                frame = self.traj[frame_idx]
+            def contacts_in(frame_idx):
+                # Direct (non-imaged) distances, as for pt.distance's default
+                within = cdist(xyz[frame_idx, atoms1], xyz[frame_idx, atoms2]) <= distance_cutoff
+                within[same_atom] = False
+                return within
 
-                for i, atom_i in enumerate(atoms1):
-                    for j, atom_j in enumerate(atoms2):
-                        # Skip self-contacts if same selection
-                        if mask1 == mask2 and atom_i == atom_j:
-                            continue
-
-                        # Calculate distance using pytraj
-                        dist = pt.distance(frame, f'@{atom_i+1} @{atom_j+1}')[0]
-
-                        if dist <= distance_cutoff:
-                            contact_matrix[i, j, frame_idx] = True
-
-            # Calculate native contacts from reference frame
-            native_contacts = contact_matrix[:, :, reference_frame]
-            n_native_contacts = np.sum(native_contacts)
+            native_contacts = contacts_in(reference_frame)
+            n_native_contacts = int(np.sum(native_contacts))
 
             logger.info(f"Found {n_native_contacts} native contacts in reference frame {reference_frame}")
 
-            # Calculate Q-value for each frame (fraction of native contacts maintained)
+            # One frame at a time: Q-value (fraction of native contacts kept) and a
+            # running occupancy count, without holding every frame's matrix
             q_values = []
+            contact_counts = np.zeros((n_atoms1, n_atoms2))
             for frame_idx in range(n_frames):
-                frame_contacts = contact_matrix[:, :, frame_idx]
-                # Contacts that are native AND present in this frame
-                maintained = np.logical_and(native_contacts, frame_contacts)
-                n_maintained = np.sum(maintained)
+                frame_contacts = contacts_in(frame_idx)
+                contact_counts += frame_contacts
 
                 if n_native_contacts > 0:
-                    q_value = n_maintained / n_native_contacts
+                    q_value = np.sum(native_contacts & frame_contacts) / n_native_contacts
                 else:
                     q_value = 1.0  # No native contacts defined
-
-                q_values.append(q_value)
+                q_values.append(float(q_value))
 
             # Calculate contact frequency (occupancy) for each pair
-            contact_frequency = np.sum(contact_matrix, axis=2) / n_frames
+            contact_frequency = contact_counts / n_frames
 
-            # Find most persistent contacts (occupancy > 0.5)
+            # Persistent contacts: present in more than this fraction of frames
             persistent_contacts = []
             for i in range(n_atoms1):
                 for j in range(n_atoms2):
                     occupancy = contact_frequency[i, j]
-                    if occupancy > 0.5:
+                    if occupancy > persistence_threshold:
                         res_i = self.traj.top.atom(atoms1[i]).resid + 1  # 1-indexed
                         res_j = self.traj.top.atom(atoms2[j]).resid + 1
                         resname_i = self.traj.top.atom(atoms1[i]).resname
@@ -764,7 +897,7 @@ class TrajectoryAnalyzer:
                             'resname_j': resname_j,
                             'atom_i': atom_i_name,
                             'atom_j': atom_j_name,
-                            'occupancy': occupancy,
+                            'occupancy': float(occupancy),
                             'is_native': bool(native_contacts[i, j])
                         })
 
@@ -790,7 +923,8 @@ class TrajectoryAnalyzer:
                 'persistent_contacts': persistent_contacts,
                 'n_native_contacts': n_native_contacts,
                 'mask1': mask1,
-                'mask2': mask2
+                'mask2': mask2,
+                'persistence_threshold': persistence_threshold
             }
 
             logger.info(f"Contact analysis complete: {len(persistent_contacts)} persistent contacts found")
@@ -822,7 +956,7 @@ class TrajectoryAnalyzer:
 
             # Define charged residues
             acidic_residues = ['ASP', 'GLU']
-            basic_residues = ['LYS', 'ARG', 'HIS']
+            basic_residues = ['LYS', 'ARG', 'HIS', 'HIP']
 
             # Define charged atoms for each residue type
             acidic_atoms = {
@@ -832,7 +966,8 @@ class TrajectoryAnalyzer:
             basic_atoms = {
                 'LYS': ['NZ'],
                 'ARG': ['NH1', 'NH2'],
-                'HIS': ['ND1', 'NE2']
+                'HIS': ['ND1', 'NE2'],
+                'HIP': ['ND1', 'NE2']
             }
 
             # Find all acidic and basic residues in the system
@@ -840,23 +975,24 @@ class TrajectoryAnalyzer:
             basic_res_list = []
 
             for res in self.traj.top.residues:
+                res_atom_indices = range(res.first_atom_index, res.last_atom_index)
                 if res.name in acidic_residues:
                     # Get indices of charged atoms
-                    charged_atoms = [atom.index for atom in res.atoms
-                                   if atom.name in acidic_atoms.get(res.name, [])]
+                    charged_atoms = [i for i in res_atom_indices
+                                   if self.traj.top.atom(i).name in acidic_atoms.get(res.name, [])]
                     if charged_atoms:
                         acidic_res_list.append({
-                            'resid': res.resid + 1,  # 1-indexed
+                            'resid': res.index + 1,  # 1-indexed
                             'resname': res.name,
                             'atoms': charged_atoms
                         })
 
                 elif res.name in basic_residues:
-                    charged_atoms = [atom.index for atom in res.atoms
-                                   if atom.name in basic_atoms.get(res.name, [])]
+                    charged_atoms = [i for i in res_atom_indices
+                                   if self.traj.top.atom(i).name in basic_atoms.get(res.name, [])]
                     if charged_atoms:
                         basic_res_list.append({
-                            'resid': res.resid + 1,
+                            'resid': res.index + 1,
                             'resname': res.name,
                             'atoms': charged_atoms
                         })
@@ -878,28 +1014,19 @@ class TrajectoryAnalyzer:
                         'key': pair_key,
                         'acidic_res': acidic,
                         'basic_res': basic,
-                        'distances': [],  # min distance per frame
-                        'formed': []  # boolean per frame
                     })
 
-            # Calculate distances for each frame
-            for frame_idx in range(n_frames):
-                frame = self.traj[frame_idx]
+            # Closest charged-atom approach per frame, all frames at once
+            # (direct, non-imaged distances, as for pt.distance's default)
+            xyz = self.traj.xyz
+            for pair in salt_bridge_pairs:
+                acid_xyz = xyz[:, pair['acidic_res']['atoms'], :]   # (n_frames, n_acid, 3)
+                base_xyz = xyz[:, pair['basic_res']['atoms'], :]    # (n_frames, n_base, 3)
+                separations = np.linalg.norm(acid_xyz[:, :, None, :] - base_xyz[:, None, :, :], axis=-1)
+                min_dist = separations.min(axis=(1, 2))
 
-                for pair in salt_bridge_pairs:
-                    acidic_atoms = pair['acidic_res']['atoms']
-                    basic_atoms = pair['basic_res']['atoms']
-
-                    # Find minimum distance between any acidic and basic atom in this pair
-                    min_dist = float('inf')
-                    for acid_atom in acidic_atoms:
-                        for base_atom in basic_atoms:
-                            dist = pt.distance(frame, f'@{acid_atom+1} @{base_atom+1}')[0]
-                            if dist < min_dist:
-                                min_dist = dist
-
-                    pair['distances'].append(min_dist)
-                    pair['formed'].append(min_dist <= distance_cutoff)
+                pair['distances'] = min_dist.tolist()
+                pair['formed'] = (min_dist <= distance_cutoff).tolist()
 
             # Calculate occupancy and statistics for each salt bridge
             salt_bridge_results = []
@@ -932,6 +1059,8 @@ class TrajectoryAnalyzer:
             self.data[f'{key}_n_bridges'] = len(salt_bridge_results)
 
             results = {
+                'definitions': {**{r: acidic_atoms[r] for r in acidic_residues},
+                                **{r: basic_atoms[r] for r in basic_residues}},
                 'salt_bridges': salt_bridge_results,
                 'cutoff': distance_cutoff,
                 'n_bridges': len(salt_bridge_results)
@@ -948,7 +1077,8 @@ class TrajectoryAnalyzer:
     def calculate_pca(self,
                      mask: str = None,
                      n_components: int = 3,
-                     label: str = None) -> dict:
+                     label: str = None,
+                     fit: bool = True) -> dict:
         """
         Calculate Principal Component Analysis (PCA) for trajectory.
 
@@ -969,21 +1099,21 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Calculating PCA for mask '{mask}' with {n_components} components")
 
-            # Perform PCA using pytraj
-            # First, create a dataset for PCA
-            pca_data = pt.pca(self.traj, mask=mask, n_vecs=n_components)
+            # Work on a stripped copy: with fit=True pt.pca fits its trajectory to the
+            # average structure IN PLACE, which must not happen to the shared self.traj.
+            selection = self.traj[mask]
+            if selection.n_atoms == 0:
+                raise ValueError(f"No atoms selected with mask: {mask}")
+            n_components = min(n_components, 3 * selection.n_atoms)
 
-            # Get eigenvalues and eigenvectors
-            eigenvalues = pca_data[0]  # Array of eigenvalues
-            eigenvectors = pca_data[1]  # Matrix of eigenvectors
+            # Returns (projections[n_vecs, n_frames], (eigenvalues, eigenvectors))
+            projections, (eigenvalues, eigenvectors) = pt.pca(selection, mask='*', n_vecs=n_components, fit=fit)
 
-            # Project trajectory onto principal components
-            # Use pytraj projection
-            projections = pt.projection(self.traj, mask=mask, eigenvalues=eigenvalues,
-                                       eigenvectors=eigenvectors, scalar_type='covar')
-
-            # Calculate variance explained by each component
-            total_variance = np.sum(eigenvalues)
+            # Variance explained is relative to ALL the motion, not just to the
+            # components asked for. `selection` now holds the coordinates pt.pca
+            # analysed (fitted to their average if fit=True), so their total variance
+            # is the sum of every eigenvalue (the trace of the covariance matrix).
+            total_variance = float(selection.xyz.var(axis=0).sum())
             variance_explained = [(ev / total_variance) * 100 for ev in eigenvalues]
             cumulative_variance = np.cumsum(variance_explained)
 
@@ -1008,7 +1138,8 @@ class TrajectoryAnalyzer:
                 'cumulative_variance': cumulative_variance,
                 'projections': pc_projections,
                 'mask': mask,
-                'n_components': n_components
+                'n_components': n_components,
+                'fit': fit
             }
 
             logger.info(f"PCA complete: PC1 explains {variance_explained[0]:.1f}% of variance")
@@ -1023,7 +1154,10 @@ class TrajectoryAnalyzer:
                             mask: str = None,
                             n_clusters: int = 5,
                             algorithm: str = 'kmeans',
-                            label: str = None) -> dict:
+                            label: str = None,
+                            metric: str = 'rms',
+                            kseed: int = 1,
+                            linkage: str = 'averagelinkage') -> dict:
         """
         Calculate conformational clustering of trajectory.
 
@@ -1034,6 +1168,10 @@ class TrajectoryAnalyzer:
             n_clusters: Number of clusters (default: 5)
             algorithm: Clustering algorithm - 'kmeans' or 'hierarchical' (default: kmeans)
             label: Optional label for data storage
+            metric: Distance between frames - 'rms' (best-fit RMSD), 'nofit' (RMSD
+                without fitting) or 'dme' (distance RMSD)
+            kseed: Random seed for k-means' initial points (k-means only)
+            linkage: 'averagelinkage', 'linkage' (single) or 'complete' (hierarchical only)
 
         Returns:
             dict: Clustering results including assignments, populations, and representatives
@@ -1045,56 +1183,57 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Calculating {algorithm} clustering for mask '{mask}' with {n_clusters} clusters")
 
-            # Perform clustering using pytraj
+            if len(self._select(mask)) == 0:
+                raise ValueError(f"No atoms selected with mask: {mask}")
+            if metric not in ('rms', 'nofit', 'dme'):
+                raise ValueError(f"Unknown clustering metric: {metric}")
+            if linkage not in ('averagelinkage', 'linkage', 'complete'):
+                raise ValueError(f"Unknown linkage: {linkage}")
+
+            # Both return a ClusteringDataset: .cluster_index (per frame),
+            # .centroids (representative frame of each cluster), .population
             if algorithm.lower() == 'kmeans':
-                # K-means clustering
                 cluster_data = pt.cluster.kmeans(
                     self.traj,
-                    n_clusters=n_clusters,
                     mask=mask,
-                    metric='rms'
+                    n_clusters=n_clusters,
+                    kseed=kseed,
+                    metric=metric
                 )
             elif algorithm.lower() == 'hierarchical':
-                # Hierarchical clustering
-                cluster_data = pt.cluster.hierarchical(
+                # cpptraj's name for it is hieragglo (hierarchical agglomerative)
+                cluster_data = pt.cluster.hieragglo(
                     self.traj,
-                    n_clusters=n_clusters,
                     mask=mask,
-                    metric='rms'
+                    options=f'clusters {n_clusters} {linkage} {metric}'
                 )
             else:
                 raise ValueError(f"Unknown clustering algorithm: {algorithm}")
 
-            # Extract cluster assignments for each frame
-            cluster_assignments = cluster_data.cluster_index
+            cluster_assignments = np.asarray(cluster_data.cluster_index)
+            # .centroids carries cpptraj's 1-based frame numbers (.cluster_index is
+            # 0-based); checked against the medoid computed from pairwise RMSDs
+            representative_frames = np.asarray(cluster_data.centroids) - 1
 
-            # Calculate cluster populations
-            cluster_counts = {}
-            for i in range(n_clusters):
-                count = np.sum(cluster_assignments == i)
-                cluster_counts[i] = count
+            # cpptraj can return fewer clusters than asked for
+            n_clusters = len(representative_frames)
 
-            # Get representative frames (centroids)
-            representative_frames = cluster_data.representative_frames
+            cluster_counts = {i: int(np.sum(cluster_assignments == i)) for i in range(n_clusters)}
 
-            # Calculate RMSD within each cluster
+            # Spread of each cluster: RMSD of its members to its representative frame
             cluster_rmsd = {}
             for cluster_id in range(n_clusters):
-                # Get frames in this cluster
                 cluster_frames_idx = np.where(cluster_assignments == cluster_id)[0]
 
                 if len(cluster_frames_idx) > 1:
-                    # Calculate average RMSD to centroid
-                    centroid_idx = representative_frames[cluster_id]
-                    rmsds = []
-
-                    for frame_idx in cluster_frames_idx:
-                        rmsd = pt.rmsd(
-                            self.traj[frame_idx],
-                            self.traj[centroid_idx],
-                            mask=mask
-                        )[0]
-                        rmsds.append(rmsd)
+                    # measured with the same metric the clustering used
+                    representative = self.traj[int(representative_frames[cluster_id])]
+                    members = cluster_frames_idx.tolist()
+                    if metric == 'dme':
+                        rmsds = pt.distance_rmsd(self.traj, mask=mask, ref=representative, frame_indices=members)
+                    else:
+                        rmsds = pt.rmsd(self.traj, mask=mask, ref=representative, frame_indices=members,
+                                        nofit=(metric == 'nofit'), update_coordinate=False)
 
                     cluster_rmsd[cluster_id] = {
                         'mean': float(np.mean(rmsds)),
@@ -1122,7 +1261,10 @@ class TrajectoryAnalyzer:
                 'cluster_rmsd': cluster_rmsd,
                 'n_clusters': n_clusters,
                 'algorithm': algorithm,
-                'mask': mask
+                'mask': mask,
+                'metric': metric,
+                'kseed': kseed if algorithm.lower() == 'kmeans' else None,
+                'linkage': linkage if algorithm.lower() == 'hierarchical' else None
             }
 
             logger.info(f"Clustering complete: {n_clusters} clusters identified")
@@ -1136,7 +1278,8 @@ class TrajectoryAnalyzer:
     def calculate_pairwise_rmsd(self,
                                mask: str = None,
                                subsample: int = None,
-                               label: str = None) -> dict:
+                               label: str = None,
+                               metric: str = 'rms') -> dict:
         """
         Calculate pairwise RMSD matrix for all frames.
 
@@ -1166,19 +1309,16 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Calculating pairwise RMSD matrix for {n_frames} frames with mask '{mask}'")
 
-            # Initialize RMSD matrix
-            rmsd_matrix = np.zeros((n_frames, n_frames))
+            if len(self._select(mask)) == 0:
+                raise ValueError(f"No atoms selected with mask: {mask}")
+            if n_frames < 2:
+                raise ValueError(f"Pairwise RMSD needs at least 2 frames, got {n_frames}")
 
-            # Calculate pairwise RMSDs using pytraj
-            # Use rmsd_nofit=False to include alignment
-            for i in range(n_frames):
-                for j in range(i, n_frames):
-                    if i == j:
-                        rmsd_matrix[i, j] = 0.0
-                    else:
-                        rmsd_val = pt.rmsd(traj_to_use[i], traj_to_use[j], mask=mask)[0]
-                        rmsd_matrix[i, j] = rmsd_val
-                        rmsd_matrix[j, i] = rmsd_val  # Symmetric
+            if metric not in ('rms', 'nofit', 'dme'):
+                raise ValueError(f"Unknown pairwise metric: {metric}")
+
+            # Full symmetric (n_frames, n_frames) matrix
+            rmsd_matrix = np.asarray(pt.pairwise_rmsd(traj_to_use, mask=mask, metric=metric), dtype=float)
 
             # Calculate statistics
             # Average RMSD for each frame (to all other frames)
@@ -1222,7 +1362,8 @@ class TrajectoryAnalyzer:
                 'overall_std': overall_std,
                 'overall_max': overall_max,
                 'mask': mask,
-                'n_frames': n_frames
+                'n_frames': n_frames,
+                'metric': metric
             }
 
             logger.info(f"Pairwise RMSD complete: overall mean = {overall_mean:.2f} Å")
@@ -1236,7 +1377,9 @@ class TrajectoryAnalyzer:
     def calculate_bfactors(self,
                           mask: str = None,
                           by_residue: bool = True,
-                          label: str = None) -> dict:
+                          label: str = None,
+                          alignment_mask: str = '@CA,C,N',
+                          reference: int = 0) -> dict:
         """
         Calculate pseudo B-factors from MD trajectory.
 
@@ -1258,8 +1401,16 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Calculating B-factors for mask '{mask}'")
 
-            # Calculate RMSF
-            rmsf = pt.rmsf(self.traj, mask=mask)
+            if len(self._select(mask)) == 0:
+                raise ValueError(f"No atoms selected with mask: {mask}")
+
+            # Fluctuations only mean something once overall tumbling is removed,
+            # and atomicfluct does not fit. Fit a copy (never self.traj).
+            aligned_traj = self.traj.copy()  # [:] would be a view sharing coordinates
+            self._superpose(aligned_traj, alignment_mask, reference)
+
+            # Column 0 is the atom number, column 1 the fluctuation (Angstroms)
+            rmsf = pt.rmsf(aligned_traj, mask=mask)[:, 1]
 
             # Convert RMSF (Å) to B-factors (Å²)
             # B = (8π²/3) * RMSF²
@@ -1359,62 +1510,62 @@ class TrajectoryAnalyzer:
             dict: Water shell results including populations and occupancies
         """
         try:
-            # Default to protein if not specified
+            # Default to the protein's heavy atoms, read from the topology
             if solute_mask is None:
-                solute_mask = ':1-500 & !@H='  # Protein heavy atoms (guess protein range)
+                protein_range = self.get_protein_residue_range()
+                if not protein_range:
+                    raise ValueError("No protein residues found; give a custom solute mask")
+                solute_mask = f':{protein_range}&!@H='
 
             logger.info(f"Calculating water shells around '{solute_mask}'")
 
+            if len(self._select(solute_mask)) == 0:
+                raise ValueError(f"No atoms selected with solute mask: {solute_mask}")
+
             # Define shell boundaries
+            if shell_width <= 0:
+                raise ValueError(f"Shell width must be positive, got {shell_width}")
             n_shells = int(max_distance / shell_width)
+            if n_shells < 1:
+                raise ValueError(f"Maximum distance {max_distance} is smaller than the shell width {shell_width}")
             shell_boundaries = [(i * shell_width, (i + 1) * shell_width) for i in range(n_shells)]
 
-            # Get solute and water atoms
-            solute_atoms = self.traj.top.select(solute_mask)
+            # Water oxygens, under whichever water residue name the topology uses
+            water_resnames = sorted({res.name for res in self.traj.top.residues}
+                                    & {'WAT', 'HOH', 'TIP3', 'TIP4', 'TIP5', 'SPC', 'OPC'})
+            if not water_resnames:
+                raise ValueError("No water residues found in topology")
+            water_mask = f":{','.join(water_resnames)}@O,OW,OH2"
+            n_waters = len(self._select(water_mask))
+            if n_waters == 0:
+                raise ValueError(f"No water oxygens selected with mask: {water_mask}")
 
-            # Find water oxygen atoms (common water residue names)
-            water_mask = ':WAT,HOH,TIP3,TIP4,TIP5,SPC,OPC@O'
-            water_atoms = self.traj.top.select(water_mask)
-
-            if len(water_atoms) == 0:
-                logger.warning("No water molecules found with standard names")
-                # Try alternative approach - find residues named water-like
-                water_atoms = []
-                for res in self.traj.top.residues:
-                    if res.name in ['WAT', 'HOH', 'TIP3', 'TIP4', 'TIP5', 'SPC', 'OPC']:
-                        # Get oxygen atom
-                        for atom in res.atoms:
-                            if atom.name in ['O', 'OW', 'OH2']:
-                                water_atoms.append(atom.index)
-                                break
-
-                water_atoms = np.array(water_atoms)
-
-            logger.info(f"Found {len(solute_atoms)} solute atoms and {len(water_atoms)} water molecules")
+            logger.info(f"Found {len(self._select(solute_mask))} solute atoms and {n_waters} water molecules")
 
             n_frames = self.traj.n_frames
 
-            # Initialize shell populations for each frame
+            # cpptraj's watershell counts, per frame and with periodic imaging, the
+            # waters whose oxygen lies within a distance of any solute atom. It takes
+            # two distances per call; a shell's population is the difference between
+            # the counts within its outer and its inner edge.
+            edges = [upper for _, upper in shell_boundaries]
+            within = {}
+            for i in range(0, len(edges), 2):
+                if i + 1 < len(edges):
+                    lower, upper = edges[i], edges[i + 1]
+                elif i > 0:
+                    lower, upper = edges[i - 1], edges[i]  # odd number of edges: pair the last with its neighbour
+                else:
+                    lower, upper = edges[0] / 2, edges[0]  # a single shell
+                counts = pt.watershell(self.traj, solute_mask=solute_mask, solvent_mask=water_mask,
+                                       lower=lower, upper=upper, dtype='ndarray')
+                within[lower], within[upper] = np.asarray(counts[0]), np.asarray(counts[1])
+
             shell_populations = np.zeros((n_frames, n_shells))
-
-            # Calculate water counts per shell for each frame
-            for frame_idx in range(n_frames):
-                frame = self.traj[frame_idx]
-
-                for water_idx in water_atoms:
-                    # Find minimum distance from this water to any solute atom
-                    min_dist = float('inf')
-
-                    for solute_idx in solute_atoms:
-                        dist = pt.distance(frame, f'@{water_idx+1} @{solute_idx+1}')[0]
-                        if dist < min_dist:
-                            min_dist = dist
-
-                    # Assign water to appropriate shell
-                    for shell_idx, (lower, upper) in enumerate(shell_boundaries):
-                        if lower <= min_dist < upper:
-                            shell_populations[frame_idx, shell_idx] += 1
-                            break
+            inner = np.zeros(n_frames)
+            for shell_idx, edge in enumerate(edges):
+                shell_populations[:, shell_idx] = within[edge] - inner
+                inner = within[edge]
 
             # Calculate statistics for each shell
             shell_stats = []
@@ -1444,6 +1595,7 @@ class TrajectoryAnalyzer:
                 'stats': shell_stats,
                 'shell_boundaries': shell_boundaries,
                 'solute_mask': solute_mask,
+                'water_mask': water_mask,
                 'n_shells': n_shells
             }
 
@@ -1458,7 +1610,10 @@ class TrajectoryAnalyzer:
     def calculate_density_map(self,
                              selection_mask: str,
                              grid_spacing: float = 1.0,
-                             label: str = None) -> dict:
+                             label: str = None,
+                             fit_mask: str = None,
+                             max_grid_points: int = 100,
+                             n_peaks: int = 5) -> dict:
         """
         Calculate 3D density map for selected atoms.
 
@@ -1469,6 +1624,12 @@ class TrajectoryAnalyzer:
             selection_mask: AMBER mask for atoms to analyze
             grid_spacing: Grid spacing in Angstroms (default: 1.0)
             label: Optional label for data storage
+            fit_mask: If given, density is accumulated in the frame of these atoms:
+                a copy of the trajectory is autoimaged and fitted on them to its
+                first frame. If None, coordinates are used as stored (lab frame).
+            max_grid_points: Most grid points allowed along an axis; a finer grid
+                than that has its spacing coarsened (reported in the result)
+            n_peaks: Number of highest-density cells to report
 
         Returns:
             dict: Density map results including grid and peak locations
@@ -1477,41 +1638,32 @@ class TrajectoryAnalyzer:
             logger.info(f"Calculating density map for '{selection_mask}' with {grid_spacing} Å spacing")
 
             # Get selected atoms
-            atoms = self.traj.top.select(selection_mask)
+            atoms = self._select(selection_mask)
 
             if len(atoms) == 0:
                 raise ValueError(f"No atoms selected with mask: {selection_mask}")
 
             logger.info(f"Selected {len(atoms)} atoms")
 
-            # Determine grid boundaries from trajectory box
-            # Get box dimensions (assumes periodic box)
-            box_lengths = []
-            for frame in self.traj:
-                if hasattr(frame, 'box_lengths') and frame.box_lengths is not None:
-                    box_lengths.append(frame.box_lengths)
+            if grid_spacing <= 0:
+                raise ValueError(f"Grid spacing must be positive, got {grid_spacing}")
+            requested_spacing = grid_spacing
 
-            if len(box_lengths) == 0:
-                # No box info, use atom positions to define grid
-                logger.warning("No box information found, using atom positions")
-                all_coords = []
-                for frame in self.traj:
-                    coords = frame.xyz[:, atoms, :]
-                    all_coords.append(coords)
-
-                all_coords = np.concatenate(all_coords, axis=0)
-                min_coords = np.min(all_coords, axis=0)
-                max_coords = np.max(all_coords, axis=0)
-
-                # Add padding
-                padding = 5.0  # Angstroms
-                grid_min = min_coords - padding
-                grid_max = max_coords + padding
+            if fit_mask:
+                # Density around a solute only means something in the solute's own
+                # frame: make molecules whole around it, then remove its tumbling.
+                # On a copy; the shared trajectory is never moved.
+                source = self.traj.copy()
+                pt.autoimage(source)
+                self._superpose(source, fit_mask, 0)
             else:
-                # Use average box dimensions
-                avg_box = np.mean(box_lengths, axis=0)
-                grid_min = np.array([0.0, 0.0, 0.0])
-                grid_max = avg_box[:3]
+                source = self.traj
+
+            # Grid over where the selected atoms actually go. (The box is no guide:
+            # it need not start at the origin and may not be orthorhombic.)
+            coords = source.xyz[:, atoms, :].reshape(-1, 3)  # every frame, every selected atom
+            grid_min = coords.min(axis=0)
+            grid_max = coords.max(axis=0)
 
             # Create 3D grid
             nx = int((grid_max[0] - grid_min[0]) / grid_spacing) + 1
@@ -1519,12 +1671,13 @@ class TrajectoryAnalyzer:
             nz = int((grid_max[2] - grid_min[2]) / grid_spacing) + 1
 
             # Limit grid size for memory
-            max_grid_dim = 100
+            max_grid_dim = max_grid_points
             if nx > max_grid_dim or ny > max_grid_dim or nz > max_grid_dim:
                 logger.warning(f"Grid too large ({nx}x{ny}x{nz}), adjusting spacing")
-                new_spacing = max((grid_max[0] - grid_min[0]) / max_grid_dim,
-                                (grid_max[1] - grid_min[1]) / max_grid_dim,
-                                (grid_max[2] - grid_min[2]) / max_grid_dim)
+                # n points span n - 1 intervals
+                new_spacing = max((grid_max[0] - grid_min[0]) / (max_grid_dim - 1),
+                                (grid_max[1] - grid_min[1]) / (max_grid_dim - 1),
+                                (grid_max[2] - grid_min[2]) / (max_grid_dim - 1))
                 grid_spacing = new_spacing
                 nx = int((grid_max[0] - grid_min[0]) / grid_spacing) + 1
                 ny = int((grid_max[1] - grid_min[1]) / grid_spacing) + 1
@@ -1532,24 +1685,9 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Grid dimensions: {nx}x{ny}x{nz}")
 
-            # Initialize density grid
-            density = np.zeros((nx, ny, nz))
-
-            # Accumulate density
-            for frame in self.traj:
-                coords = frame.xyz[0, atoms, :]  # Shape: (n_atoms, 3)
-
-                for coord in coords:
-                    # Convert to grid indices
-                    ix = int((coord[0] - grid_min[0]) / grid_spacing)
-                    iy = int((coord[1] - grid_min[1]) / grid_spacing)
-                    iz = int((coord[2] - grid_min[2]) / grid_spacing)
-
-                    # Check bounds
-                    if 0 <= ix < nx and 0 <= iy < ny and 0 <= iz < nz:
-                        density[ix, iy, iz] += 1
-
-            # Normalize by number of frames and number of atoms
+            # Occupancy of each grid cell, as a fraction of all (frame, atom) positions
+            edges = [grid_min[axis] + grid_spacing * np.arange(n + 1) for axis, n in enumerate((nx, ny, nz))]
+            density, _ = np.histogramdd(coords, bins=edges)
             density = density / (self.traj.n_frames * len(atoms))
 
             # Find peak density locations
@@ -1558,7 +1696,7 @@ class TrajectoryAnalyzer:
 
             # Get top 5 peak locations
             peaks = []
-            for idx in sorted_indices[:5]:
+            for idx in sorted_indices[:n_peaks]:
                 if flat_density[idx] > 0:
                     # Convert back to 3D indices
                     ix = idx // (ny * nz)
@@ -1566,9 +1704,10 @@ class TrajectoryAnalyzer:
                     iz = idx % nz
 
                     # Convert to real coordinates
-                    x = grid_min[0] + ix * grid_spacing
-                    y = grid_min[1] + iy * grid_spacing
-                    z = grid_min[2] + iz * grid_spacing
+                    # centre of the grid cell
+                    x = grid_min[0] + (ix + 0.5) * grid_spacing
+                    y = grid_min[1] + (iy + 0.5) * grid_spacing
+                    z = grid_min[2] + (iz + 0.5) * grid_spacing
 
                     peaks.append({
                         'coords': (x, y, z),
@@ -1600,7 +1739,10 @@ class TrajectoryAnalyzer:
                 'grid_dims': (nx, ny, nz),
                 'peaks': peaks,
                 'max_density': float(np.max(density)),
-                'selection': selection_mask
+                'selection': selection_mask,
+                'fit_mask': fit_mask,
+                'requested_spacing': requested_spacing,
+                'slice_z': float(grid_min[2] + (mid_z + 0.5) * grid_spacing)
             }
 
             logger.info(f"Density map complete: max density = {np.max(density):.4f}")
@@ -1633,51 +1775,23 @@ class TrajectoryAnalyzer:
             logger.info(f"Calculating vector analysis: '{atom1_mask}' → '{atom2_mask}'")
 
             # Get atoms
-            atoms1 = self.traj.top.select(atom1_mask)
-            atoms2 = self.traj.top.select(atom2_mask)
+            atoms1 = self._select(atom1_mask)
+            atoms2 = self._select(atom2_mask)
 
             if len(atoms1) == 0 or len(atoms2) == 0:
-                raise ValueError(f"No atoms selected")
+                raise ValueError(f"No atoms selected (start '{atom1_mask}': {len(atoms1)}, end '{atom2_mask}': {len(atoms2)})")
 
-            # Calculate center of mass for each selection per frame
-            n_frames = self.traj.n_frames
-            vectors = []
-            magnitudes = []
-            polar_angles = []  # Angle from Z axis
-            azimuthal_angles = []  # Angle in XY plane from X axis
+            # Geometric centre of each selection in every frame, and the vector between them
+            xyz = self.traj.xyz
+            vectors = xyz[:, atoms2, :].mean(axis=1) - xyz[:, atoms1, :].mean(axis=1)  # (n_frames, 3)
+            magnitudes = np.linalg.norm(vectors, axis=1)
 
-            for frame in self.traj:
-                # Get coordinates
-                coords1 = frame.xyz[0, atoms1, :]
-                coords2 = frame.xyz[0, atoms2, :]
-
-                # Center of mass (simplified - assume equal mass)
-                com1 = np.mean(coords1, axis=0)
-                com2 = np.mean(coords2, axis=0)
-
-                # Vector from com1 to com2
-                vec = com2 - com1
-                vectors.append(vec)
-
-                # Magnitude
-                mag = np.linalg.norm(vec)
-                magnitudes.append(mag)
-
-                # Polar angle (from Z axis)
-                if mag > 0:
-                    polar = np.arccos(vec[2] / mag) * (180 / np.pi)
-                else:
-                    polar = 0.0
-                polar_angles.append(polar)
-
-                # Azimuthal angle (in XY plane from X axis)
-                azimuthal = np.arctan2(vec[1], vec[0]) * (180 / np.pi)
-                azimuthal_angles.append(azimuthal)
-
-            vectors = np.array(vectors)
-            magnitudes = np.array(magnitudes)
-            polar_angles = np.array(polar_angles)
-            azimuthal_angles = np.array(azimuthal_angles)
+            # Polar angle from the Z axis (0 for a zero-length vector), and
+            # azimuthal angle in the XY plane from the X axis
+            safe = np.where(magnitudes > 0, magnitudes, 1.0)
+            polar_angles = np.where(magnitudes > 0,
+                                    np.degrees(np.arccos(np.clip(vectors[:, 2] / safe, -1.0, 1.0))), 0.0)
+            azimuthal_angles = np.degrees(np.arctan2(vectors[:, 1], vectors[:, 0]))
 
             # Store results
             key = label or 'vector'
@@ -1786,60 +1900,33 @@ class TrajectoryAnalyzer:
 
             logger.info(f"Calculating per-residue contact frequency")
 
-            atoms = self.traj.top.select(mask)
-            n_atoms = len(atoms)
+            atoms = self._select(mask)
+            if len(atoms) == 0:
+                raise ValueError(f"No atoms selected with mask: {mask}")
             n_frames = self.traj.n_frames
 
-            # Map atoms to residues
-            residue_map = {}
-            for atom_idx in atoms:
-                atom = self.traj.top.atom(atom_idx)
-                resid = atom.resid + 1  # 1-indexed
-                if resid not in residue_map:
-                    residue_map[resid] = []
-                residue_map[resid].append(atom_idx)
-
-            residues = sorted(residue_map.keys())
+            # Residue (1-indexed) of each selected atom
+            atom_resids = np.array([self.traj.top.atom(int(i)).resid + 1 for i in atoms])
+            residues = sorted(set(atom_resids.tolist()))
             n_residues = len(residues)
 
             logger.info(f"Analyzing {n_residues} residues across {n_frames} frames")
 
-            # Initialize contact counts
-            contact_counts = {resid: 0 for resid in residues}
+            # membership[r, a] = 1 if selected atom a belongs to residue r
+            membership = (np.array(residues)[:, None] == atom_resids[None, :]).astype(float)
 
-            # Calculate contacts per frame using vectorized operations
+            # Two residues are in contact in a frame if ANY of their selected atoms
+            # are within the cutoff (direct, non-imaged distances)
+            partner_counts = np.zeros(n_residues)
+            xyz = self.traj.xyz
             for frame_idx in range(n_frames):
-                # Get coordinates for this frame
-                coords = self.traj.xyz[frame_idx]  # Shape: (n_atoms_total, 3)
+                selected_coords = xyz[frame_idx, atoms]
+                atom_contacts = (cdist(selected_coords, selected_coords) <= distance_cutoff).astype(float)
+                residue_contacts = (membership @ atom_contacts @ membership.T) > 0
+                np.fill_diagonal(residue_contacts, False)  # not with itself
+                partner_counts += residue_contacts.sum(axis=1)
 
-                # Extract coordinates for selected atoms
-                selected_coords = coords[atoms]  # Shape: (n_atoms, 3)
-
-                # Calculate distance matrix for all selected atoms at once
-                # This is MUCH faster than calling pt.distance repeatedly
-                dist_matrix = cdist(selected_coords, selected_coords)
-
-                # For each residue pair, check if any atoms are within cutoff
-                for i, res_i in enumerate(residues):
-                    atoms_i_indices = [atoms.tolist().index(a) for a in residue_map[res_i]]
-
-                    for j, res_j in enumerate(residues):
-                        if i >= j:  # Skip self and duplicates
-                            continue
-
-                        atoms_j_indices = [atoms.tolist().index(a) for a in residue_map[res_j]]
-
-                        # Extract sub-matrix for this residue pair
-                        pair_distances = dist_matrix[np.ix_(atoms_i_indices, atoms_j_indices)]
-
-                        # Check if any distance is below cutoff
-                        if np.any(pair_distances <= distance_cutoff):
-                            contact_counts[res_i] += 1
-                            contact_counts[res_j] += 1
-
-                # Progress indicator for large trajectories
-                if (frame_idx + 1) % max(1, n_frames // 10) == 0:
-                    logger.info(f"Processed {frame_idx + 1}/{n_frames} frames ({100*(frame_idx+1)/n_frames:.0f}%)")
+            contact_counts = {resid: float(partner_counts[i]) for i, resid in enumerate(residues)}
 
             # Normalize by number of frames
             for resid in contact_counts:
@@ -1945,7 +2032,7 @@ class TrajectoryAnalyzer:
                 # Data rows
                 n_frames = self.system_info['n_frames']
                 for i in range(n_frames):
-                    row = [i, self.frame_times[i] if i < len(self.frame_times) else i * 2.0]
+                    row = [i, self.frame_times[i] if i < len(self.frame_times) else i]
 
                     for key in data_keys:
                         if key in self.data and i < len(self.data[key]):

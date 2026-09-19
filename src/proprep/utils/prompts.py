@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from rich import get_console
 from rich.console import Console
+from rich.markup import escape
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 from rich.theme import Theme
 
@@ -51,6 +52,32 @@ from rich.theme import Theme
 # every prompt default app-wide. It overrides only RENDERING, not input,
 # so session recording (which hooks input, not styling) is unaffected.
 get_console().push_theme(Theme({"prompt.default": "bold blue"}, inherit=True))
+
+
+# When an answer is not one of the choices, Rich says only "Please select one of
+# the available options", which reads as "that option is unavailable". The usual
+# cause is different: the line received is not what the user believes they typed.
+# A key pressed while ProPrep was printing waits in the terminal's buffer and is
+# prepended to the next answer (a ' caught next to Enter turned "4" into "'4"),
+# and its echo appeared earlier, in the middle of other output, not at the prompt.
+# So name what was received. repr() makes a stray quote, space or control
+# character visible. Like the theme above, this changes only what is displayed:
+# the prompt asks again exactly as before, and nothing more is recorded.
+def _name_rejected_choice(self, value: str, error) -> None:
+    if self.choices is not None and not self.check_choice(value.strip()):
+        self.console.print(
+            f"[prompt.invalid.choice]Received {escape(repr(value))}, which is not one of the available options"
+        )
+    else:
+        self.console.print(error)
+
+
+def _name_rejected_confirmation(self, value: str, error) -> None:
+    self.console.print(f"[prompt.invalid]Received {escape(repr(value))}; please enter y or n")
+
+
+Prompt.on_validate_error = _name_rejected_choice
+Confirm.on_validate_error = _name_rejected_confirmation
 
 
 class NavigationException(Exception):

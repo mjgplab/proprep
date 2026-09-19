@@ -102,6 +102,22 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
     scene_sink = None
     scene_request = None
 
+    def serve_vendored(self, filename: str, content_type: str):
+        """Send a third-party asset that sits beside the viewer template."""
+        path = os.path.join(os.path.dirname(self.template_path), filename)
+        try:
+            with open(path, 'rb') as f:
+                body = f.read()
+        except OSError:
+            self.send_error(404, f"Not found: {filename}")
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', content_type)
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'max-age=86400')
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         """Handle GET requests."""
         if self.path == "/" or self.path == "/viewer":
@@ -113,12 +129,19 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         elif self.path == "/version":
             # Cheap poll endpoint: returns current config version
             self.serve_version()
+        elif self.path.split('?')[0] == "/vendor/mp4-muxer.min.js":
+            # The MP4 writer for movie export, shipped with ProPrep so that
+            # saving a movie works offline. One fixed file, never a client path.
+            self.serve_vendored("mp4-muxer-5.2.2.min.js", "application/javascript")
         elif self.path.startswith("/structure/"):
             # Serve PDB structure files
             self.serve_structure()
         elif self.path.startswith("/trajectory/"):
             # Serve a trajectory (Amber NetCDF) attached to a structure index
             self.serve_trajectory()
+        elif self.path.startswith("/density/"):
+            # Serve an electron density map (CCP4) attached to a structure index
+            self.serve_density()
         elif self.path == "/favicon.ico":
             # Silently ignore favicon requests (browsers always request this)
             self.send_response(204)  # No Content
@@ -300,6 +323,38 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._handle_serve_error("trajectory", e)
 
+    def serve_density(self):
+        """Serve an electron density map attached to a structure index.
+
+        /density/<index>/<kind>, kind being "2fofc" or "fofc". NGL parses CCP4
+        in the browser, so the bytes go out untouched; the paths come from
+        ``density_files`` on the server ({index: {kind: path}}).
+        """
+        try:
+            parts = self.path.split('?')[0].split('/')
+            index, kind = int(parts[2]), parts[3] if len(parts) > 3 else ""
+            density_file = ((getattr(self, 'density_files', None) or {}).get(index) or {}).get(kind)
+            if not density_file or not os.path.exists(density_file):
+                self.send_error(404, f"No {kind or 'density'} map for structure {index}")
+                return
+            self.send_response(200)
+            self.send_header('Content-type', 'application/octet-stream')
+            self.send_header('Content-Disposition',
+                             f'inline; filename="{os.path.basename(density_file)}"')
+            self.send_header('Content-Length', str(os.path.getsize(density_file)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            with open(density_file, 'rb') as f:
+                while True:
+                    chunk = f.read(1 << 20)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except ValueError:
+            self.send_error(400, "Invalid density index")
+        except Exception as e:
+            self._handle_serve_error("density", e)
+
     def log_message(self, format, *args):
         """Override to suppress routine HTTP request logging."""
         # Suppress routine GET request logs to avoid cluttering console
@@ -330,7 +385,8 @@ class ViewerServer:
     """
 
     def __init__(self, config: Dict, structure_files: List[str], port: int = 8765,
-                 scene_sink=None, trajectory_files: Optional[Dict[int, str]] = None):
+                 scene_sink=None, trajectory_files: Optional[Dict[int, str]] = None,
+                 density_files: Optional[Dict[int, Dict[str, str]]] = None):
         """
         Initialize the viewer server.
 
@@ -345,6 +401,8 @@ class ViewerServer:
         self.structure_files = structure_files
         # {structure index: trajectory path}; served at /trajectory/<index>
         self.trajectory_files = dict(trajectory_files or {})
+        # {structure index: {kind: CCP4 path}}; served at /density/<index>/<kind>
+        self.density_files = dict(density_files or {})
         self._scene_token = 0
         self.port = port
         self.server = None
@@ -362,6 +420,7 @@ class ViewerServer:
         ViewerHTTPRequestHandler.config_version = 1
         ViewerHTTPRequestHandler.structure_files = self.structure_files
         ViewerHTTPRequestHandler.trajectory_files = self.trajectory_files
+        ViewerHTTPRequestHandler.density_files = self.density_files
         ViewerHTTPRequestHandler.template_path = self.template_path
         ViewerHTTPRequestHandler.scene_sink = scene_sink
         ViewerHTTPRequestHandler.scene_request = None

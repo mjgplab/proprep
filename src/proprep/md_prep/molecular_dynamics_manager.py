@@ -6,8 +6,10 @@ user-controlled interface. No black-box operations or hidden presets.
 """
 
 import os
+import re
 import time
 import json
+import logging
 import shutil
 import subprocess
 import tempfile
@@ -15,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 from rich.console import Console
 from rich.panel import Panel
@@ -33,6 +37,8 @@ from proprep.utils.prompts import (
     prompt_with_context,
     confirm_with_context,
     int_prompt_with_context,
+    prompt_float_with_retry,
+    prompt_int_with_retry,
 )
 from proprep.utils.file_browser import (
     remap_recorded_index, annotate_selected_path,
@@ -10698,8 +10704,9 @@ MD simulations require TWO files per structure:
                     self.console.print("[yellow]No monitoring data found in output file[/yellow]")
                     return
                     
-                self.console.print(f"\n[bold]Monitoring: {sim_dir.name}[/bold]")
-                self.console.print(f"Output file: [blue]{mdout_file.name}[/blue]")
+                mdout_path = Path(mdout_file)
+                self.console.print(f"\n[bold]Monitoring: {mdout_path.parent.name}[/bold]")
+                self.console.print(f"Output file: [blue]{mdout_path.name}[/blue]")
                 
                 # Show monitoring interface
                 self._show_monitoring_interface(monitor, str(mdout_file))
@@ -10708,6 +10715,7 @@ MD simulations require TWO files per structure:
                 
             except Exception as e:
                 self.console.print(f"[red]Error creating monitor: {e}[/red]")
+                return
 
     def _show_monitoring_interface(self, monitor: AMBERMonitor, output_file: str):
         """Show interactive monitoring interface with ASCII plots."""
@@ -11107,8 +11115,7 @@ MD simulations require TWO files per structure:
         water and ions, writing a first-frame PDB and a NetCDF with matching
         atoms; the viewer loads the PDB and attaches the NetCDF as frames.
         """
-        from proprep.md_prep.trajectory_view import write_view_files, frame_count
-        from proprep.structure_prep.viewer_coordinator import viewer as _viewer
+        from proprep.md_prep.trajectory_view import prepare_and_show
 
         nc_files = sorted(nc_files, key=os.path.getmtime, reverse=True)
         if len(nc_files) == 1:
@@ -11132,31 +11139,14 @@ MD simulations require TWO files per structure:
             for i, f in enumerate(prmtop_files, 1):
                 self.console.print(f"  {i}. {f.name}")
             pick = prompt_with_context(
-                self.processor, f"Select topology file (1-{len(prmtop_files)})", default="1",
+                self.processor, "Select topology file", default="1",
                 module="MD Manager - Trajectory Viewer", description="Select topology")
             pick = remap_recorded_index(self.processor, prmtop_files, str(pick))
             prmtop = prmtop_files[int(pick) - 1]
             annotate_selected_path(self.processor, prmtop)
 
-        strip = confirm_with_context(
-            self.processor,
-            "Strip water and ions from the viewed trajectory? (no = keep them visible)",
-            default=True, module="MD Manager - Trajectory Viewer",
-            description="Strip solvent for viewing")
-
-        self.console.print(f"[grey50]Running cpptraj (autoimage{', strip solvent' if strip else ''}) "
-                           f"on {nc_file.name}...[/grey50]")
-        try:
-            pdb, nc = write_view_files(str(prmtop), str(nc_file), str(sim_dir / "viewer"),
-                                       strip_solvent=strip)
-        except RuntimeError as exc:
-            self.console.print(f"[red]{exc}[/red]")
-            return
-        n = frame_count(str(nc))
-        self.console.print(f"[green]✓ {pdb.name} + {nc.name}"
-                           f"{f' ({n} frames)' if n else ''} written to {pdb.parent}[/green]")
-        _viewer.show_trajectory(str(pdb), str(nc), show_waters=not strip, force=True)
-        self.console.print("[grey50]Use the Trajectory panel in the viewer to play or scrub frames.[/grey50]")
+        prepare_and_show(self.processor, self.console, prmtop, nc_file, sim_dir / "viewer",
+                         module="MD Manager - Trajectory Viewer")
 
     def _analyze_single_simulation(self, sim_dir: Path):
         """Analyze a single completed simulation (energetics and/or trajectory)."""
@@ -11246,7 +11236,7 @@ MD simulations require TWO files per structure:
 
                     prmtop_choice = prompt_with_context(
                         self.processor,
-                        f"Select topology file (1-{len(prmtop_files)})",
+                        "Select topology file",
                         default="1",
                         module="MD Manager - Trajectory Analysis",
                         description="Select topology"
@@ -11298,7 +11288,7 @@ MD simulations require TWO files per structure:
 
                         prmtop_choice = prompt_with_context(
                             self.processor,
-                            f"Select topology file (1-{len(prmtop_files)})",
+                            "Select topology file",
                             default="1",
                             module="MD Manager - Trajectory Analysis",
                             description="Select topology"
@@ -11710,7 +11700,11 @@ MD simulations require TWO files per structure:
         """
         import numpy as np
 
-        if not values or len(values) < 2:
+        # Callers pass numpy arrays as often as lists, and `not array` is ambiguous
+        values = [] if values is None else list(values)
+        x_values = None if x_values is None else list(x_values)
+
+        if len(values) < 2:
             return "Insufficient data to plot"
 
         original_n = len(values)
@@ -13269,7 +13263,7 @@ MD simulations require TWO files per structure:
                 else:
                     choice = prompt_with_context(
                         self.processor,
-                        f"Select topology file (1-{len(found_prmtop)}) or 'n' to browse elsewhere",
+                        "Select topology file, or 'n' to browse elsewhere",
                         default="1",
                         module="MD Manager - Trajectory Analysis",
                         description="Select topology file"
@@ -13325,7 +13319,7 @@ MD simulations require TWO files per structure:
                     while True:
                         choice = prompt_with_context(
                             self.processor,
-                            f"Select topology file (1-{len(all_prmtop)}), 'browse' to pick manually, or 'cancel'",
+                            "Select topology file, 'browse' to pick manually, or 'cancel'",
                             default="cancel",
                             module="MD Manager - Trajectory Analysis",
                             description="Select topology file for trajectory analysis",
@@ -13543,7 +13537,7 @@ MD simulations require TWO files per structure:
                     while True:
                         choice = prompt_with_context(
                             self.processor,
-                            f"Select topology file (1-{len(prmtop_found)}) or 'cancel'",
+                            "Select topology file, or 'cancel'",
                             default="cancel",
                             module="MD Manager - Trajectory Analysis",
                             description="Select topology file for trajectory analysis",
@@ -18126,6 +18120,75 @@ MD simulations require TWO files per structure:
             self.console.print(f"[red]Error concatenating trajectories: {e}[/red]")
             raise
 
+    # Trajectory-analysis prompts. Session replay matches a recorded answer to the
+    # prompt TEXT exactly, so that text is always a constant string: nothing that
+    # depends on the trajectory (frame counts, residue ranges) goes into it.
+
+    def _prompt_frame_interval(self, analyzer):
+        """The trajectory file stores no frame times: ask, never assume a time step."""
+        self.console.print("\n[yellow]This trajectory file stores no frame times.[/yellow]")
+        self.console.print("Give the time between frames to plot against time, or press Enter to plot against the frame number.")
+        while True:
+            answer = prompt_with_context(
+                self.processor,
+                "Time between frames in ps (Enter for frame number)",
+                default="",
+                module="MD Manager - Trajectory Analysis",
+                description="Time between trajectory frames, for a file that stores no times"
+            ).strip()
+            if not answer:
+                return
+            try:
+                interval = float(answer)
+                if interval <= 0:
+                    raise ValueError
+            except ValueError:
+                self.console.print(f"[red]'{answer}' is not a positive number[/red]")
+                continue
+            analyzer.set_frame_interval(interval)
+            return
+
+    def _prompt_frame_index(self, analyzer, prompt: str, module: str, description: str) -> int:
+        """A 0-based frame number, checked against this trajectory's length."""
+        last = analyzer.system_info['n_frames'] - 1
+        while True:
+            frame = prompt_int_with_retry(self.processor, prompt, default=0, module=module,
+                                          description=description, min_value=0)
+            if frame <= last:
+                return frame
+            self.console.print(f"[red]Frame {frame} does not exist; this trajectory has frames 0-{last}[/red]")
+
+    def _prompt_angle_box(self, prompt: str, default: str, module: str, description: str):
+        """A Ramachandran region as (phi_min, phi_max, psi_min, psi_max), in degrees."""
+        while True:
+            answer = prompt_with_context(self.processor, prompt, default=default,
+                                         module=module, description=description)
+            try:
+                phi_min, phi_max, psi_min, psi_max = (float(v) for v in answer.split(','))
+                if not (-180 <= phi_min <= phi_max <= 180 and -180 <= psi_min <= psi_max <= 180):
+                    raise ValueError
+                return phi_min, phi_max, psi_min, psi_max
+            except ValueError:
+                self.console.print(f"[red]'{answer}' is not four angles 'phi_min,phi_max,psi_min,psi_max' "
+                                   f"within -180 to 180 with min <= max[/red]")
+
+    def _prompt_alignment(self, analyzer, module: str):
+        """How the trajectory is fitted before fluctuations are measured."""
+        self.console.print("\n[bold]Alignment:[/bold]")
+        self.console.print("  Overall translation and rotation are removed by fitting every frame")
+        self.console.print("  to a reference frame on the alignment atoms (a copy is fitted; the")
+        self.console.print("  loaded trajectory is not changed).")
+        alignment_mask = prompt_with_context(
+            self.processor,
+            "Alignment mask (AMBER syntax)",
+            default="@CA,C,N",
+            module=module,
+            description="Atoms the trajectory is fitted on"
+        ).strip()
+        reference = self._prompt_frame_index(analyzer, "Alignment reference frame", module,
+                                             "Frame the trajectory is fitted to")
+        return alignment_mask, reference
+
     def _get_analysis_region_selection(self, analyzer, analysis_type: str) -> dict:
         """
         Interactive region selection for trajectory analysis.
@@ -18141,36 +18204,29 @@ MD simulations require TWO files per structure:
         """
         self.console.print(f"\n[bold cyan]Select Region for {analysis_type}[/bold cyan]\n")
 
-        # Get number of residues for protein selection
-        n_residues = analyzer.system_info.get('n_residues', 0)
-
-        # Build options based on system
-        # Detect protein residue range (exclude common solvent)
-        # Common solvent residues: WAT, Na+, Cl-, etc.
-        # For now, we'll use a heuristic: protein is typically first ~90% of residues
-        # User can use custom selection for exact ranges
-        if n_residues > 100:
-            # Likely has solvent - estimate protein range
-            protein_end = int(n_residues * 0.8)  # Conservative estimate
-            protein_desc = f"Protein residues 1-{protein_end} (no H, excludes solvent)"
-            protein_mask = f':1-{protein_end}&!@H='
+        # Protein residues are read from the topology (those with an N, CA, C backbone)
+        protein_range = analyzer.get_protein_residue_range()
+        if protein_range:
+            protein_desc = f"Protein residues {protein_range} (no H, excludes solvent)"
+            protein_mask = f':{protein_range}&!@H='
         else:
-            # Small system, likely no solvent
-            protein_desc = f"Protein residues 1-{n_residues} (no H)"
-            protein_mask = f':1-{n_residues}&!@H='
+            protein_desc = "Protein residues (none found in this topology)"
+            protein_mask = None
 
+        # Recorded with the answer, so the labels are the same for every system;
+        # the residue range found in THIS topology is shown on screen only.
         options_map = {
             "1": "Backbone atoms (@C,CA,N,O&!:WAT)",
             "2": "C-alpha atoms (@CA)",
             "3": "All atoms (*)",
-            "4": protein_desc,
+            "4": "Protein residues (no H, excludes solvent)",
             "5": "Specific residues (custom)",
             "6": "Custom AMBER mask (advanced)"
         }
 
         self.console.print("[bold]Common Selections:[/bold]")
         for key, desc in options_map.items():
-            self.console.print(f"  {key}. {desc}")
+            self.console.print(f"  {key}. {protein_desc if key == '4' else desc}")
 
         choice = prompt_with_context(
             self.processor,
@@ -18201,6 +18257,9 @@ MD simulations require TWO files per structure:
             }
 
         elif choice == "4":
+            if protein_mask is None:
+                self.console.print("[yellow]No protein residues found in this topology; choose another selection.[/yellow]")
+                return self._get_analysis_region_selection(analyzer, analysis_type)
             return {
                 'mask': protein_mask,
                 'description': protein_desc
@@ -18318,6 +18377,9 @@ MD simulations require TWO files per structure:
 
             self.console.print(f"[green]✓ Loaded successfully[/green]")
 
+            if not analyzer.has_frame_times:
+                self._prompt_frame_interval(analyzer)
+
             # Display trajectory info
             self._display_trajectory_info(analyzer, sim_name)
 
@@ -18367,11 +18429,13 @@ MD simulations require TWO files per structure:
         table.add_row("Atoms", f"{analyzer.system_info['n_atoms']:,}")
         table.add_row("Residues", f"{analyzer.system_info['n_residues']:,}")
 
-        if analyzer.frame_times:
+        if analyzer.frame_times and analyzer.has_frame_times:
             time_range = f"{analyzer.frame_times[0]:.1f} - {analyzer.frame_times[-1]:.1f} ps"
             duration = analyzer.frame_times[-1] - analyzer.frame_times[0]
             duration_ns = duration / 1000.0
             table.add_row("Time range", f"{time_range} ({duration_ns:.1f} ns)")
+        else:
+            table.add_row("Time range", "not stored in the file; plots use the frame number")
 
         table.add_row("Box type", analyzer.system_info.get('box_type', 'unknown'))
 
@@ -18549,15 +18613,10 @@ MD simulations require TWO files per structure:
 
         reference = 0
         if ref_choice == "2":
-            reference = -1  # pytraj uses -1 for average
+            reference = -1  # calculate_rmsd builds the average structure for -1
         elif ref_choice == "3":
-            frame_str = prompt_with_context(
-                self.processor,
-                f"Enter frame number (0-{analyzer.system_info['n_frames']-1})",
-                module="MD Manager - RMSD",
-                description="Specify reference frame"
-            )
-            reference = int(frame_str)
+            reference = self._prompt_frame_index(analyzer, "Reference frame number", "MD Manager - RMSD",
+                                                 "Specify reference frame")
 
         # Calculate
         self.console.print(f"\n[grey50]Calculating RMSD for {region['description']}...[/grey50]")
@@ -18635,7 +18694,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             rmsd_values,
             title=f"RMSD: {region['description']}",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="RMSD (Å)",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -18650,13 +18709,22 @@ MD simulations require TWO files per structure:
         # Get region selection
         region = self._get_analysis_region_selection(analyzer, "RMSF")
 
+        alignment_mask, alignment_reference = self._prompt_alignment(analyzer, "MD Manager - RMSF")
+
         # Calculate
         self.console.print(f"\n[grey50]Calculating RMSF for {region['description']}...[/grey50]")
-        rmsf = analyzer.calculate_rmsf(
-            mask=region['mask'],
-            label=f"rmsf_{region['description'].replace(' ', '_')}"
-        )
+        try:
+            analyzer.calculate_rmsf(
+                mask=region['mask'],
+                label=f"rmsf_{region['description'].replace(' ', '_')}",
+                alignment_mask=alignment_mask,
+                reference=alignment_reference
+            )
+        except Exception as e:
+            self.console.print(f"[red]Error calculating RMSF: {e}[/red]")
+            return
         self.console.print(f"[green]✓ Complete[/green]")
+        self.console.print(f"[grey50]Fitted on {alignment_mask} to frame {alignment_reference}[/grey50]")
 
         # Display results
         self._display_rmsf_results(analyzer, region)
@@ -18670,6 +18738,7 @@ MD simulations require TWO files per structure:
         rmsf_keys = [k for k in analyzer.data.keys()
                      if k.startswith('rmsf_')
                      and not k.endswith('_mask')
+                     and not k.endswith('_alignment_reference')
                      and not k.endswith('_residue_indices')]
         if not rmsf_keys:
             self.console.print("[red]Error: No RMSF data found[/red]")
@@ -18840,7 +18909,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             dist_values,
             title=f"Distance: {label}",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Distance (Å)",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -18951,7 +19020,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             angle_values,
             title=f"Angle: {label}",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Angle (degrees)",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -19059,7 +19128,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             dih_values,
             title=f"Dihedral: {label}",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Dihedral (degrees)",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -19094,21 +19163,23 @@ MD simulations require TWO files per structure:
         if not acceptor_mask:
             acceptor_mask = None
 
-        distance_cutoff = float(prompt_with_context(
+        distance_cutoff = prompt_float_with_retry(
             self.processor,
             "Distance cutoff (Angstroms)",
-            default="3.0",
+            default=3.0,
             module="MD Manager - H-Bonds",
-            description="Max donor-acceptor distance"
-        ))
+            description="Max donor-acceptor distance",
+            min_value=0.0
+        )
 
-        angle_cutoff = float(prompt_with_context(
+        angle_cutoff = prompt_float_with_retry(
             self.processor,
             "Angle cutoff (degrees)",
-            default="135",
+            default=135.0,
             module="MD Manager - H-Bonds",
-            description="Min donor-H-acceptor angle"
-        ))
+            description="Min donor-H-acceptor angle",
+            min_value=0.0, max_value=180.0
+        )
 
         # Calculate
         self.console.print(f"\n[grey50]Calculating H-bonds...[/grey50]")
@@ -19207,7 +19278,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             hbond_counts,
             title="Hydrogen Bonds over Time",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Number of H-Bonds",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -19280,7 +19351,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             rgyr_values,
             title=f"Rg: {region['description']}",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Rg (Å)",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -19311,21 +19382,23 @@ MD simulations require TWO files per structure:
         )
 
         # RDF parameters
-        max_distance = float(prompt_with_context(
+        max_distance = prompt_float_with_retry(
             self.processor,
             "Maximum distance (Angstroms)",
-            default="10.0",
+            default=10.0,
             module="MD Manager - RDF",
-            description="Max distance for RDF"
-        ))
+            description="Max distance for RDF",
+            min_value=0.0
+        )
 
-        bin_spacing = float(prompt_with_context(
+        bin_spacing = prompt_float_with_retry(
             self.processor,
             "Bin spacing (Angstroms)",
-            default="0.1",
+            default=0.1,
             module="MD Manager - RDF",
-            description="Histogram bin width"
-        ))
+            description="Histogram bin width",
+            min_value=0.0
+        )
 
         # Calculate
         self.console.print(f"\n[grey50]Calculating RDF...[/grey50]")
@@ -19397,13 +19470,14 @@ MD simulations require TWO files per structure:
         region = self._get_analysis_region_selection(analyzer, "SASA")
 
         # Probe radius
-        probe_radius = float(prompt_with_context(
+        probe_radius = prompt_float_with_retry(
             self.processor,
             "Probe radius (Angstroms)",
-            default="1.4",
+            default=1.4,
             module="MD Manager - SASA",
-            description="Solvent probe radius (1.4 for water)"
-        ))
+            description="Solvent probe radius (1.4 for water)",
+            min_value=0.0
+        )
 
         # Calculate
         self.console.print(f"\n[grey50]Calculating SASA for {region['description']}...[/grey50]")
@@ -19425,7 +19499,7 @@ MD simulations require TWO files per structure:
         from rich.table import Table
 
         # Get SASA data (exclude metadata keys)
-        sasa_keys = [k for k in analyzer.data.keys() if k.startswith('sasa_') and not k.endswith('_mask') and not k.endswith('_probe')]
+        sasa_keys = [k for k in analyzer.data.keys() if k.startswith('sasa_') and not k.endswith('_mask') and not k.endswith('_probe_radius')]
         if not sasa_keys:
             self.console.print("[red]Error: No SASA data found[/red]")
             return
@@ -19468,7 +19542,7 @@ MD simulations require TWO files per structure:
         plot = self._create_ascii_plot(
             sasa_values,
             title=f"SASA: {region['description']}",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="SASA (Ų)",
             x_values=analyzer.frame_times if analyzer.frame_times else None
         )
@@ -19484,8 +19558,8 @@ MD simulations require TWO files per structure:
         region = self._get_analysis_region_selection(analyzer, "DSSP")
 
         self.console.print("\nCalculating secondary structure...")
-        self.console.print("[grey50]Note: This requires dssp executable in PATH[/grey50]")
-        self.console.print("[grey50]Install via: conda install -c salilab dssp[/grey50]")
+        self.console.print("[grey50]DSSP needs whole residues; the selection is widened to the protein residues it touches.[/grey50]")
+        self.console.print("[grey50]Structure is assigned with the whole protein present (hydrogen-bond partners may lie outside the selection).[/grey50]")
 
         try:
             dssp_data = analyzer.calculate_dssp(mask=region['mask'])
@@ -19495,7 +19569,6 @@ MD simulations require TWO files per structure:
             self._display_dssp_results(analyzer, region)
         except Exception as e:
             self.console.print(f"[red]DSSP calculation failed: {e}[/red]")
-            self.console.print(f"[yellow]Make sure dssp is installed and in PATH[/yellow]")
 
     def _display_dssp_results(self, analyzer, region):
         """Display DSSP secondary structure results."""
@@ -19531,13 +19604,16 @@ MD simulations require TWO files per structure:
 
         # Display
         self.console.print(f"\n[bold]Secondary Structure Analysis: {region['description']}[/bold]")
-        self.console.print(f"[grey50]Mask: {region['mask']}[/grey50]\n")
+        self.console.print(f"[grey50]Mask: {analyzer.data.get(f'{base_key}_mask', region['mask'])}[/grey50]\n")
 
         # Summary statistics table
         table = Table(title="Secondary Structure Statistics", show_header=True)
         table.add_column("Structure", style="bright_blue")
         table.add_column("Mean %", style="white")
         table.add_column("Range %", style="white")
+
+        self.console.print("[grey50]Helix = DSSP H (α), G (3-10), I (π); Sheet = B, b (anti/parallel bridge or ladder);[/grey50]")
+        self.console.print("[grey50]Turn = T; Coil = S (bend) and unassigned.[/grey50]\n")
 
         table.add_row("α-Helix", f"{helix_stats['mean']:.1f} ± {helix_stats['std']:.1f}",
                      f"{helix_stats['min']:.1f} - {helix_stats['max']:.1f}")
@@ -19564,7 +19640,7 @@ MD simulations require TWO files per structure:
         helix_plot = self._create_ascii_plot(
             helix_pct,
             title="α-Helix %",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="% α-Helix",
             x_values=x_values
         )
@@ -19575,7 +19651,7 @@ MD simulations require TWO files per structure:
         sheet_plot = self._create_ascii_plot(
             sheet_pct,
             title="β-Sheet %",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="% β-Sheet",
             x_values=x_values
         )
@@ -19643,6 +19719,39 @@ MD simulations require TWO files per structure:
 
         residue_selection = res_choice if res_choice.strip() else None
 
+        alpha_box = beta_box = None
+        flexibility_threshold = planarity_tolerance = None
+        if dihedral_type == "phi-psi":
+            self.console.print("\n[bold]Region Definitions:[/bold]")
+            self.console.print("  A residue is assigned to a region by its mean φ and ψ (circular mean).")
+            self.console.print("  Give each region as φmin,φmax,ψmin,ψmax in degrees.")
+            alpha_box = self._prompt_angle_box("α-helix region (φmin,φmax,ψmin,ψmax)", "-90,-30,-75,-15",
+                                               "MD Manager - Ramachandran", "φ/ψ bounds of the α-helix region")
+            beta_box = self._prompt_angle_box("β-sheet region (φmin,φmax,ψmin,ψmax)", "-180,-90,90,180",
+                                              "MD Manager - Ramachandran", "φ/ψ bounds of the β-sheet region")
+            flexibility_threshold = prompt_float_with_retry(
+                self.processor,
+                "Flexibility threshold (degrees of φ or ψ standard deviation)",
+                default=30.0,
+                module="MD Manager - Ramachandran",
+                description="Circular standard deviation above which a residue is listed as flexible",
+                min_value=0.0,
+                max_value=180.0
+            )
+        elif dihedral_type == "omega":
+            self.console.print("\n[bold]Planarity:[/bold]")
+            self.console.print("  A peptide bond is trans within this tolerance of 180°, cis within it of 0°,")
+            self.console.print("  and otherwise reported as non-planar.")
+            planarity_tolerance = prompt_float_with_retry(
+                self.processor,
+                "Planarity tolerance (degrees)",
+                default=30.0,
+                module="MD Manager - Ramachandran",
+                description="Allowed deviation of omega from 180 (trans) or 0 (cis)",
+                min_value=0.0,
+                max_value=90.0
+            )
+
         self.console.print(f"\nCalculating {dihedral_type} dihedrals...")
         try:
             rama_data = analyzer.calculate_ramachandran(
@@ -19653,20 +19762,23 @@ MD simulations require TWO files per structure:
 
             # Display results
             if dihedral_type == "phi-psi":
-                self._display_ramachandran_results(analyzer, rama_data)
+                self._display_ramachandran_results(analyzer, rama_data, alpha_box, beta_box, flexibility_threshold)
             else:
-                self._display_dihedral_results_general(analyzer, rama_data, dihedral_type)
+                self._display_dihedral_results_general(analyzer, rama_data, dihedral_type, planarity_tolerance)
 
         except Exception as e:
             self.console.print(f"[red]Dihedral calculation failed: {e}[/red]")
 
-    def _display_ramachandran_results(self, analyzer, rama_data):
+    def _display_ramachandran_results(self, analyzer, rama_data, alpha_box, beta_box, flexibility_threshold):
         """Display Ramachandran plot and phi-psi analysis."""
         from rich.table import Table
         import numpy as np
 
+        from scipy.stats import circmean, circstd
+
         phi = rama_data['phi']  # shape: (n_residues, n_frames)
         psi = rama_data['psi']
+        residues = rama_data['residues']  # residue id of each row
         resrange = rama_data['resrange']
 
         n_residues, n_frames = phi.shape
@@ -19680,26 +19792,32 @@ MD simulations require TWO files per structure:
         # β-sheet: φ ≈ -120°, ψ ≈ +120°
         # Left-handed helix: φ ≈ +60°, ψ ≈ +45°
 
-        # Calculate mean phi/psi for each residue
-        phi_mean = np.mean(phi, axis=1)
-        psi_mean = np.mean(psi, axis=1)
-        phi_std = np.std(phi, axis=1)
-        psi_std = np.std(psi, axis=1)
+        # Circular statistics: a strand's psi sits at the +/-180 wrap, where an
+        # arithmetic mean of +170 and -170 would come out as 0.
+        phi_mean = circmean(phi, high=180, low=-180, axis=1)
+        psi_mean = circmean(psi, high=180, low=-180, axis=1)
+        phi_std = circstd(phi, high=180, low=-180, axis=1)
+        psi_std = circstd(psi, high=180, low=-180, axis=1)
 
         # Classify into regions
         helix_count = 0
         sheet_count = 0
         other_count = 0
 
+        def inside(box, i):
+            phi_min, phi_max, psi_min, psi_max = box
+            return phi_min <= phi_mean[i] <= phi_max and psi_min <= psi_mean[i] <= psi_max
+
         for i in range(n_residues):
-            # α-helix region: φ in [-90, -30], ψ in [-75, -15]
-            if -90 <= phi_mean[i] <= -30 and -75 <= psi_mean[i] <= -15:
+            if inside(alpha_box, i):
                 helix_count += 1
-            # β-sheet region: φ in [-180, -90], ψ in [90, 180]
-            elif -180 <= phi_mean[i] <= -90 and 90 <= psi_mean[i] <= 180:
+            elif inside(beta_box, i):
                 sheet_count += 1
             else:
                 other_count += 1
+
+        self.console.print(f"[grey50]α-helix region: φ {alpha_box[0]:g} to {alpha_box[1]:g}, ψ {alpha_box[2]:g} to {alpha_box[3]:g}[/grey50]")
+        self.console.print(f"[grey50]β-sheet region: φ {beta_box[0]:g} to {beta_box[1]:g}, ψ {beta_box[2]:g} to {beta_box[3]:g}[/grey50]")
 
         # Summary statistics
         table = Table(title="Ramachandran Classification", show_header=True)
@@ -19729,7 +19847,8 @@ MD simulations require TWO files per structure:
         phi_bins = np.linspace(-180, 180, 36)  # 10° bins
         psi_bins = np.linspace(-180, 180, 36)
 
-        hist, _, _ = np.histogram2d(phi_flat, psi_flat, bins=[phi_bins, psi_bins])
+        # Rows are drawn as the vertical (psi) axis, so psi goes first
+        hist, _, _ = np.histogram2d(psi_flat, phi_flat, bins=[psi_bins, phi_bins])
 
         # Display as ASCII heatmap
         width = 60
@@ -19766,12 +19885,12 @@ MD simulations require TWO files per structure:
 
         # Show residues with unusual dihedrals (outliers)
         self.console.print("\n[bold]Residues with High Flexibility:[/bold]")
-        self.console.print("[grey50](Large φ/ψ fluctuations, std > 30°)[/grey50]\n")
+        self.console.print(f"[grey50](φ or ψ circular standard deviation > {flexibility_threshold:g}°)[/grey50]\n")
 
         flexible_residues = []
-        for i in range(min(10, n_residues)):  # Show up to 10
-            if phi_std[i] > 30 or psi_std[i] > 30:
-                res_num = int(resrange.split('-')[0]) + i
+        for i in range(n_residues):
+            if phi_std[i] > flexibility_threshold or psi_std[i] > flexibility_threshold:
+                res_num = residues[i]
                 flexible_residues.append((res_num, phi_mean[i], psi_mean[i], phi_std[i], psi_std[i]))
 
         if flexible_residues:
@@ -19791,10 +19910,10 @@ MD simulations require TWO files per structure:
         else:
             self.console.print("  No highly flexible residues found")
 
-    def _display_dihedral_results_general(self, analyzer, dihedral_data, dihedral_type):
+    def _display_dihedral_results_general(self, analyzer, dihedral_data, dihedral_type, planarity_tolerance=None):
         """Display results for chi or omega angles."""
-        from rich.table import Table
         import numpy as np
+        from scipy.stats import circmean, circstd
 
         if 'chi' in dihedral_data:
             angles = dihedral_data['chi']
@@ -19804,44 +19923,45 @@ MD simulations require TWO files per structure:
             self.console.print("[red]Error: No dihedral data found[/red]")
             return
 
+        residues = dihedral_data['residues']  # residue id of each row
         resrange = dihedral_data['resrange']
         n_residues, n_frames = angles.shape
 
         self.console.print(f"\n[bold]{dihedral_type.upper()} Dihedral Analysis[/bold]")
-        self.console.print(f"[grey50]Residues: {resrange}[/grey50]")
+        self.console.print(f"[grey50]Residues: {resrange} ({n_residues} with a {dihedral_type} dihedral)[/grey50]")
         self.console.print(f"[grey50]Frames: {n_frames}[/grey50]\n")
 
-        # Calculate statistics
-        angle_mean = np.mean(angles, axis=1)
-        angle_std = np.std(angles, axis=1)
+        # Circular statistics: omega sits at the +/-180 wrap, where the arithmetic
+        # mean of +179 and -179 is 0 and a trans peptide would read as cis.
+        angle_mean = circmean(angles, high=180, low=-180, axis=1)
+        angle_std = circstd(angles, high=180, low=-180, axis=1)
 
         # Summary
-        self.console.print(f"[bold]Summary Statistics:[/bold]")
-        self.console.print(f"  Mean angle across all residues: {np.mean(angle_mean):.1f}°")
-        self.console.print(f"  Overall std: {np.mean(angle_std):.1f}°\n")
+        self.console.print(f"[bold]Summary Statistics (circular):[/bold]")
+        self.console.print(f"  Mean angle across all residues: {circmean(angle_mean, high=180, low=-180):.1f}°")
+        self.console.print(f"  Mean per-residue std: {angle_std.mean():.1f}°\n")
 
         # For omega, check planarity
         if dihedral_type == 'omega':
-            # Omega should be close to 180° (trans) or 0° (cis)
-            # Deviation from 180° indicates non-planarity
-            trans_count = np.sum(np.abs(angle_mean - 180) < 30)
-            cis_count = np.sum(np.abs(angle_mean) < 30)
+            from_trans = 180 - np.abs(angle_mean)   # degrees away from +/-180
+            from_cis = np.abs(angle_mean)           # degrees away from 0
+            trans_count = int(np.sum(from_trans < planarity_tolerance))
+            cis_count = int(np.sum(from_cis < planarity_tolerance))
 
-            self.console.print(f"[bold]Peptide Bond Geometry:[/bold]")
+            self.console.print(f"[bold]Peptide Bond Geometry (tolerance {planarity_tolerance:g}°):[/bold]")
             self.console.print(f"  Trans peptides (ω ≈ 180°): {trans_count}/{n_residues}")
             self.console.print(f"  Cis peptides (ω ≈ 0°): {cis_count}/{n_residues}")
 
             # Find non-planar peptide bonds
             non_planar = []
             for i in range(n_residues):
-                deviation = min(abs(angle_mean[i] - 180), abs(angle_mean[i]))
-                if deviation > 30:
-                    res_num = int(resrange.split('-')[0]) + i
-                    non_planar.append((res_num, angle_mean[i], deviation))
+                deviation = min(from_trans[i], from_cis[i])
+                if deviation > planarity_tolerance:
+                    non_planar.append((residues[i], angle_mean[i], deviation))
 
             if non_planar:
-                self.console.print(f"\n[yellow]Non-planar peptide bonds found:[/yellow]")
-                for res_num, omega, dev in non_planar[:5]:
+                self.console.print(f"\n[yellow]Non-planar peptide bonds found ({len(non_planar)}):[/yellow]")
+                for res_num, omega, dev in non_planar:
                     self.console.print(f"  Residue {res_num}: ω = {omega:.1f}° (deviation: {dev:.1f}°)")
 
     def _analyze_contacts(self, analyzer):
@@ -19934,18 +20054,27 @@ MD simulations require TWO files per structure:
         self.console.print("  Heavy atoms: 3.5-4.0 Å")
         self.console.print("  Include sidechain: 6.0-7.0 Å")
 
-        cutoff_input = prompt_with_context(
+        distance_cutoff = prompt_float_with_retry(
             self.processor,
             "Distance cutoff (Å)",
-            default="4.5",
+            default=4.5,
             module="MD Manager - Contact Maps",
-            description="Distance cutoff for contacts"
+            description="Distance cutoff for contacts",
+            min_value=0.0
         )
 
-        try:
-            distance_cutoff = float(cutoff_input)
-        except ValueError:
-            distance_cutoff = 4.5
+        self.console.print("\n[bold]Persistent Contacts:[/bold]")
+        self.console.print("  A contact is listed as persistent when it is present in more than")
+        self.console.print("  this fraction of the frames.")
+        persistence_threshold = prompt_float_with_retry(
+            self.processor,
+            "Persistence threshold (fraction of frames)",
+            default=0.5,
+            module="MD Manager - Contact Maps",
+            description="Fraction of frames above which a contact is reported as persistent",
+            min_value=0.0,
+            max_value=1.0
+        )
 
         # Get reference frame
         self.console.print("\n[bold]Reference Frame for Native Contacts:[/bold]")
@@ -19972,17 +20101,8 @@ MD simulations require TWO files per structure:
         elif ref_choice == "2":
             reference_frame = analyzer.traj.n_frames - 1
         else:
-            frame_input = prompt_with_context(
-                self.processor,
-                "Frame number",
-                default="0",
-                module="MD Manager - Contact Maps",
-                description="Reference frame number"
-            )
-            try:
-                reference_frame = int(frame_input)
-            except ValueError:
-                reference_frame = 0
+            reference_frame = self._prompt_frame_index(analyzer, "Frame number", "MD Manager - Contact Maps",
+                                                       "Reference frame number")
 
         # Perform analysis
         self.console.print(f"\n[cyan]Calculating contacts...[/cyan]")
@@ -19990,13 +20110,16 @@ MD simulations require TWO files per structure:
         self.console.print(f"  Selection 2: {mask2}")
         self.console.print(f"  Distance cutoff: {distance_cutoff} Å")
         self.console.print(f"  Reference frame: {reference_frame}")
+        self.console.print(f"  Persistent above: {persistence_threshold:.0%} of frames")
+        self.console.print("  Distances: direct (no periodic imaging)")
 
         try:
             contact_data = analyzer.calculate_contacts(
                 mask1=mask1,
                 mask2=mask2,
                 distance_cutoff=distance_cutoff,
-                reference_frame=reference_frame
+                reference_frame=reference_frame,
+                persistence_threshold=persistence_threshold
             )
 
             self.console.print("[green]✓ Analysis complete[/green]")
@@ -20049,12 +20172,12 @@ MD simulations require TWO files per structure:
         self.console.print("="*70)
 
         # Get frame times
-        frame_times = [analyzer.traj.time[i] for i in range(len(q_values))]
+        frame_times = analyzer.frame_times[:len(q_values)]
 
         q_plot = self._create_ascii_plot(
             q_values,
             title="Q-value (Fraction of Native Contacts)",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Q-value",
             x_values=frame_times
         )
@@ -20156,27 +20279,35 @@ MD simulations require TWO files per structure:
         self.console.print("  Relaxed: 5.0 Å (includes weaker interactions)")
         self.console.print("  Strict: 3.2 Å (only strong interactions)")
 
-        cutoff_input = prompt_with_context(
+        distance_cutoff = prompt_float_with_retry(
             self.processor,
             "Distance cutoff (Å)",
-            default="4.0",
+            default=4.0,
             module="MD Manager - Salt Bridges",
-            description="Distance cutoff for salt bridge detection"
+            description="Distance cutoff for salt bridge detection",
+            min_value=0.0
         )
 
-        try:
-            distance_cutoff = float(cutoff_input)
-        except ValueError:
-            distance_cutoff = 4.0
+        persistence_threshold = prompt_float_with_retry(
+            self.processor,
+            "Persistence threshold (fraction of frames)",
+            default=0.5,
+            module="MD Manager - Salt Bridges",
+            description="Fraction of frames above which a salt bridge is reported as persistent",
+            min_value=0.0,
+            max_value=1.0
+        )
 
         # Perform analysis
         self.console.print(f"\n[cyan]Analyzing salt bridges...[/cyan]")
         self.console.print(f"  Distance cutoff: {distance_cutoff} Å")
+        self.console.print("  Distance: closest pair of charged atoms, direct (no periodic imaging)")
 
         try:
             salt_bridge_data = analyzer.calculate_salt_bridges(
                 distance_cutoff=distance_cutoff
             )
+            salt_bridge_data['persistence_threshold'] = persistence_threshold
 
             self.console.print("[green]✓ Analysis complete[/green]")
 
@@ -20203,18 +20334,21 @@ MD simulations require TWO files per structure:
         # Summary
         self.console.print(f"\n[bold]Summary:[/bold]")
         self.console.print(f"  Distance cutoff: {cutoff} Å")
+        self.console.print("  Charged atoms considered:")
+        for resname, atom_names in salt_bridge_data['definitions'].items():
+            self.console.print(f"    {resname}: {', '.join(atom_names)}")
         self.console.print(f"  Total salt bridges detected: {n_bridges}")
 
         if n_bridges == 0:
             self.console.print("\n[yellow]No salt bridges found in the trajectory[/yellow]")
             return
 
-        # Count persistent salt bridges (>50% occupancy)
-        persistent = [sb for sb in salt_bridges if sb['occupancy'] > 0.5]
-        transient = [sb for sb in salt_bridges if sb['occupancy'] <= 0.5]
+        threshold = salt_bridge_data['persistence_threshold']
+        persistent = [sb for sb in salt_bridges if sb['occupancy'] > threshold]
+        transient = [sb for sb in salt_bridges if sb['occupancy'] <= threshold]
 
-        self.console.print(f"  Persistent (>50% occupancy): {len(persistent)}")
-        self.console.print(f"  Transient (≤50% occupancy): {len(transient)}")
+        self.console.print(f"  Persistent (>{threshold:.0%} occupancy): {len(persistent)}")
+        self.console.print(f"  Transient (≤{threshold:.0%} occupancy): {len(transient)}")
 
         # Display persistent salt bridges
         if persistent:
@@ -20289,13 +20423,13 @@ MD simulations require TWO files per structure:
             self.console.print(f"[grey50]Occupancy: {top_bridge['occupancy']*100:.1f}%[/grey50]")
 
             # Get frame times
-            frame_times = [analyzer.traj.time[i] for i in range(len(top_bridge['distances']))]
+            frame_times = analyzer.frame_times[:len(top_bridge['distances'])]
 
             # Create ASCII plot
             dist_plot = self._create_ascii_plot(
                 top_bridge['distances'],
                 title=f"Distance (Å)",
-                xlabel="Time (ps)",
+                xlabel=analyzer.time_label,
                 ylabel="Distance (Å)",
                 x_values=frame_times
             )
@@ -20335,37 +20469,51 @@ MD simulations require TWO files per structure:
         self.console.print("Principal components (PCs) capture the largest variance in motion.")
 
         # Get region selection
-        region = self._get_analysis_region_selection()
+        region = self._get_analysis_region_selection(analyzer, "PCA")
 
         # Get number of components
         self.console.print("\n[bold]Number of Components:[/bold]")
         self.console.print("  Typical: 3-5 components (covers major motions)")
         self.console.print("  Extended: 10+ components (detailed analysis)")
 
-        n_components_input = prompt_with_context(
+        n_components = prompt_int_with_retry(
             self.processor,
             "Number of principal components",
-            default="3",
+            default=3,
             module="MD Manager - PCA",
-            description="Number of PCs to calculate"
+            description="Number of PCs to calculate",
+            min_value=1
         )
 
-        try:
-            n_components = int(n_components_input)
-            if n_components < 1:
-                n_components = 3
-        except ValueError:
-            n_components = 3
+        self.console.print("\n[bold]Fitting:[/bold]")
+        self.console.print("  1. Fit to the average structure (removes overall translation and rotation)")
+        self.console.print("  2. No fitting (coordinates as stored; overall tumbling counts as motion)")
+
+        fit_choice = prompt_with_context(
+            self.processor,
+            "Fit before PCA",
+            choices=["1", "2"],
+            default="1",
+            module="MD Manager - PCA",
+            description="Whether frames are fitted to the average structure before PCA",
+            options_map={
+                "1": "Fit to the average structure",
+                "2": "No fitting"
+            }
+        )
+        fit = fit_choice == "1"
 
         # Perform analysis
         self.console.print(f"\n[cyan]Calculating PCA...[/cyan]")
-        self.console.print(f"  Region: {region}")
+        self.console.print(f"  Region: {region['description']}")
         self.console.print(f"  Components: {n_components}")
+        self.console.print(f"  Fitting: {'to the average structure' if fit else 'none'}")
 
         try:
             pca_data = analyzer.calculate_pca(
-                mask=region,
-                n_components=n_components
+                mask=region['mask'],
+                n_components=n_components,
+                fit=fit
             )
 
             self.console.print("[green]✓ Analysis complete[/green]")
@@ -20456,12 +20604,12 @@ MD simulations require TWO files per structure:
         self.console.print("="*70)
 
         pc1_values = projections['PC1']
-        frame_times = [analyzer.traj.time[i] for i in range(len(pc1_values))]
+        frame_times = analyzer.frame_times[:len(pc1_values)]
 
         pc1_plot = self._create_ascii_plot(
             pc1_values,
             title="PC1 Projection",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="PC1",
             x_values=frame_times
         )
@@ -20560,7 +20708,7 @@ MD simulations require TWO files per structure:
         self.console.print("Useful for analyzing conformational diversity and transitions.")
 
         # Get region selection
-        region = self._get_analysis_region_selection()
+        region = self._get_analysis_region_selection(analyzer, "Clustering")
 
         # Get clustering algorithm
         self.console.print("\n[bold]Clustering Algorithm:[/bold]")
@@ -20587,32 +20735,89 @@ MD simulations require TWO files per structure:
         self.console.print("  Typical: 5-10 clusters")
         self.console.print("  Tip: Start with fewer clusters, refine if needed")
 
-        n_clusters_input = prompt_with_context(
+        n_clusters = prompt_int_with_retry(
             self.processor,
             "Number of clusters",
-            default="5",
+            default=5,
             module="MD Manager - Clustering",
-            description="Number of clusters to identify"
+            description="Number of clusters to identify",
+            min_value=2
         )
 
-        try:
-            n_clusters = int(n_clusters_input)
-            if n_clusters < 2:
-                n_clusters = 5
-        except ValueError:
-            n_clusters = 5
+        self.console.print("\n[bold]Distance Between Frames:[/bold]")
+        self.console.print("  1. Best-fit RMSD (each pair of frames superposed first)")
+        self.console.print("  2. RMSD without fitting (coordinates as stored)")
+        self.console.print("  3. Distance RMSD (internal distances; needs no fitting)")
+
+        metric_choice = prompt_with_context(
+            self.processor,
+            "Select distance metric",
+            choices=["1", "2", "3"],
+            default="1",
+            module="MD Manager - Clustering",
+            description="How the difference between two frames is measured",
+            options_map={
+                "1": "Best-fit RMSD",
+                "2": "RMSD without fitting",
+                "3": "Distance RMSD"
+            }
+        )
+        metric = {"1": "rms", "2": "nofit", "3": "dme"}[metric_choice]
+        metric_name = {"rms": "best-fit RMSD", "nofit": "RMSD without fitting", "dme": "distance RMSD"}[metric]
+
+        kseed, linkage = 1, "averagelinkage"
+        if algorithm == 'kmeans':
+            self.console.print("\n[bold]K-means Starting Points:[/bold]")
+            self.console.print("  K-means starts from randomly chosen frames; the seed fixes that choice,")
+            self.console.print("  so the same seed reproduces the same clusters.")
+            kseed = prompt_int_with_retry(
+                self.processor,
+                "Random seed",
+                default=1,
+                module="MD Manager - Clustering",
+                description="Random seed for the k-means starting frames",
+                min_value=1
+            )
+        else:
+            self.console.print("\n[bold]Linkage (distance between two clusters):[/bold]")
+            self.console.print("  1. Average (mean distance between their members)")
+            self.console.print("  2. Single (their two closest members)")
+            self.console.print("  3. Complete (their two farthest members)")
+            linkage_choice = prompt_with_context(
+                self.processor,
+                "Select linkage",
+                choices=["1", "2", "3"],
+                default="1",
+                module="MD Manager - Clustering",
+                description="How hierarchical clustering measures the distance between clusters",
+                options_map={
+                    "1": "Average linkage",
+                    "2": "Single linkage",
+                    "3": "Complete linkage"
+                }
+            )
+            linkage = {"1": "averagelinkage", "2": "linkage", "3": "complete"}[linkage_choice]
 
         # Perform analysis
         self.console.print(f"\n[cyan]Performing clustering...[/cyan]")
-        self.console.print(f"  Region: {region}")
+        self.console.print(f"  Region: {region['description']}")
         self.console.print(f"  Algorithm: {algorithm}")
         self.console.print(f"  Clusters: {n_clusters}")
+        self.console.print(f"  Metric: {metric_name}")
+        if algorithm == 'kmeans':
+            self.console.print(f"  Starting points: random frames, seed {kseed}")
+        else:
+            linkage_name = {'averagelinkage': 'average', 'linkage': 'single', 'complete': 'complete'}[linkage]
+            self.console.print(f"  Linkage: {linkage_name}")
 
         try:
             cluster_data = analyzer.calculate_clustering(
-                mask=region,
+                mask=region['mask'],
                 n_clusters=n_clusters,
-                algorithm=algorithm
+                algorithm=algorithm,
+                metric=metric,
+                kseed=kseed,
+                linkage=linkage
             )
 
             self.console.print("[green]✓ Clustering complete[/green]")
@@ -20704,10 +20909,10 @@ MD simulations require TWO files per structure:
         if len(assignments) > max_timeline_points:
             step = len(assignments) // max_timeline_points
             sampled_assignments = assignments[::step]
-            sampled_times = [analyzer.traj.time[i] for i in range(0, len(assignments), step)]
+            sampled_times = analyzer.frame_times[:len(assignments):step]
         else:
             sampled_assignments = assignments
-            sampled_times = [analyzer.traj.time[i] for i in range(len(assignments))]
+            sampled_times = analyzer.frame_times[:len(assignments)]
 
         # Create timeline visualization
         timeline_height = n_clusters
@@ -20734,7 +20939,8 @@ MD simulations require TWO files per structure:
         if len(sampled_times) > 0:
             start_time = sampled_times[0]
             end_time = sampled_times[-1]
-            self.console.print(f"           {start_time:>8.0f} ps{' '*(timeline_width-20)}{end_time:>8.0f} ps")
+            unit = "ps" if analyzer.has_frame_times else "  "
+            self.console.print(f"           {start_time:>8.0f} {unit}{' '*(timeline_width-20)}{end_time:>8.0f} {unit}")
 
         # Population distribution pie chart (ASCII)
         self.console.print("\n" + "="*70)
@@ -20797,70 +21003,79 @@ MD simulations require TWO files per structure:
         self.console.print(f"  Frames: {n_frames}")
         self.console.print(f"  Comparisons needed: {estimated_comparisons:,}")
 
-        # Recommend subsampling for large trajectories
-        subsample = None
-        if n_frames > 500:
-            self.console.print(f"\n[yellow]Large trajectory detected![/yellow]")
-            self.console.print("  Recommended: Subsample to reduce computation time")
+        self.console.print("\n[bold]Subsampling:[/bold]")
+        self.console.print("  The number of comparisons grows with the square of the frame count.")
+        self.console.print("  1. No subsampling (use all frames)")
+        self.console.print(f"  2. Every 2nd frame ({n_frames//2} frames)")
+        self.console.print(f"  3. Every 5th frame ({n_frames//5} frames)")
+        self.console.print(f"  4. Every 10th frame ({n_frames//10} frames)")
+        self.console.print("  5. Custom")
 
-            self.console.print("\n[bold]Subsampling:[/bold]")
-            self.console.print("  1. No subsampling (use all frames)")
-            self.console.print(f"  2. Every 2nd frame ({n_frames//2} frames)")
-            self.console.print(f"  3. Every 5th frame ({n_frames//5} frames)")
-            self.console.print(f"  4. Every 10th frame ({n_frames//10} frames)")
-            self.console.print("  5. Custom")
+        subsample_choice = prompt_with_context(
+            self.processor,
+            "Subsampling option",
+            choices=["1", "2", "3", "4", "5"],
+            default="1",
+            module="MD Manager - Pairwise RMSD",
+            description="Select subsampling strategy",
+            options_map={
+                "1": "No subsampling",
+                "2": "Every 2nd frame",
+                "3": "Every 5th frame",
+                "4": "Every 10th frame",
+                "5": "Custom"
+            }
+        )
 
-            subsample_choice = prompt_with_context(
+        if subsample_choice == "5":
+            subsample = prompt_int_with_retry(
                 self.processor,
-                "Subsampling option",
-                choices=["1", "2", "3", "4", "5"],
-                default="3",
+                "Subsample every Nth frame",
+                default=5,
                 module="MD Manager - Pairwise RMSD",
-                description="Select subsampling strategy",
-                options_map={
-                    "1": "No subsampling",
-                    "2": "Every 2nd frame",
-                    "3": "Every 5th frame",
-                    "4": "Every 10th frame",
-                    "5": "Custom"
-                }
+                description="Custom subsampling interval",
+                min_value=1
             )
+        else:
+            subsample = {"1": None, "2": 2, "3": 5, "4": 10}[subsample_choice]
 
-            if subsample_choice == "1":
-                subsample = None
-            elif subsample_choice == "2":
-                subsample = 2
-            elif subsample_choice == "3":
-                subsample = 5
-            elif subsample_choice == "4":
-                subsample = 10
-            else:
-                custom_input = prompt_with_context(
-                    self.processor,
-                    "Subsample every Nth frame",
-                    default="5",
-                    module="MD Manager - Pairwise RMSD",
-                    description="Custom subsampling interval"
-                )
-                try:
-                    subsample = int(custom_input)
-                except ValueError:
-                    subsample = 5
+        self.console.print("\n[bold]Distance Between Frames:[/bold]")
+        self.console.print("  1. Best-fit RMSD (each pair of frames superposed first)")
+        self.console.print("  2. RMSD without fitting (coordinates as stored)")
+        self.console.print("  3. Distance RMSD (internal distances; needs no fitting)")
+
+        metric_choice = prompt_with_context(
+            self.processor,
+            "Select distance metric",
+            choices=["1", "2", "3"],
+            default="1",
+            module="MD Manager - Pairwise RMSD",
+            description="How the difference between two frames is measured",
+            options_map={
+                "1": "Best-fit RMSD",
+                "2": "RMSD without fitting",
+                "3": "Distance RMSD"
+            }
+        )
+        metric = {"1": "rms", "2": "nofit", "3": "dme"}[metric_choice]
+        metric_name = {"rms": "best-fit RMSD", "nofit": "RMSD without fitting", "dme": "distance RMSD"}[metric]
 
         # Get region selection
-        region = self._get_analysis_region_selection()
+        region = self._get_analysis_region_selection(analyzer, "Pairwise RMSD")
 
         # Perform analysis
         self.console.print(f"\n[cyan]Calculating pairwise RMSD matrix...[/cyan]")
-        self.console.print(f"  Region: {region}")
+        self.console.print(f"  Region: {region['description']}")
+        self.console.print(f"  Metric: {metric_name}")
         if subsample:
             self.console.print(f"  Subsampling: every {subsample}th frame")
         self.console.print("[yellow]This may take a while for large trajectories...[/yellow]")
 
         try:
             rmsd_data = analyzer.calculate_pairwise_rmsd(
-                mask=region,
-                subsample=subsample
+                mask=region['mask'],
+                subsample=subsample,
+                metric=metric
             )
 
             self.console.print("[green]✓ Analysis complete[/green]")
@@ -21008,16 +21223,22 @@ MD simulations require TWO files per structure:
         self.console.print("Can be compared to crystallographic B-factors.")
 
         # Get region selection
-        region = self._get_analysis_region_selection()
+        region = self._get_analysis_region_selection(analyzer, "B-factors")
+
+        alignment_mask, alignment_reference = self._prompt_alignment(analyzer, "MD Manager - B-factors")
 
         # Perform analysis
         self.console.print(f"\n[cyan]Calculating B-factors...[/cyan]")
-        self.console.print(f"  Region: {region}")
+        self.console.print(f"  Region: {region['description']}")
+        self.console.print(f"  Fitted on: {alignment_mask} to frame {alignment_reference}")
+        self.console.print("  Averaging: per residue, over the selected atoms")
 
         try:
             bfactor_data = analyzer.calculate_bfactors(
-                mask=region,
-                by_residue=True
+                mask=region['mask'],
+                by_residue=True,
+                alignment_mask=alignment_mask,
+                reference=alignment_reference
             )
 
             self.console.print("[green]✓ Analysis complete[/green]")
@@ -21210,33 +21431,30 @@ MD simulations require TWO files per structure:
         self.console.print("  Shell width: Thickness of each hydration layer")
         self.console.print("  Max distance: How far from solute to analyze")
 
-        shell_width_input = prompt_with_context(
+        shell_width = prompt_float_with_retry(
             self.processor,
             "Shell width (Å)",
-            default="2.0",
+            default=2.0,
             module="MD Manager - Water Shells",
-            description="Shell width in Angstroms"
+            description="Shell width in Angstroms",
+            min_value=0.0
         )
 
-        max_distance_input = prompt_with_context(
+        max_distance = prompt_float_with_retry(
             self.processor,
             "Maximum distance (Å)",
-            default="10.0",
+            default=10.0,
             module="MD Manager - Water Shells",
-            description="Maximum distance to analyze"
+            description="Maximum distance to analyze",
+            min_value=0.0
         )
-
-        try:
-            shell_width = float(shell_width_input)
-            max_distance = float(max_distance_input)
-        except ValueError:
-            shell_width = 2.0
-            max_distance = 10.0
 
         # Perform analysis
         self.console.print(f"\n[cyan]Analyzing water shells...[/cyan]")
         self.console.print(f"  Shell width: {shell_width} Å")
         self.console.print(f"  Max distance: {max_distance} Å")
+        self.console.print("  A water is placed by the distance from its oxygen to the nearest solute")
+        self.console.print("  atom, with periodic imaging (cpptraj watershell).")
 
         try:
             shell_data = analyzer.calculate_water_shells(
@@ -21272,6 +21490,7 @@ MD simulations require TWO files per structure:
         # Summary
         self.console.print(f"\n[bold]Analysis Summary:[/bold]")
         self.console.print(f"  Solute: {solute_mask}")
+        self.console.print(f"  Water oxygens: {shell_data['water_mask']}")
         self.console.print(f"  Number of shells: {n_shells}")
         self.console.print(f"  Frames analyzed: {populations.shape[0]}")
 
@@ -21329,12 +21548,12 @@ MD simulations require TWO files per structure:
         self.console.print("="*70)
 
         first_shell_pop = populations[:, 0]
-        frame_times = [analyzer.traj.time[i] for i in range(len(first_shell_pop))]
+        frame_times = analyzer.frame_times[:len(first_shell_pop)]
 
         shell_plot = self._create_ascii_plot(
             first_shell_pop,
             title="First Hydration Shell (0.0-2.0 Å)",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="# Waters",
             x_values=frame_times
         )
@@ -21388,28 +21607,76 @@ MD simulations require TWO files per structure:
         self.console.print("  Medium: 1.0 Å (balanced)")
         self.console.print("  Coarse: 2.0 Å (fast, less detail)")
 
-        spacing_input = prompt_with_context(
+        grid_spacing = prompt_float_with_retry(
             self.processor,
             "Grid spacing (Å)",
-            default="1.0",
+            default=1.0,
             module="MD Manager - Density Maps",
-            description="Grid spacing for density calculation"
+            description="Grid spacing for density calculation",
+            min_value=0.0
         )
 
-        try:
-            grid_spacing = float(spacing_input)
-        except ValueError:
-            grid_spacing = 1.0
+        self.console.print("\n[bold]Grid Size Limit:[/bold]")
+        self.console.print("  If the grid would need more points than this along an axis, the spacing")
+        self.console.print("  is coarsened to fit, and the spacing actually used is reported.")
+        max_grid_points = prompt_int_with_retry(
+            self.processor,
+            "Maximum grid points per axis",
+            default=100,
+            module="MD Manager - Density Maps",
+            description="Largest grid allowed along one axis before the spacing is coarsened",
+            min_value=2
+        )
+
+        self.console.print("\n[bold]Frame of Reference:[/bold]")
+        self.console.print("  1. Solute frame: molecules made whole around the solute (autoimage), then")
+        self.console.print("     every frame fitted on a mask to the first frame. Needed for density")
+        self.console.print("     around a solute that tumbles. Done on a copy of the trajectory.")
+        self.console.print("  2. Lab frame: coordinates as stored in the trajectory.")
+        frame_choice = prompt_with_context(
+            self.processor,
+            "Select frame of reference",
+            choices=["1", "2"],
+            default="1",
+            module="MD Manager - Density Maps",
+            description="Whether density is accumulated in the solute's frame or the lab frame",
+            options_map={
+                "1": "Solute frame (autoimage, then fit on a mask)",
+                "2": "Lab frame (coordinates as stored)"
+            }
+        )
+        fit_mask = None
+        if frame_choice == "1":
+            fit_mask = prompt_with_context(
+                self.processor,
+                "Fit mask (AMBER syntax)",
+                default="@CA,C,N",
+                module="MD Manager - Density Maps",
+                description="Atoms every frame is fitted on before density is accumulated"
+            ).strip()
+
+        n_peaks = prompt_int_with_retry(
+            self.processor,
+            "Number of density peaks to list",
+            default=5,
+            module="MD Manager - Density Maps",
+            description="How many of the highest-density grid cells to report",
+            min_value=1
+        )
 
         # Perform analysis
         self.console.print(f"\n[cyan]Calculating density map...[/cyan]")
         self.console.print(f"  Selection: {selection}")
-        self.console.print(f"  Grid spacing: {grid_spacing} Å")
+        self.console.print(f"  Grid spacing: {grid_spacing} Å (at most {max_grid_points} points per axis)")
+        self.console.print(f"  Frame of reference: {'solute, fitted on ' + fit_mask if fit_mask else 'lab'}")
 
         try:
             density_data = analyzer.calculate_density_map(
                 selection_mask=selection,
-                grid_spacing=grid_spacing
+                grid_spacing=grid_spacing,
+                fit_mask=fit_mask,
+                max_grid_points=max_grid_points,
+                n_peaks=n_peaks
             )
 
             self.console.print("[green]✓ Analysis complete[/green]")
@@ -21444,6 +21711,10 @@ MD simulations require TWO files per structure:
         self.console.print(f"  Selection: {selection}")
         self.console.print(f"  Grid dimensions: {grid_dims[0]} × {grid_dims[1]} × {grid_dims[2]}")
         self.console.print(f"  Grid spacing: {grid_spacing:.2f} Å")
+        if grid_spacing != density_data['requested_spacing']:
+            self.console.print(f"  [yellow]Spacing was coarsened from the {density_data['requested_spacing']:.2f} Å asked for, "
+                               f"to keep the grid within the point limit.[/yellow]")
+        self.console.print(f"  Frame of reference: {'solute, fitted on ' + density_data['fit_mask'] if density_data['fit_mask'] else 'lab'}")
         self.console.print(f"  Grid bounds:")
         self.console.print(f"    X: {grid_min[0]:.1f} to {grid_max[0]:.1f} Å")
         self.console.print(f"    Y: {grid_min[1]:.1f} to {grid_max[1]:.1f} Å")
@@ -21495,7 +21766,7 @@ MD simulations require TWO files per structure:
 
         # Create ASCII heatmap
         chars = ' ░▒▓█'
-        height, width = density_slice.shape
+        width, height = density_slice.shape  # the slice is indexed [x, y]
 
         self.console.print(f"\n[grey50]Y ↑[/grey50]")
 
@@ -21522,7 +21793,7 @@ MD simulations require TWO files per structure:
         self.console.print(f"   └{x_axis}→ X")
 
         self.console.print(f"\n[grey50]Legend: {chars[0]}=no density  {chars[-1]}=max density[/grey50]")
-        self.console.print(f"[grey50]Slice shown at Z = {(grid_min[2] + grid_max[2])/2:.1f} Å[/grey50]")
+        self.console.print(f"[grey50]Slice shown at Z = {density_data['slice_z']:.1f} Å (the middle layer of the grid)[/grey50]")
 
     def _analyze_vector(self, analyzer):
         """Perform vector orientation analysis."""
@@ -21585,6 +21856,8 @@ MD simulations require TWO files per structure:
         self.console.print("\n" + "="*70)
         self.console.print("[bold cyan]VECTOR RESULTS[/bold cyan]")
         self.console.print("="*70)
+        self.console.print(f"[grey50]From the centre of {vector_data['atom1_mask']} to the centre of {vector_data['atom2_mask']}.[/grey50]")
+        self.console.print("[grey50]Centres are geometric (not mass-weighted); angles are in the lab frame, as stored.[/grey50]")
 
         # Statistics
         self.console.print(f"\n[bold]Vector Magnitude:[/bold]")
@@ -21595,11 +21868,11 @@ MD simulations require TWO files per structure:
         self.console.print(f"  Mean: {np.mean(polar_angles):.1f} ± {np.std(polar_angles):.1f}°")
 
         # Plot polar angle over time
-        frame_times = [analyzer.traj.time[i] for i in range(len(polar_angles))]
+        frame_times = analyzer.frame_times[:len(polar_angles)]
         polar_plot = self._create_ascii_plot(
             polar_angles,
             title="Polar Angle vs Time",
-            xlabel="Time (ps)",
+            xlabel=analyzer.time_label,
             ylabel="Angle (°)",
             x_values=frame_times
         )
@@ -21609,15 +21882,40 @@ MD simulations require TWO files per structure:
 
     def _analyze_autocorrelation(self, analyzer):
         """Perform autocorrelation analysis on RMSD."""
-        self.console.print("\n[cyan]Note: Autocorrelation requires pre-calculated data.[/cyan]")
-        self.console.print("[cyan]Calculating RMSD first...[/cyan]")
+        self.console.print("\n[cyan]The autocorrelation is taken of an RMSD time series, calculated first.[/cyan]")
 
-        # Calculate RMSD for autocorrelation
         region = self._get_analysis_region_selection(analyzer, "Autocorrelation")
-        rmsd = pt.rmsd(analyzer.traj, mask=region)
+        reference = self._prompt_frame_index(analyzer, "Reference frame for the RMSD series",
+                                             "MD Manager - Autocorrelation", "Frame the RMSD series is measured against")
 
-        # Calculate autocorrelation
-        autocorr_data = analyzer.calculate_autocorrelation(rmsd)
+        n_frames = analyzer.system_info['n_frames']
+        self.console.print(f"\n[bold]Maximum Lag:[/bold] this trajectory has {n_frames} frames; half of it is {n_frames // 2}.")
+        while True:
+            lag_answer = prompt_with_context(
+                self.processor,
+                "Maximum lag in frames (Enter for half the trajectory)",
+                default="",
+                module="MD Manager - Autocorrelation",
+                description="Longest lag the autocorrelation is calculated for"
+            ).strip()
+            if not lag_answer:
+                max_lag = n_frames // 2
+                break
+            if lag_answer.isdigit() and 1 <= int(lag_answer) < n_frames:
+                max_lag = int(lag_answer)
+                break
+            self.console.print(f"[red]'{lag_answer}' is not a whole number of frames between 1 and {n_frames - 1}[/red]")
+
+        self.console.print(f"\n[cyan]Calculating...[/cyan]")
+        self.console.print(f"  Series: best-fit RMSD of {region['description']} to frame {reference}")
+        self.console.print(f"  Maximum lag: {max_lag} frames")
+        try:
+            rmsd = analyzer.calculate_rmsd(mask=region['mask'], reference=reference, label='autocorrelation_rmsd')
+            autocorr_data = analyzer.calculate_autocorrelation(rmsd, max_lag=max_lag)
+        except Exception as e:
+            self.console.print(f"[red]Error during autocorrelation analysis: {e}[/red]")
+            logger.error(f"Autocorrelation failed: {e}", exc_info=True)
+            return
 
         # Display
         autocorr = autocorr_data['autocorr']
@@ -21643,9 +21941,28 @@ MD simulations require TWO files per structure:
 
         region = self._get_analysis_region_selection(analyzer, "Contact Frequency")
 
-        self.console.print(f"\n[cyan]Calculating contact frequencies...[/cyan]")
+        self.console.print("\n[bold]Contact Definition:[/bold]")
+        self.console.print("  Two residues are in contact in a frame when any of their selected atoms")
+        self.console.print("  are within the cutoff (direct distances, no periodic imaging).")
+        distance_cutoff = prompt_float_with_retry(
+            self.processor,
+            "Distance cutoff (Å)",
+            default=4.5,
+            module="MD Manager - Contact Frequency",
+            description="Distance cutoff for a residue-residue contact",
+            min_value=0.0
+        )
 
-        freq_data = analyzer.calculate_contact_frequency(mask=region)
+        self.console.print(f"\n[cyan]Calculating contact frequencies...[/cyan]")
+        self.console.print(f"  Region: {region['description']}")
+        self.console.print(f"  Distance cutoff: {distance_cutoff} Å")
+
+        try:
+            freq_data = analyzer.calculate_contact_frequency(mask=region['mask'], distance_cutoff=distance_cutoff)
+        except Exception as e:
+            self.console.print(f"[red]Error during contact frequency analysis: {e}[/red]")
+            logger.error(f"Contact frequency failed: {e}", exc_info=True)
+            return
 
         # Display top residues
         self.console.print("\n" + "="*70)
