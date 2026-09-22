@@ -1954,6 +1954,96 @@ class TrajectoryAnalyzer:
             logger.error(f"Error calculating contact frequency: {e}")
             raise
 
+    # ---- Periodic images --------------------------------------------------
+
+    def solute_mask(self) -> Optional[str]:
+        """Atom mask of every molecule that is neither solvent nor a single-atom ion.
+
+        From the molecules the topology itself defines (cpptraj marks the solvent
+        ones), not from a list of residue names. In a membrane system this
+        includes the lipids, which are continuous across the box: choose the
+        protein alone there.
+        """
+        ranges, start = [], 0
+        for molecule in self.traj.top.mols:
+            end = start + molecule.n_atoms
+            if not molecule.is_solvent() and molecule.n_atoms > 1:
+                if ranges and ranges[-1][1] == start:
+                    ranges[-1][1] = end
+                else:
+                    ranges.append([start, end])
+            start = end
+        if not ranges:
+            return None
+        return "@" + ",".join(f"{a + 1}-{b}" if b - a > 1 else f"{a + 1}" for a, b in ranges)
+
+    def _atom_label(self, atom_index: int) -> str:
+        atom = self.traj.top.atom(int(atom_index))
+        return f"{atom.resname.strip()} {atom.resid + 1} {atom.name.strip()}"      # resid is 0-based
+
+    def calculate_image_distance(self, mask: str, stride: int = 1, label: str = None) -> dict:
+        """
+        Shortest distance between the selected atoms and their own periodic images, per frame.
+
+        Works for any Amber box (rectangular, truncated octahedron, triclinic): see
+        ``image_distance``. Read from the trajectory as loaded: nothing here
+        superposes or images it.
+
+        Args:
+            mask: the solute, as an AMBER mask
+            stride: analyse every ``stride``-th frame
+            label: data key (default 'image_distance')
+
+        Returns:
+            dict with 'distances', 'frames' (0-based), 'times', 'box_shape',
+            'closest' (the frame, distance and atom pair of the closest approach)
+            and 'box_lengths' (a, b, c per analysed frame)
+
+        Raises:
+            image_distance.NotPeriodic: the trajectory has no periodic box
+            ValueError: the mask selects no atom
+        """
+        from proprep.md_prep import image_distance as imd
+
+        if stride < 1:
+            raise ValueError("stride must be at least 1")
+        atoms = self._select(mask)
+        if len(atoms) == 0:
+            raise ValueError(f"the mask {mask!r} selects no atom")
+        label = label or "image_distance"
+
+        distances, frames, pairs, lengths, shape = [], [], [], [], None
+        for index in range(0, len(self.traj), stride):
+            frame = self.traj[index]
+            box = np.array(frame.box.values, dtype=float) if frame.box is not None else None
+            distance, first, second, _ = imd.minimum_image_distance(frame.xyz[atoms], box)
+            shape = shape or imd.box_shape(box)
+            distances.append(distance)
+            frames.append(index)
+            pairs.append((int(atoms[first]), int(atoms[second])))
+            lengths.append(tuple(float(v) for v in box[:3]))
+
+        nearest = int(np.argmin(distances))
+        result = {
+            "distances": distances,
+            "frames": frames,
+            "times": [self.frame_times[f] for f in frames],
+            "box_shape": shape,
+            "box_lengths": lengths,
+            "n_atoms": int(len(atoms)),
+            "closest": {
+                "frame": frames[nearest],
+                "time": self.frame_times[frames[nearest]],
+                "distance": distances[nearest],
+                "atom": self._atom_label(pairs[nearest][0]),
+                "image_atom": self._atom_label(pairs[nearest][1]),
+            },
+        }
+        self.data[label] = distances
+        self.data[f"{label}_mask"] = mask
+        self.image_distance_result = result
+        return result
+
     def get_statistics(self, data_key: str) -> Dict[str, float]:
         """
         Get statistics for a data series.

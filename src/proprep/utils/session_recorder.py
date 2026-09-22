@@ -177,7 +177,13 @@ class SessionRecorder:
         self.record_file = record_file
         self.recording = False
         self.session_data = {
-            "version": "1.1",  # Bumped version for rich context support
+            # The version of this FILE FORMAT (1.1 = rich prompt context; the
+            # session editor writes 1.2 for templates), not of ProPrep, whose
+            # version is metadata["proprep_version"]. Under its old name,
+            # "version", the first line of every session log read as ProPrep's
+            # version and was wrong. No code reads the key: older files, which
+            # still say "version", replay and rewind as before.
+            "session_format_version": "1.1",
             "start_time": None,
             "end_time": None,
             "interactions": [],

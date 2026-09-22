@@ -187,6 +187,9 @@ class DisulfideTransformer(RedoxSiteTransformerBase):
             matched_components["cys1_id"] = cys_centers[0].resid
             matched_components["cys2_chain"] = cys_centers[1].chain
             matched_components["cys2_id"] = cys_centers[1].resid
+            # The name each cysteine has now: one already CYX needs no rename.
+            matched_components["cys1_resname"] = cys_centers[0].resname
+            matched_components["cys2_resname"] = cys_centers[1].resname
         else:
             missing_components.extend(["cys1_chain", "cys1_id", "cys2_chain", "cys2_id"])
 
@@ -214,33 +217,25 @@ class DisulfideTransformer(RedoxSiteTransformerBase):
             logger.warning("Missing CYS component information - cannot generate transformations")
             return transformations
 
-        # Transformation 1: Rename first CYS to CYX
-        transformations.append({
-            "id": "rename_cys1_to_cyx",
-            "description": "Rename first CYS in disulfide bond to CYX",
-            "selector": {
-                "chain_id": components["cys1_chain"],
-                "residue_name": "CYS",
-                "residue_id": components["cys1_id"]
-            },
-            "action": {
-                "change_residue_name": "CYX"
-            }
-        })
-
-        # Transformation 2: Rename second CYS to CYX
-        transformations.append({
-            "id": "rename_cys2_to_cyx",
-            "description": "Rename second CYS in disulfide bond to CYX",
-            "selector": {
-                "chain_id": components["cys2_chain"],
-                "residue_name": "CYS",
-                "residue_id": components["cys2_id"]
-            },
-            "action": {
-                "change_residue_name": "CYX"
-            }
-        })
+        # Rename each cysteine to CYX. One already named CYX is left alone; for
+        # the others the step is required, so a rename that finds no atom is
+        # reported instead of leaving a CYS bonded to a CYX.
+        for which, ordinal in (("cys1", "first"), ("cys2", "second")):
+            if components.get(f"{which}_resname") == "CYX":
+                continue
+            transformations.append({
+                "id": f"rename_{which}_to_cyx",
+                "required": True,
+                "description": f"Rename {ordinal} CYS in disulfide bond to CYX",
+                "selector": {
+                    "chain_id": components[f"{which}_chain"],
+                    "residue_name": "CYS",
+                    "residue_id": components[f"{which}_id"]
+                },
+                "action": {
+                    "change_residue_name": "CYX"
+                }
+            })
 
         return transformations
 

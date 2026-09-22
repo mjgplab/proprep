@@ -10,6 +10,7 @@ ProPrep retains full control over force field sourcing, bond directives, and
 custom parameters for redox-active proteins.
 """
 
+import dataclasses
 import logging
 import os
 from pathlib import Path
@@ -977,16 +978,18 @@ class MembraneBuilderModule(ProcessingModule):
             )
 
             self.console.print("    1   Automatic (MEMEMBED)")
-            self.console.print("    2   Automatic (PPM3)")
+            self.console.print("    2   Automatic (PPM3)              the method behind the OPM database")
             self.console.print("    3   Pre-oriented (skip alignment)")
             self.console.print("    4   MEMEMBED options")
             self.console.print("    5   N-terminus orientation")
+            self.console.print(f"    6   Compare with the OPM database   "
+                               f"Currently: {'Yes' if self.config.opm_cross_check else 'No'}")
             self.console.print("    b   Back")
 
             choice = prompt_with_context(
                 self.processor,
                 "\nSelect",
-                choices=["1", "2", "3", "4", "5", "b"],
+                choices=["1", "2", "3", "4", "5", "6", "b"],
                 default="1",
                 module=MODULE_NAME,
                 description="Orientation method",
@@ -1009,6 +1012,13 @@ class MembraneBuilderModule(ProcessingModule):
                 self._memembed_options()
             elif choice == "5":
                 self._nter_orientation()
+            elif choice == "6":
+                self.config.opm_cross_check = not self.config.opm_cross_check
+                self.console.print(
+                    "[green]Set: the PPM3 placement is compared with OPM's before the build "
+                    "(needs the internet; it reports, and changes nothing)[/green]"
+                    if self.config.opm_cross_check else
+                    "[green]Set: no comparison with OPM[/green]")
 
     def _memembed_options(self):
         """Configure MEMEMBED-specific options."""
@@ -1195,6 +1205,7 @@ class MembraneBuilderModule(ProcessingModule):
             self.console.print(f"  Loops (all-together): {self.config.nloop_all}")
             self.console.print(f"  GENCAN iterations:    {self.config.gencan_iterations}")
             self.console.print(f"  Move fraction:        {self.config.move_fraction}")
+            self.console.print(f"  Time limit:           {self._time_limit_text()}")
             self.console.print()
 
             self.console.print("    1   Clash tolerance")
@@ -1205,11 +1216,12 @@ class MembraneBuilderModule(ProcessingModule):
             self.console.print("    6   Move fraction")
             self.console.print("    7   Troubleshooting options")
             self.console.print("    8   Output options (trajectories, plots)")
+            self.console.print("    9   Time limit for the build")
             self.console.print("    b   Back")
 
             choice = prompt_with_context(
                 self.processor, "\nSelect",
-                choices=["1", "2", "3", "4", "5", "6", "7", "8", "b"],
+                choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "b"],
                 default="b", module=MODULE_NAME, description="PACKMOL option",
             )
 
@@ -1235,6 +1247,16 @@ class MembraneBuilderModule(ProcessingModule):
                     self.processor, "All-together packing loops", default=self.config.nloop_all,
                     min_value=1, module=MODULE_NAME, description="nloop_all",
                 )
+            elif choice == "9":
+                self.console.print(
+                    "[grey50]The build shows packmol's progress loop by loop and Ctrl-C stops it "
+                    "cleanly, so a limit is only a safeguard for an unattended run.[/grey50]")
+                hours = prompt_float_with_retry(
+                    self.processor, "Stop the build after how many hours (0 = no limit)",
+                    default=self.config.time_limit_hours or 0.0,
+                    min_value=0.0, module=MODULE_NAME, description="Build time limit",
+                )
+                self.config.time_limit_hours = hours or None
             elif choice == "5":
                 self.config.gencan_iterations = prompt_int_with_retry(
                     self.processor, "GENCAN iterations per loop", default=self.config.gencan_iterations,
@@ -1802,6 +1824,12 @@ class MembraneBuilderModule(ProcessingModule):
         lines.append("  Protonation:        tLEaP (hydrogen addition from AMBER library templates)")
         orient = "Pre-oriented" if self.config.preoriented else f"Auto ({self.config.orientation_method})"
         lines.append(f"  Orientation:        {orient}")
+        if self._ppm3_by_transform():
+            lines.append("                      [grey50]ProPrep runs PPM3 and moves the whole structure into "
+                         "its frame (protein_oriented.pdb)[/grey50]")
+            if self.config.opm_cross_check:
+                lines.append("                      [grey50]then compares the placement with the OPM "
+                             "database's, if OPM has the entry (internet)[/grey50]")
         solute_count = len(self.config.solutes)
         lines.append(f"  Solutes:            {solute_count if solute_count else 'None'}")
 
@@ -1868,9 +1896,14 @@ class MembraneBuilderModule(ProcessingModule):
         lines.append(f"  Tolerance: {self.config.tolerance} Å    "
                      f"Loops: {self.config.nloop}/{self.config.nloop_all}    "
                      f"Protein radius: {self.config.protein_radius} Å")
+        lines.append(f"  Time limit: {self._time_limit_text()}")
 
-        # Equivalent command
-        cli_args = self.config.to_cli_args()
+        # Equivalent command: what packmol-memgen is given, which for PPM3 is the
+        # structure ProPrep has already oriented.
+        shown = self.config
+        if self._ppm3_by_transform():
+            shown = dataclasses.replace(self.config, protein_pdb="protein_oriented.pdb", preoriented=True)
+        cli_args = shown.to_cli_args()
         cli_cmd = "packmol-memgen " + " ".join(cli_args)
 
         lines.append("")
@@ -2083,7 +2116,15 @@ class MembraneBuilderModule(ProcessingModule):
         protein_pdb = os.path.abspath(self.config.protein_pdb)
         output_prefix = os.path.join(work_dir, "pretleap_hydrogen")
 
-        script_lines = ["# Pre-tLEaP hydrogen addition for membrane builder"]
+        script_lines = [
+            "# Pre-tLEaP hydrogen addition for membrane builder",
+            "# By default tLEaP moves every solvent residue to the end when it saves. The",
+            "# structure written here goes on to packmol-memgen and then to the Topology",
+            "# Generator, whose bond directives address residues by their position in the",
+            "# file: crystal waters lying between the cofactors (6R2Q: 10 of them among the",
+            "# hemes) would shift every residue after the first of them.",
+            "set default reorder_residues off",
+        ]
 
         # Use full FF selection if available, otherwise fall back to config
         selected_ffs = getattr(self, '_selected_forcefields', None) or {}
@@ -2176,6 +2217,17 @@ class MembraneBuilderModule(ProcessingModule):
 
         self.console.print(f"[grey50]tLEaP script: {script_path}[/grey50]")
 
+        # Outputs of an earlier pass are removed first. The test below is "do the
+        # topology files exist": with a morning's files still there, a tLEaP run
+        # that failed was taken for one that had worked, and the membrane was
+        # built around the morning's protein (6R2Q: without the loop the fixer had
+        # since rebuilt, and numbered differently from the bond directives, which
+        # tLEaP then rejected with "bond: Argument #2 is of type String").
+        for stale in (f"{output_prefix}.prmtop", f"{output_prefix}.rst7",
+                      os.path.join(work_dir, "protein_with_h.pdb")):
+            if os.path.exists(stale):
+                os.remove(stale)
+
         # Run tLEaP
         tleap_exe = "tleap"
         try:
@@ -2195,12 +2247,13 @@ class MembraneBuilderModule(ProcessingModule):
         rst7_file = f"{output_prefix}.rst7"
 
         if not os.path.exists(prmtop_file) or not os.path.exists(rst7_file):
-            self.console.print("[red]tLEaP did not produce topology files — skipping[/red]")
-            if proc.stderr:
-                # Show last few lines of stderr for diagnosis
-                err_lines = proc.stderr.strip().split("\n")[-5:]
-                for line in err_lines:
-                    self.console.print(f"[red]  {line}[/red]")
+            self.console.print("[red]tLEaP did not produce topology files[/red]")
+            # tLEaP reports its errors on stdout (and in leap.log), not stderr.
+            for message in self._tleap_error_messages(proc.stdout):
+                self.console.print(f"[red]  {message}[/red]")
+            if proc.stderr and proc.stderr.strip():
+                self.console.print(f"[red]  {proc.stderr.strip()}[/red]")
+            self.console.print(f"[grey50]Full log: {os.path.join(work_dir, 'leap.log')}[/grey50]")
             return None
 
         # Convert back to PDB with ambpdb
@@ -2214,6 +2267,12 @@ class MembraneBuilderModule(ProcessingModule):
             if proc.returncode == 0 and proc.stdout:
                 with open(h_pdb, "w") as f:
                     f.write(proc.stdout)
+                problem = self._hydrogen_pass_changed_the_structure(protein_pdb, h_pdb)
+                if problem:
+                    self.console.print(f"[bold red]tLEaP added the hydrogens, but the structure it wrote "
+                                       f"is not the one it was given: {problem}[/bold red]")
+                    self._hydrogen_pass_outcome = "changed"
+                    return None
                 self.console.print(f"[green]Hydrogens added via tLEaP → {os.path.basename(h_pdb)}[/green]")
                 return h_pdb
             else:
@@ -2222,6 +2281,178 @@ class MembraneBuilderModule(ProcessingModule):
         except FileNotFoundError:
             self.console.print("[red]ambpdb not found on PATH — skipping pre-tLEaP hydrogen pass[/red]")
             return None
+
+    def _cross_check_with_opm(self, workspace, placed_pdb: str, unplaced_pdb: str, work_dir: str) -> None:
+        """Say how the placement compares with OPM's, when that can be known. Never stops a build."""
+        if not self.config.opm_cross_check:
+            return
+        from . import opm_check
+
+        entry = opm_check.find_loaded_entry(workspace, unplaced_pdb)
+        if entry is None:
+            self.console.print("[grey50]  Not compared with OPM: no loaded PDB entry (a file with a "
+                               "HEADER ID) that this protein still sits on.[/grey50]")
+            return
+        loaded_pdb, pdb_id = entry
+        self.console.print(f"[grey50]  Asking the OPM database for {pdb_id}...[/grey50]")
+        try:
+            opm_pdb = opm_check.fetch_opm_entry(pdb_id, work_dir)
+            if opm_pdb is None:
+                self.console.print(f"[grey50]  OPM has no entry for {pdb_id}, so there is nothing to "
+                                   f"compare with. (It holds the membrane proteins it has processed.)[/grey50]")
+                return
+            result = opm_check.cross_check(placed_pdb, unplaced_pdb, loaded_pdb, opm_pdb)
+        except opm_check.OpmCheckError as exc:
+            self.console.print(f"[grey50]  Not compared with OPM: {exc}[/grey50]")
+            return
+        for line in opm_check.report_lines(pdb_id, result):
+            self.console.print(line)
+
+    def _ppm3_by_transform(self) -> bool:
+        """PPM3 was chosen and there is a protein to orient."""
+        return bool(self.config.protein_pdb and not self.config.preoriented
+                    and self.config.orientation_method == "ppm3")
+
+    def _orient_with_ppm3(self, work_dir: str) -> Optional[str]:
+        """Orient the whole protein with PPM3's transform; return the file, or None if it failed.
+
+        packmol-memgen's own --ppm packs PPM3's output file, which holds only
+        the residues PPM3 knows and no hydrogens: on 6R2Q it lost the 20 hemes,
+        the residues ligating them, the protonation-state residues, the waters
+        and the ions (24,057 atoms became 10,769). Here PPM3 supplies the
+        position of the membrane and nothing else.
+        """
+        from .orientation import OrientationError, orient_with_ppm3
+
+        self.console.print("\n[bold]Orientation (PPM3)[/bold]")
+        self.console.print("[grey50]Finding the membrane with PPM3, then moving the complete "
+                           "structure into that frame (this can take a few minutes)...[/grey50]")
+        oriented = os.path.join(work_dir, "protein_oriented.pdb")
+        n_ter = (self.config.n_ter_orientation or ["in"])[0]
+        try:
+            info = orient_with_ppm3(self.config.protein_pdb, oriented,
+                                    os.path.join(work_dir, "_ppm3_orientation"), n_ter=n_ter)
+        except OrientationError as exc:
+            self.console.print(f"[red]Orientation failed: {exc}[/red]")
+            return None
+        if info["ppm3_result"]:
+            self.console.print(f"  PPM3: {info['ppm3_result']}")
+        self.console.print(
+            f"  Placed from {info['atoms_matched']} atoms PPM3 kept (fit RMSD "
+            f"{info['fit_rmsd']:.4f} Å); all {info['atoms_moved']} atoms moved as one body")
+        self.console.print(f"[green]Oriented structure → {os.path.basename(oriented)}[/green]")
+        return oriented
+
+    def _time_limit_text(self) -> str:
+        hours = self.config.time_limit_hours
+        return f"{hours:g} h" if hours else "none (Ctrl-C stops the build)"
+
+    @staticmethod
+    def _bilayer_protein_differs(protein_pdb: str, bilayer_pdb: str) -> Optional[str]:
+        """None if the bilayer file starts with the protein it was given; else what differs.
+
+        packmol-memgen moves the protein as a whole, adds a chain ID and realigns
+        some names, so coordinates and spacing are not compared: the sequence of
+        (residue name, atom name), atom by atom, is, together with where each
+        residue begins.
+        """
+        def atoms(path, limit=None):
+            out, ordinal, last = [], 0, None
+            with open(path, errors="replace") as handle:
+                for line in handle:
+                    if not line.startswith(("ATOM", "HETATM")):
+                        continue
+                    residue = (line[22:27], line[17:20])
+                    if residue != last:
+                        ordinal, last = ordinal + 1, residue
+                    out.append((line[17:20].strip(), line[12:16].strip(), ordinal))
+                    if limit is not None and len(out) >= limit:
+                        break
+            return out
+
+        try:
+            given = atoms(protein_pdb)
+            built = atoms(bilayer_pdb, limit=len(given))
+        except OSError as exc:
+            return str(exc)
+        if len(built) < len(given):
+            return f"it has {len(built)} atoms where the protein has {len(given)}."
+        for index, (a, b) in enumerate(zip(given, built)):
+            if a != b:
+                return (f"atom {index + 1} is {b[0]} {b[1]} in residue {b[2]} of the file, where the protein "
+                        f"given has {a[0]} {a[1]} in residue {a[2]}.")
+        return None
+
+    @staticmethod
+    def _hydrogen_pass_changed_the_structure(given_pdb: str, written_pdb: str) -> Optional[str]:
+        """None if the file tLEaP wrote is the structure it was given; else what differs.
+
+        tLEaP adds atoms and renames (HOH to WAT, chain IDs dropped), so names are
+        not compared. It does not move a heavy atom, and the bond directives
+        address residues by their position in the file. So: every heavy atom given
+        must be found at the same coordinates, in the residue at the same position.
+        """
+        def heavy_atoms(path):
+            atoms, ordinal, last = {}, 0, None
+            with open(path, errors="replace") as handle:
+                for line in handle:
+                    if not line.startswith(("ATOM", "HETATM")):
+                        continue
+                    residue = (line[21], line[22:27], line[17:20])
+                    if residue != last:
+                        ordinal, last = ordinal + 1, residue
+                    if line[12:16].strip().startswith("H") or line[76:78].strip() == "H":
+                        continue
+                    try:
+                        key = tuple(int(round(float(line[a:b]) * 1000)) for a, b in ((30, 38), (38, 46), (46, 54)))
+                    except ValueError:
+                        continue
+                    atoms.setdefault(key, (ordinal, f"{line[17:20].strip()} {line[21]}{line[22:26].strip()} {line[12:16].strip()}"))
+            return atoms, ordinal
+
+        try:
+            given, n_given = heavy_atoms(given_pdb)
+            written, n_written = heavy_atoms(written_pdb)
+        except OSError as exc:
+            return str(exc)
+        missing = [label for key, (_, label) in given.items() if key not in written]
+        if missing:
+            return (f"{len(missing)} of its {len(given)} heavy atoms are not in the output "
+                    f"(first: {missing[0]}). It has {n_given} residues, the output {n_written}.")
+        moved = [(label, position, written[key][0]) for key, (position, label) in given.items()
+                 if written[key][0] != position]
+        if moved:
+            label, was, now = moved[0]
+            return (f"{len(moved)} heavy atoms are in a residue at another position in the file "
+                    f"(first: {label}, residue number {was} of the file given, {now} of the file written). "
+                    f"The bond directives address residues by that position and would no longer apply.")
+        return None
+
+    @staticmethod
+    def _tleap_error_messages(tleap_output: str) -> List[str]:
+        """The distinct error messages in tLEaP's output, in order of appearance.
+
+        tLEaP prints "<path>/teLeap: Error!" (or "Fatal Error!") and the message
+        on the next line; the atom positions that follow differ per occurrence,
+        so the same missing parameter would otherwise be listed once per bond.
+        """
+        messages: List[str] = []
+        lines = (tleap_output or "").splitlines()
+        # What is usually behind everything else: a residue with no template. Each
+        # is reported once per residue, so they are counted by name.
+        unknown: Dict[str, int] = {}
+        for line in lines:
+            if line.startswith("Unknown residue:"):
+                name = line.split(":", 1)[1].split()[0]
+                unknown[name] = unknown.get(name, 0) + 1
+        for name, count in unknown.items():
+            messages.append(f"Unknown residue: {name} ({count} of them): no loaded library defines it")
+        for i, line in enumerate(lines):
+            if line.rstrip().endswith("Error!") and i + 1 < len(lines):
+                message = lines[i + 1].strip()
+                if message and message not in messages:
+                    messages.append(message)
+        return messages
 
     def _run_build(self, workspace) -> bool:
         """Execute the membrane build."""
@@ -2278,17 +2509,68 @@ class MembraneBuilderModule(ProcessingModule):
             if h_pdb:
                 self.config.protein_pdb = h_pdb
             else:
-                self.console.print("[dark_orange3]tLEaP hydrogen pass failed — falling back to reduce[/dark_orange3]")
+                # Not a silent fallback: without --notprotonate --nottrim,
+                # packmol-memgen protonates the protein itself and drops what it
+                # does not recognise. On 6R2Q that built a bilayer around a
+                # protein with all 20 hemes removed and two protonation states
+                # changed from the ones chosen in the Protonation State Analyzer.
+                lead = ("The hydrogenated structure cannot be used as it is."
+                        if getattr(self, "_hydrogen_pass_outcome", None) == "changed"
+                        else "tLEaP could not add the hydrogens.")
+                self._hydrogen_pass_outcome = None
+                self.console.print(
+                    f"[dark_orange3]{lead} packmol-memgen can add "
+                    "them itself (pdb2pqr/reduce), but it then removes residues it does not "
+                    "recognise (cofactors such as hemes, metal sites) and assigns protonation "
+                    "states of its own, replacing the ones in this structure.[/dark_orange3]")
+                use_packmol_protonation = confirm_with_context(
+                    self.processor,
+                    "Build anyway with packmol-memgen's own protonation?",
+                    default=False,
+                    module=MODULE_NAME,
+                    description="tLEaP hydrogen pass failed: fall back to packmol-memgen protonation",
+                )
+                if not use_packmol_protonation:
+                    self.console.print(
+                        "[red]Build stopped. Fix the tLEaP errors above and build again.[/red]")
+                    return False
                 self.config.skip_protonation = False
 
+        # PPM3 orientation is done here, not by packmol-memgen: see
+        # _orient_with_ppm3. The oriented file then goes in as --preoriented.
+        run_config = self.config
+        if self._ppm3_by_transform():
+            oriented = self._orient_with_ppm3(work_dir)
+            if oriented is None:
+                return False
+            self._cross_check_with_opm(workspace, oriented, self.config.protein_pdb, work_dir)
+            run_config = dataclasses.replace(self.config, protein_pdb=oriented, preoriented=True)
+
+        # packmol-memgen runs in the protein's own directory, so it is given the
+        # bare file name: it builds scratch-folder names from the -p value as
+        # typed, and a directory part ("./x.pdb") breaks them.
+        if run_config.protein_pdb:
+            run_config = dataclasses.replace(
+                run_config, protein_pdb=os.path.basename(run_config.protein_pdb))
+
         # Build CLI args
-        args = self.config.to_cli_args()
+        args = run_config.to_cli_args()
+
+        if not self.config.packmol_accepts_water_model:
+            self.console.print(
+                f"[grey50]packmol-memgen has no {self.config.effective_water_model.upper()} "
+                f"option, so it will report that the water model was not set and name one "
+                f"of its own. That only matters to its own parametrization step, which "
+                f"ProPrep does not use: the waters are packed the same, and the Topology "
+                f"Generator builds the system with "
+                f"{self.config.effective_water_model.upper()}.[/grey50]")
 
         self.console.print(f"[#0f7f99]Working directory: {work_dir}[/#0f7f99]")
         self.console.print("[#0f7f99]Running packmol-memgen...[/#0f7f99]\n")
 
         # Run
-        result = run_packmol_memgen(args, work_dir, self.console)
+        result = run_packmol_memgen(args, work_dir, self.console,
+                                    time_limit_hours=self.config.time_limit_hours)
 
         if not result.success:
             self.console.print(f"\n[red]Build failed: {result.error_message}[/red]")
@@ -2315,6 +2597,19 @@ class MembraneBuilderModule(ProcessingModule):
             removed = self._fix_ter_records(result.output_pdb)
             if removed > 0:
                 self.console.print(f"[grey50]Removed {removed} spurious TER record(s) from output PDB[/grey50]")
+
+        # The bond directives the Topology Generator will write address residues by
+        # their position in the file, so the protein in the bilayer has to be, atom
+        # for atom and in order, the one that was given to packmol-memgen.
+        if run_config.protein_pdb and result.output_pdb and os.path.exists(result.output_pdb):
+            problem = self._bilayer_protein_differs(
+                os.path.join(work_dir, run_config.protein_pdb), result.output_pdb)
+            if problem:
+                self.console.print(
+                    f"\n[bold red]The protein in {os.path.basename(result.output_pdb)} is not the one "
+                    f"packmol-memgen was given: {problem}[/bold red] The Topology Generator's bond "
+                    f"directives would not apply to it. The build is not recorded.")
+                return False
 
         # Success — update workspace
         self.console.print(f"\n[green]Build successful![/green]")

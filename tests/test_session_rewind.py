@@ -289,3 +289,31 @@ def test_rebuild_for_rewind_replaces_processor_and_replays(tmp_path, monkeypatch
     assert new.workspace["debug"] is True
     assert new.hybrid_calls == [(str(tmp_path / "s.json"),
                                  {"truncate_at": 7, "keep_following": True, "new_value": "x"})]
+
+
+def test_module_instances_do_not_survive_the_processor():
+    """A rewound session gets fresh modules, not the old processor's.
+
+    The registry is a module-level singleton, so its cached instances outlive
+    the processor. A helper a module built with the old processor (the Redox
+    Site Preparer's transformation manager) then wrote transformed_pdb_file to
+    the old workspace, and the Protonation State Analyzer fell back to the
+    filtered structure. Real processors: a fake one has no registry to leak.
+    """
+    from proprep.application.pdbprocessor import PDBProcessor
+    from proprep.redoxsite_prep.transformation.redox_transformation_manager import (
+        RedoxTransformationManager,
+    )
+    name = "Redox Site Preparer"
+
+    old = PDBProcessor()
+    module = old.get_module_instance(name)
+    module.transformation_manager = RedoxTransformationManager(module.processor)
+
+    old.cleanup()  # what _rebuild_for_rewind does before building the new processor
+    new = PDBProcessor()
+    rewound = new.get_module_instance(name)
+
+    assert rewound is not module
+    assert rewound.transformation_manager is None
+    assert rewound.processor is new

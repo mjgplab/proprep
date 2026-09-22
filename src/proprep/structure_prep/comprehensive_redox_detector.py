@@ -52,8 +52,18 @@ except ImportError:
 # stopped+restarted the underlying server on every "view" press. The
 # coordinator's update_annotations path is a live /version-poll bump
 # instead — no flicker, no log noise.
+#: Workspace key: the PDB file of the structure detection is running on.
+DETECTION_PDB_KEY = "redox_detection_pdb_file"
+
+
 def _find_workspace_structure(processor) -> Optional[str]:
-    """Return the current PDB path from workspace, or None.
+    """Return the PDB path the viewer should show, or None.
+
+    The file of the structure detection is running on comes first: it is
+    the one the user picked in the structure selector (e.g. "H-Stripped"),
+    and the sites are made of ITS atoms. The key list below cannot return
+    that choice, so without this the sites were drawn on the deposited
+    file, hydrogens and all.
 
     NOTE: legacy 5-key priority loop. Flagged for migration to
     ``get_priority_pdb_file`` in the legacy-priority-loops backlog; kept
@@ -63,6 +73,9 @@ def _find_workspace_structure(processor) -> Optional[str]:
     if processor is None:
         return None
     workspace = processor._get_workspace()
+    detection_file = workspace.get(DETECTION_PDB_KEY)
+    if detection_file:
+        return detection_file
     for key in ['processed_pdb_file', 'local_pdb_file', 'rcsb_pdb_file',
                 'alphafold_pdb_file', 'alphafill_pdb_file']:
         structure_file = workspace.get(key)
@@ -6445,6 +6458,10 @@ class SiteRefinementInterface:
         was already made for an identical bond is skipped, so a template
         with two "HIS NE2 - FE" bonds lands on two different His.
 
+        A bond captured within one residue (key "3-3", e.g. HIS CA - CB)
+        is only ever applied within one residue, and a bond between two
+        residues only between two.
+
         The row-number key ("2-1") that older captures relied on is used
         only when a bond carries no residue names. Row order comes from a
         distance sort that is a near-tie for same-type residues, so the
@@ -6485,6 +6502,10 @@ class SiteRefinementInterface:
                 res1_idx, res2_idx = map(int, bond_pair.split('-'))
                 source_row = _row_key(res1_idx)
                 target_row = _row_key(res2_idx)
+                # "3-3" is a bond between two atoms of ONE residue. Which
+                # residue a row is varies from site to site, but whether
+                # both ends are the same residue does not.
+                within_residue = res1_idx == res2_idx
 
                 for bond_info in bond_list:
                     src_name = bond_info['source_atom']
@@ -6502,7 +6523,7 @@ class SiteRefinementInterface:
                     best = None
                     for sk, sa in sources:
                         for tk, ta in targets:
-                            if sk == tk:
+                            if (sk == tk) != within_residue:
                                 continue
                             if (sk, src_name, tk, tgt_name) in made or (tk, tgt_name, sk, src_name) in made:
                                 continue
@@ -6898,7 +6919,23 @@ class ComprehensiveRedoxDetector:
         
         # Set up logging
         self.logger = logging.getLogger(__name__)
-    
+
+        # PDB file of the structure being analysed; callers that pass a
+        # structure object set this after construction.
+        self.source_pdb_file = None
+
+    def _record_viewer_structure(self) -> None:
+        """Tell the viewer helpers which file the sites belong to.
+
+        Always written, so a run without a usable file clears the choice
+        a previous detection left behind.
+        """
+        if self.processor is None:
+            return
+        source = self.source_pdb_file
+        self.processor._get_workspace().set(
+            DETECTION_PDB_KEY, str(source) if source and Path(source).is_file() else None)
+
     def detect_redox_sites(self, structure_file: str = None, structure: Structure = None, selected_chains: List[str] = None, interactive: bool = True) -> List[RedoxSite]:
         """
         Complete redox site detection workflow
@@ -6942,7 +6979,11 @@ class ComprehensiveRedoxDetector:
         else:
             self.console.print("[red]Error: No structure provided. Must supply either structure_file or structure object.[/red]")
             return []
-            
+
+        if structure_file and not self.source_pdb_file:
+            self.source_pdb_file = structure_file
+        self._record_viewer_structure()
+
         # Display chain selection info
         if selected_chains:
             self.console.print(f"[bold]Selected chains:[/bold] {', '.join(selected_chains)}")
@@ -8027,7 +8068,7 @@ class ComprehensiveRedoxDetector:
             return
         
         # Get the source PDB filename for export functions
-        source_pdb = getattr(self, 'source_pdb_file', 'structure.pdb')
+        source_pdb = self.source_pdb_file or 'structure.pdb'
         
         try:
             if "1" in choices:
@@ -8599,6 +8640,70 @@ def _prompt_for_json_import(console=None, processor=None) -> Optional[str]:
     return display_json_file_menu(directory=".", console=console, processor=processor)
 
 
+def _json_safe_properties(properties: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """A properties dict as JSON can hold it: numbers, text, booleans, lists and dicts of those.
+
+    numpy scalars become Python numbers, tuples lists, enums their values. A value
+    of any other kind is left out, and logged, rather than stopping an export.
+    """
+    def convert(value):
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return True, value
+        if hasattr(value, "item") and callable(value.item) and not isinstance(value, (list, tuple, dict)):
+            try:
+                return convert(value.item())                 # numpy scalar
+            except (ValueError, TypeError):
+                return False, None
+        if isinstance(value, Enum):
+            return convert(value.value)
+        if isinstance(value, (list, tuple, set, frozenset)):
+            items = [convert(v) for v in value]
+            return all(ok for ok, _ in items), [v for _, v in items]
+        if isinstance(value, dict):
+            items = {str(k): convert(v) for k, v in value.items()}
+            return all(ok for ok, _ in items.values()), {k: v for k, (_, v) in items.items()}
+        return False, None
+
+    safe = {}
+    for key, value in (properties or {}).items():
+        ok, converted = convert(value)
+        if ok:
+            safe[str(key)] = converted
+        else:
+            logger.debug(f"Property {key!r} ({type(value).__name__}) cannot be written to JSON; left out")
+    return safe
+
+
+def _restore_disulfide_center_properties(site: RedoxSite) -> None:
+    """Give the two cysteines of an imported disulfide what detection had recorded on them.
+
+    Site files written before center properties were exported have none, and the
+    disulfide transformer requires ``is_disulfide_bonded`` on both centers: an
+    imported disulfide site matched no transformer, and treating it as
+    no_transformation leaves two CYS that tLEaP cannot bond ("Could not find bond
+    parameter for atom types: SH - S"). The same fact is in the file as the bond
+    detection also wrote (chemical type "disulfide", treatment "bonded"), between
+    the two center atoms; it is read from there. Properties already present win.
+    """
+    def key(xyz):
+        return tuple(int(round(float(v) * 1000)) for v in xyz)
+
+    centers = {key(c.coords): c for c in site.centers
+               if c.atom_name == "SG" and c.resname in ("CYS", "CYX")}
+    for bond in site.bonds:
+        if bond.chemical_type != "disulfide" or bond.treatment != "bonded":
+            continue
+        first, second = centers.get(key(bond.atom1_coords)), centers.get(key(bond.atom2_coords))
+        if first is None or second is None or first is second:
+            continue
+        for center, partner in ((first, second), (second, first)):
+            center.properties.setdefault("is_disulfide_bonded", True)
+            center.properties.setdefault("disulfide_partner_chain", partner.chain)
+            center.properties.setdefault("disulfide_partner_res", partner.resid)
+            if bond.distance:
+                center.properties.setdefault("disulfide_bond_distance", round(float(bond.distance), 2))
+
+
 def _import_from_json(json_file: str) -> Tuple[List[RedoxSite], Dict[str, str]]:
     """Import redox sites from a JSON file.
 
@@ -8769,12 +8874,15 @@ def dict_to_redox_site(site_data):
             resname=center_data["resname"],
             resid=center_data["resid"],
             atom_name=center_data.get("atom_name"),
-            insertion_code=center_data.get("insertion_code", ""),
+            # ' ' when the file has none, as a center detected on a structure has
+            # (BioPython's residue.id[2]); the fixer's sync compared it to that.
+            insertion_code=center_data.get("insertion_code") or " ",
             altloc=center_data.get("altloc", ""),
             coords=_xyz(center_data, "coordinates", "coords"),
             center_type=CenterType(_first(center_data, "center_type",
                                           default="metal_ion")),
-            element=center_data.get("element")
+            element=center_data.get("element"),
+            properties=dict(center_data.get("properties") or {}),
         )
         site.add_center(center)
 
@@ -8785,7 +8893,10 @@ def dict_to_redox_site(site_data):
             resid=atom_data["resid"],
             atom_name=atom_data["atom_name"],
             coords=_xyz(atom_data, "coordinates", "coords"),
-            element=atom_data.get("element", "")
+            element=atom_data.get("element", ""),
+            insertion_code=atom_data.get("insertion_code", ""),
+            altloc=atom_data.get("altloc", ""),
+            properties=dict(atom_data.get("properties") or {}),
         )
         site.add_atom(atom)
 
@@ -8806,6 +8917,7 @@ def dict_to_redox_site(site_data):
         )
         site.bonds.append(bond)
 
+    _restore_disulfide_center_properties(site)
     return site
 
 
@@ -8849,6 +8961,16 @@ def _export_to_json(sites: List[RedoxSite], pdb_file: str, console=None,
                 "center_type": center.center_type.value,
                 "coordinates": [round(float(x), 3) for x in center.coords]
             }
+            for extra in ("insertion_code", "altloc"):
+                value = (getattr(center, extra, "") or "").strip()
+                if value:
+                    center_data[extra] = value
+            # What detection learned about the center (a cysteine being
+            # disulfide bonded, and to which partner, ...). Transformers decide
+            # on it: left out, an imported disulfide site matched no transformer.
+            properties = _json_safe_properties(center.properties)
+            if properties:
+                center_data["properties"] = properties
             site_data["centers"].append(center_data)
         
         # Export atoms
@@ -8861,6 +8983,13 @@ def _export_to_json(sites: List[RedoxSite], pdb_file: str, console=None,
                 "element": atom.element,
                 "coordinates": [round(float(x), 3) for x in atom.coords]
             }
+            for extra in ("insertion_code", "altloc"):
+                value = (getattr(atom, extra, "") or "").strip()
+                if value:
+                    atom_data[extra] = value
+            properties = _json_safe_properties(atom.properties)
+            if properties:
+                atom_data["properties"] = properties
             site_data["atoms"].append(atom_data)
         
         # Export bonds

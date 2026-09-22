@@ -123,6 +123,50 @@ def test_missing_atom_is_skipped_not_misbonded():
     assert site.bonds == []
 
 
+def _heme_with_two_his_two_cys():
+    """One HEC plus two HIS and two CYS, each with a 1.5 Å CA-CB; the two
+    residues of a type sit 12 Å apart (6R2Q site geometry)."""
+    site = RedoxSite("s", "t")
+    site.atoms += [
+        _atom("A", "HEC", 902, "C2A", (0, 0, 0)),
+        _atom("A", "HEC", 902, "CAA", (1.5, 0, 0)),
+    ]
+    for resname, resid, z in (("HIS", 104, 6), ("HIS", 167, -6), ("CYS", 100, 3), ("CYS", 103, -3)):
+        site.atoms += [
+            _atom("A", resname, resid, "CA", (0, 5, z)),
+            _atom("A", resname, resid, "CB", (1.5, 5, z)),
+        ]
+    return site
+
+
+def test_bond_within_one_residue_stays_within_it():
+    """A pair captured as "N-N" joins two atoms of ONE residue. It was
+    skipped for the lone HEC and crossed to the other HIS/CYS (12 Å)."""
+    ca_cb = lambda res: {"source_atom": "CA", "target_atom": "CB",
+                         "source_resname": res, "target_resname": res}
+    bonds = {
+        "1-1": [{"source_atom": "C2A", "target_atom": "CAA",
+                 "source_resname": "HEC", "target_resname": "HEC"}],
+        "2-2": [ca_cb("HIS")], "3-3": [ca_cb("HIS")],
+        "4-4": [ca_cb("CYS")], "5-5": [ca_cb("CYS")],
+    }
+    site = _heme_with_two_his_two_cys()
+    _refiner()._apply_template_bonds(site, _template(bonds))
+    assert all(b.atom1_residue_info["resid"] == b.atom2_residue_info["resid"] for b in site.bonds)
+    assert _bond_map(site) == {
+        (902, "C2A", "CAA"): 1.5,
+        (104, "CA", "CB"): 1.5, (167, "CA", "CB"): 1.5,
+        (100, "CA", "CB"): 1.5, (103, "CA", "CB"): 1.5,
+    }
+
+
+def test_legacy_bond_within_one_residue_uses_the_row():
+    bonds = {"1-1": [{"source_atom": "C2A", "target_atom": "CAA"}]}
+    site = _heme_with_two_his_two_cys()
+    _refiner()._apply_template_bonds(site, _template(bonds))
+    assert _bond_map(site) == {(902, "C2A", "CAA"): 1.5}
+
+
 # --------------------------------------------------------- boundary ----
 
 

@@ -664,7 +664,20 @@ class RedoxSiteTransformerBase:
                         if dependent_key in updated_components and offset > 0:
                             updated_components[dependent_key] = new_id + offset
                 break
-        
+
+        # Any other component that names a remapped residue follows it, whatever
+        # its role is called. The structure and the RedoxSite already carry the
+        # new ID, so a component left on the old one builds a selector that
+        # matches no atom and its step does nothing, without a word: the
+        # disulfide's cys1_id kept 112 after C:112 became 814, and only the
+        # second cysteine was renamed to CYX.
+        for id_key, original_id in components.items():
+            if not id_key.endswith("_id") or updated_components[id_key] != original_id:
+                continue
+            chain_key = id_key[:-len("_id")] + "_chain"
+            if chain_key in components and (components[chain_key], original_id) in id_mapping:
+                updated_components[id_key] = id_mapping[(components[chain_key], original_id)]
+
         return updated_components
     
     @classmethod
@@ -1284,7 +1297,15 @@ class RedoxSiteSpaceAnalyzer:
             # Calculate space needed
             required_count = transformer_class.get_required_residue_count()
             space_plan = transformer_class.get_residue_space_plan(components)
-            
+
+            # A transformer that edits its residues in place (no space plan, one
+            # residue: disulfide, the cofactors, no_transformation) creates no
+            # residue and needs no ID space. Giving it a block anyway renumbered
+            # its first center (the first cysteine of a disulfide, C:112 -> 814)
+            # for nothing, whenever some other site's conflict turned mapping on.
+            if not space_plan and required_count <= 1:
+                continue
+
             # Find the anchor residue (main center of the site)
             anchor_residue = self._find_anchor_residue(site, components)
             if not anchor_residue:
@@ -1431,6 +1452,18 @@ class TransformationExecutor:
                 transform, redox_site, current_lines
             )
             
+            # A step that declares itself required and matched no atom did not
+            # happen. Said at every verbosity: the structure that comes out looks
+            # finished and fails later, somewhere else (a CYS left beside its CYX
+            # stops tLEaP on "Could not find bond parameter for: SH - S"). Opt-in,
+            # because some steps are meant to find nothing (rename_hem_to_hec on a
+            # heme already named HEC).
+            if transform.get("required") and not lines_modified:
+                self.console.print(
+                    f"[red]✗ {self.current_site_id}: step '{transform['id']}' "
+                    f"({transform['description']}) matched no atoms and was not applied. "
+                    f"Selector: {transform['selector']}[/red]")
+
             # Save intermediate structure after each transformation step for debugging
             self._save_intermediate_structure(current_lines, redox_site, i+1, transform['description'])
             
@@ -1454,6 +1487,7 @@ class TransformationExecutor:
         
         if not target_coords:
             logger.debug(f"No target coordinates found for transformation: {transform['description']}")
+            self._report_residue_the_site_does_not_have(transform, redox_site)
             return pdb_lines, 0
         
         # Apply action to all matching PDB lines and track coordinate updates
@@ -1630,6 +1664,33 @@ class TransformationExecutor:
             logger.warning(f"Failed to cleanup intermediate structures: {e}")
             if self.verbose:
                 self.console.print(f"[yellow]⚠️  Failed to cleanup intermediate structures: {e}[/yellow]")
+
+    def _report_residue_the_site_does_not_have(self, transform: Dict[str, Any], redox_site) -> None:
+        """Say so, at any verbosity, when a step names a residue its site does not contain.
+
+        A step may find nothing for a good reason: the residue is there and a
+        name or atom filter excludes it (rename_hem_to_hec on a heme already
+        named HEC). A step whose residue is not in the site AT ALL is never that:
+        the site's numbering and the step's have come apart. Seen twice on 6R2Q:
+        a disulfide's first cysteine renumbered by the ID mapping while its
+        component kept the old number, and heme centers left on their
+        pre-repair numbers (A:901) while the hemes were at A:274, so that every
+        step on the heme did nothing and the structure came out half transformed,
+        without a word, to fail two modules later in tLEaP.
+        """
+        selector = transform.get("selector") or {}
+        if "chain_id" not in selector or "residue_id" not in selector:
+            return
+        chain_id, residue_id = selector["chain_id"], selector["residue_id"]
+        if any(redox_site.get_atoms_by_residue(chain_id, residue_id, code) for code in ("", " ")):
+            return
+        here = sorted({(a.chain, a.resid) for a in getattr(redox_site, "atoms", [])})
+        self.console.print(
+            f"[bold red]✗ {getattr(redox_site, 'site_id', 'site')}: step '{transform.get('id', '?')}' "
+            f"({transform.get('description', '')}) refers to residue {chain_id}:{residue_id}, which this "
+            f"site does not contain, and was not applied.[/bold red] The site's residues are "
+            f"{', '.join(f'{c}:{r}' for c, r in here)}. Its numbering and the structure's have come "
+            f"apart: re-detect the redox sites on the structure being prepared.")
 
     def _resolve_transformation_targets(self, selector: Dict, redox_site) -> Set[Tuple[float, float, float]]:
         """Convert selector criteria to coordinate sets using RedoxSite data"""

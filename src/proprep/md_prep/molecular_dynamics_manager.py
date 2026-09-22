@@ -10736,6 +10736,9 @@ MD simulations require TWO files per structure:
             self.console.print("10. Plot potential energy", highlight=False)
             self.console.print("11. Plot RMS gradient", highlight=False)
             self.console.print("")
+            self.console.print("🧊 [bold]Periodic box:[/bold]")
+            self.console.print("12. Distance of the solute to its periodic images, so far", highlight=False)
+            self.console.print("")
             self.console.print("🔄 [bold]Control:[/bold]")
             self.console.print(" r. Refresh data")
             self.console.print(" b. ← Back")
@@ -10743,7 +10746,7 @@ MD simulations require TWO files per structure:
             choice = prompt_with_context(
                 self.processor,
                 "Select option",
-                choices=["1","2","3","4","5","6","7","8","9","10","11","r","b"],
+                choices=["1","2","3","4","5","6","7","8","9","10","11","12","r","b"],
                 default="1",
                 module="MD Manager - Monitoring",
                 description="Simulation monitoring options",
@@ -10759,6 +10762,7 @@ MD simulations require TWO files per structure:
                     "9": "Plot kinetic energy",
                     "10": "Plot potential energy",
                     "11": "Plot RMS gradient",
+                    "12": "Distance of the solute to its periodic images, so far",
                     "r": "Refresh data",
                     "b": "← Back"
                 }
@@ -10789,10 +10793,54 @@ MD simulations require TWO files per structure:
                 self._show_ascii_plot(monitor, 'potential_energy', 'Potential Energy', '(kcal/mol)')
             elif choice == "11":
                 self._show_ascii_plot(monitor, 'rms_gradient', 'RMS Gradient', '(kcal/mol/Å)')
+            elif choice == "12":
+                self._monitor_image_distance(Path(output_file).parent)
             elif choice == "r":
                 self.console.print("[green]🔄 Data refreshed[/green]")
             elif choice == "b":
                 break
+
+    def _monitor_image_distance(self, sim_dir: Path):
+        """The periodic image distance over the frames a simulation has written so far.
+
+        Reads the run's own topology and trajectory from its directory. The
+        trajectory is opened lazily, so a large system that is still running is
+        not pulled into memory; frames are read one at a time.
+        """
+        try:
+            import pytraj as pt
+            from proprep.md_prep.trajectory_analyzer import TrajectoryAnalyzer
+        except ImportError:
+            self.console.print("[yellow]pytraj is needed to read the trajectory and is not installed.[/yellow]")
+            return
+
+        topologies = sorted(list(sim_dir.glob("*.prmtop")) + list(sim_dir.glob("*.parm7")))
+        trajectories = sorted(sim_dir.glob("*.nc"), key=lambda path: path.stat().st_mtime)
+        if not topologies or not trajectories:
+            self.console.print(
+                f"[yellow]No {'topology' if not topologies else 'trajectory (.nc)'} in {sim_dir.name} yet. "
+                f"A minimization writes no trajectory; a dynamics run writes its first frame after "
+                f"ntwx steps.[/yellow]")
+            return
+        topology, trajectory = topologies[0], trajectories[-1]
+        # Asked of the file itself first: on a trajectory with no frame yet, cpptraj
+        # prints three raw "Error:" lines to the terminal before anything can be said.
+        from proprep.md_prep.trajectory_view import frame_count
+        if frame_count(str(trajectory)) == 0:
+            self.console.print(f"[yellow]{trajectory.name} holds no frame yet; the run writes its first "
+                               f"after ntwx steps.[/yellow]")
+            return
+        try:
+            analyzer = TrajectoryAnalyzer(str(topology), traj_object=pt.iterload(str(trajectory), top=str(topology)))
+        except Exception as exc:
+            self.console.print(f"[yellow]{trajectory.name} could not be read just now ({exc}). A run rewrites "
+                               f"the file as it goes; try again in a moment.[/yellow]")
+            return
+        if len(analyzer.traj) == 0:
+            self.console.print(f"[yellow]{trajectory.name} holds no frame yet.[/yellow]")
+            return
+        self.console.print(f"\n[grey50]{trajectory.name}: {len(analyzer.traj)} frames written so far.[/grey50]")
+        self._analyze_image_distance(analyzer, sim_dir=sim_dir)
 
     def _show_ascii_plot(self, monitor: AMBERMonitor, data_key: str, title: str, units: str):
         """Display ASCII plot using the monitor's built-in plotting."""
@@ -18475,6 +18523,7 @@ MD simulations require TWO files per structure:
             "20": "Density maps - Spatial density distributions",
             "21": "Radius of gyration - Structural compactness",
             "22": "Contact frequency - Per-residue contact analysis",
+            "23": "Periodic image distance - Solute to its own copies across the box",
             "0": "Exit to MD Manager menu"
         }
 
@@ -18487,7 +18536,7 @@ MD simulations require TWO files per structure:
             ("PAIRWISE MEASUREMENTS", ["9", "10", "11", "12"]),
             ("DYNAMICS & CORRELATION", ["13", "14", "15", "16"]),
             ("SOLVATION ANALYSIS", ["17", "18", "19", "20"]),
-            ("GEOMETRIC PROPERTIES", ["21", "22"]),
+            ("GEOMETRIC PROPERTIES", ["21", "22", "23"]),
         ]
         for title, keys in sections:
             self.console.print(f"\n[bold blue]══ {title} ══[/bold blue]", highlight=False)
@@ -18581,6 +18630,162 @@ MD simulations require TWO files per structure:
                 self._analyze_radius_of_gyration(analyzer)
             elif analysis_id == "22":
                 self._analyze_contact_frequency_per_residue(analyzer)
+            elif analysis_id == "23":
+                self._analyze_image_distance(analyzer)
+
+    # ---- Periodic image distance (analysis 23, and option 12 of the monitor) ----
+
+    def _get_image_distance_selection(self, analyzer) -> dict:
+        """Which atoms count as the solute. Returns {'mask', 'description'}."""
+        protein_range = analyzer.get_protein_residue_range()
+        solute_mask = analyzer.solute_mask()
+        # Recorded with the answer, so the labels are the same for every system;
+        # what each one selects in THIS topology is shown on screen only.
+        options_map = {
+            "1": "Protein residues, all atoms",
+            "2": "Everything that is not solvent or a single-atom ion",
+            "3": "Specific residues (custom)",
+            "4": "Custom AMBER mask (advanced)",
+        }
+        shown = {
+            "1": (f"Protein residues {protein_range}, all atoms" if protein_range
+                  else "Protein residues (none found in this topology)"),
+            "2": (f"Everything that is not solvent or a single-atom ion ({solute_mask}). "
+                  f"In a membrane system this includes the lipids, which are continuous "
+                  f"across the box and so always touch their images: choose 1 there."
+                  if solute_mask else "Everything that is not solvent or a single-atom ion (nothing found)"),
+        }
+        self.console.print("\n[bold cyan]Which atoms are the solute?[/bold cyan]")
+        for key, text in options_map.items():
+            self.console.print(f"  {key}. {shown.get(key, text)}")
+        choice = prompt_with_context(
+            self.processor, "Select the solute", choices=["1", "2", "3", "4"], default="1",
+            module="MD Manager - Trajectory Analysis",
+            description="Solute for the periodic image distance", options_map=options_map)
+        if choice == "1":
+            if not protein_range:
+                self.console.print("[yellow]No protein residues found in this topology; choose another selection.[/yellow]")
+                return self._get_image_distance_selection(analyzer)
+            return {"mask": f":{protein_range}", "description": f"Protein residues {protein_range}, all atoms"}
+        if choice == "2":
+            if not solute_mask:
+                self.console.print("[yellow]The topology has no molecule of that kind; choose another selection.[/yellow]")
+                return self._get_image_distance_selection(analyzer)
+            return {"mask": solute_mask, "description": "All molecules that are not solvent or single-atom ions"}
+        if choice == "3":
+            return self._get_specific_residue_mask(analyzer)
+        return self._get_custom_mask()
+
+    def _analyze_image_distance(self, analyzer, sim_dir=None):
+        """How close the solute comes to its own periodic images, along the trajectory."""
+        from proprep.md_prep import image_distance as imd
+
+        self.console.print("\n[bold cyan]Periodic Image Distance[/bold cyan]")
+        self.console.print(
+            "[grey50]Under periodic boundaries the solute is surrounded by copies of itself. This is "
+            "the shortest distance, in each frame, from any atom of the solute to any atom of any "
+            "copy. Where the solute sits in the box does not matter; this distance does. Below the "
+            "nonbonded cutoff, the solute interacts directly with itself. It changes as the solute "
+            "tumbles or extends, and as the box shrinks under constant pressure. Rectangular, "
+            "truncated-octahedral and triclinic boxes are all handled.[/grey50]")
+
+        region = self._get_image_distance_selection(analyzer)
+
+        # The frame count is printed, not put in the prompt: replay matches prompt
+        # text exactly, so it must not change from one trajectory to the next.
+        self.console.print(f"\n[grey50]The trajectory has {len(analyzer.traj)} frames.[/grey50]")
+        stride = prompt_int_with_retry(
+            self.processor, "Analyse every how many frames",
+            default=1, min_value=1, module="MD Manager - Trajectory Analysis",
+            description="Frame stride for the periodic image distance")
+
+        sim_dir = sim_dir or Path(analyzer.topology).parent
+        found = imd.read_cutoff(sim_dir)
+        if found:
+            self.console.print(f"[grey50]Nonbonded cutoff of this run: {found[0]:g} Å (read from {found[1]}).[/grey50]")
+        else:
+            self.console.print("[grey50]No cutoff found beside the topology; 8 Å is Amber's own default for a "
+                               "periodic run, not a value read from this one.[/grey50]")
+        # The default depends on the run, and the retry helpers write their default
+        # into the prompt text; so, as for the frame interval, constant wording and
+        # an empty default that stands for the value just shown.
+        shown_cutoff = found[0] if found else 8.0
+        while True:
+            answer = prompt_with_context(
+                self.processor, "Nonbonded cutoff to compare with, in Å (Enter for the value shown above)",
+                default="", module="MD Manager - Trajectory Analysis",
+                description="Nonbonded cutoff for the periodic image distance").strip()
+            if not answer:
+                cutoff = shown_cutoff
+                break
+            try:
+                cutoff = float(answer)
+                if cutoff <= 0:
+                    raise ValueError
+                break
+            except ValueError:
+                self.console.print(f"[red]'{answer}' is not a positive number[/red]")
+
+        self.console.print(f"\n[grey50]Calculating for {region['description']}...[/grey50]")
+        try:
+            result = analyzer.calculate_image_distance(region["mask"], stride=stride)
+        except imd.NotPeriodic as exc:
+            self.console.print(f"[yellow]This trajectory has no periodic box ({exc}), so it has no images.[/yellow]")
+            return
+        except ValueError as exc:
+            self.console.print(f"[red]{exc}[/red]")
+            return
+        self.console.print("[green]✓ Complete[/green]")
+        self._display_image_distance_results(analyzer, region, result, cutoff)
+
+    def _display_image_distance_results(self, analyzer, region: dict, result: dict, cutoff: float):
+        import numpy as np
+        from rich.table import Table
+        from proprep.md_prep import image_distance as imd
+
+        distances, closest = np.array(result["distances"]), result["closest"]
+        lengths = np.array(result["box_lengths"])
+        below = imd.describe_frames_below(result["distances"], result["frames"], cutoff)
+        when = (f"{closest['time']:g} ps (frame {closest['frame']})" if analyzer.has_frame_times
+                else f"frame {closest['frame']}")
+
+        self.console.print(f"\n[bold]Periodic image distance: {region['description']}[/bold]")
+        self.console.print(f"[grey50]Mask: {region['mask']} ({result['n_atoms']} atoms) | "
+                           f"{len(distances)} frames analysed[/grey50]\n")
+
+        table = Table(show_header=False)
+        table.add_column("Metric", style="bright_blue")
+        table.add_column("Value", style="white")
+        table.add_row("Box", f"{result['box_shape']}; edges a {lengths[:, 0].min():.2f}-{lengths[:, 0].max():.2f}, "
+                             f"b {lengths[:, 1].min():.2f}-{lengths[:, 1].max():.2f}, "
+                             f"c {lengths[:, 2].min():.2f}-{lengths[:, 2].max():.2f} Å")
+        table.add_row("Closest approach", f"{closest['distance']:.2f} Å at {when}")
+        table.add_row("  between", f"{closest['atom']}  and the image of  {closest['image_atom']}")
+        table.add_row("Mean", f"{distances.mean():.2f} ± {distances.std():.2f} Å")
+        table.add_row("Range", f"{distances.min():.2f} - {distances.max():.2f} Å")
+        table.add_row("Nonbonded cutoff", f"{cutoff:g} Å")
+        table.add_row("Closest approach - cutoff", f"{closest['distance'] - cutoff:+.2f} Å")
+        table.add_row("Frames below the cutoff", f"{len(below)} of {len(distances)}")
+        self.console.print(table)
+
+        if below:
+            first = ", ".join(str(f) for f in below[:10]) + (", ..." if len(below) > 10 else "")
+            self.console.print(
+                f"\n[bold red]In {len(below)} of {len(distances)} frames the solute is within the "
+                f"{cutoff:g} Å cutoff of its own image, so it interacts directly with itself there "
+                f"(frames {first}).[/bold red] A larger box, or a solute that stays more compact, "
+                f"is needed for those frames to mean what they seem to.")
+        else:
+            self.console.print(
+                f"\n[green]The solute never comes within the {cutoff:g} Å cutoff of its own image in the "
+                f"frames analysed; at its closest it is {closest['distance'] - cutoff:.2f} Å beyond it.[/green]")
+
+        self.console.print("\n" + "=" * 70)
+        self.console.print("Periodic image distance vs " + ("time" if analyzer.has_frame_times else "frame"))
+        self.console.print("=" * 70)
+        self.console.print(self._create_ascii_plot(
+            list(distances), title=f"Image distance: {region['description']}",
+            xlabel=analyzer.time_label, ylabel="Distance (Å)", x_values=result["times"]))
 
     def _analyze_rmsd(self, analyzer):
         """Perform RMSD analysis."""

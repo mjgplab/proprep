@@ -2408,6 +2408,14 @@ class RepairOrchestrator:
 # MODELLER INTERFACE - MODELLER-specific operations
 # ============================================================================
 
+FREEZE_NOT_APPLICABLE = "the resolved atoms cannot be held fixed"
+REPAIR_DECLINED = "repair declined"
+
+
+class _FreezeNotApplicable(Exception):
+    """Raised inside MODELLER's make() to stop a run that would refine every atom."""
+
+
 class ModellerInterface:
     """Handles all MODELLER-specific operations"""
     
@@ -2598,9 +2606,65 @@ class ModellerInterface:
                     f.write("/")
             f.write("*\n")
     
+    @staticmethod
+    def _heavy_atom_positions(pdb_path: str) -> List[Tuple[int, int, int]]:
+        """Heavy-atom coordinates in thousandths of an A (integers compare exactly)."""
+        positions = []
+        with open(pdb_path, errors="replace") as handle:
+            for line in handle:
+                if not line.startswith(("ATOM", "HETATM")):
+                    continue
+                if line[12:16].strip().startswith("H") or line[76:78].strip() == "H":
+                    continue
+                try:
+                    positions.append(tuple(int(round(float(line[a:b]) * 1000))
+                                           for a, b in ((30, 38), (38, 46), (46, 54))))
+                except ValueError:
+                    continue
+        return positions
+
+    def _report_freeze(self, input_pdb: str, output_pdb: str) -> None:
+        """Say, from the two files, how many resolved atoms are exactly where they were.
+
+        By position, not by name: MODELLER exchanges the names of equivalent atoms
+        (OD1/OD2, NH1/NH2, ...) without moving them, and renames every chain and
+        renumbers every residue. Measured, not assumed from the selection: on a
+        6R2Q fragment the freeze left 487 of 487 resolved heavy atoms in place and
+        the unfrozen run left none.
+        """
+        report = self.freeze_report
+        try:
+            before = self._heavy_atom_positions(input_pdb)
+            after = set(self._heavy_atom_positions(output_pdb))
+        except OSError:
+            return
+        kept = sum(position in after for position in before)
+        report["atoms_in_place"], report["atoms_resolved"] = kept, len(before)
+        moved = len(before) - kept
+        if report["unresolved"] and report["frozen"]:
+            self.console.print(
+                f"[yellow]⚠️  Not found in MODELLER's model, and so not refined "
+                f"({len(report['unresolved'])} of {report['requested']} rebuilt residues): "
+                f"{', '.join(report['unresolved'])}[/yellow]")
+        if not before:
+            return
+        if moved == 0:
+            self.console.print(f"[green]✓ All {len(before)} resolved heavy atoms are exactly where "
+                               f"they were; only the rebuilt residues are new.[/green]")
+        elif report["frozen"]:
+            self.console.print(
+                f"[yellow]⚠️  {moved} of {len(before)} resolved heavy atoms are no longer at their "
+                f"coordinates although only the rebuilt residues were refined. Check the "
+                f"repaired structure before going on.[/yellow]")
+        else:
+            self.console.print(
+                f"[yellow]⚠️  Refined without holding the resolved atoms: {moved} of {len(before)} "
+                f"resolved heavy atoms moved.[/yellow]")
+
     def run_modeller(self, work_dir: str, input_pdb: str,
                     alignment_file: str,
-                    built_residues: Optional[Set[Tuple[str, int]]] = None
+                    built_residues: Optional[Set[Tuple[str, int]]] = None,
+                    allow_unfrozen: bool = False,
                     ) -> Tuple[bool, str, Optional[Structure]]:
         """Execute MODELLER.
 
@@ -2608,9 +2672,21 @@ class ModellerInterface:
         output numbering identifying residues that MODELLER actually built
         (filled gaps / new residues). When provided, a per-residue DOPE
         assessment of those residues is reported (see _assess_built_region).
+
+        allow_unfrozen: MODELLER refines only ``built_residues`` and holds every
+        resolved atom where it is. When that cannot be done (no rebuilt residue
+        is known, or none of them is found in MODELLER's model) the run is
+        REFUSED unless this is True: refining everything moves every atom of the
+        structure, metal sites included, and used to happen without a word.
+        ``self.freeze_report`` says what happened either way.
         """
+        self.freeze_report = {"requested": len(built_residues or ()), "resolved": 0,
+                              "unresolved": [], "frozen": False, "not_applicable": None}
         if not HAS_MODELLER:
             return False, "MODELLER not available", None
+        if not built_residues and not allow_unfrozen:
+            self.freeze_report["not_applicable"] = "no rebuilt residue was identified"
+            return False, FREEZE_NOT_APPLICABLE, None
 
         import modeller
         from modeller.automodel import AutoModel, assess
@@ -2646,22 +2722,29 @@ class ModellerInterface:
             # — and makes MODELLER safe to run before OR after parameterization.
             _built = built_residues or set()
 
+            report = self.freeze_report
+
             class _GapOnlyAutoModel(AutoModel):
                 def select_atoms(self):
                     sel = modeller.Selection()
-                    added = 0
-                    for chain_id, res_num in _built:
+                    unresolved = []
+                    for chain_id, res_num in sorted(_built):
                         try:
                             sel.add(self.residues[f'{res_num}:{chain_id}'])
-                            added += 1
                         except Exception:
                             # Residue spec didn't resolve (numbering/chain edge
-                            # case) — skip it rather than abort the whole repair.
-                            pass
-                    if added == 0:
-                        # Nothing resolved: fall back to default (optimize all)
-                        # so MODELLER still has a selection to work on.
+                            # case). Reported after the run, not passed over.
+                            unresolved.append(f"{chain_id}:{res_num}")
+                    report["resolved"] = len(_built) - len(unresolved)
+                    report["unresolved"] = unresolved
+                    if report["resolved"] == 0:
+                        # Nothing resolved. The only selection left is "every
+                        # atom", which moves the whole structure: that is the
+                        # user's decision, not a fallback.
+                        if not allow_unfrozen:
+                            raise _FreezeNotApplicable()
                         return modeller.Selection(self)
+                    report["frozen"] = True
                     return sel
 
             model_cls = _GapOnlyAutoModel if _built else AutoModel
@@ -2683,7 +2766,14 @@ class ModellerInterface:
                 # and molpdf for provenance. Results land in mdl.outputs.
                 mdl.assess_methods = (assess.normalized_dope, assess.GA341,
                                       assess.DOPE)
-                mdl.make()
+                try:
+                    mdl.make()
+                except _FreezeNotApplicable:
+                    report["not_applicable"] = (
+                        f"none of the {len(_built)} rebuilt residues was found in MODELLER's "
+                        f"model (looked for {', '.join(report['unresolved'][:8])}"
+                        f"{', ...' if len(report['unresolved']) > 8 else ''})")
+                    return False, FREEZE_NOT_APPLICABLE, None
 
             finally:
                 sys.stdout = old_stdout
@@ -2701,7 +2791,10 @@ class ModellerInterface:
             # Parse structure
             parser = PDBParser(QUIET=True)
             repaired_structure = parser.get_structure("repaired", output_pdb)
-            
+
+            self._report_freeze(os.path.join(work_dir, os.path.basename(input_pdb))
+                                if not os.path.isabs(input_pdb) else input_pdb, output_pdb)
+
             # Rigorous, literature-calibrated quality assessment.
             # Pass 1: global scores read straight from the MODELLER API.
             # Pass 2: per-residue DOPE of the residues MODELLER actually built,
@@ -3544,6 +3637,12 @@ class CappingHandler:
             else:
                 header_lines.append(line)
         
+        # Every atom's position, for placing an ACE clear of what surrounds it.
+        all_coords = np.array([
+            [float(ln[30:38]), float(ln[38:46]), float(ln[46:54])]
+            for ln in pdb_lines if ln.startswith(('ATOM', 'HETATM'))
+        ]) if pdb_lines else np.zeros((0, 3))
+
         # Build final structure with caps inserted
         final_lines = header_lines.copy()
         current_serial = max_serial + 1
@@ -3573,7 +3672,8 @@ class CappingHandler:
                         ace_res_num = 0 if res_num == 1 else res_num - 1
                         ref_lines = chain_residues[res_num]
                         ace_lines = self._create_ace_cap(
-                            chain_id, ace_res_num, current_serial, ref_lines[0]
+                            chain_id, ace_res_num, current_serial, ref_lines[0],
+                            residue_lines=ref_lines, all_coords=all_coords,
                         )
                         final_lines.extend(ace_lines)
                         current_serial += len(ace_lines)
@@ -3597,7 +3697,8 @@ class CappingHandler:
                         nme_res_num = res_num + 1
                         ref_lines = chain_residues[res_num]
                         nme_lines = self._create_nme_cap(
-                            chain_id, nme_res_num, current_serial, ref_lines[-1]
+                            chain_id, nme_res_num, current_serial, ref_lines[-1],
+                            residue_lines=ref_lines,
                         )
                         final_lines.extend(nme_lines)
                         current_serial += len(nme_lines)
@@ -3609,9 +3710,114 @@ class CappingHandler:
         final_lines.extend(footer_lines)
         return final_lines
     
+    # Peptide geometry (Engh & Huber, Acta Cryst. A47, 392, 1991; N-H from Amber's
+    # templates). A cap IS a peptide bond to the residue, so it is built as one.
+    _CN_BOND, _CO_BOND, _C_CH3_BOND, _NH_BOND = 1.329, 1.231, 1.525, 1.010        # A
+    _C_N_CA, _CA_C_N, _O_C_N, _C_N_H = 121.7, 116.2, 123.0, 119.5                  # degrees
+    _ACE_PHI_STEP = 10                  # degrees; resolution of the search below, not a criterion
+
+    @staticmethod
+    def _backbone(residue_lines, names) -> Optional[Dict[str, np.ndarray]]:
+        found = {}
+        for line in residue_lines or []:
+            name = line[12:16].strip()
+            if name in names and name not in found:
+                try:
+                    found[name] = np.array([float(line[30:38]), float(line[38:46]), float(line[46:54])])
+                except ValueError:
+                    return None
+        return found if len(found) == len(names) else None
+
+    @staticmethod
+    def _place(a: np.ndarray, b: np.ndarray, c: np.ndarray, bond: float,
+               angle_deg: float, torsion_deg: float) -> np.ndarray:
+        """The atom bonded to ``c``: ``bond`` from it, at ``angle_deg`` to b-c, with torsion a-b-c-new."""
+        angle, torsion = np.radians(angle_deg), np.radians(torsion_deg)
+        bc_length = np.linalg.norm(c - b)
+        if bc_length < 1e-6:
+            raise ValueError("two reference atoms coincide")
+        bc = (c - b) / bc_length
+        normal = np.cross(b - a, bc)
+        if np.linalg.norm(normal) < 1e-6:
+            # a, b and c on one line define no plane, hence no torsion
+            raise ValueError("the three reference atoms are collinear")
+        normal /= np.linalg.norm(normal)
+        in_plane = np.cross(normal, bc)
+        local = np.array([-bond * np.cos(angle), bond * np.sin(angle) * np.cos(torsion),
+                          bond * np.sin(angle) * np.sin(torsion)])
+        return c + local[0] * bc + local[1] * in_plane + local[2] * normal
+
+    def _ace_from_residue(self, residue_lines, all_coords) -> Optional[Dict[str, np.ndarray]]:
+        """ACE's three heavy atoms as a trans peptide bond onto the residue's N.
+
+        Bond lengths and angles are fixed by the peptide geometry. The one free
+        choice is phi (C(ACE)-N-CA-C): the residue before is not there to say. It
+        is taken where the cap stays farthest from every other atom of the
+        structure.
+        """
+        backbone = self._backbone(residue_lines, ("N", "CA", "C"))
+        if backbone is None:
+            return None
+        n, ca, c = backbone["N"], backbone["CA"], backbone["C"]
+        others = all_coords if all_coords is not None and len(all_coords) else np.zeros((0, 3))
+        if len(others):
+            # The N the cap bonds to would otherwise decide every comparison.
+            others = others[np.linalg.norm(others - n, axis=1) > 1e-3]
+
+        best = None
+        for phi in range(-180, 180, self._ACE_PHI_STEP):
+            try:
+                c_ace = self._place(c, ca, n, self._CN_BOND, self._C_N_CA, phi)
+                atoms = {
+                    "C": c_ace,
+                    "CH3": self._place(ca, n, c_ace, self._C_CH3_BOND, self._CA_C_N, 180.0),    # trans omega
+                    "O": self._place(ca, n, c_ace, self._CO_BOND, self._O_C_N, 0.0),
+                }
+            except ValueError:
+                return None             # a backbone on one line: nothing to build on
+            clearance = min((np.linalg.norm(others - xyz, axis=1).min() for xyz in atoms.values()),
+                            default=np.inf) if len(others) else np.inf
+            if best is None or clearance > best[0]:
+                best = (clearance, atoms)
+        return best[1]
+
+    def _nme_from_residue(self, residue_lines) -> Optional[Dict[str, np.ndarray]]:
+        """NME's N and H as a trans peptide bond onto the residue's carbonyl C: no free choice."""
+        backbone = self._backbone(residue_lines, ("CA", "C", "O"))
+        if backbone is None:
+            return None
+        ca, c, o = backbone["CA"], backbone["C"], backbone["O"]
+        try:
+            n_nme = self._place(o, ca, c, self._CN_BOND, self._CA_C_N, 180.0)   # in the carbonyl plane, opposite O
+            return {"N": n_nme, "H": self._place(o, c, n_nme, self._NH_BOND, self._C_N_H, 180.0)}   # H trans to O
+        except ValueError:
+            return None
+
     def _create_ace_cap(self, chain_id: str, res_num: int, serial: int,
-                       ref_line: str) -> List[str]:
-        """Generate ACE cap HETATM records using reference coordinates"""
+                       ref_line: str, residue_lines: Optional[List[str]] = None,
+                       all_coords: Optional[np.ndarray] = None) -> List[str]:
+        """Generate ACE cap HETATM records.
+
+        From the residue's own N, CA and C when it has them (see
+        _ace_from_residue). tLEaP does NOT rebuild these atoms: it builds only
+        what is missing, and CH3, C and O are all given, so where they are put is
+        where they stay. They used to be put at a fixed offset along the x axis
+        of the file's frame from the residue's first atom, whatever the residue's
+        orientation: on 6R2Q an ACE oxygen landed 0.41 A from the next residue's
+        CB. That placement remains only as the fallback for a residue without a
+        backbone.
+        """
+        placed = self._ace_from_residue(residue_lines, all_coords)
+        if placed is not None:
+            return [
+                f"HETATM{serial + i:5d}  {name:<3s} ACE {chain_id}{res_num:4d}    "
+                f"{xyz[0]:8.3f}{xyz[1]:8.3f}{xyz[2]:8.3f}  1.00 20.00           {element}  \n"
+                for i, (name, element, xyz) in enumerate(
+                    (("CH3", "C", placed["CH3"]), ("C", "C", placed["C"]), ("O", "O", placed["O"])))
+            ]
+        if residue_lines is not None:
+            self.console.print(f"[yellow]  ⚠ ACE at {chain_id}:{res_num}: the residue has no N, CA and C to build "
+                               f"on; the cap is placed at a fixed offset and may overlap its neighbours.[/yellow]")
         # Extract coordinates from reference line (should be N atom ideally)
         try:
             x = float(ref_line[30:38])
@@ -3653,7 +3859,7 @@ class CappingHandler:
         return lines
     
     def _create_nme_cap(self, chain_id: str, res_num: int, serial: int,
-                       ref_line: str) -> List[str]:
+                       ref_line: str, residue_lines: Optional[List[str]] = None) -> List[str]:
         """Generate NME cap HETATM records using reference coordinates.
 
         Only the amide N and H are emitted; the methyl carbon and its three
@@ -3665,6 +3871,20 @@ class CappingHandler:
         sidesteps the mismatch for whichever protein FF (ff14SB/ff19SB/...) is
         sourced at tLEaP time.
         """
+        # From the residue's own CA, C and O when it has them. The reference used
+        # to be the LAST atom of the residue, usually a side-chain atom or OXT and
+        # not the carbonyl C, so the amide N could be placed angstroms from the
+        # carbon tLEaP then bonds it to.
+        placed = self._nme_from_residue(residue_lines)
+        if placed is not None:
+            return [
+                f"HETATM{serial + i:5d}  {name:<3s} NME {chain_id}{res_num:4d}    "
+                f"{xyz[0]:8.3f}{xyz[1]:8.3f}{xyz[2]:8.3f}  1.00 20.00           {name}  \n"
+                for i, (name, xyz) in enumerate((("N", placed["N"]), ("H", placed["H"])))
+            ]
+        if residue_lines is not None:
+            self.console.print(f"[yellow]  ⚠ NME at {chain_id}:{res_num}: the residue has no CA, C and O to build "
+                               f"on; the cap is placed at a fixed offset and may overlap its neighbours.[/yellow]")
         # Extract coordinates from reference line (should be C atom ideally)
         try:
             x = float(ref_line[30:38])
@@ -3971,6 +4191,7 @@ class RedoxSiteSync:
                         bonds_updated += 1
         
         # Update centers (redox-active atoms or residue centroids)
+        centers_not_found = []
         if hasattr(site, 'centers'):
             for center in site.centers:
                 # Map the residue identity first
@@ -3989,9 +4210,14 @@ class RedoxSiteSync:
                         if new_res_identity.chain_id in model:
                             chain = model[new_res_identity.chain_id]
                             for residue in chain:
+                                # '' and ' ' both mean "no insertion code": BioPython gives
+                                # ' ', a center imported from a site file has ''. Compared as
+                                # text they never matched, so every centroid center of an
+                                # imported site (a heme, a cluster) kept its old number while
+                                # its atoms were moved to the new one.
                                 if (residue.id[1] == new_res_identity.res_num and
-                                    residue.resname == new_res_identity.res_name and
-                                    residue.id[2] == new_res_identity.insertion_code):
+                                    residue.resname.strip() == (new_res_identity.res_name or "").strip() and
+                                    (residue.id[2] or "").strip() == (new_res_identity.insertion_code or "").strip()):
                                     # Calculate centroid
                                     coords = [atom.coord for atom in residue]
                                     if coords:
@@ -4032,6 +4258,10 @@ class RedoxSiteSync:
                         })
 
                     centers_updated += 1
+                else:
+                    centers_not_found.append(
+                        f"{getattr(center, 'resname', '?')} {center.chain}:{center.resid}"
+                        f" (expected at {new_res_identity.chain_id}:{new_res_identity.res_num})")
 
         # Rebuild residue_groups with updated chain/resid info
         if hasattr(site, 'residue_groups'):
@@ -4057,6 +4287,15 @@ class RedoxSiteSync:
                 self.console.print(f"  [green]✓ Updated: {', '.join(parts)}[/green]")
             else:
                 self.console.print(f"  [yellow]⚠ No updates performed[/yellow]")
+        # A center left behind was passed over in silence, under a green tick for
+        # the atoms. It is what the Redox Site Preparer addresses the site by: with
+        # the center on its old number, every step on that residue matches nothing
+        # (6R2Q: hemes left half transformed, then tLEaP "Unknown residue: HEC").
+        if centers_not_found:
+            self.console.print(
+                f"  [bold red]✗ {len(centers_not_found)} of {num_centers} center(s) could not be placed in the "
+                f"repaired structure and KEEP THEIR OLD NUMBERING: {', '.join(centers_not_found)}.[/bold red] "
+                f"Re-detect the redox sites on the repaired structure before preparing them.")
 
         # ── Before→After residue mapping ──
         post_residues = {}
@@ -5786,10 +6025,11 @@ class StructureCompletenessModule(ProcessingModule):
                 self.console.print(
                     "[grey50]Optimizing only the rebuilt residues; all resolved "
                     "atoms (including any metal sites) are held fixed.[/grey50]")
-            success, message, repaired_structure = modeller_interface.run_modeller(
-                work_dir, input_pdb, aln_file, built_residues=built_residues
-            )
-            
+            success, message, repaired_structure = self._run_modeller_holding_resolved_atoms(
+                modeller_interface, work_dir, input_pdb, aln_file, built_residues)
+            if message == REPAIR_DECLINED:
+                return
+
             if not success:
                 self.console.print(f"[red]MODELLER failed: {message}[/red]")
                 return
@@ -5890,6 +6130,39 @@ class StructureCompletenessModule(ProcessingModule):
         self.console.print(f"\n[bold green]✓ Structure repair completed![/bold green]")
         self.console.print(f"[cyan]Output: {final_output}[/cyan]")
     
+    def _run_modeller_holding_resolved_atoms(self, modeller_interface, work_dir: str, input_pdb: str,
+                                             aln_file: str, built_residues) -> Tuple[bool, str, Optional[Structure]]:
+        """Run MODELLER with the resolved atoms held fixed; ask before running it any other way.
+
+        When the freeze cannot be applied MODELLER would have to refine EVERY
+        atom. That used to happen without a word, under a line promising the
+        opposite. It is the user's decision, and the default is not to.
+        """
+        result = modeller_interface.run_modeller(work_dir, input_pdb, aln_file, built_residues=built_residues)
+        if result[0] or result[1] != FREEZE_NOT_APPLICABLE:
+            return result
+
+        reason = modeller_interface.freeze_report.get("not_applicable") or "unknown reason"
+        self.console.print(
+            f"\n[bold red]MODELLER was not run: the resolved atoms cannot be held fixed[/bold red] "
+            f"({reason}).\n"
+            "ProPrep has MODELLER refine only the residues it rebuilds and keeps every atom the "
+            "structure already has exactly where it is. Without knowing which residues those are, "
+            "MODELLER refines the whole model: every atom moves, including metal sites and their "
+            "ligands, and the structure no longer sits on its deposited coordinates (the viewer's "
+            "electron density and the Membrane Builder's comparison with OPM both rely on that).")
+        if not confirm_with_context(
+            self.processor,
+            "Run MODELLER anyway, letting every atom move?",
+            default=False,
+            module="Structure Completeness",
+            description="MODELLER cannot hold resolved atoms fixed: refine the whole structure",
+        ):
+            self.console.print("[red]Repair stopped. The structure is unchanged.[/red]")
+            return False, REPAIR_DECLINED, None
+        return modeller_interface.run_modeller(work_dir, input_pdb, aln_file,
+                                               built_residues=built_residues, allow_unfrozen=True)
+
     def _find_entirely_new_residues(self, original_structure: Structure, plan: RepairPlan) -> List[Tuple[str, int]]:
         """Find residues that were completely missing and added by MODELLER"""
         # Get all residue numbers that existed in original structure

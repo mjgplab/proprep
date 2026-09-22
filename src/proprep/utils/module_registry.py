@@ -381,9 +381,18 @@ class ModuleRegistry:
         return categories
 
     def cleanup(self):
-        """Clean up all module instances"""
+        """Clean up all module instances and discard them.
+
+        This registry is a module-level singleton, so it outlives the processor
+        that calls this. Instances kept past cleanup are handed to the next
+        processor (an 'undo' rewind, the next batch run) still holding the old
+        one: set_processor() re-points the module, but not the helpers it built
+        with the old processor, which go on reading and writing the old
+        workspace.
+        """
         for module in self.instances.values():
             module.cleanup()
+        self.instances.clear()
 
     def collect_workspace_key_inventory(self) -> Dict[str, Dict[str, List[str]]]:
         """

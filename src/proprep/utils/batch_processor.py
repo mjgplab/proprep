@@ -402,10 +402,11 @@ class BatchProcessor:
 
                 # Reset the global module registry so the next run gets
                 # fresh module instances with no leftover state (workspace
-                # refs, cached paths, accumulated mutations, etc.).
+                # refs, cached paths, accumulated mutations, etc.). Called
+                # here too because processor may be unset if setup raised;
+                # cleanup() discards the instances it cleans.
                 from proprep.utils.module_registry import registry
                 registry.cleanup()
-                registry.instances.clear()
 
                 # Return to original directory
                 os.chdir(original_dir)

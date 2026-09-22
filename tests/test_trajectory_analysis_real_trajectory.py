@@ -293,6 +293,7 @@ MENU = [
     ("_analyze_water_shells", [("select solute", "2"), ("solute mask", f":{PROTEIN}")]),
     ("_analyze_density_maps", []), ("_analyze_radius_of_gyration", []),
     ("_analyze_contact_frequency_per_residue", []),
+    ("_analyze_image_distance", []), ("_analyze_image_distance", [("select the solute", "2")]),
 ]
 
 

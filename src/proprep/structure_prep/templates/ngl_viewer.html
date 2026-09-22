@@ -226,8 +226,23 @@
         }
         .icon-btn:hover { color: #e0e0e0; background: none; }
         .icon-btn.active { color: #0078d4; }
-        .icon-btn.eye-hidden { color: #444; }
+        /* The visibility toggle. A hidden representation used to show an em dash in
+           #444 on the row's #353535 (about 1.3:1): in effect, nothing to press. Both
+           states are now drawn, and differ in shape (the slash) as well as in colour. */
+        .icon-btn.eye-btn { color: #ffffff; padding: 1px 4px; }
+        .icon-btn.eye-btn.eye-hidden { color: #ffc170; }
+        .icon-btn.eye-btn:hover, .icon-btn.eye-btn:focus { color: #4cc2ff; outline: none; }
+        .icon-btn.eye-btn svg { width: 18px; height: 18px; display: block; }
         .icon-btn.remove-btn:hover { color: #ff4444; background: none; }
+        .zoom-btn {
+            background: #2d2d2d; color: #ffffff;
+            border: 1px solid #e0e0e0; border-radius: 3px;
+            cursor: pointer; font-size: 11px; font-weight: 600;
+            padding: 2px 8px; width: auto; margin: 0; line-height: 1.4;
+            flex-shrink: 0;
+        }
+        .zoom-btn:hover, .zoom-btn:focus { background: #0078d4; border-color: #ffffff; outline: none; }
+        .zoom-btn.error { border-color: #ff4444; color: #ff4444; }
 
         /* ── Add representation ── */
         .add-rep-btn {
@@ -2081,10 +2096,28 @@
             entry.nglRepr.setVisibility(entry.config.visible);
             const btn = document.getElementById('eye-' + structIdx + '-' + repId);
             if (btn) {
-                btn.textContent = entry.config.visible ? '\u{1F441}' : '\u2014';
-                btn.classList.toggle('active', entry.config.visible);
+                btn.innerHTML = eyeIcon(entry.config.visible);
                 btn.classList.toggle('eye-hidden', !entry.config.visible);
+                btn.setAttribute('aria-pressed', entry.config.visible ? 'true' : 'false');
+                btn.title = eyeTitle(entry.config.visible);
             }
+        }
+
+        // An open eye for a representation that is shown, a crossed-out eye for one
+        // that is hidden. Drawn, not typed: an emoji renders differently on every
+        // system, and the hidden state must stay something to press.
+        function eyeIcon(visible) {
+            const outline = '<path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/>' +
+                            '<circle cx="12" cy="12" r="3.2"/>';
+            const slash = '<line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke-width="2.6"/>';
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+                   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                   outline + (visible ? '' : slash) + '</svg>';
+        }
+
+        function eyeTitle(visible) {
+            return visible ? 'Shown. Click to hide this representation'
+                           : 'Hidden. Click to show this representation';
         }
 
         function removeRep(structIdx, repId) {
@@ -2169,11 +2202,16 @@
                 '<input type="text" class="rep-label-input" value="' + escAttr(rc.label) + '" ' +
                     'onchange="updateRepLabel(' + structIdx + ',\'' + repId + '\',this.value)" ' +
                     'title="Representation label">' +
-                '<button class="icon-btn ' + (rc.visible ? 'active' : 'eye-hidden') + '" ' +
+                '<button class="zoom-btn" ' +
+                    'id="zoom-' + structIdx + '-' + repId + '" ' +
+                    'onclick="zoomToRep(' + structIdx + ',\'' + repId + '\')" ' +
+                    'title="Zoom the view onto this selection">Zoom</button>' +
+                '<button class="icon-btn eye-btn' + (rc.visible ? '' : ' eye-hidden') + '" ' +
                     'id="eye-' + structIdx + '-' + repId + '" ' +
                     'onclick="toggleRepVisibility(' + structIdx + ',\'' + repId + '\')" ' +
-                    'title="Toggle visibility">' +
-                    (rc.visible ? '\u{1F441}' : '\u2014') + '</button>' +
+                    'aria-pressed="' + (rc.visible ? 'true' : 'false') + '" ' +
+                    'title="' + eyeTitle(rc.visible) + '">' +
+                    eyeIcon(rc.visible) + '</button>' +
                 '<button class="icon-btn remove-btn" ' +
                     'onclick="removeRep(' + structIdx + ',\'' + repId + '\')" ' +
                     'title="Remove representation">&times;</button>';
@@ -2601,6 +2639,34 @@
             } else {
                 stage.autoView();
             }
+        }
+
+        // The camera glides rather than jumps, so where the view went stays
+        // readable. Cosmetic: it changes no selection, measurement or file.
+        const ZOOM_DURATION_MS = 600;
+
+        // Zoom onto one row's selection, as typed in the row now. The row need
+        // not be visible. A selection that matches no atom leaves the view
+        // where it is and marks the button and the selection field.
+        function zoomToRep(structIdx, repId) {
+            const entry = (repState[structIdx] || {})[repId];
+            const component = components[structIdx];
+            if (!entry || !component) return;
+            const selection = entry.config.selection || '';
+            let atomCount = 0;
+            try {
+                atomCount = component.structure.getView(new NGL.Selection(selection)).atomCount;
+            } catch (e) { atomCount = 0; }
+            if (atomCount === 0) {
+                [document.getElementById('zoom-' + structIdx + '-' + repId),
+                 document.getElementById('sel-' + structIdx + '-' + repId)].forEach(function (el) {
+                    if (!el) return;
+                    el.classList.add('error');
+                    setTimeout(function () { el.classList.remove('error'); }, 2000);
+                });
+                return;
+            }
+            component.autoView(selection, ZOOM_DURATION_MS);
         }
 
         function centerOnAnnotations() {

@@ -13,12 +13,15 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import time
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+from .packmol_progress import PackmolProgress
 
 logger = logging.getLogger(__name__)
 
@@ -75,18 +78,26 @@ def run_packmol_memgen(
     args: List[str],
     working_dir: str,
     console=None,
+    time_limit_hours: Optional[float] = None,
 ) -> PackmolResult:
     """
     Run packmol-memgen as a subprocess with real-time log tailing.
 
     packmol-memgen writes its output to a log file (packmol-memgen.log)
-    via Python's logging module, not to stdout. This function tails that
-    log file in a background thread to display progress in real time.
+    via Python's logging module, not to stdout, and goes quiet once it has
+    started packmol. packmol writes its own log (packmol.log) for the rest of
+    the run, which is nearly all of it. Both files are followed in a
+    background thread: the first for the setup, the second for one line per
+    packing loop (see packmol_progress).
 
     Args:
         args: CLI arguments (from MembraneConfig.to_cli_args())
         working_dir: Directory to run in (output files go here)
         console: Optional Rich console for progress display
+        time_limit_hours: Stop the run after this long. None (the default)
+            sets no limit: how long a packing takes depends on the system
+            (about 550,000 atoms needed well over an hour), the progress lines
+            say how it is going, and Ctrl-C stops it cleanly.
 
     Returns:
         PackmolResult with parsed output data.
@@ -101,9 +112,11 @@ def run_packmol_memgen(
             ),
         )
 
-    cmd = [executable] + args
-    cli_command = " ".join(cmd)
-    logger.debug(f"Running: {cli_command}")
+    # What the user is shown, and can run themselves.
+    cli_command = " ".join([executable] + args)
+    # What is run: the same, started so that its logs are written line by line.
+    cmd = _live_log_command(executable) + args
+    logger.debug(f"Running: {' '.join(cmd)}")
 
     if console:
         console.print(f"[grey50]Command: {cli_command}[/grey50]\n")
@@ -111,9 +124,15 @@ def run_packmol_memgen(
     log_path = Path(working_dir) / "packmol-memgen.log"
     warnings: List[str] = []
 
-    # Remove stale log file so we only tail fresh output
-    if log_path.exists():
-        log_path.unlink()
+    # Remove stale log files so we only tail fresh output. packmol-memgen
+    # overwrites both in any case.
+    packmol_log_path = Path(working_dir) / "packmol.log"
+    for stale in (log_path, packmol_log_path):
+        if stale.exists():
+            stale.unlink()
+
+    progress = PackmolProgress()
+    leaflets = _LeafletVolumes()
 
     try:
         process = subprocess.Popen(
@@ -122,48 +141,71 @@ def run_packmol_memgen(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            # Its own process group: packmol is packmol-memgen's child, and
+            # stopping the run has to stop both.
+            start_new_session=True,
+            # packmol is a gfortran program: without this it block-buffers what it
+            # writes to packmol-memgen's pipe, before packmol-memgen's own buffer.
+            env=dict(os.environ, GFORTRAN_UNBUFFERED_ALL="1"),
         )
 
-        # Tail the log file in a background thread
+        # Tail the log files in a background thread
         stop_tailing = threading.Event()
 
         def _tail_log():
-            """Follow packmol-memgen.log and display parsed lines."""
-            # Wait for log file to appear
-            waited = 0
-            while not log_path.exists() and not stop_tailing.is_set():
-                time.sleep(0.2)
-                waited += 0.2
-                if waited > 30:
-                    return  # Give up waiting
+            """Follow packmol-memgen.log, then packmol.log beside it, and display both."""
+            def on_memgen_line(line):
+                _process_log_line(line, console, warnings)
+                warning = leaflets.feed(line)
+                if warning:
+                    warnings.append(warning)
+                    console.print(f"\n  [bold red]{warning}[/bold red]\n")
 
+            def on_packmol_lines(lines):
+                for shown in progress.feed_many(lines):
+                    console.print(f"[grey50]{shown}[/grey50]" if shown.startswith("    ")
+                                  else f"[cyan]{shown}[/cyan]")
+
+            # [path, open file, bytes of a line still being written, handler]
+            # packmol.log first: packmol has finished before packmol-memgen says so.
+            followed = [[packmol_log_path, None, b"", on_packmol_lines],
+                        [log_path, None, b"", lambda lines: [on_memgen_line(l) for l in lines]]]
             try:
-                with open(log_path, "r") as f:
-                    while not stop_tailing.is_set():
-                        line = f.readline()
-                        if line:
-                            _process_log_line(
-                                line.rstrip(), console, warnings,
-                            )
-                        else:
-                            # No new data — check if process is still running
-                            if process.poll() is not None:
-                                # Process exited; read any remaining lines
-                                for remaining in f:
-                                    _process_log_line(
-                                        remaining.rstrip(), console, warnings,
-                                    )
-                                return
-                            time.sleep(0.1)
+                while True:
+                    exited = process.poll() is not None
+                    read_any = False
+                    for entry in followed:
+                        path, handle, pending, on_line = entry
+                        if handle is None:
+                            if not path.exists():
+                                continue
+                            handle = entry[1] = open(path, "rb")
+                        chunk = handle.read()
+                        if not chunk:
+                            continue
+                        read_any = True
+                        *lines, entry[2] = (pending + chunk).split(b"\n")
+                        # Handed over together: of several loops that arrive at once,
+                        # the latest is the one worth showing.
+                        on_line([line.decode(errors="replace").rstrip() for line in lines])
+                    if not read_any:
+                        if exited or stop_tailing.is_set():
+                            return
+                        time.sleep(0.1)
             except Exception as e:
                 logger.debug(f"Log tailing error: {e}")
+            finally:
+                for _, handle, _, _ in followed:
+                    if handle is not None:
+                        handle.close()
 
         if console:
             tail_thread = threading.Thread(target=_tail_log, daemon=True)
             tail_thread.start()
 
         # Wait for process to complete
-        stdout, stderr = process.communicate(timeout=3600)
+        limit_s = time_limit_hours * 3600 if time_limit_hours else None
+        stdout, stderr = process.communicate(timeout=limit_s)
 
         # Let tail thread finish reading remaining log lines
         stop_tailing.set()
@@ -200,14 +242,22 @@ def run_packmol_memgen(
         parsed.warnings = warnings
         return parsed
 
-    except subprocess.TimeoutExpired:
-        process.kill()
+    except (subprocess.TimeoutExpired, KeyboardInterrupt) as stopped:
+        _stop_process_group(process)
         stop_tailing.set()
+        if isinstance(stopped, KeyboardInterrupt):
+            why = "packmol-memgen was stopped (Ctrl-C)"
+        else:
+            why = f"packmol-memgen was stopped at the time limit of {time_limit_hours:g} h"
         return PackmolResult(
             success=False,
-            error_message="packmol-memgen timed out after 1 hour",
+            error_message=(
+                f"{why}. {progress.summary()} "
+                f"Its full log is {packmol_log_path}."
+            ),
             cli_command=cli_command,
             warnings=warnings,
+            log_file=str(log_path) if log_path.exists() else None,
         )
     except Exception as e:
         return PackmolResult(
@@ -215,6 +265,82 @@ def run_packmol_memgen(
             error_message=f"Error running packmol-memgen: {e}",
             cli_command=cli_command,
             warnings=warnings,
+        )
+
+
+def _live_log_command(executable: str) -> List[str]:
+    """How to start packmol-memgen so that packmol.log is written as packmol runs.
+
+    Through packmol_memgen_live_log.py, under the interpreter named on
+    packmol-memgen's own shebang line (it may not be ProPrep's). If
+    packmol-memgen is not a Python script with such a line, it is started
+    directly, as before: the build is the same, the progress display is only
+    less frequent.
+    """
+    launcher = Path(__file__).with_name("packmol_memgen_live_log.py")
+    try:
+        with open(executable, "rb") as handle:
+            first = handle.readline().decode(errors="replace").strip()
+    except OSError:
+        return [executable]
+    if not first.startswith("#!") or "python" not in first or not launcher.exists():
+        return [executable]
+    interpreter = first[2:].split()
+    if not interpreter or (not os.path.basename(interpreter[0]) == "env" and not os.path.exists(interpreter[0])):
+        return [executable]
+    return interpreter + [str(launcher), executable]
+
+
+def _stop_process_group(process) -> None:
+    """Stop packmol-memgen and the packmol it started."""
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            process.kill()
+
+
+class _LeafletVolumes:
+    """Notice, as soon as packmol-memgen reports it, a protein that does not cross the membrane.
+
+    packmol-memgen logs the protein's volume inside each leaflet right after
+    orienting it. A protein that crosses the bilayer has volume in both. On
+    6R2Q (a transmembrane beta-barrel complex) MEMEMBED left 0 A^3 in the upper
+    leaflet and 5% of the protein in the lower one, and the build then packed
+    for an hour around a protein lying under the membrane. A peripheral protein
+    legitimately touches one leaflet only, so this warns and does not stop.
+    """
+
+    _VOLUME = re.compile(r"in (upper|lower) leaflet\s*=\s*([\d.]+)")
+
+    def __init__(self):
+        self.volume: Dict[str, float] = {}
+        self.warned = False
+
+    def feed(self, line: str) -> Optional[str]:
+        m = self._VOLUME.search(line)
+        if not m or self.warned:
+            return None
+        self.volume[m.group(1)] = float(m.group(2))
+        if len(self.volume) < 2:
+            return None
+        empty = [side for side, v in self.volume.items() if v == 0.0]
+        if len(empty) != 1:
+            return None
+        self.warned = True
+        other = "lower" if empty[0] == "upper" else "upper"
+        return (
+            f"The oriented protein has no volume in the {empty[0]} leaflet "
+            f"({self.volume[other]:.0f} A^3 in the {other} one): as placed, it does not cross "
+            f"the membrane. For a transmembrane protein the orientation has failed; stop "
+            f"(Ctrl-C) and choose another method under Protein Orientation (PPM3, or a "
+            f"pre-oriented structure). For a peripheral protein this is expected."
         )
 
 

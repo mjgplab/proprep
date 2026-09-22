@@ -173,6 +173,7 @@ KEY_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
     # ── Redox site detection ──
     "detected_redox_sites": {"type": "list[dict]", "description": "Detected redox-active sites with metadata"},
     "redox_transformer_mappings": {"type": "dict", "description": "Mappings for redox state transformers"},
+    "redox_detection_pdb_file": {"type": "str (path)", "description": "PDB file of the structure redox detection ran on; the detector's viewer shows this file"},
     "remove_hydrogens_for_md": {"type": "bool", "description": "Flag to remove hydrogens before MD preprocessing"},
     "redox_sites": {"type": "list[dict]", "description": "Synced redox sites after preprocessing"},
     # ── Redox site preparation ──

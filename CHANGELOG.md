@@ -13,6 +13,269 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.22.0] — 2026-09-22
+
+### Added
+
+- MD Manager: how close the solute comes to its own periodic images, along a
+  simulation. Under periodic boundaries where the solute sits in the box means
+  nothing; its shortest distance to any atom of any copy of itself does, and
+  it changes as the solute tumbles or extends and as the box shrinks under
+  constant pressure. It is analysis 23 of the trajectory analysis menu
+  ("Periodic image distance") and option 12 of the simulation monitor, where
+  it covers the frames written so far by a run that is still going. Any Amber
+  box is handled: rectangular, truncated octahedron, or triclinic. Reported:
+  the box shape and the range of its edges, the closest approach with its
+  frame and the two atoms involved (which says what part of the solute is
+  approaching its image), the mean and range, and the frames in which the
+  solute is within the nonbonded cutoff of its own image, where it interacts
+  directly with itself. That cutoff is the only criterion applied. It is read
+  from the run's own output, which echoes what the engine used, or from its
+  input; if neither is beside the topology, Amber's default of 8 Å is offered
+  and said to be that. The solute can be the protein residues, every molecule
+  the topology does not mark as solvent (no list of residue names is used),
+  chosen residues, or a mask; in a membrane system choose the protein, since
+  the lipids are continuous across the box and always touch their images. The
+  distances equal those of cpptraj's `minimage`, and are found faster: about
+  0.2 s a frame for 6,000 atoms, where `minimage` takes 0.9 s and grows with
+  the square of the size.
+- Membrane Builder: the build now reports packmol's progress. After
+  "Initiating all-together packing" ProPrep used to print nothing until the
+  build ended, which for a large system is more than an hour. It followed
+  packmol-memgen's log, which goes quiet once packmol starts; the progress is
+  in packmol's own log. Each packing phase is now named with its loop budget,
+  and each loop gives packmol's objective function, its two violations, the
+  time per loop and the most time left. A build that is stopped says where
+  packmol stood. Ending "without perfect packing" is reported as what it is,
+  packmol-memgen's normal outcome: a protein-free POPC patch ends the same
+  way and packmol-memgen keeps packmol's best structure.
+- Membrane Builder: a warning, as soon as packmol-memgen reports it, when the
+  oriented protein has volume in one leaflet only, that is, when it does not
+  cross the membrane as placed. For a transmembrane protein this means the
+  orientation failed (stop with Ctrl-C and choose another method); for a
+  peripheral protein it is expected, so the build is not stopped.
+- Membrane Builder: when ProPrep orients the protein with PPM3 and the protein
+  came from a PDB entry that the OPM database holds, the placement is compared
+  with OPM's before packing starts. OPM's placements are computed with the
+  same method and then curated; in particular, which side of the membrane each
+  face of the protein is on comes from the literature, which no calculation on
+  a structure can know. The build reports whether the protein is the same way
+  up as in OPM (in red if it is not), the angle between the two membrane
+  normals, how deep the protein's centre sits in each, and OPM's hydrophobic
+  thickness. For 6R2Q: the same way up, 1.1° and 0.4 Å apart. It reports and
+  changes nothing: "OPM has no entry", no internet connection, or a structure
+  that has been moved since it was loaded are each one grey line, never a
+  stopped build. It needs the internet and can be switched off (Protein
+  Orientation, option 6). The prepared structure is matched to OPM's file
+  through the file it was loaded from, by position, so renumbered and renamed
+  residues do not matter.
+- Membrane Builder, PACKMOL Settings: a time limit for the build (option 9),
+  shown in the review. None by default.
+- Structure viewer: every row in the Representations panel has a **Zoom**
+  button that frames that row's selection, annotations from the PDB Filter,
+  the Protonation State Analyzer and the Redox Site Detector included. It uses
+  the selection as it is typed in the row at that moment, works on a hidden
+  row, and glides to the new view. A selection that matches no atom leaves the
+  view where it is and marks the button and the selection field in red.
+
+### Fixed
+
+- Session logs: the first line of a session file read `"version": "1.1"` and
+  the last block `"proprep_version": "1.21.0"`. The first is the version of the
+  file's format, not of ProPrep; under that name it looked like ProPrep's, and
+  wrong. The key is now `session_format_version`. Logs recorded before this
+  change replay and rewind as before.
+- Structure viewer: turning a representation off left its visibility button
+  with nothing to see. The eye was replaced by a dash in a grey almost the
+  colour of the row behind it (a contrast of 1.26:1), so the button was still
+  there to press and could not be found. Both states are now drawn: an open
+  eye in white when the representation is shown, the same eye crossed out in
+  amber when it is hidden, so that they differ in shape as well as in colour.
+  The button's tooltip says which state it is in and what a click will do.
+- Structure Completeness: the ACE and NME caps it adds were placed at a fixed
+  offset along the x axis of the file, whichever way the residue faced: ACE
+  from the residue's first atom, NME from its last, which is usually a
+  side-chain atom and not the carbonyl carbon. tLEaP does not correct this: it
+  builds only atoms that are missing, and the caps' atoms are given. On a
+  repaired 6R2Q the three ACE caps had C-N-CA angles of 166°, 54° and 50° where
+  a peptide has 121.7°, and one carbonyl oxygen sat 0.41 Å from the next
+  residue's CB. A cap is now built as what it is, a trans peptide bond onto
+  the residue, from the residue's own backbone atoms and standard peptide bond
+  lengths and angles. NME is then fully determined. ACE has one free rotation,
+  the residue before it not being there, and is turned to where it stays
+  farthest from every other atom. A residue with no usable backbone keeps the
+  old placement, and ProPrep says so. Systems prepared earlier are not wrong
+  for it, as long as their minimization ran: it starts from a worse geometry
+  and recovers.
+- Membrane Builder: packmol's progress reached the screen in bursts, one update
+  every five or six packing loops (every five minutes on a large system),
+  because packmol-memgen writes packmol's log 8 KB at a time. ProPrep now
+  starts packmol-memgen so that its logs are written line by line, which
+  changes nothing else about it, and the progress is per loop. When several
+  loops do arrive together the latest is shown. The time per loop is measured
+  from one loop to the next and is not quoted until two have been seen (it
+  used to read "0.0 s per loop" at the first). The long all-together phase
+  opens by saying what to expect of it: packmol-memgen does not wait for a
+  perfect packing, it keeps the best structure packmol reached; the objective
+  falls, jumps when packmol moves its worst-placed molecules, and falls again;
+  "lowest so far" is the number to watch.
+- Membrane Builder: tLEaP, when it saves a system, moves every water to the
+  end of it, and the hydrogen pass let it. A structure with crystal waters
+  lying between its cofactors (6R2Q after a repair: 10 waters among the hemes)
+  therefore came out with every residue after the first water at another
+  position in the file. tLEaP addresses residues in bond commands by that
+  position, and the Topology Generator's bond directives are written for the
+  order of the structure that went in, so in the bilayer they would have named
+  the wrong residues ("bond: Argument #2 is of type String", or, worse, a bond
+  made to the wrong atom). Whether it happened depended on where the waters
+  were: a structure with its waters after the cofactors was unaffected. The
+  hydrogen pass now tells tLEaP to keep the order (`set default
+  reorder_residues off`), and after the build the protein at the head of the
+  bilayer file is compared, atom by atom and residue by residue, with the one
+  packmol-memgen was given; a build that fails the comparison is not recorded.
+  A bilayer built earlier from a structure with waters between its cofactors
+  should be rebuilt.
+- Structure Completeness, with redox sites imported from a site file: after a
+  repair, each heme site's atoms were moved to the new residue numbers but its
+  center stayed on the old one (6R2Q: atoms at A:274, center at A:901), and
+  nothing was said. The Redox Site Preparer addresses a site by its center, so
+  every step on the heme did nothing: the prepared structure kept 20 residues
+  named HEC with all of the heme's atoms, HCO held only the His/Cys side
+  chains, there was no PRD, and tLEaP later stopped on "Unknown residue: HEC".
+  The cause was one character: a heme's center is the centroid of its residue,
+  and that case compared insertion codes as text, where a structure read from
+  a file has a space and a center read from a site file had nothing, the site
+  file not storing it. Sites detected in the same session, and sites whose
+  center is an atom (a disulfide), were not affected. Blank insertion codes
+  are now treated as the same, the site file stores the insertion code and
+  alternate location, and a center that cannot be placed in the repaired
+  structure is reported in red with the advice to detect the sites again.
+  Structures prepared from imported sites after a repair should be checked for
+  leftover HEC (or other untransformed cofactor) residues.
+- Redox Site Preparer: a transformation step that names a residue its site
+  does not contain is now reported, in red, at any verbosity and for every
+  transformer; the site's own residues are listed. Such a step used to do
+  nothing and say nothing, and the structure failed later, somewhere else. A
+  step whose residue is present but excluded by a name filter (renaming HEM on
+  a heme already called HEC) is normal and stays quiet.
+- Membrane Builder: when tLEaP failed to add the hydrogens and topology files
+  from an EARLIER build were still in the directory, the builder took them for
+  the result and built the membrane around the earlier protein. On 6R2Q that
+  was the structure from before a repair: without the rebuilt loops and caps,
+  and numbered differently from the bond directives, which tLEaP then refused
+  with "bond: Argument #2 is of type String". The hydrogen pass now removes
+  its earlier output before it runs, and checks what tLEaP wrote against what
+  it was given: every heavy atom at the same coordinates, in the residue at
+  the same position in the file, which is how the bond directives address
+  residues. If not, the build stops and says what differs. A failed pass now
+  leads its explanation with the residues tLEaP did not know ("Unknown
+  residue: HEC (20 of them)"). A membrane built before this fix in a directory
+  that held an earlier build should be rebuilt.
+- Redox sites imported from a JSON file: disulfide sites matched no transformer
+  in the Redox Site Preparer ("Compatible Transformers: None", "disulfide ✗ Not
+  compatible"; in `transformer_compatibility_report.txt`, "Both centers must
+  have is_disulfide_bonded property (expected 2, got 0)"). The site file did
+  not hold what detection had learned about each center, so it was lost
+  between export and import; sites detected in the same session were not
+  affected. Files are now written with that information, and files written
+  before are repaired as they are read: a disulfide site's two cysteines get it
+  back from the bond the file does record. Do not work around this by giving
+  such a site `no_transformation`: the two cysteines stay CYS and tLEaP later
+  stops on "Could not find bond parameter for atom types: SH - S". Restart
+  ProPrep and import the sites again.
+- Structure Completeness (MODELLER): when MODELLER could not be told which
+  residues it was rebuilding, it refined every atom of the structure, without
+  saying so, under a line reading "all resolved atoms (including any metal
+  sites) are held fixed". Refining everything moves every atom, metal sites
+  and their ligands included, and takes the structure off its deposited
+  coordinates. The repair now stops and asks first, and the default is to leave
+  the structure unchanged. After every MODELLER run ProPrep reports how many of
+  the atoms the structure already had are exactly where they were (counted by
+  position, since MODELLER renames chains, renumbers residues and exchanges the
+  names of equivalent atoms without moving them), and names any rebuilt
+  residue that was not found in MODELLER's model and so was not refined.
+- Membrane Builder: the build was stopped after one hour, a limit that was
+  neither shown nor changeable, with "packmol-memgen timed out after 1 hour".
+  A system of about 550,000 atoms needs longer than that. There is no limit
+  now unless you set one, Ctrl-C stops the build cleanly, and stopping it
+  (either way) also stops packmol, which packmol-memgen starts as a separate
+  process.
+- Membrane Builder, orientation with PPM3: choosing "Automatic (PPM3)" failed
+  at once ("Protein orientation failed (PPM3 error)"), because packmol-memgen
+  cannot take a protein file name with a directory in it and ProPrep passed
+  `./protein_with_h.pdb`. Past that, packmol-memgen packs the file PPM3
+  writes, which holds only the residues PPM3 knows and no hydrogens: on 6R2Q,
+  24,057 atoms became 10,769, without the 20 hemes, the residues ligating
+  them, the protonation-state residues (HIE, HIP, LYN, GLH, CYX), the waters
+  or the calcium ions. ProPrep now runs PPM3 itself, takes from it only where
+  the membrane is (a rigid-body move, refused unless the atoms PPM3 kept fit
+  within 0.01 Å), moves the complete structure and gives that to
+  packmol-memgen as pre-oriented. PPM3 is the method behind the OPM database
+  and is the one to try when MEMEMBED misplaces a protein: for 6R2Q, a
+  beta-barrel complex that MEMEMBED leaves under the membrane in both of its
+  modes, it reproduces OPM's orientation to within 1 Å.
+- Redox Site Preparer: in a structure that also has a site needing new residue
+  numbers (a c-type heme, which becomes three residues), only the second
+  cysteine of each disulfide was renamed to CYX; the first stayed CYS. The
+  structure looked finished and failed later: tLEaP stopped on "Could not find
+  bond parameter for atom types: SH - S", in the Membrane Builder or the
+  Topology Generator. The first cysteine had been renumbered for no reason
+  (6R2Q: C:112 to 814) and its rename then looked for the old number, found
+  nothing and said nothing. Sites that are edited in place (disulfides, the
+  flavin, nicotinamide and pterin cofactors, "no transformation") are no
+  longer renumbered, a step that is required and matches no atom is reported
+  in red at any verbosity, and a cysteine already named CYX is left as it is.
+  Structures prepared from a protein with both disulfides and c-type hemes
+  should be checked for a CYS bonded to a CYX, and the Redox Site Preparer
+  re-run.
+- Membrane Builder: when tLEaP could not add the hydrogens, the builder gave no
+  reason (it looked for one in tLEaP's stderr; tLEaP reports errors on stdout)
+  and went on without asking, letting packmol-memgen protonate the protein.
+  packmol-memgen then removes the residues it does not recognise and assigns
+  protonation states of its own: on 6R2Q the bilayer was built around a
+  protein with all 20 hemes removed and with one more ASH and one more GLH
+  than the Protonation State Analyzer had assigned. The tLEaP errors are now
+  listed, once each, with the path of `leap.log`, and continuing with
+  packmol-memgen's own protonation is a question that says what it costs; the
+  default is to stop. A bilayer built after the message "falling back to
+  reduce" should be checked for its cofactors and rebuilt.
+- Membrane Builder: packmol-memgen printed "Water model was not set. Using
+  tip3p for ff14SB" under a review that had just named the water model. The
+  model was never passed to it (`--ffwat`), so it picked one from the protein
+  force field. Nothing built was affected: packmol-memgen uses the water model
+  only in its own parametrization step, which ProPrep does not run, and the
+  Topology Generator builds the system with the model you chose. The model is
+  now passed and appears in the "Equivalent command". A water model taken from
+  the force-field selection that packmol-memgen does not offer (FB4, OPC3-pol,
+  ...) is left out, since passing it would stop packmol-memgen, and a line
+  says why that changes nothing.
+- `undo`: after a rewind, a module could go on reading and writing the
+  workspace from before the rewind. The Redox Site Preparer, if it had been
+  opened before the `undo`, transformed the structure correctly and wrote
+  `final_transformed_structure.pdb`, but recorded it in the old workspace, so
+  the Protonation State Analyzer (and anything else downstream) fell back to
+  the filtered structure ("Using filtered structure"). An answer changed by
+  the rewind could likewise be ignored by such a module. Modules are now
+  rebuilt with the session. A session affected by this is put right by
+  quitting and resuming it; results computed downstream of the rewind should
+  be re-run.
+- Redox Site Detector, template mode: a bond defined between two atoms of the
+  same residue (pairs entered as `1-1`, `2-2`, ...; for example the heme
+  `C2A`-`CAA` and the His/Cys `CA`-`CB` bonds that `heme_bis_his_c_type` asks
+  for) was not reproduced on the other sites. The heme's own bonds were
+  skipped ("no unused residue pair left") and each His/Cys `CA`-`CB` bond was
+  drawn across to the other His/Cys of the site, 5 to 12 Å away; on 6R2Q this
+  affected 19 of the 20 hemes. A bond captured within one residue is now
+  applied within one residue, and a bond between two residues only between
+  two. The site you configure by hand was always correct; sites filled in
+  from its template should be re-run.
+- Redox Site Detector: the viewer now shows the structure you selected for
+  detection. Detection ran on the selected structure, but `view` opened the
+  file the structure was first loaded from. With hydrogens removed at load
+  and "H-Stripped" selected, the sites were found on the stripped structure
+  and displayed on the deposited one, hydrogens included. The same held for
+  any other selection (filtered, repaired, aligned, ...).
+
 ## [1.21.0] — 2026-09-19
 
 ### Added

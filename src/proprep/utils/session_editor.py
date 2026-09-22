@@ -674,7 +674,8 @@ class InteractiveSessionEditor:
         modified_data["interactions"] = filtered
 
         # Set template fields
-        modified_data["version"] = "1.2"
+        modified_data.pop("version", None)          # the old name of the key, in a session file from before the rename
+        modified_data["session_format_version"] = "1.2"
         modified_data["template"] = True
         modified_data["template_variables"] = template_variables
         modified_data["template_metadata"] = {

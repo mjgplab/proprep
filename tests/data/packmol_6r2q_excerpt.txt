@@ -1,0 +1,606 @@
+
+################################################################################
+
+ PACKMOL - Packing optimization for the automated generation of
+ starting configurations for molecular dynamics simulations.
+ 
+                                                             Version 21.0.1 
+
+################################################################################
+
+  Packmol must be run with: packmol < inputfile.inp 
+
+  Userguide at: http://m3g.iqm.unicamp.br/packmol 
+
+  Reading input file... (Control-C aborts)
+  Types of coordinate files specified: pdb
+  Will add the TER flag between molecules. 
+  TER flags for fixed molecules will be kept if found. 
+  Seed for random number generator:      1234567
+  Output file: bilayer.pdb
+  Reading coordinate file: PROT0.pdb
+  Reading coordinate file: POPC.pdb
+  Reading coordinate file: POPC.pdb
+  Reading coordinate file: WAT.pdb
+  Reading coordinate file: WAT.pdb
+  Reading coordinate file: K+.pdb
+  Reading coordinate file: K+.pdb
+  Reading coordinate file: Cl-.pdb
+  Reading coordinate file: Cl-.pdb
+  Number of independent structures:            9
+  The structures are: 
+  Structure            1 :PROT0.pdb(       24057  atoms)
+  Structure            2 :POPC.pdb(         134  atoms)
+  Structure            3 :POPC.pdb(         134  atoms)
+  Structure            4 :WAT.pdb(           3  atoms)
+  Structure            5 :WAT.pdb(           3  atoms)
+  Structure            6 :K+.pdb(           1  atoms)
+  Structure            7 :K+.pdb(           1  atoms)
+  Structure            8 :Cl-.pdb(           1  atoms)
+  Structure            9 :Cl-.pdb(           1  atoms)
+  Maximum number of GENCAN loops for all molecule packing:          100
+  Maximum number of GENCAN loops for type:            2 :           20
+  Maximum number of GENCAN loops for type:            3 :           20
+  Maximum number of GENCAN loops for type:            4 :           20
+  Maximum number of GENCAN loops for type:            5 :           20
+  Maximum number of GENCAN loops for type:            6 :           20
+  Maximum number of GENCAN loops for type:            7 :           20
+  Maximum number of GENCAN loops for type:            8 :           20
+  Maximum number of GENCAN loops for type:            9 :           20
+  Distance tolerance:    2.0000000000000000     
+  Warning: Type of residue numbering not set for structure            1
+  Residue numbering set for structure            1 :           1
+  Swap chains of molecules of structure            1 : F
+  Warning: Type of residue numbering not set for structure            2
+  Residue numbering set for structure            2 :           0
+  Swap chains of molecules of structure            2 : F
+  Warning: Type of residue numbering not set for structure            3
+  Residue numbering set for structure            3 :           0
+  Swap chains of molecules of structure            3 : F
+  Warning: Type of residue numbering not set for structure            4
+  Residue numbering set for structure            4 :           0
+  Swap chains of molecules of structure            4 : F
+  Warning: Type of residue numbering not set for structure            5
+  Residue numbering set for structure            5 :           0
+  Swap chains of molecules of structure            5 : F
+  Warning: Type of residue numbering not set for structure            6
+  Residue numbering set for structure            6 :           0
+  Swap chains of molecules of structure            6 : F
+  Warning: Type of residue numbering not set for structure            7
+  Residue numbering set for structure            7 :           0
+  Swap chains of molecules of structure            7 : F
+  Warning: Type of residue numbering not set for structure            8
+  Residue numbering set for structure            8 :           0
+  Swap chains of molecules of structure            8 : F
+  Warning: Type of residue numbering not set for structure            9
+  Residue numbering set for structure            9 :           0
+  Swap chains of molecules of structure            9 : F
+  Number of molecules of type            1 :            1
+  Number of molecules of type            2 :          565
+  Number of molecules of type            3 :          571
+  Number of molecules of type            4 :       105372
+  Warning: There will be more than 9999 molecules of type            4
+           Residue numbering is reset after 9999. 
+  Each set be will be assigned a different chain in the PDB output file. 
+  Number of molecules of type            5 :        22348
+  Warning: There will be more than 9999 molecules of type            5
+           Residue numbering is reset after 9999. 
+  Each set be will be assigned a different chain in the PDB output file. 
+  Number of molecules of type            6 :          296
+  Number of molecules of type            7 :           49
+  Number of molecules of type            8 :          268
+  Number of molecules of type            9 :           43
+  Total number of restrictions:           13
+  Total number of atoms:       560097
+  Molecule PROT0.pdb(           1 ) will be fixed.
+  Total number of molecules:       129513
+  Number of fixed molecules:            1
+  Number of free molecules:       129512
+  Number of variables:       777072
+  Total number of fixed atoms:        24057
+  Maximum internal distance of type            1 :    19.442243183336640     
+  Maximum internal distance of type            2 :    19.442243183336640     
+  Maximum internal distance of type            3 :    1.5143265830064572     
+  Maximum internal distance of type            4 :    1.5143265830064572     
+  Maximum internal distance of type            5 :    0.0000000000000000     
+  Maximum internal distance of type            6 :    0.0000000000000000     
+  Maximum internal distance of type            7 :    0.0000000000000000     
+  Maximum internal distance of type            8 :    0.0000000000000000     
+  All atoms must be within these coordinates: 
+   x: [   -1000.0000000000000      ,    1000.0000000000000       ] 
+   y: [   -1000.0000000000000      ,    1000.0000000000000       ] 
+   z: [   -1011.4118029431540      ,    988.58819705684596       ] 
+  If the system is larger than this, increase the sidemax parameter. 
+
+################################################################################
+
+  Building initial approximation ... 
+
+################################################################################
+
+  Adjusting initial point to fit the constraints 
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            2
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+  Fixing bad orientations ...      1 of    180
+  Moving worst molecules ... 
+  Function value before moving molecules:   930.10206322977865     
+  Type         1 molecules with non-zero contributions:   99.82%
+  Moving        28 molecules of type         1
+  New positions will be based on good molecules (movebadrandom is not set) 
+   Moving:|0                                                        100%|
+          |*************************************************************|
+  Function value after moving molecules:   275.67337094535071     
+  Packing:|0                                                        100%|
+          |******************************
+
+  Restraint-only function value:    1.3734636288894317E-003
+  Maximum violation of the restraints:    4.8218487347002139E-004
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            3
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+  Fixing bad orientations ...      1 of    180
+  Moving worst molecules ... 
+  Function value before moving molecules:   3540.5984116842142     
+  Type         2 molecules with non-zero contributions:  100.00%
+  Moving        28 molecules of type         2
+  New positions will be based on good molecules (movebadrandom is not set) 
+   Moving:|0                                                        100%|
+          |*************************************************************|
+  Function value after moving molecules:   689.70944222925016     
+  Packing:|0                                                        100%|
+          |************************************************
+
+  Restraint-only function value:    1.7018634357443690E-002
+  Maximum violation of the restraints:    8.6752961320570934E-003
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            4
+
+  Packing:|0                                                        100%|
+          |***************************
+
+  Restraint-only function value:    2.1206160548019335E-003
+  Maximum violation of the restraints:    2.0872995335891303E-004
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            5
+
+  Packing:|0                                                        100%|
+          |*********************
+
+  Restraint-only function value:    6.8983833964791656E-003
+  Maximum violation of the restraints:    6.0886127635997531E-003
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            6
+
+  Packing:|0                                                        100%|
+          |***
+
+  Restraint-only function value:    3.8640582844389506E-011
+  Maximum violation of the restraints:    8.5621198897638045E-013
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            7
+
+  Packing:|0                                                        100%|
+          |******
+
+  Restraint-only function value:    9.1640334370548141E-013
+  Maximum violation of the restraints:    2.0658095417978085E-013
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            8
+
+  Packing:|0                                                        100%|
+          |***
+
+  Restraint-only function value:    3.4479461728227496E-011
+  Maximum violation of the restraints:    1.0275526262546281E-012
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            9
+
+  Packing:|0                                                        100%|
+          |******
+
+  Restraint-only function value:    6.1633454242615545E-013
+  Maximum violation of the restraints:    8.6876103304140948E-014
+
+--------------------------------------------------------------------------------
+
+  Rescaling maximum and minimum coordinates... 
+  Mininum and maximum coordinates after constraint fitting: 
+   x: [   -97.858591251024123      ,    97.933141269757598       ] 
+   y: [   -97.918029563394910      ,    97.872642157479675       ] 
+   z: [   -109.36444748951752      ,    40.500234962438434       ] 
+  Computing size of patches... 
+  Number of cells in each direction and cell sides: 
+   x:           60  cells of size    3.3731955420130286     
+   y:           60  cells of size    3.3731778620145767     
+   z:           46  cells of size    3.4014061402599118     
+  Cell-system length:  202.39173 202.39067 156.46468
+  Add fixed molecules to permanent arrays... 
+  Reseting center of mass... 
+
+--------------------------------------------------------------------------------
+
+  Setting initial trial coordinates ... 
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            2
+  Adjusting random positions to fit the constraints. 
+  Packing:|0                                                        100%|
+          |*************************************************************|
+  Fixing bad orientations ...      1 of    180
+  Moving worst molecules ... 
+  Function value before moving molecules:   70.863240321377731     
+  Type         1 molecules with non-zero contributions:    6.73%
+  Moving        28 molecules of type         1
+  New positions will be based on good molecules (movebadrandom is not set) 
+   Moving:|0                                                        100%|
+          |*************************************************************|
+  Function value after moving molecules:  0.58867500567095477     
+  Packing:|0                                                        100%|
+          |******
+  Restraint-only function value:    3.1262327448888439E-005
+  Maximum violation of the restraints:    1.0069120638732368E-005
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            3
+  Adjusting random positions to fit the constraints. 
+  Packing:|0                                                        100%|
+          |*************************************************************|
+  Fixing bad orientations ...      1 of    180
+  Moving worst molecules ... 
+  Function value before moving molecules:  0.22079928333749607     
+  Type         2 molecules with non-zero contributions:    0.35%
+  Moving         2 molecules of type         2
+  New positions will be based on good molecules (movebadrandom is not set) 
+   Moving:|0                                                        100%|
+          |*************************************************************|
+  Function value after moving molecules:   4.4888356579047767E-003
+  Restraint-only function value:    4.4888356579047767E-003
+  Maximum violation of the restraints:    2.1959245986856377E-003
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            4
+  Adjusting random positions to fit the constraints. 
+  Packing:|0                                                        100%|
+          |******
+  Restraint-only function value:    1.8897770448809805E-003
+  Maximum violation of the restraints:    4.5545163462853673E-004
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            5
+  Adjusting random positions to fit the constraints. 
+  Packing:|0                                                        100%|
+          |******
+  Restraint-only function value:    1.7606151116482600E-004
+  Maximum violation of the restraints:    6.1253860259262850E-005
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            6
+  Adjusting random positions to fit the constraints. 
+  Restraint-only function value:    0.0000000000000000     
+  Maximum violation of the restraints:    0.0000000000000000     
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            7
+  Adjusting random positions to fit the constraints. 
+  Restraint-only function value:    0.0000000000000000     
+  Maximum violation of the restraints:    0.0000000000000000     
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            8
+  Adjusting random positions to fit the constraints. 
+  Restraint-only function value:    0.0000000000000000     
+  Maximum violation of the restraints:    0.0000000000000000     
+
+--------------------------------------------------------------------------------
+
+  Molecules of type:            9
+  Adjusting random positions to fit the constraints. 
+  Restraint-only function value:    0.0000000000000000     
+  Maximum violation of the restraints:    0.0000000000000000     
+
+################################################################################
+
+  Objective function at initial point:    3660378.7078719488     
+
+################################################################################
+
+  Packing molecules of type:            2
+
+################################################################################
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            0
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .23791E+06
+  Best function value before: f = .56715E+06
+  Improvement from best function value:    58.05 %
+  Improvement from last loop:    58.05 %
+  Maximum violation of target distance:     5.664156
+  Maximum violation of the constraints: .27119E+03
+  All-type function value: .33312E+07
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            1
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .19339E+06
+  Best function value before: f = .23791E+06
+  Improvement from best function value:    18.71 %
+  Improvement from last loop:    18.71 %
+  Maximum violation of target distance:     5.222772
+  Maximum violation of the constraints: .27493E+03
+  All-type function value: .32868E+07
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Maximum number of GENCAN loops achieved.
+
+################################################################################
+
+  Packing molecules of type:            3
+
+################################################################################
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            0
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .21998E+06
+  Best function value before: f = .54141E+06
+  Improvement from best function value:    59.37 %
+  Improvement from last loop:    59.37 %
+  Maximum violation of target distance:     3.998257
+  Maximum violation of the constraints: .31170E+03
+  All-type function value: .28151E+07
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            1
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .17873E+06
+  Best function value before: f = .21998E+06
+  Improvement from best function value:    18.75 %
+  Improvement from last loop:    18.75 %
+  Maximum violation of target distance:     3.995589
+  Maximum violation of the constraints: .30872E+03
+  All-type function value: .27745E+07
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Maximum number of GENCAN loops achieved.
+
+################################################################################
+
+  Packing molecules of type:            4
+
+################################################################################
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            0
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .87235E+02
+  Best function value before: f = .21290E+07
+  Improvement from best function value:    99.99 %
+  Improvement from last loop:    99.99 %
+  Maximum violation of target distance:     1.573574
+  Maximum violation of the constraints: .45302E+00
+  All-type function value: .51936E+06
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            1
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |******************************************
+
+  Function value from last GENCAN loop: f = .29126E-01
+  Best function value before: f = .87235E+02
+  Improvement from best function value:    99.97 %
+  Improvement from last loop:    99.97 %
+  Maximum violation of target distance:     0.000000
+  Maximum violation of the constraints: .53638E-02
+  Current structure written to file: bilayer.pdb
+--------------------------------------------------------------------------------
+  Packing solved for molecules of type           4
+  Objective function value:    2.9126218246749699E-002
+  Maximum violation of target distance:    0.0000000000000000     
+  Max. constraint violation:    5.3637878230982337E-003
+--------------------------------------------------------------------------------
+
+################################################################################
+
+  Packing all molecules together 
+
+################################################################################
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            0
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .83818E+05
+  Best function value before: f = .10688E+06
+  Improvement from best function value:    21.58 %
+  Improvement from last loop:    21.58 %
+  Maximum violation of target distance:     3.994228
+  Maximum violation of the constraints: .30974E+03
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            1
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .75979E+05
+  Best function value before: f = .83818E+05
+  Improvement from best function value:     9.35 %
+  Improvement from last loop:     9.35 %
+  Maximum violation of target distance:     3.994442
+  Maximum violation of the constraints: .31315E+03
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            2
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .72235E+05
+  Best function value before: f = .75979E+05
+  Improvement from best function value:     4.93 %
+  Improvement from last loop:     4.93 %
+  Maximum violation of target distance:     3.996447
+  Maximum violation of the constraints: .31512E+03
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:            3
+  Scaling radii by:    1.1000000000000001     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .70148E+05
+  Best function value before: f = .72235E+05
+  Improvement from best function value:     2.89 %
+  Improvement from last loop:     2.89 %
+  Maximum violation of target distance:     3.997180
+  Maximum violation of the constraints: .31487E+03
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:           49
+  Scaling radii by:    1.0000000000000000     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .83728E+05
+  Best function value before: f = .50284E+05
+  Improvement from best function value:   -66.51 %
+  Improvement from last loop:    13.07 %
+  Maximum violation of target distance:     4.391126
+  Maximum violation of the constraints: .18574E+03
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+  Starting GENCAN loop:           50
+  Scaling radii by:    1.0000000000000000     
+
+  Packing:|0                                                        100%|
+          |*************************************************************|
+
+  Function value from last GENCAN loop: f = .76432E+05
+  Best function value before: f = .50284E+05
+  Improvement from best function value:   -52.00 %
+  Improvement from last loop:     8.71 %
+  Maximum violation of target distance:     4.300636
+  Maximum violation of the constraints: .18661E+03
+
+--------------------------------------------------------------------------------
+
+  Moving worst molecules ... 
+  Function value before moving molecules:   76432.425416854225     
+  Type         1 molecules with non-zero contributions:  100.00%
+  Moving        28 molecules of type         1
+  New positions will be based on good molecules (movebadrandom is not set) 
+   Moving:|0                                                        100%|
+          |*************************************************************|
+  Type         2 molecules with non-zero contributions:  100.00%
+  Moving        28 molecules of type         2
+  New positions will be based on good molecules (movebadrandom is not set) 

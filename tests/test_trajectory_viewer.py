@@ -9,7 +9,9 @@ stripped of solvent) so the atoms line up.
 from __future__ import annotations
 
 import os
+import shutil
 import stat
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -108,13 +110,40 @@ def test_template_has_player_and_attach_hook():
         assert needle in html, needle
 
 
-BENCH = Path("/private/tmp/claude-501/-Users-mjgp-Desktop-Software-proprep/5f31c069-8233-4513-842d-b218f5ab85c4/scratchpad/bench/workshop")
+def _cpptraj():
+    """cpptraj on PATH, or beside the running Python (a conda env run by its full path)."""
+    found = shutil.which("cpptraj")
+    if found:
+        return found
+    beside = Path(sys.executable).parent / "cpptraj"
+    return str(beside) if beside.exists() else None
 
 
-@pytest.mark.skipif(not (BENCH / "prod.nc").exists() or not os.environ.get("AMBERHOME"),
-                    reason="needs the local benchmark trajectory and AmberTools")
-def test_real_cpptraj_writes_matching_pdb_and_nc(tmp_path):
+@pytest.mark.skipif(_cpptraj() is None, reason="cpptraj not found on PATH or beside this Python")
+@pytest.mark.parametrize("strip_solvent", [True, False])
+def test_real_cpptraj_writes_matching_pdb_and_nc(tmp_path, strip_solvent):
+    """The files the viewer is given hold the same atoms, and every frame.
+
+    Run on pytraj's bundled solvated trpzip2 (tz2.ortho: 13 solute residues, 1691
+    waters, 10 frames), which is on every machine that has ProPrep's
+    dependencies. This test used to read a benchmark from one session's
+    scratch directory: it ran nowhere else, and once part of that directory
+    was cleaned up it failed there too.
+
+    What is expected comes from the topology and the trajectory themselves,
+    read by parmed and pytraj, not from the cpptraj run being tested.
+    """
+    pt = pytest.importorskip("pytraj")
+    parmed = pytest.importorskip("parmed")
     from proprep.md_prep.trajectory_view import frame_count
-    pdb, nc = write_view_files(str(BENCH / "prmtop"), str(BENCH / "prod.nc"), str(tmp_path), strip_solvent=True)
+
+    top, traj = pt.datafiles.tz2_ortho_parm7, pt.datafiles.tz2_ortho_nc
+    atoms_in_topology = parmed.load_file(top).atoms
+    expected_atoms = sum(1 for a in atoms_in_topology if not (strip_solvent and a.residue.name == "WAT"))
+    expected_frames = pt.iterload(traj, top=top).n_frames
+    assert (expected_atoms, expected_frames) == ((220 if strip_solvent else 5293), 10)   # the fixture is what it was
+
+    pdb, nc = write_view_files(top, traj, str(tmp_path), strip_solvent=strip_solvent, cpptraj=_cpptraj())
     atoms = sum(1 for l in pdb.read_text().splitlines() if l.startswith(("ATOM", "HETATM")))
-    assert atoms == 138 and frame_count(str(nc)) == 300
+    assert atoms == expected_atoms and frame_count(str(nc)) == expected_frames
+    assert pdb.name.endswith("_view_stripped.pdb" if strip_solvent else "_view.pdb")

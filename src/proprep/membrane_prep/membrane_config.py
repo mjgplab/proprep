@@ -9,6 +9,12 @@ runner, and workspace.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+# The values packmol-memgen's --ffwat accepts (its argparse choices; anything else
+# stops it with "invalid choice"). It is the tool's own closed list, not ProPrep's:
+# a water model chosen from the force-field selection can be one it does not know
+# (fb4, opc3pol, ...), and ProPrep builds the topology itself either way.
+PACKMOL_MEMGEN_WATER_MODELS = ("tip3p", "tip4pd", "tip4pew", "opc3", "opc", "spce", "spceb", "fb3")
+
 
 @dataclass
 class SoluteConfig:
@@ -58,6 +64,10 @@ class MembraneConfig:
     # --- MEMEMBED options ---
     memembed_algorithm: int = 0  # 0=GA, 1=Grid, 2=Direct, 3=GA×5
     barrel_mode: bool = False
+    # After ProPrep orients the protein, compare the placement with the OPM
+    # database's when the structure is a PDB entry OPM holds. Needs the internet;
+    # reports only, never moves anything or stops a build.
+    opm_cross_check: bool = True
     keep_ligands: bool = False
 
     # --- Lipid composition ---
@@ -112,6 +122,10 @@ class MembraneConfig:
     protein_radius: float = 1.5
     nloop: int = 20
     nloop_all: int = 100
+    # Hours after which ProPrep stops packmol-memgen; None = no limit. Not a
+    # packmol-memgen flag. The build used to be stopped at a fixed 1 hour that
+    # was neither shown nor changeable, which a large system cannot meet.
+    time_limit_hours: Optional[float] = None
     gencan_iterations: int = 20
     move_fraction: float = 0.05
     move_bad_random: bool = False
@@ -145,6 +159,11 @@ class MembraneConfig:
             "ff19SB": "opc",
         }
         return auto_map.get(self.ffprot, "tip3p")
+
+    @property
+    def packmol_accepts_water_model(self) -> bool:
+        """Whether packmol-memgen's --ffwat takes the water model in use."""
+        return self.effective_water_model in PACKMOL_MEMGEN_WATER_MODELS
 
     @property
     def total_charge_delta(self) -> int:
@@ -357,10 +376,15 @@ class MembraneConfig:
             if solute.prot_distance is not None:
                 args.extend(["--solute_prot_dist", str(solute.prot_distance)])
 
-        # Force fields — informational for tleap, but ffprot/fflip affect
-        # packmol-memgen's water model auto-selection
+        # Force fields. packmol-memgen uses them only in its own --parametrize
+        # step, which ProPrep never runs, so they do not change what is packed.
+        # The water model is passed all the same: left out, packmol-memgen
+        # guesses one from ffprot and reports "Water model was not set", under
+        # a review panel that had just named the model.
         args.extend(["--ffprot", self.ffprot])
         args.extend(["--fflip", self.fflip])
+        if self.packmol_accepts_water_model:
+            args.extend(["--ffwat", self.effective_water_model])
 
         # Output
         args.extend(["-o", f"{self.output_prefix}.pdb"])
