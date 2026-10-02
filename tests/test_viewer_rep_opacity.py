@@ -99,6 +99,7 @@ def _coordinator_with_stub(stub):
     coord._viewer = stub
     coord._ensure_viewer = lambda: stub
     coord.is_running = lambda: True
+    coord._owns_live_server = lambda v: True
     return coord
 
 

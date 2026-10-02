@@ -368,6 +368,17 @@
     </style>
 </head>
 <body>
+    <!-- A pick ProPrep is waiting for: white on black (21:1) with a yellow border, readable over
+         every background; Cancel or Escape stops it. -->
+    <div id="pick-banner" role="status" aria-live="assertive" style="display:none; position:fixed; top:12px;
+         left:50%; transform:translateX(-50%); z-index:1000; background:#000000; color:#ffffff;
+         border:4px solid #ffd400; border-radius:6px; padding:12px 18px; font-size:20px; font-weight:bold;
+         max-width:80vw; text-align:center;">
+        <span id="pick-banner-text"></span>
+        <div id="pick-banner-hint" style="font-size:16px; font-weight:normal; margin-top:6px;"></div>
+        <button id="pick-cancel" onclick="cancelPick()" style="margin-top:10px; font-size:18px; padding:6px 16px;
+                background:#ffffff; color:#000000; border:2px solid #000000; cursor:pointer;">Cancel (Esc)</button>
+    </div>
     <div id="header">
         <h1>ProPrep Interactive Structure Viewer</h1>
         <div class="header-right">
@@ -648,6 +659,8 @@
                 <button id="camera-btn" class="view-btn" onclick="toggleCameraType()">Camera: Orthographic</button>
                 <button id="fog-btn" class="view-btn" onclick="toggleDepthCue()"
                         title="Fade distant atoms toward the background colour (NGL fog). Off gives a cleaner figure of a small solute.">Depth cue: On</button>
+                <button id="axes-btn" class="view-btn" onclick="toggleAxes()"
+                        title="Draw the X, Y and Z axes of the coordinate frame from the origin (0, 0, 0): the frame the Structure Orientation module aligns to. Each arrow reaches just past the far edge of the structure along its axis.">Axes: Off</button>
             </div>
         </div>
     </div>
@@ -659,10 +672,11 @@
         let stage;
         let config = {};
         let components = [];            // NGL StructureComponent per structure index
-        let repState = {};              // repState[structIdx][repId] = {nglRepr, config}
+        let repState = {};              // repState[structIdx][repId] = {nglRepr, tagRepr?, config}
         let repIdCounter = 0;           // for generating unique IDs on user-added reps
         let initialConfig = null;       // saved for reset
         let lastSeenVersion = 0;        // server config version we've already applied
+        let loadedInstance = null;      // the server start the loaded structures came from
         let shapeComponents = {};       // shapeComponents[label] = NGL component (Shape API)
 
         // Measurement state
@@ -761,11 +775,36 @@
             }, false);
         }
 
+        // The camera across a reload caused by a relaunch with the same files.
+        // sessionStorage can be unavailable (private windows): then the view
+        // simply resets, as on a first load.
+        function structureNames() {
+            return JSON.stringify((config.structures || []).map(s => s.name));
+        }
+        function saveOrientationForReload() {
+            try {
+                sessionStorage.setItem('proprep-orientation', JSON.stringify({
+                    names: structureNames(),
+                    orientation: stage.viewerControls.getOrientation().toArray(),
+                }));
+            } catch (e) { /* no storage: the view resets */ }
+        }
+        function restoreOrientationAfterReload() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('proprep-orientation') || 'null');
+                sessionStorage.removeItem('proprep-orientation');
+                if (saved && saved.names === structureNames()) {
+                    stage.viewerControls.orient(new NGL.Matrix4().fromArray(saved.orientation));
+                }
+            } catch (e) { /* no storage, or nothing saved */ }
+        }
+
         async function loadConfig() {
             try {
                 const response = await fetch('/config');
                 config = await response.json();
                 lastSeenVersion = config._config_version || 0;
+                loadedInstance = config._instance_id || null;
                 initialConfig = JSON.parse(JSON.stringify(config));
             } catch (error) {
                 console.error('Error loading config:', error);
@@ -780,6 +819,13 @@
         // on the existing stage without reloading the page or PDB files.
         // ---- Scenes: save the view as prepared, reload it later ----------
         let lastSceneToken = 0;
+        // A pick ProPrep's command line is waiting for (see the pick banner): the next
+        // click on an atom or bond answers it with POST /pick.
+        let pickRequest = null;
+        let lastPickToken = 0;
+        // The click that answered a pick must not also reach the measurement or density
+        // handlers, which run after it in the same event and would see no pick pending.
+        let clickTakenByPick = false;
         function collectScene() {
             const reps = {};
             for (const structIdx in repState) {
@@ -796,6 +842,7 @@
                 camera_type: CAMERA_TYPES[cameraIndex].type,
                 background: BACKGROUNDS[backgroundIndex].color,
                 depth_cue: depthCue,
+                axes: axesOn,
             };
         }
         async function postScene(name) {
@@ -825,12 +872,14 @@
         function applySceneView(cfg) {
             // Camera, background and camera type come only from a loaded scene.
             if (cfg.depth_cue !== undefined && cfg.depth_cue !== null) { applyDepthCue(cfg.depth_cue); }
+            if (cfg.axes !== undefined && cfg.axes !== null) { applyAxes(cfg.axes); }
             if (cfg.background) {
                 const i = BACKGROUNDS.findIndex(b => b.color.toLowerCase() === String(cfg.background).toLowerCase());
                 if (i >= 0) { backgroundIndex = i; }
                 stage.setParameters({ backgroundColor: cfg.background });
                 const btn = document.getElementById("background-btn");
                 if (btn && i >= 0) { btn.textContent = "Background: " + BACKGROUNDS[i].label; }
+                rebuildAxes();
             }
             if (cfg.camera_type) {
                 const i = CAMERA_TYPES.findIndex(c => c.type === cfg.camera_type);
@@ -853,10 +902,26 @@
                 if (!r.ok) return;
                 const vinfo = await r.json();
                 const v = vinfo.version || 0;
+                // A new server start (another structure list, or the files
+                // re-read from disk): its version count starts again at 1, and
+                // the structures loaded here are not the ones it serves.
+                // Reload the page; the camera is kept when the list is the same.
+                if (vinfo.instance && loadedInstance && vinfo.instance !== loadedInstance) {
+                    loadedInstance = vinfo.instance;
+                    saveOrientationForReload();
+                    location.reload();
+                    return;
+                }
                 // A CLI "save scene" request: answer it without touching the reps.
                 if (vinfo.scene_request && vinfo.scene_request.token !== lastSceneToken) {
                     lastSceneToken = vinfo.scene_request.token;
                     postScene(vinfo.scene_request.name);
+                }
+                if (vinfo.pick_request && vinfo.pick_request.token !== lastPickToken) {
+                    lastPickToken = vinfo.pick_request.token;
+                    enterPickMode(vinfo.pick_request);
+                } else if (!vinfo.pick_request && pickRequest) {
+                    exitPickMode();          // the command line stopped waiting
                 }
                 if (v !== lastSeenVersion) {
                     lastSeenVersion = v;
@@ -882,11 +947,7 @@
                     if (!sceneLoad && repId.startsWith('user_')) {
                         userReps[structIdx].push({ ...repState[structIdx][repId].config });
                     }
-                    try {
-                        components[structIdx].removeRepresentation(
-                            repState[structIdx][repId].nglRepr
-                        );
-                    } catch (e) { /* ok */ }
+                    removeEntryReprs(components[structIdx], repState[structIdx][repId]);
                 }
                 repState[structIdx] = {};
             }
@@ -904,6 +965,7 @@
                 refreshRepList(idx);
             }
             applyShapesFromConfig(config);
+            applyAxesFromConfig(config);
             if (sceneLoad) {
                 lastSceneId = newConfig.scene_id;
                 applySceneView(config);
@@ -1110,6 +1172,7 @@
         }
 
         function onDensityPick(pickingProxy) {
+            if (pickRequest || clickTakenByPick) { return; }  // answering a pick for the command line
             if (measurementMode || !pickingProxy || densityStructIdx === null) { return; }
             if (!document.getElementById('density-pick').checked) { return; }
             if (pickingProxy.component !== components[densityStructIdx]) { return; }   // other structures are not in this map's frame
@@ -1439,6 +1502,7 @@
             return t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
         }
         document.addEventListener('keydown', function (e) {
+            if (pickRequest && e.key === 'Escape') { e.preventDefault(); cancelPick(); return; }
             // While recording every key but Esc is inert: a stray space or arrow
             // would move the trajectory under the capture loop.
             if (movie) {
@@ -1471,6 +1535,111 @@
             if (btn) btn.textContent = 'Depth cue: ' + (depthCue ? 'On' : 'Off');
         }
         function toggleDepthCue() { applyDepthCue(!depthCue); }
+
+        // ---------------- Coordinate axes ----------------
+        // The X, Y and Z axes of the coordinate frame, drawn from the origin
+        // (0, 0, 0). NGL frames every loaded structure the same way whatever
+        // its coordinates, so a structure the Structure Orientation module
+        // has rotated onto its principal axes looks exactly like the original
+        // until the frame itself is drawn. Each axis is an arrow from the
+        // origin to just past the far edge of everything loaded along that
+        // axis, so the arrowhead clears the atoms, followed by its letter.
+        // The letter carries a border in the opposite tone so it reads over
+        // the molecule as well as over the background.
+        //
+        // Two colour sets, one for the dark and black backgrounds and one for
+        // white, chosen by computed contrast: at least 5.9:1 against the
+        // background for every axis, and luminance steps of at least 1.3:1
+        // between the three, so they tell apart by brightness as well as by
+        // hue (X is the darkest of the three, Y the brightest).
+        const AXES_COLOURS = {
+            light: { X: '#ff6b6b', Y: '#fff176', Z: '#8ecbff', border: '#000000' },
+            dark:  { X: '#a4161a', Y: '#5c6b00', Z: '#0033aa', border: '#ffffff' },
+        };
+        // Sizes follow the longest axis so the arrows read at whatever scale
+        // the structure is: shaft radius 1/50 of it (NGL's arrowhead is three
+        // shaft radii long and half as wide again), letter height 1/12, and a
+        // letter height of clearance between the far edge of the structure
+        // and the arrowhead and again between the arrowhead and the letter.
+        const AXES_SHAFT_FRACTION = 1 / 50;
+        const AXES_LETTER_FRACTION = 1 / 12;
+        // NGL's text size is not in Angstrom. Measured in headless Chrome
+        // (NGL 2.5.0): size 10 draws a capital 32 px tall beside an arrow of
+        // 26.3 A over 308 px, so 2.7 A, or 3.7 size units per Angstrom.
+        const AXES_TEXT_SIZE_PER_ANGSTROM = 3.7;
+        // Angstrom. With nothing loaded there is no edge to reach past.
+        const AXES_MIN_LENGTH = 10;
+        let axesOn = false;
+        let axesComponent = null;
+        let axesFromConfig = null;   // last value the server sent, applied only when it changes
+
+        function axesColours() {
+            return densityLuminance(parseInt(BACKGROUNDS[backgroundIndex].color.slice(1), 16)) < 0.5
+                ? AXES_COLOURS.light : AXES_COLOURS.dark;
+        }
+
+        // Far edge of every loaded structure along each axis, from the origin.
+        function axesExtent() {
+            const extent = [AXES_MIN_LENGTH, AXES_MIN_LENGTH, AXES_MIN_LENGTH];
+            for (const comp of components) {
+                const box = comp && comp.structure ? comp.structure.boundingBox : null;
+                if (!box || box.isEmpty()) continue;
+                ['x', 'y', 'z'].forEach(function (k, i) {
+                    extent[i] = Math.max(extent[i], Math.abs(box.min[k]), Math.abs(box.max[k]));
+                });
+            }
+            return extent;
+        }
+
+        function rebuildAxes() {
+            if (axesComponent) {
+                try { stage.removeComponent(axesComponent); } catch (e) { /* already gone */ }
+                axesComponent = null;
+            }
+            if (!axesOn || !stage) return;
+            const extent = axesExtent();
+            const longest = Math.max.apply(null, extent);
+            const shaft = longest * AXES_SHAFT_FRACTION;
+            const letter = longest * AXES_LETTER_FRACTION;
+            const colours = axesColours();
+            const shape = new NGL.Shape('axes');
+            ['X', 'Y', 'Z'].forEach(function (name, i) {
+                const tip = [0, 0, 0]; tip[i] = extent[i] + letter;
+                const label = [0, 0, 0]; label[i] = extent[i] + 2 * letter;
+                const rgb = hexToRgbArray(colours[name]);
+                shape.addArrow([0, 0, 0], tip, rgb, shaft, name + ' axis');
+                shape.addBuffer(new NGL.TextBuffer({
+                    position: new Float32Array(label),
+                    color: new Float32Array(rgb),
+                    size: new Float32Array([letter * AXES_TEXT_SIZE_PER_ANGSTROM]),
+                    text: [name],
+                }, {
+                    attachment: 'middle-center', fontWeight: 'bold',
+                    showBorder: true, borderColor: colours.border, borderWidth: 0.3,
+                }));
+            });
+            axesComponent = stage.addComponentFromObject(shape);
+            axesComponent.addRepresentation('buffer');
+        }
+
+        function applyAxes(on) {
+            axesOn = !!on;
+            rebuildAxes();
+            const btn = document.getElementById('axes-btn');
+            if (btn) btn.textContent = 'Axes: ' + (axesOn ? 'On' : 'Off');
+        }
+        function toggleAxes() { applyAxes(!axesOn); }
+
+        // The Structure Orientation module asks for the axes through the
+        // viewer config. Only a change in what it asks for is applied, so a
+        // later refresh for some other reason does not undo the button.
+        function applyAxesFromConfig(cfg) {
+            const wanted = (cfg.axes === undefined || cfg.axes === null) ? null : !!cfg.axes;
+            if (wanted === axesFromConfig) { if (axesOn) rebuildAxes(); return; }
+            axesFromConfig = wanted;
+            if (wanted === null) { if (axesOn) rebuildAxes(); return; }
+            applyAxes(wanted);
+        }
 
         // ---------------- Movie export ----------------
         // Frame-exact, not a screen recording: each trajectory frame is set and
@@ -1741,8 +1910,60 @@
             document.getElementById(id).addEventListener('input', updateMovieEstimate));
         window.addEventListener('resize', updateMovieEstimate);
 
+        // ── Picks for the command line ─────────────────────────────────────
+        function pickAtomRecord(a) {
+            return { index: a.index, name: a.atomname, resname: a.resname, resno: a.resno,
+                     chain: a.chainname, inscode: a.inscode || '' };
+        }
+        function enterPickMode(request) {
+            pickRequest = request;
+            document.getElementById('pick-banner-text').textContent = request.prompt;
+            document.getElementById('pick-banner-hint').textContent = request.kind === 'bond'
+                ? 'Click the stick between two atoms.' : 'Click an atom.';
+            document.getElementById('pick-banner').style.display = 'block';
+        }
+        function exitPickMode() {
+            pickRequest = null;
+            document.getElementById('pick-banner').style.display = 'none';
+        }
+        function postPick(payload) {
+            fetch('/pick', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify(payload) }).catch(() => {});
+        }
+        function cancelPick() {
+            if (!pickRequest) return;
+            postPick({ token: pickRequest.token, cancelled: true });
+            exitPickMode();
+        }
+        function onPickRequestClick(pickingProxy) {
+            if (!pickRequest || !pickingProxy) return;
+            clickTakenByPick = true;
+            setTimeout(() => { clickTakenByPick = false; }, 0);
+            const structure = components.indexOf(pickingProxy.component);
+            const hint = document.getElementById('pick-banner-hint');
+            if (pickRequest.structure !== null && pickRequest.structure !== undefined
+                    && structure !== pickRequest.structure) {
+                hint.textContent = 'That is in a different structure; click the one named above.';
+                return;
+            }
+            const payload = { token: pickRequest.token, kind: pickRequest.kind, structure: structure };
+            if (pickRequest.kind === 'bond') {
+                if (!pickingProxy.bond) { hint.textContent = 'That was not a bond: click the stick between two atoms.'; return; }
+                payload.atom1 = pickAtomRecord(pickingProxy.bond.atom1);
+                payload.atom2 = pickAtomRecord(pickingProxy.bond.atom2);
+            } else {
+                const atom = pickingProxy.atom || pickingProxy.closestBondAtom;
+                if (!atom) return;
+                payload.atom = pickAtomRecord(atom);
+            }
+            postPick(payload);
+            exitPickMode();
+        }
+
         function setupPickingHandler() {
+            stage.signals.clicked.add(onPickRequestClick);
             stage.signals.clicked.add(function (pickingProxy) {
+                if (pickRequest || clickTakenByPick) return;  // answering a pick for the command line
                 if (!measurementMode) return;
                 if (!pickingProxy) return;
 
@@ -1793,7 +2014,9 @@
             await loadConfig();
             await loadStructures();
             applyShapesFromConfig(config);
+            applyAxesFromConfig(config);
             setupPickingHandler();
+            restoreOrientationAfterReload();
 
             document.getElementById('loading').classList.add('hidden');
 
@@ -1831,10 +2054,45 @@
             ];
         }
 
+        // Docking search box edges. 'auto' picks by background, like the
+        // axes: aqua #40ffc8 on the dark and black backgrounds (13.0:1 and
+        // 16.4:1), purple #6a0572 on white (11.2:1), both above 7:1 and in
+        // hues none of the six axis colours use.
+        const BOX_COLOURS = { light: '#40ffc8', dark: '#6a0572' };
+
+        function boxColour(shapeData) {
+            if (shapeData.color && shapeData.color !== 'auto') return shapeData.color;
+            return densityLuminance(parseInt(BACKGROUNDS[backgroundIndex].color.slice(1), 16)) < 0.5
+                ? BOX_COLOURS.light : BOX_COLOURS.dark;
+        }
+
+        // A box is its twelve edges, never a translucent solid, so the
+        // contents stay visible. Edges are NGL wide lines: drawn at a
+        // constant width on screen and in the flat colour chosen above.
+        // Shaded cylinders were tried first and measured on the rendered
+        // pixels at 3.4:1 (dark) and 3.1:1 (white), far below the colour's
+        // own contrast, because lighting and depth cueing darken them.
+        const BOX_LINE_WIDTH = 4;       // pixels
+        function addBoxEdges(shape, shapeData) {
+            const c = shapeData.center, s = shapeData.size;
+            const h = [s[0] / 2, s[1] / 2, s[2] / 2];
+            const corner = (i, j, k) => [c[0] + (i ? h[0] : -h[0]), c[1] + (j ? h[1] : -h[1]), c[2] + (k ? h[2] : -h[2])];
+            const rgb = hexToRgbArray(boxColour(shapeData));
+            const edges = [];
+            for (const a of [0, 1]) for (const b of [0, 1]) {
+                edges.push([corner(0, a, b), corner(1, a, b)]);
+                edges.push([corner(a, 0, b), corner(a, 1, b)]);
+                edges.push([corner(a, b, 0), corner(a, b, 1)]);
+            }
+            for (const [p1, p2] of edges) {
+                shape.addWideline(p1, p2, rgb, BOX_LINE_WIDTH, shapeData.label || 'box');
+            }
+        }
+
         function createShapeComponent(shapeData) {
             // Build a stand-alone NGL component from a shape primitive.
             // Used for marking geometric features that aren't atoms in
-            // the loaded PDB (e.g. the centroid of a redox site).
+            // the loaded PDB (the centroid of a redox site, a docking box).
             try {
                 const shape = new NGL.Shape(shapeData.label || 'shape', { disableImpostor: false });
                 if (shapeData.type === 'sphere') {
@@ -1844,6 +2102,8 @@
                         shapeData.radius,
                         shapeData.label || ''
                     );
+                } else if (shapeData.type === 'box') {
+                    addBoxEdges(shape, shapeData);
                 } else {
                     return null;
                 }
@@ -1863,9 +2123,12 @@
             shapeComponents = {};
         }
 
+        let lastShapes = [];             // redrawn when the background changes ('auto' colours)
+
         function applyShapesFromConfig(cfg) {
             clearAllShapes();
-            for (const shapeData of (cfg.shapes || [])) {
+            lastShapes = cfg.shapes || [];
+            for (const shapeData of lastShapes) {
                 const comp = createShapeComponent(shapeData);
                 if (comp) shapeComponents[shapeData.label] = comp;
             }
@@ -1875,7 +2138,7 @@
         // ``component.addRepresentation`` actually wants. Used by both the
         // initial-create and the user-edit-recreate paths so they agree on
         // halo/bond/scale/opacity handling.
-        function buildRepParams(repConfig) {
+        function buildRepParams(repConfig, component) {
             let nglStyle = repConfig.style;
 
             if (nglStyle === 'bond') {
@@ -1903,9 +2166,38 @@
             // 16-chain PDB with hemes and waters has ~100 records, and the protein
             // segments, which come first, all land at the red end of the scale.
             // 'chainname' is the chain letter. Map the old value for saved scenes.
+            if (nglStyle === 'tag') {
+                // A text tag (a table number) on the first atom of the
+                // selection: white text on an opaque black box, legible on
+                // every background the viewer cycles through.
+                let first = -1;
+                if (component) {
+                    component.structure.eachAtom(function (a) { if (first < 0) first = a.index; },
+                                                 new NGL.Selection(repConfig.selection));
+                }
+                const text = {};
+                if (first >= 0) text[first] = String(repConfig.text || '');
+                return {
+                    style: 'label',
+                    params: {
+                        sele: first >= 0 ? '@' + first : 'none',
+                        labelType: 'text', labelText: text,
+                        color: '#ffffff', showBackground: true, backgroundColor: '#000000',
+                        backgroundOpacity: 1.0, backgroundMargin: 0.4,
+                        labelSize: repConfig.label_size !== undefined ? repConfig.label_size : 10.0,
+                        // beside the atom rather than over it, and towards the camera
+                        fixedSize: false, xOffset: 1.2, yOffset: 1.2, zOffset: 15.0, attachment: 'bottom-left',
+                    },
+                };
+            }
             const colour = repConfig.color === 'chainid' ? 'chainname' : repConfig.color;
             const params = { sele: repConfig.selection, color: colour };
             if (nglStyle === 'ball+stick') params.scale = 0.5;
+            // Draw double/triple/aromatic bonds as such (from SDF/mol2 bond
+            // orders) when the caller asks; NGL draws every bond single otherwise.
+            if (repConfig.multiple_bond && (nglStyle === 'ball+stick' || nglStyle === 'licorice')) {
+                params.multipleBond = 'symmetric';
+            }
             if (nglStyle === 'spacefill' && repConfig.selection === 'ion') params.scale = 0.8;
             if (nglStyle === 'halo') {
                 // Halo: translucent spacefill sized close to ball+stick
@@ -1944,11 +2236,30 @@
             return 1.0;
         }
 
+        // A representation whose config carries 'text' (and is not itself a
+        // tag) gets that text as a label on its first atom: a second NGL
+        // representation that belongs to the same panel row, so showing,
+        // hiding, rebuilding or removing the row acts on both.
+        function addTagRepr(component, repConfig) {
+            if (!repConfig.text || repConfig.style === 'tag') return null;
+            const tag = buildRepParams({ ...repConfig, style: 'tag' }, component);
+            const tagRepr = component.addRepresentation(tag.style, tag.params);
+            tagRepr.setVisibility(repConfig.visible);
+            return tagRepr;
+        }
+
+        function removeEntryReprs(component, entry) {
+            for (const r of [entry.nglRepr, entry.tagRepr]) {
+                if (!r) continue;
+                try { component.removeRepresentation(r); } catch (e) { /* ok if already removed */ }
+            }
+        }
+
         function createNglRep(structIdx, repConfig) {
             const component = components[structIdx];
             if (!component) return;
 
-            const { style, params } = buildRepParams(repConfig);
+            const { style, params } = buildRepParams(repConfig, component);
 
             try {
                 const nglRepr = component.addRepresentation(style, params);
@@ -1956,6 +2267,7 @@
 
                 repState[structIdx][repConfig.id] = {
                     nglRepr: nglRepr,
+                    tagRepr: addTagRepr(component, repConfig),
                     config: { ...repConfig }
                 };
             } catch (e) {
@@ -1970,16 +2282,16 @@
             const component = components[structIdx];
             const rc = entry.config;
 
-            const { style, params } = buildRepParams(rc);
+            const { style, params } = buildRepParams(rc, component);
 
-            try {
-                component.removeRepresentation(entry.nglRepr);
-            } catch (e) { /* ok if already removed */ }
+            removeEntryReprs(component, entry);
+            entry.tagRepr = null;
 
             try {
                 const nglRepr = component.addRepresentation(style, params);
                 nglRepr.setVisibility(rc.visible);
                 entry.nglRepr = nglRepr;
+                entry.tagRepr = addTagRepr(component, rc);
                 return true;
             } catch (e) {
                 console.warn('Invalid representation params:', rc, e);
@@ -2094,6 +2406,7 @@
             if (!entry) return;
             entry.config.visible = !entry.config.visible;
             entry.nglRepr.setVisibility(entry.config.visible);
+            if (entry.tagRepr) entry.tagRepr.setVisibility(entry.config.visible);
             const btn = document.getElementById('eye-' + structIdx + '-' + repId);
             if (btn) {
                 btn.innerHTML = eyeIcon(entry.config.visible);
@@ -2123,9 +2436,7 @@
         function removeRep(structIdx, repId) {
             const entry = repState[structIdx][repId];
             if (!entry) return;
-            try {
-                components[structIdx].removeRepresentation(entry.nglRepr);
-            } catch (e) { /* ok */ }
+            removeEntryReprs(components[structIdx], entry);
             delete repState[structIdx][repId];
             const row = document.getElementById('rep-row-' + structIdx + '-' + repId);
             if (row) row.remove();
@@ -2692,11 +3003,7 @@
             // Remove all current representations and measurements
             for (const structIdx in repState) {
                 for (const repId in repState[structIdx]) {
-                    try {
-                        components[structIdx].removeRepresentation(
-                            repState[structIdx][repId].nglRepr
-                        );
-                    } catch (e) { /* ok */ }
+                    removeEntryReprs(components[structIdx], repState[structIdx][repId]);
                 }
                 repState[structIdx] = {};
             }
@@ -2818,6 +3125,8 @@
             stage.setParameters({ backgroundColor: bg.color });
             var btn = document.getElementById("background-btn");
             if (btn) { btn.textContent = "Background: " + bg.label; }
+            rebuildAxes();
+            if (lastShapes.some(sh => sh.type === 'box')) applyShapesFromConfig({ shapes: lastShapes });
         }
 
         // Swap between the orthographic default and a perspective camera.

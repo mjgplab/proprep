@@ -559,10 +559,10 @@ class StructureOrientationModule(ProcessingModule):
         self.console.print(f"\n[cyan]Input structure:[/cyan] {Path(pdb_path).name}")
         self.console.print(f"[grey50]Source: {source_key}[/grey50]")
 
-        # Establish the input view in the viewer and drop XYZ axis
-        # markers as a fixed reference frame the user can compare
+        # Establish the input view in the viewer with the XYZ axes
+        # drawn as a fixed reference frame the user can compare
         # against after the orientation runs (NGL auto-centres on
-        # every structure load, so without these markers a rotated
+        # every structure load, so without the frame a rotated
         # structure looks identical to the original).
         self._show_orientation_view(pdb_path)
 
@@ -1108,9 +1108,9 @@ class StructureOrientationModule(ProcessingModule):
             workspace.set("orientation_record", record.to_dict())
             self.console.print("[green]✓ Registered in workspace as 'oriented_pdb_file'[/green]")
 
-            # Show the oriented structure with the same XYZ axis
-            # markers from Hook 1, so the user can compare orientations
-            # against the same fixed reference frame. Per-method
+            # Show the oriented structure with the same XYZ axes as
+            # at entry, so the user can compare orientations against
+            # the same fixed reference frame. Per-method
             # endpoint/plane labels are dropped first because the
             # show_structure swap re-anchors the scene around the
             # rotated coordinates and those highlights would land on
@@ -1130,24 +1130,18 @@ class StructureOrientationModule(ProcessingModule):
 
     # ── Viewer hooks ─────────────────────────────────────────────────────
 
-    # Standard X/Y/Z colour convention (red/green/blue) at 15 Å from
-    # origin, plus a white "you are here" marker at the origin itself
-    # so the user can see where the protein lands when centering is
-    # enabled. Stable labels so re-firing replaces.
-    _AXIS_MARKERS = (
-        ((0.0, 0.0, 0.0), 1.2, "#ffffff", "orient_axis_origin"),
-        ((15.0, 0.0, 0.0), 2.0, "#e31a1c", "orient_axis_X"),
-        ((0.0, 15.0, 0.0), 2.0, "#33a02c", "orient_axis_Y"),
-        ((0.0, 0.0, 15.0), 2.0, "#1f78b4", "orient_axis_Z"),
-    )
-
     def _show_orientation_view(self, pdb_path: str, *, force: bool = False) -> None:
-        """Show the structure plus XYZ axis sphere markers.
+        """Show the structure with the XYZ axes of its coordinate frame.
 
         Used at module entry (baseline view) and after a successful
         transformation (oriented view), so the user can see the
         orientation change against a fixed reference frame. NGL's
         auto-centre on structure load otherwise hides any rotation.
+
+        The axes are the viewer's own (its "Axes" button): labelled
+        arrows from the origin that reach just past the structure. They
+        replaced four unlabelled spheres 15 A out along each axis, which
+        sat inside any protein of ordinary size and were never seen.
         """
         if not pdb_path:
             return
@@ -1156,11 +1150,7 @@ class StructureOrientationModule(ProcessingModule):
                 viewer as _viewer,
             )
             _viewer.show_structure(pdb_path, force=force)
-            for coords, radius, color, label in self._AXIS_MARKERS:
-                _viewer.show_sphere(
-                    coords, radius=radius, label=label,
-                    color=color, opacity=0.9, force=force,
-                )
+            _viewer.show_axes(True, force=force)
         except Exception as exc:
             logger.debug("orientation viewer hook silenced: %s", exc)
 

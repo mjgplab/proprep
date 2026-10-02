@@ -13,6 +13,157 @@ not touch the source.
 
 ## [Unreleased]
 
+## [1.23.0] — 2026-10-02
+
+### Added
+
+- Molecular Docking (main menu, Simulate stage): dock a ligand into the
+  loaded structure with AutoDock Vina, scored by Vina, Vinardo or AutoDock4
+  (maps from autogrid4), with ligand and receptor prepared by Meeko and
+  Gasteiger charges only; no force-field parameters are needed. The ligand
+  comes from a residue of the structure (its Chemical Component Dictionary
+  entry placed on the crystal coordinates, an inconsistent entry reported
+  atom by atom), a SMILES string, or a file loaded with the Structure Loader
+  (its new option 4 loads SDF, mol2 or SMILES files and libraries). The
+  dashboard walks the decisions in order: receptor and chains (alternate
+  locations chosen residue by residue), the ligand, which HETATM residues
+  stay in the receptor (distances to the ligand, waters within a
+  hydrogen-bond distance listed with their contacts), protonation from
+  pdb2pqr/PROPKA and chain ends from REMARK 465, SEQRES or OXT (asked when
+  the file says nothing), metal charges and cofactor chemistry, flexible
+  side chains, rotatable bonds, the search box and the settings. Bond
+  orders, charges and rotatable bonds are edited by typed commands or by
+  picking atoms and bonds in the viewer, where each table's rows are drawn
+  and numbered. A run compares every pose with the crystal ligand when there
+  is one. A docking campaign (`c`) docks every ligand of a library into the
+  same receptor, box and settings, with the per-ligand questions answered
+  once as recorded policies, resumes after an interruption, and ranks the
+  ligands. Validated by redocking (biotin in streptavidin 0.35-0.77 A,
+  indinavir in HIV-1 protease 0.28-0.33 A) and a protease campaign in which
+  all seven inhibitors rank above all five decoys. Its dependencies (RDKit,
+  gemmi, Meeko 0.8.0, AutoDock Vina 1.2.7, autogrid) are now ProPrep
+  dependencies; Meeko comes from the mjgplab channel built without prody,
+  which conda-forge cannot install on Apple Silicon with Python 3.12 or
+  newer (`packaging/meeko-noprody`).
+- Startup notice of a newer release. When a newer ProPrep release is on
+  GitHub, the lines under the banner give its version, the one update
+  command that fits how this copy was installed (the installer with `-u`
+  for installer copies, the install script for the `ProPrep` conda
+  environment, the in-place updater for an AmberTools environment) and the
+  release page. Nothing is downloaded or changed, and the request carries
+  nothing about the user. GitHub is asked at most once a day (the answer is
+  kept in `~/.proprep/update_check.json`, since a workshop room shares one
+  address and GitHub's limit is per address); startup waits at most 1.5 s
+  for the answer and says nothing when offline. Installer copies are told
+  only once their platform's installer is attached to the release. The
+  first check says how to turn it off: Preferences, option 4. Only copies
+  built by the mjgplab conda recipe check at all: the recipe writes
+  `CHANNEL = "mjgplab"` into `proprep/_distribution.py` at build time, and
+  the source tree, and so the AmberTools build, keeps `CHANNEL = None`, so
+  ProPrep inside AmberTools never points its users at ProPrep's own
+  releases. The installers mark their install directory
+  (`.proprep_installer`) so the notice can give the installer command.
+  Preferences gains option 4 (Reset moves to 5, Back to 6).
+- Structure viewer: an "Axes" button under View Controls draws the X, Y
+  and Z axes of the coordinate frame as labelled arrows from the origin,
+  each reaching just past the far edge of the structure along its axis,
+  and takes them away again. NGL frames every structure the same way
+  whatever its coordinates, so a structure the Structure Orientation module
+  had rotated onto its principal axes looked exactly like the original.
+  The colours are chosen by computed contrast for the dark, black and white
+  backgrounds and follow the background when it is cycled; each letter has
+  a border in the opposite tone so it reads over the molecule. The setting
+  is saved with a scene and restored from one. The Structure Orientation
+  module turns the axes on before and after it aligns a structure, in place
+  of four unlabelled spheres 15 A out along each axis, which sat inside any
+  protein of ordinary size and were never seen.
+
+### Changed
+
+- Alternate locations: the Structure Fixer's per-residue picker (occupancy,
+  atoms covered, a partial alternate completed from another, viewer
+  colours) is shared with Molecular Docking, and the viewer selections now
+  carry insertion codes.
+- Topology Generator: the PDB is no longer reordered before tLEaP, and
+  the "Configure molecule grouping for AMBER?" question no longer appears
+  when tLEaP runs. sander and pmemd need every bonded unit (a chain plus
+  the cofactors bonded to it) to be one contiguous block of atoms, and
+  tLEaP writes ATOMS_PER_MOLECULE as if that were already so; the ParmEd
+  validation after every build repairs it with rediscover_molecules and
+  saves the prmtop and rst7 as a matching pair, which made the pre-build
+  reordering a second mechanism for the same problem. Its analyzer also
+  misread packed membrane systems (every water chain typed as protein,
+  lipid residue numbers colliding with protein ones). The reordering code
+  is kept, uncalled. ParmEd now also writes `<name>_parmed.pdb` next to
+  the topology, a PDB in the topology's atom order, since after a reorder
+  the PDB tLEaP read no longer matches the prmtop. Sessions recorded with
+  the old questions will find them missing on replay.
+
+### Fixed
+
+- Installing ProPrep over AmberTools 26 (the install script, the installers,
+  the AmberTools updater) left inside the package the files that only
+  AmberTools' bundled ProPrep 1.0.0 had: 35 of them, among them a retired
+  built-in MD workflow (`protein_equilibration`) the MD Manager still
+  offered, old MD templates, a backup module and old heme and Fe4S4
+  parameter files. Every install path now removes the files ProPrep's conda
+  package does not own (`python -m proprep.utils.bundled_copy`). An existing
+  installation is cleaned by updating it: run the install script again and
+  choose 1 (Update), run the new installer with `-u`, or run
+  `update_proprep_in_ambertools.sh` for an AmberTools environment.
+- Structure Fixer: an alternate location that models only part of a
+  residue was offered as an ordinary choice, and choosing it dropped every
+  atom it did not model; on the 0.80 A lysozyme 8ZST that removed the
+  C-terminal leucine's backbone and left tLEaP closing the chain with a
+  3.79 A peptide bond. The picker now shows how many atoms each alternate
+  models, flags a partial one, and completes it from the alternate with the
+  highest occupancy that has the missing atoms. Alternate labels left on
+  retained atoms (lone labels, waters) are cleared too.
+- Topology Generator: it builds from the Structure Orientator's output when
+  there is one. The oriented structure was ranked where it could never be
+  chosen, so orienting a structure did not change what tLEaP built.
+- Topology Generator: tLEaP's errors and warnings are reported from the
+  current run only. tLEaP appends to leap.log, so a clean build printed its
+  summary of zero errors above errors left by earlier runs in the same
+  folder.
+- Install commands list conda-forge before salilab and bioconda. With
+  salilab and bioconda first, 1.22.0 did not install on Linux under strict
+  channel priority (Miniforge's default): AmberTools 26 needs RDKit, which
+  bioconda has only as 2015-2016 Python 2.7 builds for Linux, and
+  conda-forge's MPI fftw, where salilab has fftw 3.3.4. Changed in the
+  install script, the README, the AmberTools updater, the installer recipe
+  and the release build.
+- Structure viewer in the terminal: an open browser tab now follows the
+  viewer when a module shows other structures or re-reads edited files. The
+  restarted server began its version count at 1 again, which an untouched
+  page already held, and the page never reloaded structures; and a restart
+  asked for port 8765 again, moving to another port when 8765 was taken and
+  leaving the tab on a dead one. Each server start now has an id the page
+  reloads on (keeping the camera when the files are the same), and a
+  restart reclaims its port.
+- Structure viewer: a view a module shows on request (the Redox Site
+  Detector's `view`, a docking pose) opened a new browser tab every time,
+  so a session collected tabs; a tab now opens only when none is open or
+  loading, and the open one updates in place. A viewer server could also
+  keep running unrecorded after a failed launch, leaving two in one session;
+  a started server is now recorded at once, and a server whose thread died
+  has its port closed. And with the main menu's Structure Viewer opened
+  first, no module's views or highlights reached it (the Structure Viewer
+  and the modules each had their own viewer, and updates went to the one
+  that had started nothing); the modules' viewer now takes the open viewer
+  over, on the same port, and the tab updates in place.
+- Transformer Creator: `drop` takes back the last operation. Its `undo`
+  could never run: typing `undo` at any prompt rewinds the session first.
+- Structure Aligner: a second alignment in the same session started with
+  the previous run's list of ions and waters to add and its transformation
+  matrices. Both are keyed by a structure's position in the run's list, so
+  they named whatever structure now held that position. The second
+  redox-site alignment of calmodulin 1CLL against 2LL6 therefore re-added
+  the first run's two Ca2+ and two waters, and put them into the reference
+  copy (`1CLL_noH_aligned_2.pdb` gained residues A:293-296 on top of the
+  originals) while the target got only the four it asked for. Both
+  alignment entry points and `cleanup()` now forget the previous run.
+
 ## [1.22.0] — 2026-09-22
 
 ### Added

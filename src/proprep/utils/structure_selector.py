@@ -226,8 +226,12 @@ class StructureRegistry:
             StructureType(
                 workspace_key="oriented_pdb_file",
                 display_name="Oriented",
-                priority=4,
-                description="Structure oriented along Cartesian axes"
+                # Orienting runs after filtering, repair, transformation and
+                # protonation, so it outranks them: it was ranked below
+                # "Filtered" and could never be chosen, which made the
+                # Structure Orientator a step with no downstream effect.
+                priority=0,
+                description="Structure oriented along Cartesian axes (runs after protonation)"
             ),
             StructureType(
                 workspace_key="topology_extracted_pdb",

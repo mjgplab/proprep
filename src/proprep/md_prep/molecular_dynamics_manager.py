@@ -5655,7 +5655,16 @@ MD simulations require TWO files per structure:
                     relax_prompt, 200,
                     "Solvent relaxation steps (explicit solvent)", int)
 
-        # Salt concentration (reference energies were derived with saltcon=0.1)
+        # Salt concentration. The 0.1 M default is NOT the box's salt
+        # concentration: it is the value the titration reference energies in
+        # the cpin/cein were derived at. Changing it to match the solvation
+        # choice desynchronises the two, so say what the number means.
+        self.console.print(
+            "[grey50]  saltcon sets the Debye screening used with the titration "
+            "reference energies, which were derived at 0.1 M. It is separate "
+            "from the salt you added when solvating; leave it at 0.1 unless "
+            "your titration files were generated at another value.[/grey50]"
+        )
         cpmd_settings['saltcon'] = _ask(
             "Salt concentration in M (saltcon)", 0.1,
             "Salt concentration for titration reference energies", float)

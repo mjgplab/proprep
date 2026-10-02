@@ -1,0 +1,279 @@
+data_SF4
+# 
+_chem_comp.id                                    SF4 
+_chem_comp.name                                  "IRON/SULFUR CLUSTER" 
+_chem_comp.type                                  NON-POLYMER 
+_chem_comp.pdbx_type                             HETAIN 
+_chem_comp.formula                               "Fe4 S4" 
+_chem_comp.mon_nstd_parent_comp_id               ? 
+_chem_comp.pdbx_synonyms                         ? 
+_chem_comp.pdbx_formal_charge                    ? 
+_chem_comp.pdbx_initial_date                     1999-07-08 
+_chem_comp.pdbx_modified_date                    2026-09-16 
+_chem_comp.pdbx_ambiguous_flag                   Y 
+_chem_comp.pdbx_release_status                   REL 
+_chem_comp.pdbx_replaced_by                      ? 
+_chem_comp.pdbx_replaces                         FS4 
+_chem_comp.formula_weight                        351.640 
+_chem_comp.one_letter_code                       ? 
+_chem_comp.three_letter_code                     SF4 
+_chem_comp.pdbx_model_coordinates_details        ? 
+_chem_comp.pdbx_model_coordinates_missing_flag   N 
+_chem_comp.pdbx_ideal_coordinates_details        MetalCoord 
+_chem_comp.pdbx_ideal_coordinates_missing_flag   N 
+_chem_comp.pdbx_model_coordinates_db_code        ? 
+_chem_comp.pdbx_subcomponent_list                ? 
+_chem_comp.pdbx_processing_site                  EBI 
+_chem_comp.pdbx_comp_type                        "metal-containing ligand" 
+_chem_comp.pdbx_pcm                              Y 
+# 
+loop_
+_chem_comp_atom.comp_id 
+_chem_comp_atom.atom_id 
+_chem_comp_atom.alt_atom_id 
+_chem_comp_atom.type_symbol 
+_chem_comp_atom.charge 
+_chem_comp_atom.pdbx_align 
+_chem_comp_atom.pdbx_aromatic_flag 
+_chem_comp_atom.pdbx_leaving_atom_flag 
+_chem_comp_atom.pdbx_stereo_config 
+_chem_comp_atom.pdbx_backbone_atom_flag 
+_chem_comp_atom.pdbx_n_terminal_atom_flag 
+_chem_comp_atom.pdbx_c_terminal_atom_flag 
+_chem_comp_atom.model_Cartn_x 
+_chem_comp_atom.model_Cartn_y 
+_chem_comp_atom.model_Cartn_z 
+_chem_comp_atom.pdbx_model_Cartn_x_ideal 
+_chem_comp_atom.pdbx_model_Cartn_y_ideal 
+_chem_comp_atom.pdbx_model_Cartn_z_ideal 
+_chem_comp_atom.pdbx_component_atom_id 
+_chem_comp_atom.pdbx_component_comp_id 
+_chem_comp_atom.pdbx_ordinal 
+SF4 FE1 FE1 FE ?  0 N N N N N N 40.971 -0.019 22.669 40.988 0.074 22.637 FE1 SF4 1 
+SF4 FE2 FE2 FE ?  0 N N N N N N 39.556 2.319  22.804 39.644 2.319 22.749 FE2 SF4 2 
+SF4 FE3 FE3 FE ?  0 N N N N N N 42.077 2.161  23.861 42.036 2.170 23.811 FE3 SF4 3 
+SF4 FE4 FE4 FE ?  0 N N N N N N 41.784 2.135  21.145 41.755 2.132 21.208 FE4 SF4 4 
+SF4 S1  S1  S  -2 1 N N N N N N 41.280 3.945  22.608 41.267 3.911 22.551 S1  SF4 5 
+SF4 S2  S2  S  -2 1 N N N N N N 43.172 0.784  22.346 43.144 0.781 22.394 S2  SF4 6 
+SF4 S3  S3  S  -2 1 N N N N N N 39.722 0.875  20.827 39.806 0.980 20.921 S3  SF4 7 
+SF4 S4  S4  S  -2 1 N N N N N N 40.141 1.060  24.575 40.200 1.034 24.551 S4  SF4 8 
+# 
+loop_
+_chem_comp_bond.comp_id 
+_chem_comp_bond.atom_id_1 
+_chem_comp_bond.atom_id_2 
+_chem_comp_bond.value_order 
+_chem_comp_bond.pdbx_aromatic_flag 
+_chem_comp_bond.pdbx_stereo_config 
+_chem_comp_bond.pdbx_ordinal 
+_chem_comp_bond.pdbx_metal_coordination_flag 
+_chem_comp_bond.pdbx_metal_pi_flag 
+SF4 FE1 S2 SING N N 1  Y N 
+SF4 FE1 S3 SING N N 2  Y N 
+SF4 FE1 S4 SING N N 3  Y N 
+SF4 FE2 S1 SING N N 4  Y N 
+SF4 FE2 S3 SING N N 5  Y N 
+SF4 FE2 S4 SING N N 6  Y N 
+SF4 FE3 S1 SING N N 7  Y N 
+SF4 FE3 S2 SING N N 8  Y N 
+SF4 FE3 S4 SING N N 9  Y N 
+SF4 FE4 S1 SING N N 10 Y N 
+SF4 FE4 S2 SING N N 11 Y N 
+SF4 FE4 S3 SING N N 12 Y N 
+# 
+loop_
+_pdbx_chem_comp_descriptor.comp_id 
+_pdbx_chem_comp_descriptor.type 
+_pdbx_chem_comp_descriptor.program 
+_pdbx_chem_comp_descriptor.program_version 
+_pdbx_chem_comp_descriptor.descriptor 
+SF4 InChI            InChI                1.06  InChI=1S/4Fe.4S                          
+SF4 InChIKey         InChI                1.06  LJBDFODJNLIPKO-UHFFFAOYSA-N              
+SF4 SMILES_CANONICAL CACTVS               3.385 "S1[Fe]S[Fe]1.S2[Fe]S[Fe]2"              
+SF4 SMILES           CACTVS               3.385 "S1[Fe]S[Fe]1.S2[Fe]S[Fe]2"              
+SF4 SMILES_CANONICAL "OpenEye OEToolkits" 2.0.7 "[S]12[Fe]3[S]4[Fe]1[S]5[Fe]2[S]3[Fe]45" 
+SF4 SMILES           "OpenEye OEToolkits" 2.0.7 "[S]12[Fe]3[S]4[Fe]1[S]5[Fe]2[S]3[Fe]45" 
+# 
+loop_
+_pdbx_chem_comp_atom_coordination.geometry_id 
+_pdbx_chem_comp_atom_coordination.comp_id 
+_pdbx_chem_comp_atom_coordination.atom_id 
+_pdbx_chem_comp_atom_coordination.number 
+_pdbx_chem_comp_atom_coordination.geometry_calculated 
+_pdbx_chem_comp_atom_coordination.geometry_generic 
+_pdbx_chem_comp_atom_coordination.geometry_abbr 
+_pdbx_chem_comp_atom_coordination.provenance 
+1 SF4 FE1 4 tetrahedron tetrahedral TET FindGeo    
+1 SF4 FE1 4 tetrahedral tetrahedral TET MetalCoord 
+2 SF4 FE2 4 tetrahedron tetrahedral TET FindGeo    
+2 SF4 FE2 4 tetrahedral tetrahedral TET MetalCoord 
+3 SF4 FE3 4 tetrahedron tetrahedral TET FindGeo    
+3 SF4 FE3 4 tetrahedral tetrahedral TET MetalCoord 
+4 SF4 FE4 4 tetrahedron tetrahedral TET FindGeo    
+4 SF4 FE4 4 tetrahedral tetrahedral TET MetalCoord 
+# 
+loop_
+_pdbx_chem_comp_atom_coordination_sphere.id 
+_pdbx_chem_comp_atom_coordination_sphere.geometry_id 
+_pdbx_chem_comp_atom_coordination_sphere.comp_id 
+_pdbx_chem_comp_atom_coordination_sphere.atom_id 
+_pdbx_chem_comp_atom_coordination_sphere.descriptor 
+_pdbx_chem_comp_atom_coordination_sphere.provenance 
+1  1 SF4 FE1 "@TET{Fe,S,S,S,S}"  MetalCoord 
+2  1 SF4 FE1 "@TET{Fe,N,S,S,S}"  MetalCoord 
+3  1 SF4 FE1 "@TET{Fe,O,S,S,S}"  MetalCoord 
+4  1 SF4 FE1 "@TET{Fe,C,S,S,S}"  MetalCoord 
+5  2 SF4 FE2 "@TET{Fe,S,S,S,S}"  MetalCoord 
+6  2 SF4 FE2 "@TET{Fe,N,S,S,S}"  MetalCoord 
+7  2 SF4 FE2 "@TET{Fe,O,S,S,S}"  MetalCoord 
+8  2 SF4 FE2 "@TET{Fe,C,S,S,S}"  MetalCoord 
+9  2 SF4 FE2 "@TET{Fe,Cl,S,S,S}" MetalCoord 
+10 3 SF4 FE3 "@TET{Fe,S,S,S,S}"  MetalCoord 
+11 3 SF4 FE3 "@TET{Fe,N,S,S,S}"  MetalCoord 
+12 3 SF4 FE3 "@TET{Fe,O,S,S,S}"  MetalCoord 
+13 3 SF4 FE3 "@TET{Fe,Cl,S,S,S}" MetalCoord 
+14 3 SF4 FE3 "@TET{Fe,C,S,S,S}"  MetalCoord 
+15 4 SF4 FE4 "@TET{Fe,S,S,S,S}"  MetalCoord 
+16 4 SF4 FE4 "@TET{Fe,N,S,S,S}"  MetalCoord 
+17 4 SF4 FE4 "@TET{Fe,Cl,S,S,S}" MetalCoord 
+18 4 SF4 FE4 "@TET{Fe,O,S,S,S}"  MetalCoord 
+19 4 SF4 FE4 "@TET{Fe,C,S,S,S}"  MetalCoord 
+# 
+loop_
+_pdbx_chem_comp_pcm.pcm_id 
+_pdbx_chem_comp_pcm.comp_id 
+_pdbx_chem_comp_pcm.modified_residue_id 
+_pdbx_chem_comp_pcm.type 
+_pdbx_chem_comp_pcm.category 
+_pdbx_chem_comp_pcm.polypeptide_position 
+_pdbx_chem_comp_pcm.comp_id_linking_atom 
+_pdbx_chem_comp_pcm.modified_residue_id_linking_atom 
+_pdbx_chem_comp_pcm.uniprot_specific_ptm_accession 
+_pdbx_chem_comp_pcm.uniprot_generic_ptm_accession 
+_pdbx_chem_comp_pcm.position 
+1   SF4 ABA None "Metal coordination" "Any position" FE4 N   ? ? "Amino-acid backbone"   
+2   SF4 ALA None "Metal coordination" "Any position" FE1 O   ? ? "Amino-acid backbone"   
+3   SF4 ARG None "Metal coordination" "Any position" FE1 NH2 ? ? "Amino-acid side chain" 
+4   SF4 ARG None "Metal coordination" "Any position" FE2 NH1 ? ? "Amino-acid side chain" 
+5   SF4 ARG None "Metal coordination" "Any position" FE2 NH2 ? ? "Amino-acid side chain" 
+6   SF4 ARG None "Metal coordination" "Any position" FE3 NH1 ? ? "Amino-acid side chain" 
+7   SF4 ARG None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+8   SF4 ASN None "Metal coordination" "Any position" FE4 OD1 ? ? "Amino-acid side chain" 
+9   SF4 ASN None "Metal coordination" "Any position" FE4 ND2 ? ? "Amino-acid side chain" 
+10  SF4 ASP None "Metal coordination" "Any position" FE1 OD2 ? ? "Amino-acid side chain" 
+11  SF4 ASP None "Metal coordination" "Any position" FE1 OD1 ? ? "Amino-acid side chain" 
+12  SF4 ASP None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+13  SF4 ASP None "Metal coordination" "Any position" FE2 OD1 ? ? "Amino-acid side chain" 
+14  SF4 ASP None "Metal coordination" "Any position" FE2 OD2 ? ? "Amino-acid side chain" 
+15  SF4 ASP None "Metal coordination" "Any position" FE3 OD2 ? ? "Amino-acid side chain" 
+16  SF4 ASP None "Metal coordination" "Any position" FE3 OD1 ? ? "Amino-acid side chain" 
+17  SF4 ASP None "Metal coordination" "Any position" FE4 OD1 ? ? "Amino-acid side chain" 
+18  SF4 ASP None "Metal coordination" "Any position" FE4 OD2 ? ? "Amino-acid side chain" 
+19  SF4 CYS None "Metal coordination" "Any position" FE1 SG  ? ? "Amino-acid side chain" 
+20  SF4 CYS None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+21  SF4 CYS None "Metal coordination" "Any position" FE1 O   ? ? "Amino-acid backbone"   
+22  SF4 CYS None "Metal coordination" "Any position" FE1 CB  ? ? "Amino-acid side chain" 
+23  SF4 CYS None "Metal coordination" "Any position" FE2 SG  ? ? "Amino-acid side chain" 
+24  SF4 CYS None "Metal coordination" "Any position" FE2 N   ? ? "Amino-acid backbone"   
+25  SF4 CYS None "Metal coordination" "Any position" FE2 O   ? ? "Amino-acid backbone"   
+26  SF4 CYS None "Metal coordination" "Any position" FE2 CB  ? ? "Amino-acid side chain" 
+27  SF4 CYS None "Metal coordination" "Any position" FE3 SG  ? ? "Amino-acid side chain" 
+28  SF4 CYS None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+29  SF4 CYS None "Metal coordination" "Any position" FE3 N   ? ? "Amino-acid backbone"   
+30  SF4 CYS None "Metal coordination" "Any position" FE4 SG  ? ? "Amino-acid side chain" 
+31  SF4 CYS None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+32  SF4 CYS None "Metal coordination" "Any position" FE4 N   ? ? "Amino-acid backbone"   
+33  SF4 GLN None "Metal coordination" "Any position" FE1 OE1 ? ? "Amino-acid side chain" 
+34  SF4 GLN None "Metal coordination" "Any position" FE1 NE2 ? ? "Amino-acid side chain" 
+35  SF4 GLN None "Metal coordination" "Any position" FE3 OE1 ? ? "Amino-acid side chain" 
+36  SF4 GLN None "Metal coordination" "Any position" FE3 NE2 ? ? "Amino-acid side chain" 
+37  SF4 GLN None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+38  SF4 GLU None "Metal coordination" "Any position" FE1 OE1 ? ? "Amino-acid side chain" 
+39  SF4 GLU None "Metal coordination" "Any position" FE1 OE2 ? ? "Amino-acid side chain" 
+40  SF4 GLU None "Metal coordination" "Any position" FE2 OE1 ? ? "Amino-acid side chain" 
+41  SF4 GLU None "Metal coordination" "Any position" FE2 OE2 ? ? "Amino-acid side chain" 
+42  SF4 GLU None "Metal coordination" "Any position" FE3 OE2 ? ? "Amino-acid side chain" 
+43  SF4 GLU None "Metal coordination" "Any position" FE3 OE1 ? ? "Amino-acid side chain" 
+44  SF4 GLU None "Metal coordination" "Any position" FE4 OE1 ? ? "Amino-acid side chain" 
+45  SF4 GLU None "Metal coordination" "Any position" FE4 OE2 ? ? "Amino-acid side chain" 
+46  SF4 GLY None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+47  SF4 GLY None "Metal coordination" "Any position" FE2 N   ? ? "Amino-acid backbone"   
+48  SF4 GLY None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+49  SF4 GLY None "Metal coordination" "Any position" FE3 OXT ? ? "Amino-acid backbone"   
+50  SF4 GLY None "Metal coordination" "Any position" FE3 N   ? ? "Amino-acid backbone"   
+51  SF4 GLY None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+52  SF4 GLY None "Metal coordination" "Any position" FE4 N   ? ? "Amino-acid backbone"   
+53  SF4 HIS None "Metal coordination" "Any position" FE1 ND1 ? ? "Amino-acid side chain" 
+54  SF4 HIS None "Metal coordination" "Any position" FE1 NE2 ? ? "Amino-acid side chain" 
+55  SF4 HIS None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+56  SF4 HIS None "Metal coordination" "Any position" FE2 ND1 ? ? "Amino-acid side chain" 
+57  SF4 HIS None "Metal coordination" "Any position" FE2 NE2 ? ? "Amino-acid side chain" 
+58  SF4 HIS None "Metal coordination" "Any position" FE3 NE2 ? ? "Amino-acid side chain" 
+59  SF4 HIS None "Metal coordination" "Any position" FE3 ND1 ? ? "Amino-acid side chain" 
+60  SF4 HIS None "Metal coordination" "Any position" FE4 ND1 ? ? "Amino-acid side chain" 
+61  SF4 HIS None "Metal coordination" "Any position" FE4 NE2 ? ? "Amino-acid side chain" 
+62  SF4 HIS None "Metal coordination" "Any position" FE3 N   ? ? "Amino-acid backbone"   
+63  SF4 ILE None "Metal coordination" "Any position" FE1 O   ? ? "Amino-acid backbone"   
+64  SF4 ILE None "Metal coordination" "Any position" FE2 O   ? ? "Amino-acid backbone"   
+65  SF4 ILE None "Metal coordination" "Any position" FE2 N   ? ? "Amino-acid backbone"   
+66  SF4 ILE None "Metal coordination" "Any position" FE3 N   ? ? "Amino-acid backbone"   
+67  SF4 LEU None "Metal coordination" "Any position" FE1 O   ? ? "Amino-acid backbone"   
+68  SF4 LEU None "Metal coordination" "Any position" FE2 O   ? ? "Amino-acid backbone"   
+69  SF4 LEU None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+70  SF4 LEU None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+71  SF4 LYS None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+72  SF4 LYS None "Metal coordination" "Any position" FE2 NZ  ? ? "Amino-acid side chain" 
+73  SF4 LYS None "Metal coordination" "Any position" FE3 NZ  ? ? "Amino-acid side chain" 
+74  SF4 LYS None "Metal coordination" "Any position" FE4 NZ  ? ? "Amino-acid side chain" 
+75  SF4 LYS None "Metal coordination" "Any position" FE4 N   ? ? "Amino-acid backbone"   
+76  SF4 MET None "Metal coordination" "Any position" FE1 SD  ? ? "Amino-acid side chain" 
+77  SF4 MET None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+78  SF4 MET None "Metal coordination" "Any position" FE1 O   ? ? "Amino-acid backbone"   
+79  SF4 MET None "Metal coordination" "Any position" FE1 OXT ? ? "Amino-acid backbone"   
+80  SF4 MET None "Metal coordination" "Any position" FE2 N   ? ? "Amino-acid backbone"   
+81  SF4 MET None "Metal coordination" "Any position" FE2 SD  ? ? "Amino-acid side chain" 
+82  SF4 MET None "Metal coordination" "Any position" FE2 OXT ? ? "Amino-acid backbone"   
+83  SF4 MET None "Metal coordination" "Any position" FE2 O   ? ? "Amino-acid backbone"   
+84  SF4 MET None "Metal coordination" "Any position" FE3 N   ? ? "Amino-acid backbone"   
+85  SF4 MET None "Metal coordination" "Any position" FE3 SD  ? ? "Amino-acid side chain" 
+86  SF4 MET None "Metal coordination" "Any position" FE3 OXT ? ? "Amino-acid backbone"   
+87  SF4 MET None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+88  SF4 MET None "Metal coordination" "Any position" FE4 N   ? ? "Amino-acid backbone"   
+89  SF4 MET None "Metal coordination" "Any position" FE4 OXT ? ? "Amino-acid backbone"   
+90  SF4 MET None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+91  SF4 MET None "Metal coordination" "Any position" FE4 SD  ? ? "Amino-acid side chain" 
+92  SF4 PHE None "Metal coordination" "Any position" FE1 N   ? ? "Amino-acid backbone"   
+93  SF4 PHE None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+94  SF4 PHE None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+95  SF4 PRO None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+96  SF4 SER None "Metal coordination" "Any position" FE1 OG  ? ? "Amino-acid side chain" 
+97  SF4 SER None "Metal coordination" "Any position" FE2 OG  ? ? "Amino-acid side chain" 
+98  SF4 SER None "Metal coordination" "Any position" FE3 OG  ? ? "Amino-acid side chain" 
+99  SF4 SER None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+100 SF4 SER None "Metal coordination" "Any position" FE4 OG  ? ? "Amino-acid side chain" 
+101 SF4 SER None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+102 SF4 SER None "Metal coordination" "Any position" FE4 N   ? ? "Amino-acid backbone"   
+103 SF4 THR None "Metal coordination" "Any position" FE1 OG1 ? ? "Amino-acid side chain" 
+104 SF4 THR None "Metal coordination" "Any position" FE1 O   ? ? "Amino-acid backbone"   
+105 SF4 THR None "Metal coordination" "Any position" FE2 N   ? ? "Amino-acid backbone"   
+106 SF4 THR None "Metal coordination" "Any position" FE3 O   ? ? "Amino-acid backbone"   
+107 SF4 THR None "Metal coordination" "Any position" FE4 OG1 ? ? "Amino-acid side chain" 
+108 SF4 TYR None "Metal coordination" "Any position" FE1 OH  ? ? "Amino-acid side chain" 
+109 SF4 TYR None "Metal coordination" "Any position" FE2 OH  ? ? "Amino-acid side chain" 
+110 SF4 TYR None "Metal coordination" "Any position" FE3 OH  ? ? "Amino-acid side chain" 
+111 SF4 UNK None "Metal coordination" "Any position" FE2 CA  ? ? "Amino-acid backbone"   
+112 SF4 UNK None "Metal coordination" "Any position" FE3 N   ? ? "Amino-acid backbone"   
+113 SF4 VAL None "Metal coordination" "Any position" FE4 O   ? ? "Amino-acid backbone"   
+# 
+loop_
+_pdbx_chem_comp_audit.comp_id 
+_pdbx_chem_comp_audit.action_type 
+_pdbx_chem_comp_audit.date 
+_pdbx_chem_comp_audit.processing_site 
+SF4 "Create component"   1999-07-08 EBI  
+SF4 "Modify descriptor"  2023-09-23 RCSB 
+SF4 "Other modification" 2026-07-17 RCSB 
+SF4 "Other modification" 2026-07-31 RCSB 
+SF4 "Other modification" 2026-09-01 RCSB 
+SF4 "Other modification" 2026-09-16 RCSB 
+# 

@@ -1,4 +1,4 @@
-{% set version = "1.22.0" %}
+{% set version = "1.23.0" %}
 
 package:
   name: proprep
@@ -11,7 +11,14 @@ source:
 build:
   noarch: python
   number: 0
-  script: pip install . --no-deps --no-build-isolation
+  # Mark this build as ours so it may check mjgplab/proprep for newer releases
+  # (src/proprep/_distribution.py). The source tree, and so the AmberTools
+  # build, keeps CHANNEL = None. The grep fails the build if the line moved.
+  script:
+    - sed -i.orig 's/^CHANNEL = None$/CHANNEL = "mjgplab"/' src/proprep/_distribution.py
+    - rm -f src/proprep/_distribution.py.orig
+    - grep -qx 'CHANNEL = "mjgplab"' src/proprep/_distribution.py
+    - pip install . --no-deps --no-build-isolation
   entry_points:
     - proprep = proprep.main:main
     - mpsa = proprep.main:main
@@ -39,6 +46,16 @@ requirements:
     - bioconda::reduce >=4     # ligand H-addition; AmberTools no longer bundles reduce
     - salilab::modeller
     - dacase::ambertools-dac =26
+    # Molecular Docking (docking_prep): ligand and receptor preparation with
+    # Meeko, docking with AutoDock Vina, AD4 maps with autogrid4. Versions are
+    # the ones the docking validation ran on. Meeko is mjgplab's build without
+    # prody, which conda-forge cannot install on osx-arm64 with Python >= 3.12
+    # (packaging/meeko-noprody/README.md).
+    - rdkit                    # also required by AmberTools 26
+    - gemmi >=0.7
+    - mjgplab::meeko 0.8.0 noprody*
+    - vina 1.2.7
+    - autogrid
     # Web shell (proprep-web) runtime dependencies
     - fastapi >=0.110
     - uvicorn >=0.27
@@ -50,6 +67,8 @@ test:
     - proprep.main
   commands:
     - proprep --help
+    # every docking dependency is installed and found
+    - python -c "from proprep.docking_prep.dependencies import check_dependencies, missing; gaps = missing(check_dependencies(), include_ad4=True); assert not gaps, [d.describe() for d in gaps]"
 
 about:
   home: https://github.com/mjgplab/proprep

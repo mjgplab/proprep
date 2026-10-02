@@ -117,6 +117,7 @@ class StructureLoaderModule(ProcessingModule):
             "load": "Load structure from PDB/AlphaFold/AlphaFill",
             "md_setup": "Load AMBER topology & coordinate files",
             "metadata": "View structure metadata",
+            "ligand_file": "Load a ligand file or library (SDF/mol2/SMILES) for docking",
         }
 
     def get_enhanced_menu_options(self, workspace):
@@ -201,6 +202,13 @@ class StructureLoaderModule(ProcessingModule):
             dependency_text="[Load a structure first] ○" if not structure_loaded else ""
         ))
 
+        # Option 4: ligand file for docking - ● once loaded
+        options.append(MenuOption(
+            key="4",
+            description="Load a ligand file or library (SDF/mol2/SMILES) for docking",
+            status=OptionStatus.COMPLETED if workspace.get("ligand_file") is not None else OptionStatus.AVAILABLE
+        ))
+
         return options
 
     def get_menu_suggestion(self, workspace):
@@ -239,6 +247,10 @@ class StructureLoaderModule(ProcessingModule):
             elif option == "md_setup":
                 # Load AMBER topology + coordinates (rst7 or trajectory) into workspace
                 self._load_amber_files()
+                return True
+
+            elif option == "ligand_file":
+                self._load_ligand_file()
                 return True
 
             else:
@@ -289,6 +301,8 @@ class StructureLoaderModule(ProcessingModule):
             "is_hplusplus_structure",             # H++ server structure detected
             "hstripped_pdb_file",                 # H-stripped PDB file path
             "hstripped_structure",                # H-stripped BioPython Structure object
+            # Docking
+            "ligand_file",                        # SDF/mol2 ligand file for Molecular Docking
         ]
 
     # ========================================================================
@@ -3062,6 +3076,63 @@ class StructureLoaderModule(ProcessingModule):
             table.add_row(str(i), pdb_id, method, resolution, chains)
 
         self.console.print(table)
+
+    def _load_ligand_file(self):
+        """Load a small-molecule file or library (SDF/mol2/SMILES) for Molecular Docking into ``ligand_file``.
+
+        Only the path is stored; which molecule of a multi-record file to dock is
+        chosen in Molecular Docking. The file is read once here so the user sees
+        what it holds.
+        """
+        from proprep.qmmm_prep.frame_extractor import FrameExtractor
+
+        self.console.print(
+            "\n[bold bright_blue]═══ Load a ligand file for docking ═══[/bold bright_blue]\n"
+        )
+        workspace = self.processor._get_workspace()
+        browser = FrameExtractor(self.processor, workspace)
+        try:
+            path = browser.find_or_browse_file("ligand", [".sdf", ".sd", ".mol", ".mol2", ".smi", ".smiles"],
+                                               "ligand file or library")
+        except FileNotFoundError:
+            self.console.print("[yellow]Ligand file selection cancelled.[/yellow]")
+            return
+        if not os.path.exists(path):
+            self.console.print(f"[red]Ligand file not found: {path}[/red]")
+            return
+        try:
+            from rdkit import Chem
+            if path.lower().endswith((".smi", ".smiles")):
+                with open(path) as handle:
+                    rows = [l.split(None, 1) for l in handle if l.strip() and not l.lstrip().startswith("#")]
+                titles = [r[1].strip() if len(r) > 1 else "" for r in rows]
+                from rdkit import RDLogger
+                RDLogger.DisableLog("rdApp.error")      # counted below; RDKit's own lines would repeat it
+                try:
+                    unreadable = sum(1 for r in rows if Chem.MolFromSmiles(r[0]) is None)
+                finally:
+                    RDLogger.EnableLog("rdApp.error")
+            elif path.lower().endswith(".mol2"):
+                with open(path) as handle:
+                    titles = [block.splitlines()[1].strip() if len(block.splitlines()) > 1 else ""
+                              for block in handle.read().split("@<TRIPOS>MOLECULE")[1:]]
+                unreadable = None
+            else:
+                supplier = Chem.SDMolSupplier(path, removeHs=False)
+                molecules = [supplier[i] for i in range(len(supplier))]
+                titles = [m.GetProp("_Name") if m is not None and m.HasProp("_Name") else "" for m in molecules]
+                unreadable = sum(m is None for m in molecules)
+            self.console.print(f"  {os.path.basename(path)}: {len(titles)} molecule(s)")
+            for i, title in enumerate(titles[:10]):
+                self.console.print(f"    {i}: {title or '(untitled)'}")
+            if len(titles) > 10:
+                self.console.print(f"    ... {len(titles) - 10} more")
+            if unreadable:
+                self.console.print(f"  [yellow]{unreadable} record(s) could not be read by RDKit.[/yellow]")
+        except ImportError:
+            self.console.print("[yellow]RDKit is not installed; the file was not inspected.[/yellow]")
+        self.update_workspace(workspace, "ligand_file", str(Path(path).absolute()))
+        self.console.print(f"[green]Stored for Molecular Docking:[/green] {path}")
 
     def _load_amber_files(self):
         """Load AMBER topology + coordinates (rst7 or trajectory) into workspace.

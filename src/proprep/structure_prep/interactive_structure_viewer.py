@@ -55,6 +55,11 @@ def _stop_active_viewer_server() -> None:
     try:
         if hasattr(server, "is_running") and server.is_running():
             server.stop()
+        elif getattr(server, "server", None) is not None:
+            # Its serving thread is gone but the socket is still bound: close
+            # it, or the next launch finds the port taken and moves elsewhere.
+            server.server.server_close()
+            server.server = None
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("Error stopping viewer server during shutdown: %s", exc)
     _active_viewer_server = None
@@ -126,7 +131,7 @@ class InteractiveStructureViewer(ProcessingModule):
         # rewritten in place loses its maps instead of showing them misplaced.
         self.density_by_file = {}
         # A loaded scene: {'representations': {idx: [rep...]}, 'camera',
-        # 'background', 'camera_type', 'depth_cue', 'scene_id'}. Replaces the default +
+        # 'background', 'camera_type', 'depth_cue', 'axes', 'scene_id'}. Replaces the default +
         # annotation representations in _build_viewer_config while the same
         # structure set is shown.
         self.scene_override = None
@@ -353,6 +358,7 @@ class InteractiveStructureViewer(ProcessingModule):
             "camera_type": payload.get("camera_type"),
             "background": payload.get("background"),
             "depth_cue": payload.get("depth_cue"),
+            "axes": payload.get("axes"),
         }
 
     def _save_scene_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -423,6 +429,7 @@ class InteractiveStructureViewer(ProcessingModule):
             "camera_type": scene.get("camera_type"),
             "background": scene.get("background"),
             "depth_cue": scene.get("depth_cue"),
+            "axes": scene.get("axes"),
             "scene_id": os.path.basename(scene_path) + "@" + str(scene.get("saved_at")),
         }
         server = getattr(self, "server", None)
@@ -1363,7 +1370,13 @@ class InteractiveStructureViewer(ProcessingModule):
         from proprep.structure_prep import interactive_structure_viewer as _module
         from proprep.structure_prep.viewer_server import ViewerServer
 
-        # Tear down any prior viewer server before claiming the port.
+        # Tear down any prior viewer server before claiming the port, and
+        # claim the SAME port: a tab left open polls it, and reloads itself
+        # when a new server answers there. A relaunch that asked for 8765
+        # again, with 8765 held by something else, moved to the next free
+        # port and left the tab polling a dead one.
+        previous = _module._active_viewer_server
+        port = getattr(previous, "port", None) or 8765
         _stop_active_viewer_server()
 
         # Build complete configuration for viewer
@@ -1374,7 +1387,7 @@ class InteractiveStructureViewer(ProcessingModule):
             server = ViewerServer(
                 config=viewer_config,
                 structure_files=self.selected_structures,
-                port=8765,
+                port=port,
                 scene_sink=self._save_scene_payload,
                 trajectory_files=dict(getattr(self, 'trajectory_files', None) or {}),
                 density_files={index: {m["kind"]: m["path"] for m in record["maps"]}
@@ -1390,6 +1403,14 @@ class InteractiveStructureViewer(ProcessingModule):
                 self.console.print("[red]Failed to start viewer server[/red]")
                 return False
 
+            # Record it at once: if anything below raised before this was
+            # set, the server would keep running with nothing to stop it, the
+            # next launch would find its port taken and move to another, and
+            # an open tab would be left on the old one (two live servers were
+            # seen in one session).
+            self.server = server
+            _module._active_viewer_server = server
+
             # Display success message
             url = server.get_url()
             n = len(self.selected_structures)
@@ -1397,11 +1418,6 @@ class InteractiveStructureViewer(ProcessingModule):
                 f"[green]✓ Structure viewer launched at {url} ({n} structure{'s' if n != 1 else ''})[/green]"
             )
             self._report_headless_access(server, url)
-
-            # Keep reference to server so it doesn't get garbage collected
-            self.server = server
-            _module._active_viewer_server = server
-
             return True
 
         except Exception as e:
@@ -1539,6 +1555,8 @@ class InteractiveStructureViewer(ProcessingModule):
                     'style': 'ball+stick',
                     'color': 'element',
                     'visible': show_ligands,
+                    # bond orders from SDF/mol2 drawn as such; a PDB has none, so no change there
+                    'multiple_bond': True,
                 },
                 {
                     'id': 'default_ions',
@@ -1563,8 +1581,28 @@ class InteractiveStructureViewer(ProcessingModule):
                     'style': 'ball+stick',
                     'color': 'element',
                     'visible': True,
+                    'multiple_bond': True,
                 },
             ]
+
+            # Residues set aside in this structure: taken out of the default
+            # representations and given their own, hidden at first. Docking
+            # sets aside the crystal copy of the ligand it shows as a separate
+            # file, which would otherwise be drawn without bond orders right
+            # on top of it; one checkbox brings it back for comparison.
+            aside = (vc.get('set_aside') or {}).get(idx)
+            if aside:
+                for rep in reps:
+                    if rep['id'] in ('default_ligands', 'default_nonstandard'):
+                        rep['selection'] = f"({rep['selection']}) and not ({aside['selection']})"
+                reps.append({
+                    'id': 'set_aside',
+                    'label': aside.get('label', 'Set aside'),
+                    'selection': aside['selection'],
+                    'style': 'ball+stick',
+                    'color': 'element',
+                    'visible': False,
+                })
 
             # Optional per-representation translucency. viewer_config may
             # carry {'rep_opacity': {'default_protein': 0.4}} to render a
@@ -1618,6 +1656,10 @@ class InteractiveStructureViewer(ProcessingModule):
                     rep['atom_pairs'] = ann_config['atom_pairs']
                 if 'show_labels' in ann_config:
                     rep['show_labels'] = ann_config['show_labels']
+                if ann_config.get('multiple_bond'):
+                    rep['multiple_bond'] = True
+                if 'text' in ann_config:
+                    rep['text'] = ann_config['text']
                 reps.append(rep)
 
             structures.append({
@@ -1635,14 +1677,20 @@ class InteractiveStructureViewer(ProcessingModule):
         shape_cfg = getattr(self, 'shape_config', None) or {}
         shapes = []
         for label, sc in shape_cfg.items():
-            shapes.append({
+            shape = {
                 'label': label,
                 'type': sc.get('type', 'sphere'),
                 'coords': sc.get('coords', [0.0, 0.0, 0.0]),
                 'radius': sc.get('radius', 1.0),
                 'color': sc.get('color', '#ffaa00'),
                 'opacity': sc.get('opacity', 0.5),
-            })
+            }
+            if shape['type'] == 'box':
+                shape['center'] = sc['center']
+                shape['size'] = sc['size']
+                shape['radius'] = sc.get('radius')
+                shape['opacity'] = 1.0                  # the 0.5 sphere default halved the edges' contrast
+            shapes.append(shape)
 
         for entry in structures:
             traj = (getattr(self, 'trajectory_files', None) or {}).get(entry['index'])
@@ -1670,8 +1718,13 @@ class InteractiveStructureViewer(ProcessingModule):
             'shapes': shapes,
             'focused_mode': focused_mode,
         }
+        # The coordinate axes (see ViewerCoordinator.show_axes): the Structure
+        # Orientation module turns them on for the frame it aligns to. A loaded
+        # scene's setting wins over the module's request.
+        if vc.get('axes') is not None:
+            out['axes'] = bool(vc['axes'])
         if scene is not None:
-            for key in ('camera', 'camera_type', 'background', 'depth_cue', 'scene_id'):
+            for key in ('camera', 'camera_type', 'background', 'depth_cue', 'axes', 'scene_id'):
                 if scene.get(key) is not None:
                     out[key] = scene[key]
         return out

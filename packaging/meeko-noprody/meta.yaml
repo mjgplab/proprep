@@ -1,0 +1,52 @@
+# Meeko 0.8.0, unmodified, for the mjgplab channel without the prody dependency.
+#
+# conda-forge's meeko declares prody, and no conda-forge prody installs on
+# Apple Silicon with Python >= 3.12 (2.6.x: linux-64/osx-64 only; noarch
+# 2.4.1/2.5.0: Python < 3.12), so conda-forge's meeko 0.8.0 cannot be
+# installed there next to ProPrep. Meeko itself
+# declares no dependencies (its PyPI metadata has none) and imports prody only
+# in covalentbuilder.py and utils/prodyutils.py (covalent docking, ProDy object
+# input), and inside guarded try blocks elsewhere. ProPrep's docking uses
+# neither. This build is the same source with prody left out of the run
+# requirements. See README.md for why, how to build and upload it, and when to
+# retire it.
+{% set version = "0.8.0" %}
+
+package:
+  name: meeko
+  version: {{ version }}
+
+source:
+  url: https://files.pythonhosted.org/packages/75/df/0e5fd5424621b8da07dc3b21036d1ec4063165955594f72ea5b7fd99ba8b/meeko-{{ version }}.tar.gz
+  sha256: 09a892bd796c1e1b72b73305f36b694cad99993d6f96acd85bb8d9341bc149d8
+
+build:
+  noarch: python
+  number: 0
+  string: noprody_py_{{ PKG_BUILDNUM }}
+  script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation -vv
+
+requirements:
+  host:
+    - python >=3.9
+    - pip
+    - setuptools
+  run:
+    - python >=3.9
+    - numpy
+    - scipy
+    - rdkit
+    - gemmi
+
+test:
+  imports:
+    - meeko
+    - meeko.polymer
+  # run_test.py, beside this file, prepares a ligand end to end and checks the
+  # prody-only module.
+
+about:
+  home: https://github.com/forlilab/Meeko
+  license: LGPL-2.1-only
+  license_file: LICENSE
+  summary: Meeko (unmodified) without the prody dependency, for ProPrep's docking on every platform

@@ -128,6 +128,7 @@ class PDBProcessor(Processor):
                 "proprep.tleap_prep.tleap_input_generator",
                 "proprep.md_prep.molecular_dynamics_manager",
                 "proprep.qmmm_prep.qmmm_preparator",
+                "proprep.docking_prep.docking_module",
                 "proprep.forcefield_prep.forcefield_parameterizer",
                 "proprep.forcefield_prep.small_molecule_parameterizer",
                 # Analysis modules (DISABLED for pre-analysis release - see docs/developer/ANALYSIS_MODULES_REENABLE.md)

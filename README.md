@@ -148,6 +148,11 @@ source $CONDA_PREFIX/amber.sh
 
 ## Update
 
+ProPrep tells you when a newer release is out: at startup it asks GitHub (at
+most once a day, sending nothing about you) and, if there is one, prints the
+update command for the way you installed it. Turn this off under
+Preferences, option 4.
+
 Self-contained installer (Option A): download the new release's installer and
 run it with `-u` added (`bash ProPrep-<version>-<platform>.sh -b -u -p ~/ProPrep`);
 it updates `~/ProPrep` in place. Your projects and your MODELLER key live
@@ -164,7 +169,7 @@ It detects an existing `ProPrep` environment and offers to update or rebuild
 it. To update manually instead:
 
 ```
-conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep -y
+conda install -n ProPrep -c mjgplab -c dacase -c conda-forge -c salilab -c bioconda proprep -y
 conda run -n ProPrep pip install --upgrade tmtools
 ```
 

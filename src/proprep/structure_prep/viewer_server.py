@@ -15,6 +15,7 @@ import logging
 import socket
 import sys
 import threading
+import time
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -93,6 +94,18 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
     # /config when something actually changed.
     config = {}
     config_version = 0
+    # A new value at every server start. A relaunch (another structure list,
+    # or files re-read from disk) restarts config_version at 1, which a page
+    # left open since the last launch may already hold; the instance id tells
+    # it the structures themselves changed, so it reloads.
+    instance_id = ""
+    # time.monotonic() of the last /version poll. An open viewer page polls
+    # every 1.5 s, so a recent poll means a tab is showing the viewer and a
+    # relaunch need not open another (it reloads itself on the new instance).
+    last_page_poll = 0.0
+    # time.monotonic() when this process last opened a browser tab on the
+    # viewer. A tab still loading has not polled yet; see page_open.
+    browser_opened_at = 0.0
     template_path = ""
     structure_files = []
     # Scene save/load. ``scene_sink`` is a callable(payload) -> dict set by the
@@ -101,6 +114,10 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
     # save without a push channel: the page sees a new token and POSTs.
     scene_sink = None
     scene_request = None
+    # A pick the CLI is waiting for: {"token", "kind": "atom"|"bond", "prompt", "structure"}.
+    # The page shows the prompt, and the user's click (or Cancel) comes back as POST /pick.
+    pick_request = None
+    pick_result = None
 
     def serve_vendored(self, filename: str, content_type: str):
         """Send a third-party asset that sits beside the viewer template."""
@@ -197,6 +214,7 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         try:
             payload = dict(self.config)
             payload["_config_version"] = self.config_version
+            payload["_instance_id"] = self.instance_id
             config_json = json.dumps(payload, indent=2)
 
             self.send_response(200)
@@ -210,7 +228,11 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
             self._handle_serve_error("config", e)
 
     def do_POST(self):
-        """POST /scene: the page hands over its representation and camera state."""
+        """POST /scene: the page hands over its representation and camera state.
+        POST /pick: the page hands over the atom or bond the user clicked for a pick request."""
+        if self.path == "/pick":
+            self._receive_pick()
+            return
         if self.path != "/scene":
             self.send_error(404, "Unknown endpoint")
             return
@@ -234,12 +256,34 @@ class ViewerHTTPRequestHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._handle_serve_error("scene", e)
 
+    def _receive_pick(self):
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+            payload = json.loads((self.rfile.read(length) if length else b"{}").decode("utf-8") or "{}")
+            request = type(self).pick_request
+            if request is not None and payload.get("token") == request["token"]:
+                ViewerHTTPRequestHandler.pick_result = payload
+                result, status = {"ok": True}, 200
+            else:
+                result, status = {"ok": False, "error": "no pick was requested with that token"}, 409
+            body = json.dumps(result).encode("utf-8")
+            self.send_response(status)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', len(body))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self._handle_serve_error("pick", e)
+
     def serve_version(self):
         """Tiny endpoint for the browser's poll loop."""
+        ViewerHTTPRequestHandler.last_page_poll = time.monotonic()
         try:
-            info = {"version": self.config_version}
+            info = {"version": self.config_version, "instance": self.instance_id}
             if self.scene_request:
                 info["scene_request"] = self.scene_request
+            if self.pick_request:
+                info["pick_request"] = self.pick_request
             body = json.dumps(info).encode("utf-8")
             self.send_response(200)
             self.send_header('Content-type', 'application/json; charset=utf-8')
@@ -418,12 +462,16 @@ class ViewerServer:
         # Set class variables for the request handler
         ViewerHTTPRequestHandler.config = self.config
         ViewerHTTPRequestHandler.config_version = 1
+        ViewerHTTPRequestHandler.instance_id = f"{os.getpid()}-{time.time_ns()}"
         ViewerHTTPRequestHandler.structure_files = self.structure_files
         ViewerHTTPRequestHandler.trajectory_files = self.trajectory_files
         ViewerHTTPRequestHandler.density_files = self.density_files
         ViewerHTTPRequestHandler.template_path = self.template_path
         ViewerHTTPRequestHandler.scene_sink = scene_sink
         ViewerHTTPRequestHandler.scene_request = None
+        ViewerHTTPRequestHandler.pick_request = None
+        ViewerHTTPRequestHandler.pick_result = None
+        self._pick_token = 0
 
     def request_scene(self, name: str) -> int:
         """Ask the open page to POST its current scene under ``name``.
@@ -437,6 +485,39 @@ class ViewerServer:
 
     def clear_scene_request(self) -> None:
         ViewerHTTPRequestHandler.scene_request = None
+
+    def request_pick(self, kind: str, prompt: str, structure: Optional[int] = None) -> int:
+        """Ask the open page to let the user click an atom or a bond.
+
+        ``kind`` is "atom" or "bond"; ``prompt`` is shown on the page; ``structure``
+        limits the pick to one of the shown structures (by index). The page answers
+        with POST /pick; ``wait_for_pick`` collects it. Returns the request token."""
+        if kind not in ("atom", "bond"):
+            raise ValueError(f"pick kind must be 'atom' or 'bond', not {kind!r}")
+        self._pick_token += 1
+        ViewerHTTPRequestHandler.pick_result = None
+        ViewerHTTPRequestHandler.pick_request = {"token": self._pick_token, "kind": kind, "prompt": prompt,
+                                                 "structure": structure}
+        return self._pick_token
+
+    def wait_for_pick(self, token: int, timeout: float) -> Optional[Dict]:
+        """The page's answer to pick request ``token`` (the click, or {"cancelled": True}),
+        or None if none came within ``timeout`` seconds. Clears the request either way."""
+        import time
+        deadline = time.time() + timeout
+        try:
+            while time.time() < deadline:
+                result = ViewerHTTPRequestHandler.pick_result
+                if result is not None and result.get("token") == token:
+                    return result
+                time.sleep(0.2)
+            return None
+        finally:
+            self.clear_pick_request()
+
+    def clear_pick_request(self) -> None:
+        ViewerHTTPRequestHandler.pick_request = None
+        ViewerHTTPRequestHandler.pick_result = None
 
     def update_config(self, new_config: Dict) -> int:
         """Replace the served config and bump the version counter.
@@ -528,6 +609,7 @@ class ViewerServer:
                 else:
                     url = f"http://localhost:{self.port}/viewer"
                     webbrowser.open(url)
+                    ViewerHTTPRequestHandler.browser_opened_at = time.monotonic()
                     self.browser_opened = True
                     logger.debug(f"Opened browser at {url}")
 
@@ -605,6 +687,24 @@ class ViewerServer:
             self.server.server_close()
             self.server = None
             logger.debug("Viewer server stopped")
+
+    # Three missed polls at the page's 1.5 s interval: the tab is gone.
+    PAGE_OPEN_WINDOW = 5.0
+    # How long a tab this process opened counts as open before its first
+    # poll: the page loads NGL from a CDN before it starts polling.
+    PAGE_LOAD_GRACE = 30.0
+
+    @staticmethod
+    def page_open(within: float = PAGE_OPEN_WINDOW, grace: float = PAGE_LOAD_GRACE) -> bool:
+        """Whether a viewer tab is open: it polled within ``within`` seconds, or this
+        process opened one within ``grace`` seconds and it has not polled since
+        (still loading). Without the second, two explicit views in quick
+        succession (a replayed session) each opened a tab."""
+        now = time.monotonic()
+        last, opened = ViewerHTTPRequestHandler.last_page_poll, ViewerHTTPRequestHandler.browser_opened_at
+        if last > 0 and now - last <= within:
+            return True
+        return opened > 0 and now - opened <= grace and opened > last
 
     def is_running(self) -> bool:
         """Check if server is running."""

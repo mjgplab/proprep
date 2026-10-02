@@ -209,7 +209,7 @@ class RecipeBuilder:
 
     def undo(self) -> str:
         if not self._undo:
-            raise RecipeError("Nothing to undo.")
+            raise RecipeError("Nothing to drop.")
         (self.structure.atoms, self.operations, self.parameters,
          self.reference_state, self.role_meta, self._role_uids) = self._undo.pop()
         self._rebuild_addr_map()
@@ -611,6 +611,11 @@ def render_summary(builder: RecipeBuilder) -> str:
     return "\n".join(out)
 
 
+# Takes back the last operation. Not "undo": typing undo at any prompt rewinds
+# the whole session (utils.session_rewind) before this loop sees it.
+DROP = "drop"
+
+
 def apply_command(builder: RecipeBuilder, tokens: List[str]) -> str:
     verb = tokens[0].lower()
 
@@ -662,7 +667,7 @@ def apply_command(builder: RecipeBuilder, tokens: List[str]) -> str:
         need(4, "vary <op#> <val1,val2,...> <NEWNAME>")
         return builder.vary_name(int(tokens[1]), [v for v in tokens[2].split(",") if v],
                                  tokens[3])
-    if verb == "undo":
+    if verb == DROP:
         return builder.undo()
     raise RecipeError(f"Unknown command '{verb}'. Type 'help'.")
 
@@ -683,7 +688,7 @@ Commands (one operation at a time; the table redraws after each):
   vary        <op#> <val1,...> <NEWNAME>                give a rename a per-state name
   lib         [<chain> <resid>]                         atom names the linked library expects;
                                                         with a residue: what matches, what does not
-  undo | show | summary | save | quit
+  drop (take back the last operation) | show | summary | save | quit
 
 New names are written exactly as you type them -- case is preserved, because
 tLEaP unit and atom names are case-sensitive (a lib whose unit is 'gdp' will

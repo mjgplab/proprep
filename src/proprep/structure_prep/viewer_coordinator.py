@@ -40,7 +40,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +145,7 @@ class ViewerCoordinator:
 
     def show_structures(
         self, file_paths, *, force: bool = False,
+        set_aside: Optional[Dict[int, Dict[str, str]]] = None,
     ) -> None:
         """Display multiple structures overlaid in the viewer.
 
@@ -158,6 +159,11 @@ class ViewerCoordinator:
         (mirrors ``show_structure``'s force flag for explicit user-
         initiated views). Empty list is a no-op rather than a clear —
         use ``clear_annotations`` for that.
+
+        ``set_aside`` maps a structure index to ``{"selection", "label"}``:
+        those atoms leave that structure's default representations and get a
+        representation of their own, hidden until the user turns it on (the
+        crystal copy of a ligand shown on top of it from another file).
         """
         if not file_paths:
             return
@@ -165,7 +171,7 @@ class ViewerCoordinator:
         if not paths:
             return
         with self._lock:
-            self._safely(lambda: self._show_structures_impl(paths, force=force))
+            self._safely(lambda: self._show_structures_impl(paths, force=force, set_aside=set_aside))
 
     def show_trajectory(
         self, structure_path: str, trajectory_path: str, *,
@@ -194,9 +200,15 @@ class ViewerCoordinator:
         v.shape_config = {}
         v.trajectory_files = {0: trajectory_path}
         if self.is_running() or _is_web_shell_mode() or force:
-            v._launch_viewer(open_browser=force)
+            v._launch_viewer(open_browser=force and not self._page_is_open())
             logger.debug("ViewerCoordinator: showing %s with trajectory %s",
                          structure_path, trajectory_path)
+
+    def current_structures(self) -> List[str]:
+        """The structure files the viewer was last asked to show (empty when none)."""
+        with self._lock:
+            viewer = getattr(self, "_viewer", None)
+            return [str(p) for p in getattr(viewer, "selected_structures", None) or []]
 
     def refresh_structure(self) -> None:
         """Re-read the current structure file from disk.
@@ -237,6 +249,8 @@ class ViewerCoordinator:
         opacity: Optional[float] = None,
         scale: Optional[float] = None,
         display_label: Optional[str] = None,
+        multiple_bond: bool = False,
+        structure_index: int = 0,
     ) -> None:
         """Add an annotation overlay to the currently shown structure.
 
@@ -258,6 +272,12 @@ class ViewerCoordinator:
         atom size; the pick marker uses a fixed radius instead. Combine with a
         hex ``color`` for a coloured halo. ``opacity`` and ``scale`` override
         the style's defaults if supplied.
+
+        ``multiple_bond=True`` draws double, triple and aromatic bonds as such
+        (ball+stick and licorice), from the bond orders of an SDF/mol2 file.
+        ``structure_index`` picks which of the shown structures the overlay
+        applies to (0, the first, by default; a docked ligand shown with
+        ``show_structures`` is a later index).
         """
         if not selection:
             return
@@ -265,8 +285,48 @@ class ViewerCoordinator:
             self._safely(lambda: self._highlight_impl(
                 selection, style=style, color=color, label=label,
                 focused=focused, force=force, opacity=opacity, scale=scale,
-                display_label=display_label,
+                display_label=display_label, multiple_bond=multiple_bond,
+                structure_index=structure_index,
             ))
+
+    def replace_annotations(self, prefix: str, entries: List[Dict]) -> None:
+        """Replace every annotation whose label starts with ``prefix`` by ``entries``, in one update.
+
+        Each entry is a dict of ``highlight`` arguments (``selection``,
+        ``label``, ``style``, ``color``, ``display_label``, ``text``, ...);
+        its label must start with ``prefix``. A menu that redraws a table's
+        worth of annotations after every change sends them together instead
+        of one browser update per row. ``text`` draws a label on the
+        selection's first atom, shown and hidden with the representation as
+        one row of the viewer's list (``style="tag"`` draws the label alone).
+        """
+        with self._lock:
+            self._safely(lambda: self._replace_annotations_impl(prefix, entries))
+
+    def _replace_annotations_impl(self, prefix: str, entries: List[Dict]) -> None:
+        v = self._ensure_viewer()
+        if not v.selected_structures:
+            return
+        kept = {k: c for k, c in (v.annotation_config or {}).items() if not k.startswith(prefix)}
+        for entry in entries:
+            index = entry.get("structure_index", 0)
+            cfg = {
+                "count": 1,
+                "ngl_selection": entry["selection"],
+                "colors_per_structure": {index: _resolve_color(entry.get("color", "element"))},
+                "style": entry.get("style", "ball+stick"),
+                "priority": "HIGH",
+                "structure_indices": [index],
+            }
+            for key in ("display_label", "text", "opacity", "scale"):
+                if entry.get(key) is not None:
+                    cfg["label" if key == "display_label" else key] = entry[key]
+            if entry.get("multiple_bond"):
+                cfg["multiple_bond"] = True
+            kept[entry["label"]] = cfg
+        v.annotation_config = kept
+        if self.is_running():
+            self._push(v)
 
     def set_opacity(self, target: str, opacity: float, *, force: bool = False) -> None:
         """Make one of the default representations translucent.
@@ -322,6 +382,86 @@ class ViewerCoordinator:
                 coords, radius=radius, label=label,
                 color=color, opacity=opacity, force=force,
             ))
+
+    def show_box(
+        self,
+        center,
+        size=None,
+        *,
+        label: str,
+        color: str = "auto",
+        force: bool = False,
+    ) -> None:
+        """Draw an axis-aligned box (a docking search box) as twelve solid edges.
+
+        ``center`` and ``size`` are (x, y, z) in Angstrom, ``size`` the edge
+        lengths. ``color="auto"`` lets the page choose by background: aqua
+        #40ffc8 on dark and black, purple #6a0572 on white, each above 7:1
+        contrast. ``center=None`` removes the box with this ``label``.
+        """
+        if center is None:
+            self.unhighlight(label)
+            return
+        with self._lock:
+            self._safely(lambda: self._show_box_impl(center, size, label=label, color=color, force=force))
+
+    def _show_box_impl(self, center, size, *, label: str, color: str, force: bool) -> None:
+        v = self._ensure_viewer()
+        if not v.selected_structures:
+            logger.debug("ViewerCoordinator.show_box: no structure shown yet — ignoring")
+            return
+        v.shape_config = dict(v.shape_config or {})
+        v.shape_config[label] = {
+            "type": "box",
+            "center": [float(x) for x in center],
+            "size": [float(x) for x in size],
+            "color": color if color == "auto" else _resolve_color(color),
+        }
+        if self.is_running():
+            self._push(v)
+        elif _is_web_shell_mode() or force:
+            v._launch_viewer()
+
+    def pick(self, kind: str, prompt: str, *, structure_index: Optional[int] = None,
+             timeout: float = 300.0) -> Optional[dict]:
+        """Let the user click an atom or a bond in the open viewer, and return what was clicked.
+
+        ``kind`` is "atom" or "bond". The page shows ``prompt`` in a banner with a
+        Cancel button (Escape also cancels); ``structure_index`` restricts the pick
+        to one shown structure. Returns the page's record -- for an atom
+        ``{"structure", "atom": {"index", "name", "resname", "resno", "chain", "inscode"}}``,
+        for a bond the same with ``"atom1"`` and ``"atom2"`` -- or None when no viewer
+        is open, the user cancelled (in the page, or Ctrl-C here), or ``timeout``
+        seconds passed. Picking is always optional: callers offer typed input too.
+        """
+        from proprep.structure_prep import interactive_structure_viewer as isv
+        server = getattr(isv, "_active_viewer_server", None)
+        if server is None or not self.is_running():
+            return None
+        with self._lock:
+            token = server.request_pick(kind, prompt, structure_index)
+        try:
+            result = server.wait_for_pick(token, timeout)
+        except KeyboardInterrupt:
+            server.clear_pick_request()
+            return None
+        if not result or result.get("cancelled"):
+            return None
+        return result
+
+    def show_axes(self, on: bool = True, *, force: bool = False) -> None:
+        """Draw (or remove) the X, Y and Z axes of the coordinate frame.
+
+        The viewer draws them from the origin as labelled arrows reaching
+        just past the structure, the same thing its "Axes" button toggles.
+        NGL frames every structure the same way whatever its coordinates,
+        so without the frame a rotated structure looks like the original;
+        the Structure Orientation module asks for the axes before and after
+        it aligns a structure. The request survives annotation refreshes
+        and is dropped with the structure, like a highlight.
+        """
+        with self._lock:
+            self._safely(lambda: self._show_axes_impl(bool(on), force=force))
 
     def show_bonds(
         self,
@@ -379,6 +519,36 @@ class ViewerCoordinator:
         with self._lock:
             self._safely(lambda: self._unhighlight_impl(label))
 
+    def _owns_live_server(self, v) -> bool:
+        """Whether the running viewer server is the one ``v`` started.
+
+        Another viewer object can start it: the main menu's Structure Viewer
+        module is its own InteractiveStructureViewer. Updates sent to ``v``'s
+        server then reached nothing, and the coordinator, seeing a server
+        running and its structure unchanged, did nothing either: after the
+        Structure Viewer was opened, no module's highlights or views appeared.
+        """
+        from proprep.structure_prep import interactive_structure_viewer as isv
+        live = getattr(isv, "_active_viewer_server", None)
+        return live is not None and getattr(v, "server", None) is live
+
+    def _push(self, v) -> None:
+        """Send ``v``'s state to the running viewer, taking the server over if another object started it.
+
+        Taking over is a relaunch on the same port (see _launch_viewer), so an
+        open tab reloads itself with ``v``'s structures and annotations; no tab
+        is opened.
+        """
+        if self._owns_live_server(v):
+            v.update_annotations()
+        else:
+            v._launch_viewer(open_browser=False)
+
+    def _page_is_open(self) -> bool:
+        """Whether a browser tab is showing the viewer (it polled the server just now)."""
+        from proprep.structure_prep.viewer_server import ViewerServer
+        return ViewerServer.page_open()
+
     def is_running(self) -> bool:
         """True if a viewer server is currently up (regardless of who started it)."""
         from proprep.structure_prep import interactive_structure_viewer as ivm
@@ -420,33 +590,38 @@ class ViewerCoordinator:
         return self._viewer
 
     def _show_structures_impl(
-        self, file_paths, *, force: bool,
+        self, file_paths, *, force: bool, set_aside=None,
     ) -> None:
         v = self._ensure_viewer()
-        same = (list(v.selected_structures) == list(file_paths))
+        wanted_config = {'set_aside': dict(set_aside)} if set_aside else {}
+        same = (list(v.selected_structures) == list(file_paths)
+                and (v.viewer_config or {}) == wanted_config)
         running = self.is_running()
 
-        if same and running:
-            if force:
-                # Explicit user-initiated view: relaunch to guarantee a live
-                # tab even when the structure list is unchanged (see the
+        if same and running and self._owns_live_server(v):
+            if force and not self._page_is_open():
+                # Explicit user-initiated view and no tab is showing the
+                # viewer: relaunch to give the user a live tab (see the
                 # matching note in _show_structure_impl).
                 v._launch_viewer(open_browser=True)
             return
 
-        v.selected_structures = list(file_paths)
-        # New structure list — annotations / shapes are stale.
-        v.annotation_config = {}
-        v.viewer_config = {}
-        v.shape_config = {}
-        v.trajectory_files = {}
+        if not same:
+            v.selected_structures = list(file_paths)
+            # New structure list — annotations / shapes are stale.
+            v.annotation_config = {}
+            v.viewer_config = wanted_config
+            v.shape_config = {}
+            v.trajectory_files = {}
+        # (Same list on a server another viewer object started: take it over
+        # below, keeping this viewer's annotations.)
 
         if running:
             # Relaunch only to swap the structure list. Open a fresh browser
             # tab solely when this swap was an explicit user view request
             # (force=True); a passive workflow waypoint reuses the existing
             # tab, which re-sources itself from the reused port.
-            v._launch_viewer(open_browser=force)
+            v._launch_viewer(open_browser=force and not self._page_is_open())
             logger.debug(
                 "ViewerCoordinator: swapped to overlay of %d structures", len(file_paths)
             )
@@ -465,24 +640,26 @@ class ViewerCoordinator:
         same_structure = (v.selected_structures == [file_path])
         running = self.is_running()
 
-        if same_structure and running:
-            if force:
+        if same_structure and running and self._owns_live_server(v):
+            if force and not self._page_is_open():
                 # Explicit user-initiated view (e.g. the checklist "view
-                # structure" command). The structure is unchanged, but the
-                # user may have closed the browser tab -- or is_running() may
-                # be reporting a stale/dead server -- so relaunch to guarantee
-                # a live tab instead of silently no-op'ing.
+                # structure" command) and no tab is showing the viewer (the
+                # user closed it): relaunch to give them a live tab. With a
+                # tab open there is nothing to do.
                 v._launch_viewer(open_browser=True)
             return  # already showing it; nothing to swap
 
-        v.selected_structures = [file_path]
-        # New structure means coordinator-managed annotations / shapes /
-        # focused-mode flags are stale — caller must re-issue any
-        # highlights / spheres.
-        v.annotation_config = {}
-        v.viewer_config = {}
-        v.shape_config = {}
-        v.trajectory_files = {}
+        if not same_structure:
+            v.selected_structures = [file_path]
+            # New structure means coordinator-managed annotations / shapes /
+            # focused-mode flags are stale — caller must re-issue any
+            # highlights / spheres.
+            v.annotation_config = {}
+            v.viewer_config = {}
+            v.shape_config = {}
+            v.trajectory_files = {}
+        # (Same structure on a server another viewer object started: take it
+        # over below, keeping this viewer's annotations.)
 
         if running:
             # Different structure on a live viewer — relaunch is the only
@@ -494,7 +671,9 @@ class ViewerCoordinator:
             # browser tab only for an explicit user view request (force=True);
             # a passive waypoint reuses the existing tab, which re-sources
             # itself from the reused port via app.js's cache-buster.
-            v._launch_viewer(open_browser=force)
+            # An open tab reloads itself on the new server instance, so a new
+            # tab is opened only when none is showing the viewer.
+            v._launch_viewer(open_browser=force and not self._page_is_open())
             logger.debug("ViewerCoordinator: swapped structure to %s", file_path)
             return
 
@@ -524,6 +703,8 @@ class ViewerCoordinator:
         opacity: Optional[float] = None,
         scale: Optional[float] = None,
         display_label: Optional[str] = None,
+        multiple_bond: bool = False,
+        structure_index: int = 0,
     ) -> None:
         v = self._ensure_viewer()
         if not v.selected_structures:
@@ -536,11 +717,13 @@ class ViewerCoordinator:
         cfg = {
             "count": 1,
             "ngl_selection": selection,
-            "colors_per_structure": {0: resolved_color},
+            "colors_per_structure": {structure_index: resolved_color},
             "style": style,
             "priority": "HIGH",
-            "structure_indices": [0],
+            "structure_indices": [structure_index],
         }
+        if multiple_bond:
+            cfg["multiple_bond"] = True
         if opacity is not None:
             cfg["opacity"] = opacity
         if scale is not None:
@@ -562,7 +745,7 @@ class ViewerCoordinator:
             })
 
         if self.is_running():
-            v.update_annotations()
+            self._push(v)
         elif _is_web_shell_mode() or force:
             v._launch_viewer()
         # else: CLI silent — annotation persists in coordinator state and
@@ -592,7 +775,7 @@ class ViewerCoordinator:
         v.viewer_config["rep_opacity"] = rep_opacity
 
         if self.is_running():
-            v.update_annotations()
+            self._push(v)
         elif _is_web_shell_mode() or force:
             v._launch_viewer()
 
@@ -621,7 +804,19 @@ class ViewerCoordinator:
         }
 
         if self.is_running():
-            v.update_annotations()
+            self._push(v)
+        elif _is_web_shell_mode() or force:
+            v._launch_viewer()
+
+    def _show_axes_impl(self, on: bool, *, force: bool) -> None:
+        v = self._ensure_viewer()
+        if not v.selected_structures:
+            logger.debug("ViewerCoordinator.show_axes: no structure shown yet — ignoring")
+            return
+        v.viewer_config = dict(v.viewer_config or {})
+        v.viewer_config["axes"] = on
+        if self.is_running():
+            self._push(v)
         elif _is_web_shell_mode() or force:
             v._launch_viewer()
 
@@ -653,7 +848,7 @@ class ViewerCoordinator:
         }
 
         if self.is_running():
-            v.update_annotations()
+            self._push(v)
         elif _is_web_shell_mode() or force:
             v._launch_viewer()
 
@@ -669,7 +864,7 @@ class ViewerCoordinator:
         v.viewer_config["focused_mode"] = True
         v.viewer_config["focus_selection"] = selection
         if self.is_running():
-            v.update_annotations()
+            self._push(v)
         elif _is_web_shell_mode():
             v._launch_viewer()
 
@@ -678,7 +873,7 @@ class ViewerCoordinator:
         v.annotation_config = {}
         v.shape_config = {}
         if self.is_running():
-            v.update_annotations()
+            self._push(v)
 
     def _unhighlight_impl(self, label: str) -> None:
         v = self._ensure_viewer()
@@ -697,7 +892,7 @@ class ViewerCoordinator:
             }
             changed = True
         if changed and self.is_running():
-            v.update_annotations()
+            self._push(v)
 
     def _safely(self, fn) -> None:
         """Run ``fn`` and swallow exceptions at DEBUG level.

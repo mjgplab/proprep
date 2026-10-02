@@ -116,14 +116,27 @@ class StructureAlignmentModule(ProcessingModule):
 
     def initialize(self):
         """Initialize module resources"""
+        self.alignment_mode = None
+        self.save_intermediates = False
+        self._reset_run_state()
+
+    def _reset_run_state(self):
+        """Forget everything that belongs to one alignment run.
+
+        The module instance lives for the whole ProPrep session, and both
+        interactive entry points must start from a clean slate. In particular
+        ``hetatm_to_add`` and ``final_transformation_matrices`` are keyed by
+        the position of a structure in ``self.structures``; carried over into
+        a later run they name whatever structure now sits at that position.
+        A second redox-site alignment in one session used to re-add the first
+        run's ions and waters, and it put them into the new run's reference.
+        """
         self.structures = []  # List of (filename, structure) tuples
         self.aligned_structures = {}  # Dict mapping index to aligned structure
         self.alignment_results = []  # List of alignment RMSD results
         self.reference_idx = None
-        self.alignment_mode = None
         self.residue_mappings = []
-        self.save_intermediates = False
-        self.hetatm_to_add = []  # List of (ref_residue, target_idx_list) for HETATMs to add after alignment
+        self.hetatm_to_add = []  # List of (ref_residue, ref_spec, target_idx_list) for HETATMs to add after alignment
         self.final_transformation_matrices = {}  # Dict mapping target_idx to final transformation matrix
 
     def set_processor(self, processor):
@@ -294,6 +307,7 @@ class StructureAlignmentModule(ProcessingModule):
 
     def _align_structures_interactive(self, workspace: Dict[str, Any] = None) -> Dict[str, Any]:
         """Interactive structure alignment workflow"""
+        self._reset_run_state()
         if workspace is None:
             workspace = self.processor._get_workspace()
 
@@ -452,6 +466,7 @@ class StructureAlignmentModule(ProcessingModule):
 
     def _align_on_redox_sites_interactive(self, workspace: Dict[str, Any] = None) -> Dict[str, Any]:
         """Align structures using redox site residues"""
+        self._reset_run_state()
         if workspace is None:
             workspace = self.processor._get_workspace()
 
@@ -2983,7 +2998,4 @@ class StructureAlignmentModule(ProcessingModule):
 
     def cleanup(self):
         """Clean up module resources"""
-        self.structures = []
-        self.aligned_structures = {}
-        self.alignment_results = []
-        self.residue_mappings = []
+        self._reset_run_state()

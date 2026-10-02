@@ -58,6 +58,7 @@ class SettingsManager:
             "menu_layout": "list",
             "github_token": None,
             "github_repo": None,
+            "check_for_updates": True,
             "last_updated": datetime.now().isoformat()
         }
 
@@ -173,4 +174,17 @@ class SettingsManager:
             repo: Repository in format "owner/repo" (e.g., "mjgp/proprep")
         """
         self._settings["github_repo"] = repo
+        self._save_settings()
+
+    def get_update_check_enabled(self) -> bool:
+        """Whether ProPrep checks GitHub for a newer release at startup.
+
+        On unless the user turned it off. Only copies built by the mjgplab
+        conda recipe check at all (proprep.utils.update_check.is_our_build).
+        """
+        return self._settings.get("check_for_updates", True) is not False
+
+    def set_update_check_enabled(self, enabled: bool):
+        """Turn the startup check for a newer release on or off."""
+        self._settings["check_for_updates"] = bool(enabled)
         self._save_settings()

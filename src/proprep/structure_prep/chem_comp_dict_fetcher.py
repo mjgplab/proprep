@@ -85,6 +85,15 @@ class CCDParser:
         except Exception as e:
             return {"error": f"Processing error: {str(e)}"}
     
+    def get_component_block(self, residue_name: str) -> Optional[str]:
+        """Return one component's mmCIF data block as text, or None if the CCD has no such code.
+
+        Reads the same cached components.cif.gz as get_residue_data; network
+        errors propagate to the caller.
+        """
+        content = self._download_file(self.CCD_MAIN_URL, "components.cif.gz")
+        return self._extract_residue_block(content, residue_name.upper())
+
     def _extract_residue_block(self, content: str, residue_name: str) -> Optional[str]:
         """Extract the data block for a specific residue."""
         pattern = rf"data_{residue_name}\s+"

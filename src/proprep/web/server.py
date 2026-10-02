@@ -396,7 +396,7 @@ async def ws_term(ws: WebSocket) -> None:
 # iframe shares the parent's origin (we proxy here), the page's relative
 # fetch('/config') etc. land on these routes and we forward them to the
 # seat's announced viewer port.
-_VIEWER_PROXY_BASE_PATHS = ("/viewer", "/config", "/version", "/structure", "/scene")
+_VIEWER_PROXY_BASE_PATHS = ("/viewer", "/config", "/version", "/structure", "/scene", "/pick")
 
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
@@ -577,12 +577,22 @@ async def proxy_viewer_structure(rest: str, request: Request) -> Response:
 async def proxy_viewer_scene(request: Request) -> Response:
     """Forward the page's scene POST to the seat's viewer (the GET proxy
     above streams; this is a small JSON body, sent whole)."""
+    return await _forward_viewer_post(request, "/scene")
+
+
+@app.post("/pick")
+async def proxy_viewer_pick(request: Request) -> Response:
+    """Forward the atom or bond the user clicked for a command-line pick request."""
+    return await _forward_viewer_post(request, "/pick")
+
+
+async def _forward_viewer_post(request: Request, path: str) -> Response:
     seat = _resolve_seat(request)
     if seat is None:
         return _forbidden()
     if seat.viewer_port is None or _proxy_client is None:
         return Response("viewer not running", status_code=503, media_type="text/plain")
-    url = f"http://127.0.0.1:{seat.viewer_port}/scene"
+    url = f"http://127.0.0.1:{seat.viewer_port}{path}"
     body = await request.body()
     try:
         upstream = await _proxy_client.post(

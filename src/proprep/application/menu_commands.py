@@ -282,6 +282,7 @@ class StructurePreparationMenuCommand(MenuCommand):
             "Topology Generator",
             "Molecular Dynamics Manager",
             "QM/MM Preparator",
+            "Molecular Docking",
             # Utility modules moved to end
             "Force Field Parameterizer",
             "Structure Viewer",
@@ -689,6 +690,7 @@ class MainMenuCommand(MenuCommand):
                 "Topology Generator",
                 "Molecular Dynamics Manager",
                 "QM/MM Preparator",
+                "Molecular Docking",
             ]),
         ]
         # Plugin-contributed sections — one per plugin stage, with
@@ -1097,7 +1099,7 @@ class WorkflowMenuCommand(MenuCommand):
         },
         "simulate": {
             "section": "5. SIMULATION SETUP & EXECUTION",
-            "tools": ["Topology Generator", "Molecular Dynamics Manager", "QM/MM Preparator"]
+            "tools": ["Topology Generator", "Molecular Dynamics Manager", "QM/MM Preparator", "Molecular Docking"]
         },
     }
 
@@ -1723,13 +1725,25 @@ class PreferencesMenuCommand(MenuCommand):
                 "change_menu_layout"
             ),
             "3": (f"Configure GitHub feedback (currently: {github_status})", "configure_github"),
-            "4": ("Reset all preferences to defaults", "reset_preferences"),
-            "5": ("Back to main menu", None),
+            "4": ("Check for new ProPrep releases at startup", "toggle_update_check"),
+            "5": ("Reset all preferences to defaults", "reset_preferences"),
+            "6": ("Back to main menu", None),
         }
+
+        # State goes on the printed line only: the label is what session replay
+        # matches, so it stays constant.
+        from proprep.utils.update_check import is_our_build
+        if not is_our_build():
+            update_status = "not available in this copy"
+        elif settings_mgr.get_update_check_enabled():
+            update_status = "on"
+        else:
+            update_status = "off"
+        status = {"4": f" (currently: {update_status})"}
 
         # Display options
         for key, (description, _) in self.options.items():
-            self.console.print(f"{key}. {description}")
+            self.console.print(f"{key}. {description}{status.get(key, '')}")
 
     def _get_user_choice(self) -> str:
         """Get user menu choice."""
@@ -1763,6 +1777,8 @@ class PreferencesMenuCommand(MenuCommand):
                 self._change_menu_layout()
             elif action == "configure_github":
                 self._configure_github()
+            elif action == "toggle_update_check":
+                self._toggle_update_check()
             elif action == "reset_preferences":
                 self._reset_preferences()
         except Exception as e:
@@ -1837,6 +1853,45 @@ class PreferencesMenuCommand(MenuCommand):
             self.console.print(f"[green]✓ Full-menu layout set to: {new_layout}[/green]")
         else:
             self.console.print("[grey50]Layout unchanged[/grey50]")
+
+    def _toggle_update_check(self):
+        """Turn the startup check for a newer release on or off."""
+        from proprep.utils.settings_manager import SettingsManager
+        from proprep.utils.update_check import is_our_build
+
+        if not is_our_build():
+            self.console.print(
+                "This copy of ProPrep was not installed from the mjgplab conda channel or a "
+                "ProPrep installer (it came with AmberTools, or runs from source), so it never "
+                "checks ProPrep's GitHub releases. AmberTools users get ProPrep updates with "
+                "AmberTools.", highlight=False)
+            return
+
+        settings_mgr = SettingsManager()
+        enabled = settings_mgr.get_update_check_enabled()
+        self.console.print(
+            "\nAt startup ProPrep can ask GitHub (github.com/mjgplab/proprep), at most once a day, "
+            "whether a newer release exists, and print the update command if so. Nothing is "
+            "downloaded or changed, and nothing about you is sent.", highlight=False)
+        self.console.print(f"The check is currently {'on' if enabled else 'off'}.", highlight=False)
+        self.console.print("  1. On")
+        self.console.print("  2. Off")
+
+        choice = prompt_with_context(
+            self.processor,
+            "\nCheck for new releases at startup",
+            choices=["1", "2"],
+            default="1" if enabled else "2",
+            module="Preferences",
+            description="Turn the startup check for new releases on or off",
+            options_map={"1": "On", "2": "Off"}
+        )
+        new_enabled = choice == "1"
+        if new_enabled != enabled:
+            settings_mgr.set_update_check_enabled(new_enabled)
+            self.console.print(f"[green]✓ Startup check for new releases turned {'on' if new_enabled else 'off'}[/green]")
+        else:
+            self.console.print("[grey50]Setting unchanged[/grey50]")
 
     def _configure_github(self):
         """Configure GitHub integration for feedback submission."""

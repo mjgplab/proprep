@@ -47,6 +47,7 @@ MODULES_TO_IMPORT = [
     "proprep.membrane_prep.membrane_builder",
     # ── Simulation setup ──
     "proprep.md_prep.molecular_dynamics_manager",
+    "proprep.docking_prep.docking_module",
     # ── QM/MM ──
     "proprep.oniom_prep.oniom_qmmm_preparator",
     "proprep.orca_prep.orca_qmmm_preparator",
@@ -416,6 +417,7 @@ _ABBREV = {
     "Membrane Builder": "MEM",
     "Metal Site Parameterizer": "MSP",
     "Modified Amino Acid Parameterizer": "MAP",
+    "Molecular Docking": "DCK",
     "Molecular Dynamics Manager": "MDM",
     "ONIOM QM/MM Preparator": "ONI",
     "ORCA QM/MM Preparator": "ORC",
@@ -514,6 +516,7 @@ _FILE_LABELS = {
     "metal_site_parameterizer": "Metal Site Parameterizer",
     "tleap_input_generator": "Topology Generator",
     "membrane_builder": "Membrane Builder",
+    "docking_module": "Molecular Docking",
     "structure_completeness": "Structure Fixer",
     "sequence_input": "EMBOSS Analysis",
     # Collapse filename-derived labels onto the component's registered NAME,

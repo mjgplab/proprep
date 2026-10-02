@@ -118,3 +118,24 @@ def test_prime_to_asterisk_sweep_matches_the_ff94_library():
     for op in builder.operations:
         mappings.update(op["action"].get("rename_atoms", {}))
     assert mappings == {n: n[:-1] + "*" for n in PRIMED}
+
+
+# --------------------------------------------------------------------------
+# taking back an operation
+# --------------------------------------------------------------------------
+
+def test_drop_takes_back_the_last_operation_and_is_not_the_session_rewind_word():
+    """'undo' at any prompt rewinds the whole session (utils.session_rewind) before the
+    editor sees it, so its own 'undo' command could never run. It is 'drop'."""
+    from proprep.redoxsite_prep.transformation import table_transformer_creator as ttc
+    from proprep.utils.session_rewind import is_rewind_keyword
+    assert not is_rewind_keyword(ttc.DROP)
+    assert "drop (take back the last operation)" in ttc._HELP and "undo" not in ttc._HELP
+    builder = _builder("")
+    apply_command(builder, ["rename_atom", "A", "302", "O5'", "O5*"])
+    assert apply_command(builder, ["drop"]) == "Reverted last operation."
+    assert "O5'" in {a.name for a in builder.structure.atoms}
+    with pytest.raises(RecipeError, match="Nothing to drop"):
+        apply_command(builder, ["drop"])
+    with pytest.raises(RecipeError, match="Unknown command 'undo'"):
+        apply_command(builder, ["undo"])

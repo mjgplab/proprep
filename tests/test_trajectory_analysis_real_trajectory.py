@@ -163,7 +163,6 @@ def test_dssp_comes_from_the_cpptraj_program_never_from_pytraj(analyzer, referen
     cpptraj executable runs the same algorithm: 40 of 40 clean, identical codes.
     cpptraj sees a stripped copy numbered from 1, so labels must come from the
     real topology, and a partial selection is assigned with its partners present."""
-    real_dssp = pt.dssp
     monkeypatch.setattr(pt, "dssp", lambda *a, **k: pytest.fail("pt.dssp must not run in the ProPrep process"))
 
     part = analyzer.calculate_dssp(":3-8", label="part")
@@ -172,8 +171,42 @@ def test_dssp_comes_from_the_cpptraj_program_never_from_pytraj(analyzer, referen
     whole = analyzer.calculate_dssp("*", label="whole")
     assert whole["per_residue"].shape == (reference.n_frames, 12)
     assert np.array_equal(part["per_residue"], whole["per_residue"][:, 2:8])       # same residues, same answer
-    # the same codes pytraj gives (it is safe to ask it here: macOS never showed the fault, and this is a test process)
-    assert np.array_equal(whole["per_residue"], real_dssp(reference, mask=f":{PROTEIN}")[1])
+    # the same codes pytraj gives, asked in a separate process: pt.dssp's heap corruption on
+    # linux-64 is not confined to ProPrep, it crashed later tests in this pytest process too
+    assert np.array_equal(whole["per_residue"], _pytraj_dssp_out_of_process(f":{PROTEIN}"))
+
+
+def _pytraj_dssp_out_of_process(mask):
+    """pt.dssp's per-residue codes for the bundled trajectory, computed in a child process.
+
+    pt.dssp writes past the end of an object in libcpptraj on the linux-64 pytraj
+    of AmberTools 26 (valgrind: Timer::Timer() in Action_DSSP::Action_DSSP()).
+    In the test process that corrupted the heap, and unrelated tests later in
+    the run crashed (a segfault in the cpptraj trajectory test, another at
+    interpreter exit). The child writes its answer and leaves with os._exit,
+    before its own corrupted heap is torn down. The corruption can also kill
+    the child before it has saved anything (seen once on Rocky: 'corrupted
+    size vs. prev_size'), so a crashed child is retried; only a pytraj that
+    never finishes fails the test.
+    """
+    import subprocess
+    import sys
+    import tempfile
+    attempts = []
+    with tempfile.TemporaryDirectory() as folder:
+        out = Path(folder) / "codes.npy"
+        script = (
+            "import os, numpy, pytraj as pt\n"
+            f"traj = pt.iterload({NC!r}, top={TOP!r})\n"
+            f"numpy.save({str(out)!r}, numpy.asarray(pt.dssp(traj, mask={mask!r})[1]))\n"
+            "os._exit(0)\n"
+        )
+        for _ in range(5):
+            run = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
+            if out.exists():
+                return np.load(out, allow_pickle=True)
+            attempts.append(f"exit {run.returncode}: {run.stderr.strip()[-300:]}")
+        pytest.fail("pt.dssp crashed in all 5 child processes: " + "; ".join(attempts))
 
 
 def test_dssp_reports_a_cpptraj_failure(analyzer, monkeypatch):

@@ -22,7 +22,7 @@
 
 # Version of ProPrep to install/verify. Bump this ONE line each release;
 # every install command and the post-install check below read from it.
-PROPREP_VERSION="1.22.0"
+PROPREP_VERSION="1.23.0"
 
 show_help() {
 cat << HELPTEXT
@@ -64,14 +64,14 @@ Manual Install
 3. Create Environment and Install
 
        conda create --name ProPrep python=3.12 -y
-       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep=${PROPREP_VERSION} -y
+       conda install -n ProPrep -c mjgplab -c dacase -c conda-forge -c salilab -c bioconda proprep=${PROPREP_VERSION} -y
        conda run -n ProPrep pip install tmtools
 
    AmberTools bundles an older proprep into the same site-packages, so
    force-reinstall to make the standalone version win, then drop the stale
    versioned egg-info that would otherwise shadow the reported version:
 
-       conda install -n ProPrep -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge proprep=${PROPREP_VERSION} --force-reinstall -y
+       conda install -n ProPrep -c mjgplab -c dacase -c conda-forge -c salilab -c bioconda proprep=${PROPREP_VERSION} --force-reinstall -y
        find "\$(conda info --base)/envs/ProPrep"/lib/python*/site-packages -maxdepth 1 -name 'proprep-[0-9]*.egg-info' -exec rm -rf {} +
 
 Usage
@@ -141,6 +141,11 @@ fi
 ENV_NAME="ProPrep"
 PYTHON_VERSION="3.12"
 
+# Channel order everywhere in this script: conda-forge BEFORE salilab and
+# bioconda. Under strict channel priority (Miniforge's default) a package a
+# higher channel carries must come from it, and salilab's old fftw and
+# bioconda's 2015-2016 RDKit builds (Linux) cannot satisfy AmberTools 26.
+# salilab and bioconda are only there for MODELLER and reduce.
 # AmberTools (dacase::ambertools-dac) vendors an OLD proprep and installs it
 # into the SAME site-packages/proprep as this standalone package. Two conda
 # packages owning identical paths is a clobber: which file wins is
@@ -154,12 +159,16 @@ pin_proprep() {
     local env="$1"
     echo ""
     echo "Making standalone ProPrep authoritative over the AmberTools-bundled copy..."
-    conda install -n "$env" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge \
+    conda install -n "$env" -c mjgplab -c dacase -c conda-forge -c salilab -c bioconda \
         "proprep=${PROPREP_VERSION}" --force-reinstall -y
     local prefix
     prefix=$(conda env list | awk -v e="$env" '$1==e {print $NF}')
     if [ -n "$prefix" ] && [ -d "$prefix" ]; then
         rm -rf "$prefix"/lib/python*/site-packages/proprep-[0-9]*.egg-info
+        # Files only the bundled copy had (old workflows, templates, parameters)
+        # survive the force-reinstall; remove what ProPrep's package does not own.
+        "$prefix/bin/python" -m proprep.utils.bundled_copy \
+            || echo "WARNING: could not check for files left by the AmberTools-bundled ProPrep." >&2
     fi
 }
 
@@ -239,7 +248,7 @@ if conda env list | grep -q "^${ENV_NAME} "; then
     if [[ "$install_choice" == "1" ]]; then
         echo ""
         echo "Updating ProPrep..."
-        conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge "proprep=${PROPREP_VERSION}" -y
+        conda install -n "$ENV_NAME" -c mjgplab -c dacase -c conda-forge -c salilab -c bioconda "proprep=${PROPREP_VERSION}" -y
         conda run -n "$ENV_NAME" pip install --upgrade tmtools
         pin_proprep "$ENV_NAME"
 
@@ -301,7 +310,7 @@ echo ""
 echo "Installing ProPrep and dependencies..."
 echo "(This may take several minutes)"
 echo ""
-conda install -n "$ENV_NAME" -c mjgplab -c dacase -c salilab -c bioconda -c conda-forge "proprep=${PROPREP_VERSION}" -y
+conda install -n "$ENV_NAME" -c mjgplab -c dacase -c conda-forge -c salilab -c bioconda "proprep=${PROPREP_VERSION}" -y
 
 # Install PyPI-only dependencies
 echo ""

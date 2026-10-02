@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
-from Bio.PDB import Atom, Chain, Model, PDBParser, Residue, Structure
+from Bio.PDB import Atom, Chain, Model, PDBParser, Residue, Select, Structure
 from Bio.PDB.PDBIO import PDBIO
 
 from rich.console import Console
@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)
 
 from proprep.utils.prompts import prompt_with_context, confirm_with_context
+from proprep.structure_prep import altloc_picker
 
 # Optional MODELLER import — suppress C-level error messages from
 # _modeller.mod_start() when the license key is missing or invalid.
@@ -4665,6 +4666,44 @@ class NonStandardMutationApplicator:
 
 from proprep.utils.module_registry import ProcessingModule, register_module
 
+class AltlocSelector(Select):
+    """Keeps one alternate per residue when writing the cleaned structure.
+
+    `fills` names, per residue, the atoms the chosen alternate does not model
+    and the alternate each should come from. Without it, choosing an alternate
+    that covers only part of a residue drops every atom it lacks: that is how a
+    C-terminal leucine lost its backbone N, C and O, leaving tLEaP to rebuild
+    them and close the chain with a 3.8 Angstrom peptide bond.
+    """
+
+    def __init__(self, selections_dict, fills=None):
+        self.selections = selections_dict
+        self.fills = fills or {}
+
+    def accept_atom(self, atom):
+        residue = atom.get_parent()
+        chain = residue.get_parent()
+        key = (chain.id, residue.id[1])
+        if key not in self.selections:
+            return True  # residue has no alternates
+
+        selected_altloc = self.selections[key]
+        atom_altloc = atom.altloc.strip() if hasattr(atom, "altloc") else ""
+
+        if atom_altloc:
+            # Keep the chosen alternate, and keep an atom it does not model
+            # when the fill plan names this alternate as its source.
+            if atom_altloc == selected_altloc:
+                return True
+            return self.fills.get(key, {}).get(atom.get_name()) == atom_altloc
+
+        if hasattr(atom, "is_disordered") and atom.is_disordered():
+            if hasattr(atom, "child_dict"):
+                return selected_altloc in atom.child_dict
+
+        return True  # no altloc: shared across alternates
+
+
 @register_module
 class StructureCompletenessModule(ProcessingModule):
     """
@@ -5221,145 +5260,100 @@ class StructureCompletenessModule(ProcessingModule):
     # ALTERNATE LOCATION HANDLING
     # ========================================================================
 
+    @staticmethod
+    def _clear_altloc_labels(structure: Structure) -> int:
+        """Blank the altloc character on every remaining atom.
+
+        One alternate per residue has been chosen by this point, so no retained
+        atom should still be labelled. Residues the picker never offered are
+        covered too: a lone label with no partner (and a disordered water, which
+        the picker does not ask about) used to survive into the written PDB and
+        leave a letter in column 17.
+        """
+        cleared = 0
+        for atom in structure.get_atoms():
+            if getattr(atom, "altloc", "").strip():
+                atom.altloc = " "
+                cleared += 1
+        return cleared
+
+    @staticmethod
+    def _residue_alternates(residue, chain_id: str, res_name: str) -> "altloc_picker.ResidueAlternates":
+        """Which atoms of a Biopython residue each alternate carries, and at what occupancy."""
+        alternates = altloc_picker.ResidueAlternates(chain_id, residue.id[1], residue.id[2].strip(), res_name)
+        for atom in residue:
+            name = atom.get_name()
+            if hasattr(atom, 'is_disordered') and atom.is_disordered():
+                if hasattr(atom, 'child_dict'):
+                    for altloc_id, alt_atom in atom.child_dict.items():
+                        if altloc_id.strip():
+                            alternates.add(name, altloc_id.strip(), getattr(alt_atom, 'occupancy', None))
+            else:
+                altloc = atom.altloc.strip() if hasattr(atom, 'altloc') else ""
+                if altloc:
+                    alternates.add(name, altloc, getattr(atom, 'occupancy', None))
+        return alternates
+
     def _handle_alternate_locations(self, structure: Structure, workspace: Any, save_to_workspace: bool = True) -> Optional[Structure]:
         """
         Handle alternate locations by prompting user to select which to keep.
         Returns the cleaned structure or None if cancelled.
+
+        The per-residue display, prompt, viewer colours and partial-alternate
+        fills are ``altloc_picker``'s, shared with Molecular Docking.
 
         Args:
             structure: Input structure with alternate locations
             workspace: Workspace object
             save_to_workspace: If True, save cleaned structure to workspace. If False, just return it.
         """
-        import copy
-        from Bio.PDB import Select, PDBIO
+        from Bio.PDB import PDBIO
 
         self.console.print("\n[bold cyan]═══ Alternate Location Selection ═══[/bold cyan]")
         self.console.print("The following residues have alternate locations. Please select which to keep:\n")
 
         # Best-effort live viewer: launches once, refocuses on the current
-        # residue before each prompt. All viewer interactions are wrapped to
-        # ensure a viewer failure never blocks the picker flow.
+        # residue before each prompt. A viewer failure never blocks the picker.
         altloc_viewer = self._setup_altloc_viewer(structure)
 
-        # Collect all alternate locations
         selections = {}  # {(chain_id, res_num): selected_altloc}
+        # {(chain_id, res_num): {atom name: letter}} for atoms the chosen
+        # alternate does not model, taken from the best alternate that does.
+        altloc_fills = {}
 
         for method, chain_results in self.results.get('alternate_locations', {}).items():
             for chain_id, residues in chain_results.items():
                 for res_key, altlocs in residues.items():
-                    # Parse residue info
                     parts = res_key.split('_')
-                    if len(parts) == 2:
-                        res_name, res_num_str = parts
-                        try:
-                            res_num = int(res_num_str)
-                        except ValueError:
-                            continue
-
-                        # Get occupancies
-                        occupancies = {}
-                        for model in structure:
-                            if chain_id in model:
-                                chain = model[chain_id]
-                                for residue in chain:
-                                    if residue.id[1] == res_num:
-                                        for atom in residue:
-                                            if hasattr(atom, 'is_disordered') and atom.is_disordered():
-                                                if hasattr(atom, 'child_dict'):
-                                                    for altloc_id, alt_atom in atom.child_dict.items():
-                                                        if altloc_id.strip():
-                                                            if altloc_id.strip() not in occupancies:
-                                                                occupancies[altloc_id.strip()] = []
-                                                            if hasattr(alt_atom, 'occupancy'):
-                                                                occupancies[altloc_id.strip()].append(alt_atom.occupancy)
-                                            else:
-                                                altloc = atom.altloc.strip() if hasattr(atom, 'altloc') else ""
-                                                if altloc:
-                                                    if altloc not in occupancies:
-                                                        occupancies[altloc] = []
-                                                    if hasattr(atom, 'occupancy'):
-                                                        occupancies[altloc].append(atom.occupancy)
-                                        break
-                                break
-
-                        # Display options. With the live viewer open, print each
-                        # alternate's viewer colour beside its occupancy so the
-                        # red/blue on screen can be read against the numbers.
-                        self.console.print(f"[bold]Chain {chain_id}, {res_name} {res_num}:[/bold]")
-                        sorted_altlocs = sorted(altlocs)
-                        avg_occs: Dict[str, str] = {}
-                        for i, altloc in enumerate(sorted_altlocs, 1):
-                            avg_occ = "?"
-                            if altloc in occupancies and occupancies[altloc]:
-                                avg_occ = f"{sum(occupancies[altloc]) / len(occupancies[altloc]):.2f}"
-                            avg_occs[altloc] = avg_occ
-                            if altloc_viewer is not None:
-                                hex_color, color_name = self._altloc_color(altloc, i - 1)
-                                self.console.print(
-                                    f"  {i}. Alternate {altloc} (occupancy: {avg_occ})  "
-                                    f"[{hex_color}]■ {color_name} in viewer[/{hex_color}]"
-                                )
-                            else:
-                                self.console.print(f"  {i}. Alternate {altloc} (occupancy: {avg_occ})")
-
-                        # Refocus the viewer on the current residue before prompting.
-                        if altloc_viewer is not None:
-                            self._focus_altloc_viewer(
-                                altloc_viewer, chain_id, res_name, res_num, sorted_altlocs,
-                                occupancies=avg_occs,
-                            )
-
-                        # Prompt for selection
-                        choices = [str(i) for i in range(1, len(sorted_altlocs) + 1)]
-                        choice = prompt_with_context(
-                            processor=self.processor,
-                            prompt=f"Select alternate to keep",
-                            choices=choices,
-                            default="1",
-                            module="Structure Completeness - Altloc",
-                            description=f"Select alternate for {res_name} {chain_id}:{res_num}",
-                            options_map={str(i+1): f"Alternate {altloc}" for i, altloc in enumerate(sorted_altlocs)}
-                        )
-                        selected_altloc = sorted_altlocs[int(choice) - 1]
-                        selections[(chain_id, res_num)] = selected_altloc
-                        self.console.print(f"[green]✓ Will keep alternate {selected_altloc}[/green]\n")
+                    if len(parts) != 2:
+                        continue
+                    res_name, res_num_str = parts
+                    try:
+                        res_num = int(res_num_str)
+                    except ValueError:
+                        continue
+                    residue = next((r for model in structure if chain_id in model
+                                    for r in model[chain_id] if r.id[1] == res_num), None)
+                    if residue is None:
+                        continue
+                    # An alternate that covers only part of the residue is not
+                    # a valid stand-alone choice: picking it used to drop every
+                    # atom it lacks, which is how a C-terminal leucine lost its
+                    # backbone. The picker flags it and plans the fill.
+                    alternates = self._residue_alternates(residue, chain_id, res_name)
+                    if not alternates.letters or (chain_id, res_num) in selections:
+                        continue
+                    selected_altloc, plan = altloc_picker.pick(
+                        self.processor, self.console, alternates, altloc_viewer,
+                        module="Structure Completeness - Altloc",
+                    )
+                    selections[(chain_id, res_num)] = selected_altloc
+                    if plan:
+                        altloc_fills[(chain_id, res_num)] = plan
 
         if not selections:
-            self._teardown_altloc_viewer(altloc_viewer)
+            altloc_picker.close_viewer(altloc_viewer)
             return structure
-
-        # Create a custom selector class
-        class AltlocSelector(Select):
-            def __init__(self, selections_dict):
-                self.selections = selections_dict
-
-            def accept_atom(self, atom):
-                residue = atom.get_parent()
-                chain = residue.get_parent()
-                chain_id = chain.id
-                res_num = residue.id[1]
-
-                key = (chain_id, res_num)
-                if key in self.selections:
-                    selected_altloc = self.selections[key]
-
-                    # Get the altloc for this atom
-                    atom_altloc = atom.altloc.strip() if hasattr(atom, 'altloc') else ""
-
-                    # If atom has an altloc, check if it matches the selected one
-                    if atom_altloc:
-                        return atom_altloc == selected_altloc
-
-                    # If disordered but no altloc string, try child_dict
-                    if hasattr(atom, 'is_disordered') and atom.is_disordered():
-                        if hasattr(atom, 'child_dict'):
-                            return selected_altloc in atom.child_dict
-
-                    # No altloc means this atom is shared across all alternates
-                    return True  # Keep atoms with no altloc (shared across alternates)
-
-                return True  # Keep atoms in residues without alternates
 
         # Save cleaned structure
         self.console.print("[cyan]Removing unselected alternate locations...[/cyan]")
@@ -5371,11 +5365,20 @@ class StructureCompletenessModule(ProcessingModule):
 
         io = PDBIO()
         io.set_structure(structure)
-        io.save(tmp_path, AltlocSelector(selections))
+        io.save(tmp_path, AltlocSelector(selections, altloc_fills))
 
         # Re-read the structure to get clean version
         parser = PDBParser(QUIET=True)
         cleaned_structure = parser.get_structure('cleaned', tmp_path)
+
+        # One alternate per residue has been chosen, so nothing should still
+        # carry a label. This also clears labels the picker never asked about.
+        cleared = self._clear_altloc_labels(cleaned_structure)
+        if cleared:
+            self.console.print(
+                f"[grey50]  Cleared {cleared} leftover alternate-location "
+                f"label(s), including any the picker did not ask about[/grey50]"
+            )
 
         # Save to workspace only if requested (i.e., this is the final step)
         if save_to_workspace:
@@ -5396,268 +5399,39 @@ class StructureCompletenessModule(ProcessingModule):
         # Clean up temp file
         os.unlink(tmp_path)
 
-        self._teardown_altloc_viewer(altloc_viewer)
+        altloc_picker.close_viewer(altloc_viewer)
         return cleaned_structure
 
-    # ========================================================================
-    # ALT-LOC LIVE VIEWER (best-effort)
-    # ========================================================================
-
-    # Per-altloc colors used in the 3D viewer, with the name the prompt prints
-    # next to each alternate so the user can tell which occupancy is which.
-    _ALTLOC_PALETTE = {
-        "A": ("#e74c3c", "red"),
-        "B": ("#3498db", "blue"),
-        "C": ("#2ecc71", "green"),
-        "D": ("#f39c12", "orange"),
-        "E": ("#9b59b6", "purple"),
-        "F": ("#1abc9c", "teal"),
-    }
-    _ALTLOC_FALLBACK_PALETTE = [
-        ("#e67e22", "dark orange"), ("#34495e", "slate"),
-        ("#c0392b", "dark red"), ("#16a085", "sea green"),
-    ]
-
-    def _altloc_color(self, alt: str, index: int) -> Tuple[str, str]:
-        """(hex, name) for an altloc letter; letters beyond F cycle the fallback palette."""
-        return self._ALTLOC_PALETTE.get(
-            alt.upper(),
-            self._ALTLOC_FALLBACK_PALETTE[index % len(self._ALTLOC_FALLBACK_PALETTE)],
-        )
-    # Radius (Å) of the environment shell drawn around each alt-loc residue.
-    _ALTLOC_ENV_DISTANCE = 5.0
-
     def _setup_altloc_viewer(self, structure: Structure):
-        """Optionally snapshot the all-altloc structure and route the live
-        viewer through the coordinator.
+        """Ask, then snapshot the all-altloc structure and show it in the live viewer.
 
-        The alt-loc picker auto-runs whenever alternate locations exist; the
-        viewer aid that refocuses on each residue is *useful when wanted*
-        but should not pop a browser tab in CLI mode unless the user has
-        opted in. This method asks before doing anything, so the launch
-        decision stays user-initiated rather than being a side-effect of
-        the picker firing.
-
-        Returns a small dict ``{pdb_path, prev_labels}`` on success (user
-        opted in and the launch succeeded), None when the user declines or
-        any step fails. ``prev_labels`` tracks the per-altloc annotation
-        labels currently on screen so the next focus call can clear them
-        before drawing the new residue's reps. Downstream callers already
-        guard ``_focus_altloc_viewer(...)`` with ``if altloc_viewer is not
-        None``, so returning None silently disables the per-residue refocus
-        without disturbing the picker flow.
+        The picker runs whenever alternate locations exist, so the viewer is
+        asked for rather than opened as a side effect. The structure currently
+        in the coordinator may have been written without altlocs, hence the
+        snapshot that keeps the %A/%B records. Returns ``altloc_picker``'s
+        viewer state, or None when declined or unavailable.
         """
-        # Ask the user before launching. In CLI mode this prevents an
-        # unbidden browser pop; in web-shell mode the iframe is already
-        # there so the prompt is mostly a confirmation. Default=False so
-        # the silent path is easy for users who don't want the aid.
-        if not confirm_with_context(
-            processor=self.processor,
-            prompt="Launch the 3D viewer to help pick alternate locations?",
-            default=False,
-            module="Structure Completeness — Alt-Loc Picker",
-            description="Optionally launch the structure viewer with per-residue refocus to aid alt-loc selection",
-        ):
+        if not altloc_picker.ask_to_open_viewer(self.processor, "Structure Completeness — Alt-Loc Picker"):
             return None
-
-        # Show a fixed 5 Å shell of surrounding residues alongside each
-        # alt-loc residue. Seeing the immediate neighbours (clashes, H-bond
-        # partners, packing) makes it much easier to judge which conformer is
-        # the right one; 5 Å is the tight first-contact shell.
-        env_distance = self._ALTLOC_ENV_DISTANCE
-
         try:
-            from Bio.PDB import PDBIO
-            from Bio.PDB.NeighborSearch import NeighborSearch
             import tempfile
-            from proprep.structure_prep.viewer_coordinator import viewer as _viewer
-
-            # Snapshot the input structure (with all altlocs) to a temp PDB
-            # the viewer's HTTP server can read. The structure currently
-            # in the coordinator may have been written without altlocs,
-            # so we need our own copy that preserves the %A/%B records.
-            tmp = tempfile.NamedTemporaryFile(
-                mode="w", suffix="_altloc_input.pdb", delete=False
-            )
+            tmp = tempfile.NamedTemporaryFile(mode="w", suffix="_altloc_input.pdb", delete=False)
             tmp_path = tmp.name
             tmp.close()
             io = PDBIO()
             io.set_structure(structure)
             io.save(tmp_path)
-
-            # Build a NeighborSearch over the first model's atoms once, so each
-            # per-residue refocus can resolve its environment shell cheaply.
-            # Disordered atoms yield their representative coord, which is fine
-            # for proximity detection. Tolerate failure — the picker and the
-            # residue-only view must still work without the environment shell.
-            neighbor_search = None
-            if env_distance > 0:
-                try:
-                    model = next(iter(structure))
-                    atoms = list(model.get_atoms())
-                    if atoms:
-                        neighbor_search = NeighborSearch(atoms)
-                except Exception as e:
-                    logger.debug(f"Could not build alt-loc neighbor search: {e}")
-
-            # force=True is correct here because the user just explicitly
-            # opted in via the prompt above — this is now a user-initiated
-            # view, not an auto-fired workflow waypoint.
-            _viewer.show_structure(tmp_path, force=True)
-            self.console.print(
-                "[grey50]Live 3D viewer is open in your browser; it will refocus "
-                "on each residue as you choose.[/grey50]"
-            )
-            return {
-                "pdb_path": tmp_path,
-                "prev_labels": [],
-                "env_distance": env_distance,
-                "neighbor_search": neighbor_search,
-            }
+            # Every atom of the first model, for the environment shell;
+            # disordered atoms give their representative coordinate.
+            model = next(iter(structure))
+            atoms = list(model.get_atoms())
+            points = [atom.coord for atom in atoms]
+            owners = [(atom.get_parent().get_parent().id, atom.get_parent().id[1],
+                       atom.get_parent().id[2].strip()) for atom in atoms]
         except Exception as e:
             logger.debug(f"Live alt-loc viewer unavailable: {e}")
             return None
-
-    def _focus_altloc_viewer(
-        self,
-        viewer_state: Dict[str, Any],
-        chain_id: str,
-        res_name: str,
-        res_num: int,
-        sorted_altlocs: List[str],
-        occupancies: Optional[Dict[str, str]] = None,
-    ) -> None:
-        """Refocus the coordinator viewer on a single residue's altlocs.
-
-        Clears the previous residue's per-altloc reps, then draws a grey
-        licorice scaffold (whole residue) plus one ball+stick rep per
-        altloc using the same NGL ``%A`` selector syntax we used in the
-        standalone implementation. ``focused=True`` on the scaffold
-        triggers the auto-centre — same effect as the old viewer's
-        ribbon-hide trick.
-
-        When the user opted into an environment shell (``env_distance``),
-        the residues within that radius are drawn as a faint line overlay so
-        the surrounding packing/clashes/H-bond partners are visible. The
-        shell is a *non-focused* overlay, so the camera still centres on the
-        alt-loc residue rather than the whole neighbourhood.
-        """
-        try:
-            from proprep.structure_prep.viewer_coordinator import viewer as _viewer
-
-            for stale_label in viewer_state.get("prev_labels", []):
-                _viewer.unhighlight(stale_label)
-
-            base = f":{chain_id} and {res_num}"
-            new_labels = ["altloc_scaffold"]
-            _viewer.highlight(
-                base, style="licorice", color="#bdc3c7",
-                label="altloc_scaffold", focused=True,
-            )
-            for i, alt in enumerate(sorted_altlocs):
-                color, color_name = self._altloc_color(alt, i)
-                label = f"altloc_{alt}"
-                new_labels.append(label)
-                occ = (occupancies or {}).get(alt)
-                display = f"Alt {alt} ({color_name})" + (f", occ {occ}" if occ else "")
-                _viewer.highlight(
-                    f"{base} and %{alt}", style="ball+stick",
-                    color=color, label=label, display_label=display,
-                )
-
-            # Draw the surrounding environment shell, if requested. Added after
-            # the scaffold/altloc reps so the focused scaffold has already set
-            # the camera; this overlay is non-focused and only adds context.
-            env_selection = self._altloc_environment_selection(
-                viewer_state, chain_id, res_num
-            )
-            if env_selection:
-                _viewer.highlight(
-                    env_selection, style="line", color="#7f8c8d",
-                    label="altloc_environment", opacity=0.6,
-                )
-                new_labels.append("altloc_environment")
-
-            viewer_state["prev_labels"] = new_labels
-        except Exception as e:
-            logger.debug(f"Could not refocus alt-loc viewer: {e}")
-
-    def _altloc_environment_selection(
-        self,
-        viewer_state: Dict[str, Any],
-        chain_id: str,
-        res_num: int,
-    ) -> Optional[str]:
-        """Build an NGL selection for residues near the given alt-loc residue.
-
-        Uses the prebuilt ``NeighborSearch`` (stored in ``viewer_state``) to
-        find every residue with an atom within ``env_distance`` Å of any atom
-        of the target residue, excludes the target itself, and emits an NGL
-        string grouped by chain — e.g. ``(:A and (54 or 55 or 90)) or (:B and (12))``.
-
-        Returns None when no environment was requested, the search is
-        unavailable, or nothing falls within the shell (so the caller simply
-        skips the overlay).
-        """
-        env_distance = viewer_state.get("env_distance", 0.0)
-        neighbor_search = viewer_state.get("neighbor_search")
-        if not env_distance or neighbor_search is None:
-            return None
-
-        try:
-            # Gather the target residue's atoms across all of its altlocs so
-            # the shell is measured from the full residue envelope.
-            target_atoms = [
-                atom for atom in neighbor_search.atom_list
-                if atom.get_parent().id[1] == res_num
-                and atom.get_parent().get_parent().id == chain_id
-            ]
-            if not target_atoms:
-                return None
-
-            neighbor_residues = set()
-            for atom in target_atoms:
-                for residue in neighbor_search.search(
-                    atom.coord, env_distance, level="R"
-                ):
-                    neighbor_residues.add(residue)
-
-            # Group neighbours by chain, dropping the target residue itself.
-            by_chain: Dict[str, Set[int]] = defaultdict(set)
-            for residue in neighbor_residues:
-                r_chain = residue.get_parent().id
-                r_num = residue.id[1]
-                if r_chain == chain_id and r_num == res_num:
-                    continue
-                by_chain[r_chain].add(r_num)
-
-            if not by_chain:
-                return None
-
-            groups = []
-            for r_chain in sorted(by_chain):
-                nums = " or ".join(str(n) for n in sorted(by_chain[r_chain]))
-                groups.append(f"(:{r_chain} and ({nums}))")
-            return " or ".join(groups)
-        except Exception as e:
-            logger.debug(f"Could not compute alt-loc environment: {e}")
-            return None
-
-    def _teardown_altloc_viewer(self, viewer_state: Optional[Dict[str, Any]]) -> None:
-        """Clear the per-altloc reps so they don't leak into later hooks.
-
-        Leaves the snapshot structure loaded — Hook 14 (post-MODELLER
-        re-detect) will swap to the repaired PDB anyway.
-        """
-        if not viewer_state:
-            return
-        try:
-            from proprep.structure_prep.viewer_coordinator import viewer as _viewer
-            for stale_label in viewer_state.get("prev_labels", []):
-                _viewer.unhighlight(stale_label)
-            viewer_state["prev_labels"] = []
-        except Exception as e:
-            logger.debug(f"Could not tear down alt-loc viewer: {e}")
+        return altloc_picker.open_viewer(self.console, tmp_path, points, owners)
 
     # ========================================================================
     # UNIFIED REPAIR WORKFLOW

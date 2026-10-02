@@ -11,7 +11,8 @@
 #   2. Force-reinstalls it so its files win over the older copy AmberTools
 #      bundles (the two packages ship the same paths).
 #   3. Deletes the stale bundled metadata that would otherwise make
-#      `proprep --version` misreport the old version.
+#      `proprep --version` misreport the old version, and the files only the
+#      bundled copy had (old workflows, templates, parameters).
 #   4. Verifies the result.
 #
 # Usage:
@@ -22,8 +23,8 @@
 
 set -euo pipefail
 
-PROPREP_VERSION="1.22.0"
-CHANNELS="-c mjgplab -c dacase -c salilab -c bioconda -c conda-forge"
+PROPREP_VERSION="1.23.0"
+CHANNELS="-c mjgplab -c dacase -c conda-forge -c salilab -c bioconda"
 
 # --- Pick the target environment ---------------------------------
 ENV_NAME="${1:-${CONDA_DEFAULT_ENV:-}}"
@@ -76,6 +77,9 @@ echo ""
 echo "[3/3] Removing stale bundled metadata ..."
 find "$ENV_PREFIX"/lib/python*/site-packages -maxdepth 1 \
      -name 'proprep-[0-9]*.egg-info' -exec rm -rf {} + 2>/dev/null || true
+# and the files only the bundled copy had (old workflows, templates, parameters)
+"$ENV_PREFIX/bin/python" -m proprep.utils.bundled_copy \
+    || echo "WARNING: could not check for files left by the AmberTools-bundled ProPrep." >&2
 
 # --- Verify ------------------------------------------------------
 echo ""

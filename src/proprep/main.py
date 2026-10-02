@@ -985,11 +985,18 @@ def main():
     session_file = None
 
     try:
+        # Ask GitHub about a newer release while the processor starts. None for
+        # the AmberTools build and source checkouts (see proprep._distribution).
+        from proprep.utils import update_check
+        update_notice = update_check.start(get_version())
+
         # Create PDB processor instance
         processor = PDBProcessor()
 
         # Show welcome banner (once at startup)
         show_welcome_banner(processor.console)
+        if update_notice is not None:
+            update_notice.show(processor.console)
 
         # Integrate session recording/replay functionality
         integrate_session_manager(processor)

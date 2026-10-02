@@ -1150,7 +1150,8 @@ class TLeapInputGenerator(ProcessingModule):
         console = self.processor.console
         workspace = self.get_workspace()
 
-        # Priority order: reordered -> preprocessing -> protonation-updated -> transformed -> repaired -> filtered -> interactive
+        # Priority order: membrane-packed -> oriented -> reordered -> preprocessing ->
+        # protonation-updated -> transformed -> repaired -> filtered -> interactive
         # reordered_pdb_file is highest because reordering is the last structure transformation
         # protonation_pdb_file > transformed_pdb_file because protonation runs after
         # transformation and may rename residues (e.g., ASP->AS4 for constant pH)
@@ -1161,6 +1162,13 @@ class TLeapInputGenerator(ProcessingModule):
             # these states" hand-off, so it outranks all prep-step structures.
             ("pb_rename_pdb_file", "PB-titrate protonation-renamed"),
             ("membrane_packed_pdb", "membrane-packed"),  # full membrane system from membrane builder
+            # The Structure Orientator's output outranks every protein-stage
+            # structure below it, because orienting is the last geometric
+            # change the user makes and building from the unoriented
+            # coordinates would throw the step away. It stays below the
+            # membrane build, which already contains an oriented protein
+            # placed in the bilayer.
+            ("oriented_pdb_file", "oriented"),
             ("reordered_pdb_file", "reordered"),  # From structure preparation step
             ("prepared_pdb", "prepared (MCPB preprocessing)"),
             ("preprocessing_protein_input", "preprocessing protein"),
@@ -1913,10 +1921,24 @@ class TLeapInputGenerator(ProcessingModule):
         self.processor.console.print("[bold blue]STEP 2: Structure Preparation[/bold blue]")
         self.processor.console.print("═" * 70 + "\n")
 
-        # Perform PDB reordering and RedoxSite synchronization BEFORE bond generation
-        if not self._prepare_structure_for_tleap():
-            self.processor.console.print("[yellow]Structure preparation skipped or failed[/yellow]")
-            # Continue anyway - user may not need reordering
+        # PDB reordering before tLEaP is no longer done here (2026-09-24).
+        # sander/pmemd need every bonded unit (a protein chain plus the
+        # cofactors bonded to it) to be one contiguous block of atoms, and
+        # tLEaP writes ATOMS_PER_MOLECULE as if that were already true. The
+        # ParmEd validation that runs after every tLEaP build repairs it:
+        # rediscover_molecules(fix_broken=True) reorders the atoms, the
+        # prmtop and rst7 are saved as a matching pair, and a PDB in the
+        # topology's order is written next to them. Doing it here as well
+        # meant two mechanisms for one problem, and the interactive
+        # configurator misread packed membrane systems (every water chain
+        # typed as protein, lipid residue numbers colliding with protein
+        # ones). _prepare_structure_for_tleap() and the configurator are
+        # kept in the codebase, uncalled, in case this has to be revisited.
+        self.processor.console.print(
+            "[grey50]Molecule contiguity for sander/pmemd is checked and repaired by "
+            "ParmEd after the tLEaP build (see the validation step); no PDB "
+            "reordering is done beforehand.[/grey50]"
+        )
 
         # ═══════════════════════════════════════════════════════════════════
         # STEP 3: tLEaP Input File Generation
@@ -1930,6 +1952,10 @@ class TLeapInputGenerator(ProcessingModule):
     def _prepare_structure_for_tleap(self) -> bool:
         """
         Prepare PDB structure for tLEaP input generation.
+
+        NOT CALLED since 2026-09-24. Molecule contiguity is repaired by
+        ParmEd after the build instead (see _run_parmed_validation). Kept
+        in case pre-build reordering is ever needed again.
 
         This performs PDB reordering and RedoxSite synchronization BEFORE
         bond definitions are gathered, ensuring bond commands reference
@@ -2343,10 +2369,14 @@ class TLeapInputGenerator(ProcessingModule):
             console.print("[grey50](All microstates have identical structure - preparation done once)[/grey50]")
             console.print("═" * 70 + "\n")
 
-            # Prepare microstate structures (reorder all if needed, sync RedoxSites once)
-            if not self._prepare_microstate_structures(metadata_file):
-                console.print("[yellow]Structure preparation failed or was cancelled[/yellow]")
-                return False
+            # PDB reordering before tLEaP is no longer done (2026-09-24); see
+            # the note at the same step of the single-state path. ParmEd
+            # repairs molecule contiguity after each microstate's build.
+            # _prepare_microstate_structures() is kept, uncalled.
+            console.print(
+                "[grey50]Molecule contiguity for sander/pmemd is checked and repaired by "
+                "ParmEd after each tLEaP build; no PDB reordering is done beforehand.[/grey50]"
+            )
 
             # ═══════════════════════════════════════════════════════════════════
             # STEP 3: Bond Definition Generation
@@ -2379,6 +2409,8 @@ class TLeapInputGenerator(ProcessingModule):
     
     def _prepare_microstate_structures(self, metadata_file: str = None) -> bool:
         """
+        NOT CALLED since 2026-09-24; see _prepare_structure_for_tleap.
+
         Prepare all microstate PDB structures for tLEaP input generation.
 
         Since all microstates have identical structure (only residue names differ),
@@ -4117,11 +4149,10 @@ class TLeapInputGenerator(ProcessingModule):
             tleap_file = info['tleap_file']
             console.print(f"\n[blue]Running tLEaP for {tleap_file}...[/blue]")
 
-            # Check and configure molecule grouping (if needed)
-            molecule_config_success = self._check_and_configure_molecules(info)
-            if not molecule_config_success:
-                console.print(f"[red]✗ Molecule configuration cancelled for {tleap_file}[/red]")
-                continue
+            # Molecule grouping is no longer configured here (2026-09-24):
+            # ParmEd's rediscover_molecules() after the build makes bonded
+            # units contiguous. _check_and_configure_molecules() is kept,
+            # uncalled.
 
             # Validate and fix TER records in PDB files before running tLEaP
             ter_validation_success = self._validate_and_fix_ter_records(info)
@@ -4132,6 +4163,8 @@ class TLeapInputGenerator(ProcessingModule):
             try:
                 # Single-pass execution (templates already have accurate ion counts)
                 console.print(f"[blue]Running: tleap -s -f {tleap_file}[/blue]")
+                # tLEaP appends to its log; remember where this run starts.
+                log_offset = self._leap_log_size(self._leap_log_for(tleap_file))
                 result = subprocess.run(
                     ["tleap", "-s", "-f", tleap_file],
                     capture_output=True,
@@ -4142,7 +4175,7 @@ class TLeapInputGenerator(ProcessingModule):
                     console.print(f"[green]✓ tLEaP completed successfully[/green]")
 
                     # Parse and display leap.log messages
-                    self._display_leap_log_messages(tleap_file)
+                    self._display_leap_log_messages(tleap_file, start_offset=log_offset)
 
                     # Run ParmEd validation
                     if info.get('expected_prmtop') and os.path.exists(info['expected_prmtop']):
@@ -4156,7 +4189,7 @@ class TLeapInputGenerator(ProcessingModule):
                     success_count += 1
                 else:
                     console.print(f"[red]✗ tLEaP failed (exit code: {result.returncode})[/red]")
-                    self._display_leap_log_messages(tleap_file)
+                    self._display_leap_log_messages(tleap_file, start_offset=log_offset)
                     if result.stderr:
                         console.print(f"[red]{result.stderr}[/red]")
 
@@ -4240,13 +4273,15 @@ class TLeapInputGenerator(ProcessingModule):
         console.print("\n[grey50]Pass 2: Full topology generation[/grey50]")
         cmd = ["tleap", "-s", "-f", final_template]
         console.print(f"[blue]Running: {' '.join(cmd)}[/blue]")
+        # tLEaP appends to its log; remember where this run starts.
+        log_offset = self._leap_log_size(self._leap_log_for(final_template))
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
             console.print(f"[green]✓ tLEaP completed successfully[/green]")
 
             # Parse and display leap.log messages
-            self._display_leap_log_messages(final_template)
+            self._display_leap_log_messages(final_template, start_offset=log_offset)
 
             # Run ParmEd validation
             if info.get('expected_prmtop') and os.path.exists(info['expected_prmtop']):
@@ -4256,7 +4291,7 @@ class TLeapInputGenerator(ProcessingModule):
             return True
         else:
             console.print(f"[red]✗ Pass 2 failed (exit code: {result.returncode})[/red]")
-            self._display_leap_log_messages(final_template)
+            self._display_leap_log_messages(final_template, start_offset=log_offset)
             if result.stderr:
                 console.print(f"[red]{result.stderr}[/red]")
             return False
@@ -5009,15 +5044,10 @@ quit
                 def update_step(step_name):
                     progress.update(task, description=f"[blue]{microstate_id}: {step_name}[/blue]")
 
-                # Step 1: Validate PDB structure
-                update_step("Validating PDB")
-                molecule_config_success = self._check_and_configure_molecules(info, batch_mode=True)
-                if not molecule_config_success:
-                    failed_files.append((tleap_file, "Molecule configuration failed"))
-                    progress.advance(task)
-                    continue
+                # Molecule grouping is no longer configured before the build
+                # (2026-09-24); ParmEd repairs contiguity afterwards.
 
-                # Step 2: Check TER records
+                # Step 1: Check TER records
                 update_step("Checking TER records")
                 ter_ok = self._validate_and_fix_ter_records(info, quiet=True)
                 if not ter_ok:
@@ -5029,6 +5059,8 @@ quit
                     # Single-pass tLEaP execution (templates have accurate ions)
                     update_step("Running tLEaP")
                     cmd = ["tleap", "-s", "-f", tleap_file]
+                    # tLEaP appends to its log; remember where this run starts.
+                    log_offset = self._leap_log_size(self._leap_log_for(tleap_file))
                     result = subprocess.run(
                         cmd,
                         capture_output=True,
@@ -5037,7 +5069,8 @@ quit
 
                     if result.returncode == 0:
                         # Parse warnings/errors from leap.log silently
-                        warnings, errors, notes, summary = self._parse_leap_log(self._leap_log_for(tleap_file))
+                        warnings, errors, notes, summary = self._parse_leap_log(
+                            self._leap_log_for(tleap_file), start_offset=log_offset)
 
                         # Collect unique warning types (just the message text, not line numbers)
                         for warning_block in warnings:
@@ -5154,9 +5187,8 @@ quit
         validated = []
         for info in selected_files:
             tleap_file = info['tleap_file']
-            if not self._check_and_configure_molecules(info, batch_mode=True):
-                failed_files.append((tleap_file, "Molecule configuration failed"))
-                continue
+            # Molecule grouping is no longer configured before the build
+            # (2026-09-24); ParmEd repairs contiguity afterwards.
             if not self._validate_and_fix_ter_records(info, quiet=True):
                 failed_files.append((tleap_file, "TER validation failed"))
                 continue
@@ -5852,6 +5884,11 @@ print(f"Saving to {{PRMTOP_OUT}}...")
 parm.save(PRMTOP_OUT, overwrite=True)
 if RST7_OUT and parm.coordinates is not None:
     parm.save(RST7_OUT, overwrite=True)
+    # A PDB in the topology's atom order (rediscover_molecules may have
+    # moved whole molecules, so the PDB tLEaP read no longer matches).
+    PDB_OUT = os.path.splitext(PRMTOP_OUT)[0] + "_parmed.pdb"
+    parm.save(PDB_OUT, overwrite=True)
+    print(f"  wrote {{PDB_OUT}} (atom order follows the topology)")
     print(f"  ✓ wrote prmtop + rst7")
 else:
     print(f"  ✓ wrote prmtop")
@@ -5951,6 +5988,37 @@ else:
             logger.warning(msg)
             return False
 
+    @staticmethod
+    def _topology_order_pdb_path(prmtop_file: str) -> str:
+        """<stem>_parmed.pdb next to the prmtop: a PDB in the topology's atom order."""
+        p = Path(prmtop_file)
+        return str(p.with_name(p.stem + "_parmed.pdb"))
+
+    def _write_topology_order_pdb(self, parm, prmtop_file: str, reordered: bool, console=None) -> Optional[str]:
+        """Write the structure ParmEd holds, in the topology's atom order, as a PDB.
+
+        After rediscover_molecules(fix_broken=True) the prmtop's atom and
+        residue order can differ from the PDB tLEaP read, and nothing else
+        writes a structure file in the new order. Every later step that
+        addresses residues by number can use this file instead of the input
+        PDB. Needs coordinates; returns the path written, or None.
+        """
+        if parm.coordinates is None:
+            if console:
+                console.print("[yellow]  ⚠ No coordinates loaded - cannot write a PDB in topology order[/yellow]")
+            return None
+        pdb_out = self._topology_order_pdb_path(prmtop_file)
+        parm.save(pdb_out, overwrite=True)
+        if console:
+            if reordered:
+                console.print(f"[green]  ✓ Wrote {os.path.basename(pdb_out)}[/green] "
+                              f"[grey50](atom order and residue numbering follow the topology, "
+                              f"which no longer matches the PDB tLEaP read)[/grey50]")
+            else:
+                console.print(f"[green]  ✓ Wrote {os.path.basename(pdb_out)}[/green] "
+                              f"[grey50](same order as the topology)[/grey50]")
+        return pdb_out
+
     def _run_parmed_validation_quiet(self, prmtop_file: str, rst7_file: str = None) -> bool:
         """
         Run ParmEd validation silently, returning True if atoms were reordered.
@@ -5998,6 +6066,7 @@ else:
             parm.save(prmtop_file, overwrite=True)
             if rst7_file and parm.coordinates is not None:
                 parm.save(rst7_file, overwrite=True)
+            self._write_topology_order_pdb(parm, prmtop_file, atoms_reordered)
 
             return atoms_reordered
 
@@ -6228,6 +6297,7 @@ else:
                 console.print(f"[green]  ✓ Saved corrected topology and coordinates[/green]")
             else:
                 console.print(f"[green]  ✓ Saved corrected topology[/green]")
+            self._write_topology_order_pdb(parm, prmtop_file, atom_reorder is not None, console)
 
             console.print("[bold green]ParmEd validation completed successfully[/bold green]")
             return True
@@ -6242,6 +6312,11 @@ else:
     def _check_and_configure_molecules(self, tleap_info: dict, batch_mode: bool = False) -> bool:
         """
         Check if PDB structure needs molecule grouping configuration.
+
+        NOT CALLED since 2026-09-24. ParmEd's rediscover_molecules() after
+        the build makes bonded units contiguous, so the interactive
+        grouping (and its analyzer, which misreads packed membranes) is
+        no longer run. Kept in case it is ever needed again.
 
         NOTE: This method is now primarily used for the TER validation workflow (option 4).
         Structure preparation for option 2 (generate_single_state_tleap) happens in
@@ -6729,7 +6804,7 @@ else:
             self.processor.console.print(f"[red]Error fixing TER records: {e}[/red]")
             return False
 
-    def _display_leap_log_messages(self, tleap_file: str):
+    def _display_leap_log_messages(self, tleap_file: str, start_offset: int = None):
         """
         Parse and display warnings, errors, and notes from leap.log file.
         
@@ -6746,8 +6821,9 @@ else:
             return
         
         try:
-            # Parse leap.log file
-            warnings, errors, notes, summary = self._parse_leap_log(leap_log_file)
+            # Parse leap.log file, only the run that just finished
+            warnings, errors, notes, summary = self._parse_leap_log(
+                leap_log_file, start_offset=start_offset)
             
             # Display summary first if available
             if summary:
@@ -6789,6 +6865,20 @@ else:
             console.print(f"[red]Error reading leap.log: {e}[/red]")
 
     @staticmethod
+    def _leap_log_size(leap_log_file: str) -> int:
+        """Byte length of leap.log right now, or 0 if it does not exist yet.
+
+        tLEaP APPENDS to its log, so a directory that has seen more than one
+        run holds every run's messages. Record this before launching tLEaP and
+        hand it back to _parse_leap_log as start_offset, and only the run you
+        just made is reported.
+        """
+        try:
+            return os.path.getsize(leap_log_file)
+        except OSError:
+            return 0
+
+    @staticmethod
     def _leap_log_for(tleap_file: str) -> str:
         """The log a tLEaP script writes: the argument of its ``logFile`` line
         (resolved beside the script) or, without one, ``leap.log`` in the
@@ -6807,10 +6897,24 @@ else:
             pass
         return "leap.log"
 
-    def _parse_leap_log(self, leap_log_file: str) -> tuple:
+    def _parse_leap_log(self, leap_log_file: str, start_offset: int = None) -> tuple:
         """
-        Parse leap.log file to extract warning, error, and note blocks.
-        
+        Parse leap.log to extract warning, error, and note blocks for ONE run.
+
+        tLEaP appends to its log, so the file usually holds several runs. The
+        summary line ("Exiting LEaP: Errors = ...") is printed once per run, so
+        reading the whole file used to pair the LAST run's summary with EVERY
+        run's messages: a clean build reported errors left behind by an earlier
+        attempt in the same directory.
+
+        Args:
+            leap_log_file: path to the log.
+            start_offset: byte offset recorded (with _leap_log_size) just
+                before tLEaP was launched. Everything before it belongs to an
+                earlier run and is skipped. When it is None, fall back to
+                keeping only the text after the second-to-last "Exiting LEaP:"
+                line, which is the last complete run.
+
         Returns:
             tuple: (warnings, errors, notes, summary)
                 - warnings: list of warning text blocks (each block is list of lines)
@@ -6825,7 +6929,20 @@ else:
         
         try:
             with open(leap_log_file, 'r') as f:
+                if start_offset:
+                    try:
+                        f.seek(start_offset)
+                    except OSError:
+                        f.seek(0)
                 lines = f.readlines()
+
+            if start_offset is None:
+                # No offset available: keep the last complete run. Its text
+                # starts after the second-to-last summary line.
+                exits = [i for i, ln in enumerate(lines)
+                         if ln.startswith("Exiting LEaP:") and "Errors =" in ln]
+                if len(exits) > 1:
+                    lines = lines[exits[-2] + 1:]
             
             current_block = []
             current_type = None

@@ -327,6 +327,27 @@ a = Analysis(
         'proprep.md_prep.amber.mdin_writer',
 
         # =====================================================================
+        # Molecular docking
+        # =====================================================================
+        'proprep.docking_prep',
+        'proprep.docking_prep.docking_module',
+        'proprep.docking_prep.docking_menus_receptor',
+        'proprep.docking_prep.docking_menus_ligand',
+        'proprep.docking_prep.docking_ui',
+        'proprep.docking_prep.docking_state',
+        'proprep.docking_prep.docking_pipeline',
+        'proprep.docking_prep.docking_run',
+        'proprep.docking_prep.docking_results',
+        'proprep.docking_prep.ligand_sources',
+        'proprep.docking_prep.ligand_prep',
+        'proprep.docking_prep.receptor_prep',
+        'proprep.docking_prep.receptor_decisions',
+        'proprep.docking_prep.receptor_templates',
+        'proprep.docking_prep.ccd_chemistry',
+        'proprep.docking_prep.chemistry_edits',
+        'proprep.docking_prep.dependencies',
+
+        # =====================================================================
         # Membrane preparation
         # =====================================================================
         'proprep.membrane_prep.membrane_builder',

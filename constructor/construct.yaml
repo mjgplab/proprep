@@ -12,7 +12,7 @@
 # proprep.utils.modeller_license), or export KEY_MODELLER before running the
 # installer to have the package post-link script bake it in.
 name: ProPrep
-version: 1.22.0
+version: 1.23.0
 
 installer_type: sh
 license_file: ../LICENSE
@@ -22,16 +22,21 @@ license_file: ../LICENSE
 # own default would be ${HOME}/proprep, lowercase).
 default_prefix: ${HOME}/ProPrep
 
+# conda-forge before salilab and bioconda: both carry packages conda-forge
+# also has (salilab an old fftw, bioconda RDKit builds from 2015-2016 for
+# Python 2.7), and under strict channel priority those would be taken instead,
+# which AmberTools 26 cannot use. salilab and bioconda are only needed for
+# MODELLER and reduce, which conda-forge does not carry.
 channels:
   - https://conda.anaconda.org/mjgplab
   - https://conda.anaconda.org/dacase
+  - https://conda.anaconda.org/conda-forge
   - https://conda.anaconda.org/salilab
   - https://conda.anaconda.org/bioconda
-  - https://conda.anaconda.org/conda-forge
 
 specs:
   - python=3.12
-  - proprep=1.22.0
+  - proprep=1.23.0
 
 # Don't touch the user's shell rc files; the conclusion text tells them how
 # to run.
