@@ -79,7 +79,7 @@ Before submitting feedback, you need to configure GitHub integration:
   3. Give it a name (e.g., "ProPrep Feedback")
   4. Check ONLY: [bold]public_repo[/bold] scope
   5. Generate and copy the token
-  6. In ProPrep: Main Menu → [bold]p. Preferences[/bold] → [bold]2. Configure GitHub[/bold]
+  6. In ProPrep: Main Menu → [bold]p. Preferences[/bold] → [bold]3. Configure GitHub feedback[/bold]
   7. Paste your token when prompted
 
 [grey50]This is a one-time setup. Your token is stored securely in ~/.proprep/settings.json[/grey50]

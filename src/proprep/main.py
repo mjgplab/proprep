@@ -833,6 +833,13 @@ def main():
     # Parse command line arguments
     args = parse_arguments()
 
+    # Say so when an inherited AMBERHOME points at another Amber install
+    # (after argument parsing, so --help stays clean; skipped for --version).
+    from proprep.utils.amber_env import foreign_amber_notice
+    notice = None if args.version else foreign_amber_notice()
+    if notice:
+        print(notice, file=sys.stderr)
+
     # Resolve file paths to absolute before any os.chdir() can invalidate them
     if args.pdbfile:
         args.pdbfile = str(Path(args.pdbfile).resolve())

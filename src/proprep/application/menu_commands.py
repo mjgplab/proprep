@@ -1900,8 +1900,10 @@ class PreferencesMenuCommand(MenuCommand):
 
         settings_mgr = SettingsManager()
 
+        from proprep.utils.update_check import REPO as default_repo
+
         # Show introduction
-        intro_text = """[bold bright_blue]GitHub Feedback Configuration[/bold bright_blue]
+        intro_text = f"""[bold bright_blue]GitHub Feedback Configuration[/bold bright_blue]
 
 To submit feedback directly to GitHub Issues, you need:
 
@@ -1910,7 +1912,7 @@ To submit feedback directly to GitHub Issues, you need:
    - Create at: https://github.com/settings/tokens
 
 2. [bold]Repository[/bold]
-   - Format: owner/repo (e.g., "Mag14011/ProPrep")
+   - Format: owner/repo (e.g., "{default_repo}")
    - Must have Issues enabled
 
 [grey50]Your token is stored locally in ~/.proprep/settings.json
@@ -1933,7 +1935,7 @@ Not sharing with anyone. For feedback only.[/grey50]"""
         repo = prompt_with_context(
             self.processor,
             "GitHub repository (owner/repo)",
-            default=current_repo if current_repo else "Mag14011/ProPrep",
+            default=current_repo if current_repo else default_repo,
             module="Preferences",
             description="Configure GitHub repository"
         )
