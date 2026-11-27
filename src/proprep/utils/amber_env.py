@@ -86,3 +86,35 @@ def bootstrap_amber_env(env: Optional[MutableMapping[str, str]] = None) -> Optio
         parts = [bindir] + [p for p in parts if p != bindir]
         env["PATH"] = os.pathsep.join(parts)
     return env["AMBERHOME"]
+
+
+def bundled_amber_home() -> Optional[Path]:
+    """The Amber tree that ships with the running interpreter, or None."""
+    for root in _candidate_roots():
+        if _is_amber_root(root):
+            return root
+    return None
+
+
+def foreign_amber_notice(env: Optional[MutableMapping[str, str]] = None) -> Optional[str]:
+    """A one-line notice when AMBERHOME names an Amber other than ProPrep's own.
+
+    A valid ``AMBERHOME`` still wins (see :func:`find_amber_home`); this only
+    makes the choice visible. It is easy to inherit one by accident, from a
+    shell where another conda environment with AmberTools is active, and then
+    tLEaP, sander and the force-field files silently come from that install.
+    Returns None when there is nothing to say.
+    """
+    env = os.environ if env is None else env
+    existing = env.get("AMBERHOME")
+    bundled = bundled_amber_home()
+    if not existing or bundled is None or not _is_amber_root(Path(existing)):
+        return None
+    if Path(existing).resolve() == bundled.resolve():
+        return None
+    return (
+        f"Note: using the Amber installation in AMBERHOME={existing}, "
+        f"not the one bundled with ProPrep ({bundled}). "
+        "If that is not what you want, run `unset AMBERHOME` (or open a new "
+        "terminal) and start ProPrep again."
+    )

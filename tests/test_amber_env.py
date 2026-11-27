@@ -134,3 +134,16 @@ def test_proprep_web_bootstraps_before_uvicorn(monkeypatch):
     from proprep.web import __main__ as web
     assert web.main() == 0
     assert calls == ["web", "uvicorn"]
+
+
+def test_notice_when_amberhome_is_another_install(bundled, tmp_path):
+    other = tmp_path / "other_env"
+    _make_amber_tree(other)
+    notice = amber_env.foreign_amber_notice({"AMBERHOME": str(other)})
+    assert notice and str(other) in notice and str(bundled) in notice
+
+
+def test_no_notice_for_bundled_or_unset_or_invalid_amberhome(bundled, tmp_path):
+    assert amber_env.foreign_amber_notice({"AMBERHOME": str(bundled)}) is None
+    assert amber_env.foreign_amber_notice({}) is None
+    assert amber_env.foreign_amber_notice({"AMBERHOME": str(tmp_path / "missing")}) is None
