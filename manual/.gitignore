@@ -1,7 +1,5 @@
 # Test-run outputs and driver transcripts (hundreds of MB; kept locally as evidence)
 runs/
-# Machine-specific private XeLaTeX format (see latex/README.md)
-latex/.texfmt/
 # LaTeX build products (the finished PDF is kept as ProPrep-User-Manual.pdf)
 latex/main.pdf
 latex/*.aux

@@ -13,9 +13,8 @@ W="$(mktemp -d /tmp/ppcheck-XXXXXX)"
   echo '\end{document}'
 } > "$W/check.tex"
 cd "$W"
-FMT=""; [ -f "$HERE/.texfmt/ppxelatex.fmt" ] && FMT="-fmt=$HERE/.texfmt/ppxelatex"
-TEXINPUTS="$HERE:$HERE/figures:" xelatex $FMT -interaction=nonstopmode -file-line-error check.tex >/dev/null 2>&1
-TEXINPUTS="$HERE:$HERE/figures:" xelatex $FMT -interaction=nonstopmode -file-line-error check.tex > build.out 2>&1
+TEXINPUTS="$HERE:$HERE/figures:" xelatex -interaction=nonstopmode -file-line-error check.tex >/dev/null 2>&1
+TEXINPUTS="$HERE:$HERE/figures:" xelatex -interaction=nonstopmode -file-line-error check.tex > build.out 2>&1
 grep -nE "^(/|\./).*:[0-9]+:|^! |Undefined control|Missing character" check.log | head -40
 grep -c "Overfull \\\\hbox" check.log | sed 's/^/overfull hboxes: /'
 grep -A1 "Overfull \\\\hbox" check.log | grep -oE "lines? [0-9]+(--[0-9]+)?" | head -15 | tr '\n' ' '; echo

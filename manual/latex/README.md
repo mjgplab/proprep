@@ -21,12 +21,9 @@ Requirements
 - The screen font is Menlo (macOS). On other systems it falls back to Latin Modern Mono for
   normal mono text, but `\screenfont` needs a font with box-drawing characters: change
   `\newfontfamily\screenfont{Menlo}` in the .sty to e.g. `DejaVu Sans Mono`.
-- This Mac's personal texmf tree has newer LaTeX files than its TeX Live 2025 base, which
-  breaks the stock `xelatex` format. `latexmkrc` therefore uses a private format in
-  `.texfmt/ppxelatex.fmt`. If it goes missing or stale, rebuild it with
-  `(cd .texfmt && xelatex -ini -etex -jobname=ppxelatex xelatex.ini)`.
-  The private format is used only when that file exists, so on a normal TeX installation
-  (or Overleaf with XeLaTeX) the standard format is used automatically.
+- If XeLaTeX stops with "Mismatched LaTeX support files detected", the LaTeX files in your
+  personal texmf folder are newer than your TeX installation's formats. Rebuild your own
+  formats once with `fmtutil-user --byfmt xelatex` (and `pdflatex`, `lualatex` if you use them).
 
 Writing rules in short (full version in STYLE_GUIDE.md)
 - `\begin{screen}` … `\end{screen}`: real ProPrep output, ≤ 86 characters per line (≤ 80 inside a
