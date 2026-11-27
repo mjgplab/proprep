@@ -260,12 +260,15 @@ replace it with the named snapshot. \\
 \end{longtable}
 
 \begin{watchout}
-In the copy installed for this manual, the \typed{proprep-library} command did
-not start; it stopped with \texttt{bad interpreter: ... python3.13: no such file
-or directory}. The same tool works when started through Python. With the
-ProPrep environment active (Chapter~\ref{ch:installation}), type
-\typed{python -m proprep.utils.user\_library\_snapshots} followed by the
-command, for example:
+In version 1.23.0 the \typed{proprep-library} command does not start, with
+either installation option. It stops with \texttt{bad interpreter: ...
+python3.13: no such file or directory} (conda) or \texttt{No such file or
+directory} (self-contained installer). The same tool works when started
+through ProPrep's Python. With the self-contained installer, type:
+\begin{terminal}
+~/ProPrep/bin/python -m proprep.utils.user_library_snapshots status
+\end{terminal}
+With the conda environment active (Chapter~\ref{ch:installation}), type:
 \begin{terminal}
 python -m proprep.utils.user_library_snapshots status
 python -m proprep.utils.user_library_snapshots snapshot before_test -m "my note"

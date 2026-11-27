@@ -139,6 +139,12 @@ No message; ProPrep starts normally. \\
   \item[pmemd.] The fast simulation engine of Amber, distributed separately
         from the free AmberTools. \texttt{pmemd.cuda} runs on NVIDIA graphics
         cards.
-  \item[CREST and xtb.] Programs for searching molecular conformations, used
-        by one optional refinement in \key{2c}.
+  \item[CREST and xtb.] Free programs for searching molecular conformations,
+        used by one optional refinement in \key{2c} (dihedral method 2). They
+        are not part of the installer. With the conda environment you can add
+        them in one line, which we did after our tests (the refinement itself
+        comes after the Gaussian step, so we could not try it):
+\begin{terminal}
+conda install -n ProPrep -c conda-forge xtb crest
+\end{terminal}
 \end{description}

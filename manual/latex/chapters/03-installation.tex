@@ -24,16 +24,16 @@ Section~\ref{sec:installation-check}.
 \section{Option A: the self-contained installer}
 \label{sec:installation-optiona}
 
-\begin{behindscenes}
-The computer used for this manual already had conda, so it was set up with
-Option~B. The Option~A steps below follow ProPrep's official installation
-guide (\file{INSTALL.md}); the messages quoted are the ones that guide lists.
-\end{behindscenes}
+We tested Option~A on an Apple-chip Mac with the version~1.23.0 installer
+(\file{ProPrep-1.23.0-MacOSX-arm64.sh}, 915\,MB). The installation took
+2~minutes and the finished \file{ProPrep} folder used 4.8\,GB. The Windows
+and Linux steps follow ProPrep's official installation guide
+(\file{INSTALL.md}); we did not try them.
 
-You will download one file of about 1 to 1.5\,GB. You need about 8\,GB of free
-disk space and 10 to 15 minutes. Once the file is downloaded, the installation
-itself needs no internet connection. You end up with a folder called
-\file{ProPrep} in your home folder.
+You will download one file of about 1 to 1.5\,GB (the Mac files are a little
+under 1\,GB). You need about 8\,GB of free disk space. Once the file is
+downloaded, the installation itself needs no internet connection. You end up
+with a folder called \file{ProPrep} in your home folder.
 
 \subsection{Choose and download the installer}
 
@@ -83,12 +83,41 @@ bash ~/Downloads/ProPrep-<version>-MacOSX-x86_64.sh -b -p ~/ProPrep
         The sign \texttt{\textasciitilde} means your home folder. The option
         \texttt{-b} means ``accept the license and ask no questions'';
         \texttt{-p \textasciitilde/ProPrep} is where ProPrep is installed.
-  \item Wait 2 to 5 minutes. The installer prints \prompt{Unpacking
-        payload...} and a list of packages, then \prompt{ProPrep is
-        installed.}
+  \item Wait 2 to 5 minutes (2 minutes on our Mac). The installer prints
+        \prompt{Unpacking payload...}, then \prompt{Installing base
+        environment...} and a list of files, and ends like this:
+\begin{screen}
+ProPrep v1.23.0 - Proper Protein Preparation workflow manager
+ProPrep is installed.
+
+To run:
+    <install-dir>/bin/proprep          terminal interface
+    <install-dir>/bin/proprep-web      browser interface
+    <install-dir>/bin/proprep-library  snapshot / reset / restore the user library
+
+MODELLER (structure repair) needs your own free academic license key:
+    https://salilab.org/modeller/registration.html
+then save it once:
+    mkdir -p ~/.proprep && echo 'YOUR_KEY' > ~/.proprep/modeller_key
+\end{screen}
+        \texttt{<install-dir>} is the folder you chose, \file{~/ProPrep}.
   \item If macOS asks whether Terminal may access your Downloads folder,
         click \textsf{OK}. The installer only reads the file you downloaded.
 \end{steps}
+
+\begin{watchout}
+Halfway through, the installer also prints \prompt{Edit
+.../modeller/config.py and replace XXXX with your Modeller license key}.
+Ignore that line. The simpler way, shown at the end of the installation and
+in Section~\ref{sec:installation-modeller}, is to save the key in
+\file{~/.proprep/modeller_key}.
+\end{watchout}
+
+\begin{watchout}
+In version 1.23.0 the third command the installer lists,
+\texttt{proprep-library}, does not start (\prompt{No such file or
+directory}). Section~\ref{sec:cmdline-library} shows the command to use instead.
+\end{watchout}
 
 \begin{tip}
 You do not have to type the long file name. Type

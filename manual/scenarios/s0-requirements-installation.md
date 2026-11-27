@@ -43,13 +43,24 @@ Miniforge conda 26.7.2 already installed. ProPrep version installed: **1.23.0**.
 - To use afterwards: `conda activate ProPrep`, `source $CONDA_PREFIX/amber.sh`, `proprep` or `proprep-web`.
 - Problems: none. Note the installer's skip message says "Homology modeling" — it means MODELLER-based repair.
 
-### Scenario 3: Option A — self-contained installer `ProPrep-<version>-<platform>.sh` — SOURCE-ONLY (documented in INSTALL.md, not run here)
-- `bash ~/Downloads/ProPrep-<version>-MacOSX-arm64.sh -b -p ~/ProPrep` (Intel Mac: `MacOSX-x86_64`; Linux and Windows/WSL: `Linux-x86_64`).
-- 1–1.5 GB download, ~8 GB free disk, 2–5 min install, no internet needed during install. Prints "Unpacking payload..." then "ProPrep is installed."
-- Test: `~/ProPrep/bin/proprep --version`. Start: `~/ProPrep/bin/proprep-web` (browser) or `~/ProPrep/bin/proprep` (terminal).
-- Update: same command with `-u`. Remove: delete `~/ProPrep`.
-- Windows: `wsl --install` in an admin PowerShell, restart, create Ubuntu user, run the Linux installer from `/mnt/c/Users/<name>/Downloads/`, open http://127.0.0.1:8000/ in the Windows browser.
-- INSTALL.md already has a good plain-language troubleshooting list (Permission denied → add `bash`; already exists → `-u`; no space; port 8000 busy → 8001).
+### Scenario 3: Option A — self-contained installer `ProPrep-<version>-<platform>.sh` — RUN (macOS arm64, 2026-11-27)
+- Downloaded `ProPrep-1.23.0-MacOSX-arm64.sh` (915 MB) from the v1.23.0 GitHub release
+  (other assets: MacOSX-x86_64 978 MB, Linux-x86_64 1410 MB). Header: "Created by constructor 3.16.1".
+- Ran in a clean environment: `bash ~/Downloads/ProPrep-1.23.0-MacOSX-arm64.sh -b -p ~/ProPrep` → exit 0 in 126 s.
+  Output: `PREFIX=...`, "Unpacking bootstrapper...", "Unpacking payload...", "Installing base environment...",
+  a MODELLER post-link note ("Edit .../modeller/config.py and replace XXXX with your Modeller license key"),
+  a list of removed leftover files from the AmberTools-bundled ProPrep, then
+  "ProPrep v1.23.0 - Proper Protein Preparation workflow manager" / "ProPrep is installed." / "To run:" with
+  proprep, proprep-web, proprep-library, and the `~/.proprep/modeller_key` instructions.
+- Size: 4.8 GB. Contains tleap, sander, MCPB.py, vina, packmol-memgen, propka3, MODELLER 10.8 (no key);
+  no pmemd, xtb, crest.
+- `~/ProPrep/bin/proprep --version` → "ProPrep v1.23.0 - Proper Protein Preparation workflow manager".
+- `~/ProPrep/bin/proprep-web --no-browser --port 8477` started (uvicorn lines) and `/healthz` answered `ok`.
+- With nothing activated, ProPrep sets AMBERHOME to `~/ProPrep` itself (amber_env bootstrap).
+- FAILED part: `~/ProPrep/bin/proprep-library` → "No such file or directory" (shebang `#!.../bin/python3.13`, env has 3.12;
+  cause: missing from recipe entry_points, fixed in mjgplab/proprep#2). Workaround works:
+  `~/ProPrep/bin/python -m proprep.utils.user_library_snapshots status`.
+- Update: same command with `-u`. Remove: delete `~/ProPrep`. Windows (WSL) and Linux not tried.
 
 ### Scenario 4: Updating inside an existing AmberTools env — SOURCE-ONLY
 - `update_proprep_in_ambertools.sh <env-name>`; only for conda AmberTools (`dacase::ambertools-dac`).
