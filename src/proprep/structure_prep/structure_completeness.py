@@ -70,16 +70,31 @@ except Exception:
             file=sys.stderr,
         )
     else:
-        # Running from source
-        print(
-            "MODELLER not found. Structure repair (missing loops/residues) will be unavailable.\n"
-            "  To install: conda install -c salilab modeller\n"
-            "  A free academic license is required: https://salilab.org/modeller/registration.html\n"
-            "  After registering, set your license key:\n"
-            "    export KEY_MODELLER='your_license_key_here'\n"
-            "  Or edit the config.py file shown during conda installation.",
-            file=sys.stderr,
-        )
+        import importlib.util
+        if importlib.util.find_spec("modeller") is not None:
+            # Installed (the conda env and the self-contained installer ship
+            # it) but the import failed: almost always a missing or invalid
+            # license key, so do not tell the user to install it again.
+            print(
+                "MODELLER is installed but has no valid license key, so structure repair\n"
+                "(missing loops/residues) will be unavailable.\n"
+                "  MODELLER is free for academic use. Register at:\n"
+                "    https://salilab.org/modeller/registration.html\n"
+                "  Then save your key (one-time setup):\n"
+                "    mkdir -p ~/.proprep && echo 'YOUR_KEY' > ~/.proprep/modeller_key\n"
+                "  Or set the environment variable before each session:\n"
+                "    export KEY_MODELLER='YOUR_KEY'",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "MODELLER not found. Structure repair (missing loops/residues) will be unavailable.\n"
+                "  To install: conda install -c salilab modeller\n"
+                "  A free academic license is required: https://salilab.org/modeller/registration.html\n"
+                "  After registering, save your key (one-time setup):\n"
+                "    mkdir -p ~/.proprep && echo 'YOUR_KEY' > ~/.proprep/modeller_key",
+                file=sys.stderr,
+            )
 
 
 # ============================================================================
