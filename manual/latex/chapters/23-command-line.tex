@@ -1,0 +1,321 @@
+\chapter{Command-line shortcuts}\label{ch:cmdline}
+
+You can give ProPrep extra instructions when you start it, by typing
+\emph{options} after the command name in the Terminal. Options let you skip
+start-up questions, load a structure straight away, replay a recorded session
+or run a batch of proteins. This chapter lists the options a user is likely to
+need, grouped by purpose, with an example of each. None of them is required:
+everything can also be done from the menus.
+
+\section{How to type options}\label{sec:cmdline-howto}
+
+\begin{itemize}
+  \item Each option starts with two hyphens, such as \typed{--full-menu}, and is
+  separated from the next by a space. The order does not matter.
+  \item Some options need a value after them: a PDB code, a file name or a
+  folder, for example \typed{--pdbid 1UBQ}.
+  \item Put text that contains spaces in quotation marks:
+  \typed{--session-description "first try"}.
+  \item For folders, give the full path. Starting it with \typed{\textasciitilde{}/} (your home
+  folder) is the easiest way; the pitfalls in Section~\ref{sec:cmdline-pitfalls}
+  explain why.
+  \item \typed{proprep --help} prints the complete list and exits. So do
+  \typed{proprep-web --help} and the library command in
+  Section~\ref{sec:cmdline-library}.
+\end{itemize}
+
+You can combine several options in one command:
+
+\begin{terminal}
+proprep --full-menu --pdbid 1CRN --output-dir ~/ProPrep-work/crambin
+\end{terminal}
+
+\section{Starting and menus}\label{sec:cmdline-start}
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\typed{--full-menu} & Start in the Full Menu, the menu used in this manual;
+skips the menu question.\newline
+\typed{proprep --full-menu} \\
+\typed{--workflow} & Start in Workflow Mode; skips the menu question.\newline
+\typed{proprep --workflow} \\
+\typed{--set-default} \textit{mode} & Save the menu ProPrep starts in, then
+exit. \textit{mode} is \typed{full-menu}, \typed{workflow} or \typed{ask}.\newline
+\typed{proprep --set-default full-menu} \\
+\typed{--menu-grid} & Draw the Full Menu as two columns of panels, for this run
+only.\newline
+\typed{proprep --full-menu --menu-grid} \\
+\typed{--menu-list} & Draw the Full Menu as one column (the normal layout), for
+this run only. \\
+\typed{--version} & Print the version and exit.\newline
+\typed{proprep --version} gives
+\texttt{ProPrep v1.23.0 - Proper Protein Preparation workflow manager}. \\
+\typed{--help}, \typed{-h} & List every option and exit. \\
+\bottomrule
+\end{longtable}
+
+\section{Project folder and structure}\label{sec:cmdline-project}
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\typed{--output-dir} \textit{folder} & Use this folder as the project folder,
+creating it (and any folders above it) if needed. Skips the project-name
+question. Give a full path.\newline
+\typed{proprep --full-menu --output-dir \textasciitilde{}/ProPrep-work/ubq} \\
+\typed{--pdbid} \textit{code} & Download this structure from the Protein Data
+Bank at start-up. Skips the project-name question and uses the current
+folder.\newline
+\typed{proprep --full-menu --pdbid 1UBQ} \\
+\typed{--pdbfile} \textit{file} & Load a PDB file from your computer at
+start-up. Skips the project-name question.\newline
+\typed{proprep --full-menu --pdbfile my\_protein.pdb} \\
+\bottomrule
+\end{longtable}
+
+If the download fails, ProPrep says so and opens the main menu with nothing
+loaded. This happened with \typed{--pdbid ZZZZ}, a code that does not exist. If you give both \typed{--pdbid} and
+\typed{--pdbfile}, ProPrep uses \typed{--pdbid} and ignores the file without a
+message.
+
+\section{Sessions}\label{sec:cmdline-sessions}
+
+Chapter~\ref{ch:sessions} explains sessions, replay and the session editor.
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\typed{--no-session} & Do not record this run. No session file is written,
+ProPrep does not offer to resume, and \key{undo} is not available. Same as
+\typed{--no-auto-record}.\newline
+\typed{proprep --full-menu --no-session} \\
+\typed{--session-description} \textit{text} & Store a note in the session
+file; it appears in the Notes column when you choose a session to resume.\newline
+\typed{proprep --full-menu --session-description "1UBQ, pH 7"} \\
+\typed{--session-dir} \textit{folder} & Where to write the session file and look
+for old ones. The folder must already exist; give a full path.\newline
+\typed{proprep --full-menu --session-dir \textasciitilde{}/ProPrep-work/sessions} \\
+\typed{--resume-session} \textit{file} & Open a recorded session to continue
+it, edit it, or cancel and start fresh.\newline
+\typed{proprep --full-menu --resume-session proprep\_session\_20261121\_130253.json} \\
+\typed{--force-replay} \textit{file} & Play a recorded session back exactly,
+without your input, and stop at its end.\newline
+\typed{proprep --full-menu --force-replay proprep\_session\_20261121\_122825.json} \\
+\typed{--demo-delay} \textit{seconds} & With \typed{--force-replay} or
+\typed{--resume-session}: wait this long between replayed answers, so you can
+watch.\newline
+\typed{... --force-replay session.json --demo-delay 0.5} \\
+\bottomrule
+\end{longtable}
+
+\section{Templates and batch processing}\label{sec:cmdline-batch}
+
+Chapter~\ref{ch:batch} explains these step by step.
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\typed{--create-template} \textit{session} & Turn a recorded session into a
+template, marking the answers (such as the PDB code) that change from protein
+to protein.\newline
+\typed{proprep --create-template ubq\_session.json} \\
+\typed{--template-info} \textit{template} & Show a template's variables and
+size.\newline
+\typed{proprep --template-info ubq\_session\_template.json} \\
+\typed{--validate-template} \textit{template} & Check a template without running
+it. Add \typed{--batch-list} to check a list of proteins too.\newline
+\typed{proprep --validate-template ubq\_session\_template.json --batch-list ubq\_session\_batch.csv} \\
+\typed{--batch-replay} \textit{template} & Run the template on every protein in
+the list given with \typed{--batch-list}. \\
+\typed{--batch-list} \textit{file} & The list of proteins: a CSV file with
+variable names in the first row, or a plain list with one PDB code per line. \\
+\typed{--batch-continue} & Keep going when one protein fails, instead of
+stopping. \\
+\typed{--output-dir} \textit{folder} & With \typed{--batch-replay}: where the
+run folders \file{run_01}, \file{run_02}, \ldots{} and the report go. The folder
+must already exist. \\
+\typed{--web}, \typed{--no-web} & Replay in browser mode or in plain Terminal
+mode. Normally ProPrep picks the mode the template was recorded in. \\
+\bottomrule
+\end{longtable}
+
+A complete batch command looks like this:
+
+\begin{terminal}
+mkdir batch_out
+proprep --batch-replay ubq_session_template.json \
+        --batch-list ubq_session_batch.csv \
+        --output-dir batch_out --batch-continue
+\end{terminal}
+
+The \texttt{\textbackslash} at the end of a line lets you continue a long
+command on the next line; you can also type it all on one line without them.
+
+\section{Viewer and analysis shortcuts}\label{sec:cmdline-shortcuts}
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\typed{--pdbview} \textit{code or file} & Load a structure and open it in the
+3D viewer straight away (at an address such as
+\url{http://localhost:8766/viewer}), then show the main menu. Nothing is
+recorded. Add \typed{--full-menu} to skip the menu question.\newline
+\typed{proprep --full-menu --pdbview 1UBQ} \\
+\typed{--analysis} & Open the simulation analysis file browser straight away
+(Chapter~\ref{ch:analysis}). Start it from inside the project folder. Cannot be
+combined with \typed{--pdbid} or \typed{--pdbfile}.\newline
+\typed{proprep --full-menu --analysis} \\
+\bottomrule
+\end{longtable}
+
+\section{When something goes wrong}\label{sec:cmdline-debug}
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\typed{--debug} & Show extra messages, and the full technical error report if
+ProPrep stops with an error.\newline
+\typed{proprep --full-menu --debug} \\
+\typed{--verbose}, \typed{-v} & Fill the screen with detailed technical log
+lines. Useful only when the developers ask for it.\newline
+\typed{proprep --full-menu --verbose} \\
+\bottomrule
+\end{longtable}
+
+Chapter~\ref{ch:help} says more about both. Two further options are tools for
+the ProPrep developers, and users do not need them:
+\typed{--generate-feedback-keypair} and \typed{--decrypt-feedback}.
+
+\section{Options for the browser version}\label{sec:cmdline-web}
+
+These go after \typed{proprep-web}.
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Option} & \textbf{What it does, with an example} \\
+\midrule
+\endhead
+\textit{theme} (a word) & Color scheme of the terminal pane: \typed{dark}
+(default), \typed{light}, \typed{black} or \typed{white}.\newline
+\typed{proprep-web white} \\
+\typed{--theme} \textit{theme} & The same, written as an option. \\
+\typed{--font-size} \textit{pixels} & Text size in the terminal pane, 8 to 32
+(default 13). You can also change it in the page.\newline
+\typed{proprep-web --font-size 16} \\
+\typed{--high-contrast} & Stronger text contrast, for easier reading. \\
+\typed{--port} \textit{number} & The port to start from (default 8000). If it is
+busy, the next free one is used.\newline
+\typed{proprep-web --port 8420} \\
+\typed{--strict-port} & Stop with an error instead of trying the next port. \\
+\typed{--no-browser} & Do not open the browser; open the printed address
+yourself. \\
+\typed{--no-transcript} & Do not keep a plain-text log of the session in
+\file{~/.proprep/web_sessions/}. \\
+\typed{--host}, \typed{--log-level} & Technical settings for the web server;
+leave them alone unless you know you need them. \\
+\typed{--seats} \textit{N}, \typed{--seats-dir}, \typed{--public-url} &
+Workshop mode: one ProPrep for several attendees, each with a private link.
+Tried only for starting and stopping in this manual. \\
+\bottomrule
+\end{longtable}
+
+\section{The parameter library command}\label{sec:cmdline-library}
+
+ProPrep keeps a personal library of force-field parameters that you made
+(Chapter~\ref{ch:forcefields}). A separate command, \typed{proprep-library},
+lets you look at it, save copies (\term{snapshots}) of it, empty it and bring
+an old copy back. It never deletes anything: emptying or restoring first saves
+a snapshot of the current library.
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Command} & \textbf{What it does} \\
+\midrule
+\endhead
+\typed{status} & How many files the library holds, and how many snapshots
+exist. \\
+\typed{list} & List the snapshots with date, contents and note. \\
+\typed{snapshot} \textit{name} \typed{-m} \textit{note} & Save a copy of the
+library now. Without a name, the date and time are used. \\
+\typed{reset} & Save a snapshot, then empty the library. Asks first; \typed{-y}
+skips the question. \\
+\typed{restore} \textit{name} & Save a snapshot of the current library, then
+replace it with the named snapshot. \\
+\typed{--root} \textit{folder} & Work on a different library folder instead of
+\file{~/.proprep}. \\
+\bottomrule
+\end{longtable}
+
+\begin{watchout}
+In version 1.23.0 the \typed{proprep-library} command does not start, with
+either installation option. It stops with \texttt{bad interpreter: ...
+python3.13: no such file or directory} (conda) or \texttt{No such file or
+directory} (self-contained installer). The same tool works when started
+through ProPrep's Python. With the self-contained installer, type:
+\begin{terminal}
+~/ProPrep/bin/python -m proprep.utils.user_library_snapshots status
+\end{terminal}
+With the conda environment active (Chapter~\ref{ch:installation}), type:
+\begin{terminal}
+python -m proprep.utils.user_library_snapshots status
+python -m proprep.utils.user_library_snapshots snapshot before_test -m "my note"
+\end{terminal}
+\end{watchout}
+
+\section{Pitfalls}\label{sec:cmdline-pitfalls}
+
+\begin{watchout}
+\textbf{\typed{--output-dir} with a short (relative) path.} With
+\typed{--output-dir a/b}, ProPrep puts the files in the right place but stores a
+doubled path, \file{.../a/b/a/b}, as the project folder. Tools that use that
+stored path may then look in the wrong place. Give a full path instead, for
+example \typed{--output-dir \textasciitilde{}/ProPrep-work/a/b}.
+\end{watchout}
+
+\begin{watchout}
+\textbf{\typed{--session-dir} must be a full path to a folder that exists.}
+With a relative path, or a folder that does not exist yet, ProPrep stops right
+after the project question with \texttt{Error: [Errno 2] No such file or
+directory}. Create the folder first (\typed{mkdir}) and give its full path.
+\end{watchout}
+
+\begin{watchout}
+\textbf{The batch output folder must exist.} With \typed{--batch-replay}, an
+\typed{--output-dir} that does not exist makes every run fail with
+\texttt{Setup error: [Errno 2] No such file or directory}, followed by a long
+technical error report. Create it first with \typed{mkdir}.
+\end{watchout}
+
+\begin{watchout}
+\textbf{\typed{--pdbview} still asks which menu you want} unless you also give
+\typed{--full-menu} (or \typed{--workflow}). The same is true of
+\typed{--force-replay}, because the menu choice is not part of the recording.
+\end{watchout}
+
+\begin{itemize}\raggedright
+  \item Options that work only together with another one say so and are
+  ignored, for example
+  \texttt{Warning: --demo-delay has no effect without --force-replay or
+  --resume-session}.
+  \item Some options cannot be combined. \typed{--workflow} with
+  \typed{--full-menu}, or \typed{--menu-grid} with \typed{--menu-list}, gives an
+  error such as
+  \texttt{proprep: error: argument --full-menu: not allowed with argument
+  --workflow}.
+  \item \typed{proprep-web --strict-port} on a busy port first prints its
+  \texttt{listening on} line and only then the error
+  \texttt{address already in use}. Trust the error.
+\end{itemize}

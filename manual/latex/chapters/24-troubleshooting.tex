@@ -1,0 +1,604 @@
+\chapter{Troubleshooting}\label{ch:troubleshooting}
+
+This chapter is organized by what you see on the screen. Find the situation
+you are in, then look for the message or behavior that matches yours. Each
+entry says why it happens, what to do, and where the full explanation is.
+Limitations that have no fix yet are collected in
+Chapter~\ref{ch:knownissues}.
+
+\section{First things to check}\label{sec:troubleshooting-first}
+
+Many problems have one of a few simple causes. Check these first.
+
+\begin{enumerate}
+  \item \textbf{Is the right environment active?} With the conda installer
+  (Option~B), type \texttt{conda activate ProPrep} before starting ProPrep.
+  Then type \texttt{echo \$AMBERHOME}. The answer should be empty or a folder
+  inside \file{ProPrep}. Any other folder means ProPrep will use another Amber
+  installation (Chapter~\ref{ch:installation}).
+  \item \textbf{Are you online?} Downloading structures, AlphaFold models,
+  BLAST searches and the OPM membrane check all need the internet. Some
+  tools report a lost connection with a misleading message.
+  \item \textbf{Are you in the right project folder?} ProPrep looks for
+  session files only in the folder you start it from. Inside ProPrep, read
+  the \prompt{Using ... file:} line at the top of each tool: it tells you
+  which file the tool is working on (Chapter~\ref{ch:projectfolder}).
+  \item \textbf{Look at the log file.} When a topology build fails, the real
+  reason is often only in \file{leap.log} in the project folder. A failed
+  batch run writes its own \file{error.log}. An MD stage writes
+  \file{simulation.stderr} and an \file{.mdout} file in its stage folder.
+  \item \textbf{Gave a wrong answer?} Type \typed{undo} at the next question
+  to go back (Chapter~\ref{ch:sessions}).
+  \item \textbf{ProPrep stopped or the window closed?} Your answers are saved
+  as you go. Start again with \texttt{--resume-session} and the session
+  file, and choose \textsf{Continue from end} (Chapter~\ref{ch:sessions}).
+\end{enumerate}
+
+\section{Installing, starting and moving around}\label{sec:troubleshooting-start}
+
+{\bfseries Every start prints \prompt{MODELLER not found ... To install: conda
+install -c salilab modeller}, although MODELLER is installed.}\\*
+\emph{Why:} In version 1.23.0 this message also appears when only the MODELLER
+license key is missing, which is the usual case.\\
+\emph{What to do:} Do not install MODELLER again. Add your key to
+\file{~/.proprep/modeller_key}. Without a key, everything works except loop,
+residue and atom repair, standard mutations and homology models. See
+Chapter~\ref{ch:installation}.
+
+{\bfseries The installer stops with \prompt{No such file or directory},
+\prompt{Permission denied}, \prompt{File or directory already exists},
+\prompt{No space left on device} or \prompt{conda is not installed}.}\\*
+\emph{Why:} A mistyped file name, a missing \texttt{bash} at the start of the
+line, an existing installation, too little disk space, or (Option~B) no
+conda.\\
+\emph{What to do:} The table at the end of Chapter~\ref{ch:installation}
+gives the fix for each message.
+
+{\bfseries \texttt{proprep: command not found} (Option~B).}\\*
+\emph{Why:} The ProPrep environment is not active in this Terminal window.\\
+\emph{What to do:} Type \texttt{conda activate ProPrep}, then start ProPrep
+again. See Chapter~\ref{ch:installation}.
+
+{\bfseries tLEaP or sander messages show a folder from another installation,
+for example \file{.../envs/etanalyze_env/bin/teLeap}.}\\*
+\emph{Why:} ProPrep keeps an \texttt{AMBERHOME} setting that is already set in
+the Terminal, so it uses that Amber instead of its own. It gives no warning.\\
+\emph{What to do:} Exit ProPrep. Type \texttt{echo \$AMBERHOME}. If it names
+another folder, type \texttt{unset AMBERHOME} (Option~A) or
+\texttt{source \$CONDA\_PREFIX/amber.sh} after \texttt{conda activate ProPrep}
+(Option~B), then start ProPrep from the same window. See
+Chapter~\ref{ch:installation}.
+
+{\bfseries The browser says \prompt{This site can't be reached} at
+\texttt{127.0.0.1:8000}.}\\*
+\emph{Why:} \texttt{proprep-web} is not running, or it chose another port
+because 8000 was busy.\\
+\emph{What to do:} Start \texttt{proprep-web} again and use the address it
+prints, for example \prompt{(port 8420 was busy; using 8421)}. See
+Chapter~\ref{ch:starting}.
+
+{\bfseries Pressing \key{Enter} at \prompt{Select menu mode [1/2]} only repeats
+the question.}\\*
+\emph{Why:} This question has no default.\\
+\emph{What to do:} Type \key{2} for the Full Menu used in this manual, or
+start with \texttt{proprep --full-menu}. See Chapter~\ref{ch:starting}.
+
+{\bfseries ProPrep stops at start-up with \prompt{Error: [Errno 2] No such
+file or directory: 'sub/deeper'}.}\\*
+\emph{Why:} The project name contains a \texttt{/}, which asks for two folder
+levels; ProPrep can create only one.\\
+\emph{What to do:} Use a simple project name made of letters, digits,
+\texttt{-} and \texttt{\_}, without spaces. See Chapter~\ref{ch:starting}.
+
+{\bfseries A project folder called \file{undo} appeared.}\\*
+\emph{Why:} \typed{undo} typed at the project-name question is taken as the
+name, because recording starts only after that question.\\
+\emph{What to do:} Delete the folder and start again. \typed{undo} works from
+the next question on. See Chapter~\ref{ch:sessions}.
+
+{\bfseries ProPrep does not offer to resume your project (no
+\prompt{Previous session files found!}).}\\*
+\emph{Why:} ProPrep looks for session files only in the folder it was started
+from, not in the project folders below it.\\
+\emph{What to do:} Move into the project folder first (\texttt{cd
+myproject}), then start ProPrep. See Chapter~\ref{ch:starting}.
+
+{\bfseries You chose to resume, pressed \key{Enter} in the list of sessions,
+and got a fresh session.}\\*
+\emph{Why:} The default of \prompt{Select session to resume (0 to cancel)} is
+\key{0}, which means cancel.\\
+\emph{What to do:} Type the number of the session. See
+Chapter~\ref{ch:sessions}.
+
+{\bfseries ProPrep ended when you closed the browser tab.}\\*
+\emph{Why:} \texttt{proprep-web} shuts itself down about two seconds after the
+last tab closes.\\
+\emph{What to do:} Nothing is lost: your files and the session file stay in
+the project folder. Next time, exit with \key{x} first and download the
+project before you close the tab. See Chapter~\ref{ch:starting}.
+
+{\bfseries \prompt{Invalid choice: W. Please try again.} for a menu code
+you know exists.}\\*
+\emph{Why:} The Full Menu is case-sensitive.\\
+\emph{What to do:} Type codes in lower case: \key{w}, \key{4e}. See
+Chapter~\ref{ch:menus}.
+
+{\bfseries \prompt{Received '1a', which is not one of the available options}
+inside a tool.}\\*
+\emph{Why:} Main-menu codes do not work inside a tool's own menu.\\
+\emph{What to do:} Type \key{m} to go to the main menu first, then the code.
+See Chapter~\ref{ch:menus}.
+
+{\bfseries \prompt{Received '', which is not one of the available
+options}.}\\*
+\emph{Why:} You pressed \key{Enter} at a question that has no default.\\
+\emph{What to do:} Type one of the letters or numbers offered. See
+Chapter~\ref{ch:menus}.
+
+{\bfseries A code from the Help page (\key{h}) opens the wrong tool, for
+example \key{3a} opens the Homology Searcher.}\\*
+\emph{Why:} In version 1.23.0 the Help page lists the menu codes of an older
+version.\\
+\emph{What to do:} Use the codes on the main menu itself, or the menu map in
+Appendix~\ref{app:menumap}.
+
+\section{Loading structures}\label{sec:troubleshooting-loading}
+
+{\bfseries A tool works on an old or unexpected file, for example
+\prompt{Using H-Stripped PDB file:} after you loaded a new structure.}\\*
+\emph{Why:} Each tool picks its input from the project folder by a fixed order
+of preference, not by date. Files ProPrep made (without hydrogens, assembly,
+aligned, filtered, repaired, oriented) come before a fresh download.\\
+\emph{What to do:} Always read the \prompt{Using ... file:} line. Keep one
+protein per project folder; start a new project to switch proteins. See
+Chapter~\ref{ch:projectfolder}.
+
+{\bfseries \prompt{PDB XQ99 not found (404). May be a large structure only
+available in mmCIF format.}}\\*
+\emph{Why:} The code does not exist, or the entry is so large that the Protein
+Data Bank offers it only in mmCIF format.\\
+\emph{What to do:} Check the code on the RCSB website. Very large entries
+cannot be loaded in version 1.23.0. See Chapter~\ref{ch:structure}.
+
+{\bfseries \prompt{No AlphaFold structure found for P69905} for a protein that
+has an AlphaFold model.}\\*
+\emph{Why:} ProPrep reports a failed internet connection this way.\\
+\emph{What to do:} Check your internet connection and try again. See
+Chapter~\ref{ch:structure}.
+
+{\bfseries An AlphaFold or AlphaFill file is not listed in the file browser,
+or ProPrep says \prompt{AF-P69905-F1-model\_v6.cif is not a PDB file.}}\\*
+\emph{Why:} ProPrep's file browsers accept only PDB-format files
+(\file{.pdb}), not mmCIF files (\file{.cif}).\\
+\emph{What to do:} Load the model directly by its UniProt accession, or
+download the PDB-format file from the AlphaFold Database website. See
+Chapters~\ref{ch:structure} and~\ref{ch:compare}.
+
+{\bfseries \prompt{Enter a single number, '..', or 'q'.} when you type a file
+name in a file browser.}\\*
+\emph{Why:} The browser needs a number from its list, \texttt{..} to go up,
+or a full path.\\
+\emph{What to do:} Type the number of the file, or its full path. See
+Chapter~\ref{ch:structure}.
+
+{\bfseries ProPrep quits after \key{m} (manual matrix) in the Biological
+Assembly Generator, with \prompt{Error: name 'self' is not defined}.}\\*
+\emph{Why:} In version 1.23.0 this option does not work.\\
+\emph{What to do:} Do not use \key{m}. Choose an assembly number, or download
+the assembly directly in the Structure Loader (structure type~2). Resume your
+session to get back to where you were. See Chapter~\ref{ch:structure}.
+
+{\bfseries \prompt{No REMARK 350 records found in PDB file.} in \key{1b}.}\\*
+\emph{Why:} \key{1b} is reading a file ProPrep made, such as the
+hydrogen-stripped copy, which has no header with assembly information.\\
+\emph{What to do:} Run \key{1b} in a new project right after loading the
+structure, or download the assembly directly. See
+Chapter~\ref{ch:structure}.
+
+\section{Cleaning and repairing the structure}\label{sec:troubleshooting-cleaning}
+
+{\bfseries \prompt{Error executing PDB Filter.filter\_pdb\_structure: invalid
+literal for int() with base 10: '1-50'} (or \prompt{list index out of
+range}); all your filter answers are lost.}\\*
+\emph{Why:} At \prompt{Select residues} the PDB Filter (\key{4a}) does not
+accept ranges such as \typed{1-50}, or a number that is not in the table.\\
+\emph{What to do:} Run the filter again and type single numbers from the
+table, separated by commas, or \typed{all}. See Chapter~\ref{ch:cleaning}.
+
+{\bfseries \prompt{Received '2,4', which is not one of the available options}
+at the water question of the PDB Filter.}\\*
+\emph{Why:} Although the prompt mentions a list, only one choice is accepted
+there.\\
+\emph{What to do:} Type a single number. See Chapter~\ref{ch:cleaning}.
+
+{\bfseries The Structure Fixer (\key{4c}) shows \prompt{MODELLER off: capping
+only}; loops, missing side chains or mutations are not added.}\\*
+\emph{Why:} Building missing parts, standard mutations and the choice between
+alternate locations all need MODELLER with a valid license key.\\
+\emph{What to do:} Add a MODELLER key (Chapter~\ref{ch:installation}).
+Without one, tLEaP still adds missing side-chain atoms when it builds the
+topology. See Chapter~\ref{ch:cleaning}.
+
+{\bfseries \prompt{No terminal caps selected.} and nothing is written; a
+pending mutation disappears.}\\*
+\emph{Why:} Without MODELLER, the Structure Fixer writes a file (and applies a
+non-standard mutation) only when at least one end cap is added.\\
+\emph{What to do:} Add at least one cap (ACE or NME), or get a MODELLER key.
+See Chapter~\ref{ch:cleaning}.
+
+{\bfseries Residue numbers change after repair, for example 2RH1 residues
+29--1161 become 1--506.}\\*
+\emph{Why:} The Structure Fixer numbers residues from 1 when it writes the
+repaired file. An added ACE cap shifts the numbers by one more.\\
+\emph{What to do:} Use the new numbers in every later step. See
+Chapters~\ref{ch:cleaning} and~\ref{ch:protonation}.
+
+{\bfseries The template comparison in \key{4c} reports a missing OXT atom on
+almost every residue.}\\*
+\emph{Why:} These are false alarms: OXT exists only on the last residue of a
+chain.\\
+\emph{What to do:} Use the list of missing atoms from REMARK~470 instead. See
+Chapter~\ref{ch:cleaning}.
+
+\section{Protonation and orientation}\label{sec:troubleshooting-protonation}
+
+{\bfseries \prompt{Invalid pH value, using default of 7.0} (or \prompt{Invalid
+threshold, using default of 0.5}) and ProPrep carries on.}\\*
+\emph{Why:} The Protonation State Analyzer (\key{4e}) does not ask again
+after a typing mistake.\\
+\emph{What to do:} Run option \key{1} again with the value you want. See
+Chapter~\ref{ch:protonation}.
+
+{\bfseries \prompt{Skipping invalid syntax: XYZ (expected resid:NAME)} or
+\prompt{Invalid name 'LYS' - valid choices: GLH, GLU}, and ProPrep moves
+on.}\\*
+\emph{Why:} An invalid override is skipped without a second chance; the
+recommendation is used instead.\\
+\emph{What to do:} Run option \key{3} again and type the change in the form
+shown, for example \typed{21:GLH}. See Chapter~\ref{ch:protonation}.
+
+{\bfseries The Structure Orientator (\key{4f}) keeps using an old file after
+you filtered or protonated again; file names grow to
+\file{..._oriented_oriented_...pdb}.}\\*
+\emph{Why:} In \key{4f}, an oriented file comes before every other file, so
+each run starts from the previous result.\\
+\emph{What to do:} Orient as the last preparation step. If you have to change
+the structure afterwards, start a new project. See
+Chapter~\ref{ch:protonation}.
+
+\section{Redox sites, force fields and QM/MM}\label{sec:troubleshooting-redox}
+
+{\bfseries ACE, GOL, ACT or EDO are listed as \prompt{organic cofactor} by the
+Redox Site Detector (\key{2a}).}\\*
+\emph{Why:} Every non-standard residue is treated as a possible cofactor,
+including caps and additives from crystallization.\\
+\emph{What to do:} At \prompt{Select additional centers to include}, type
+only the numbers you want. See Chapter~\ref{ch:redox}.
+
+{\bfseries A bond of 8.21\,Å was created without a warning.}\\*
+\emph{Why:} The list of nearby atoms is sorted again for every source atom, so
+a number from an earlier list can point to a different atom.\\
+\emph{What to do:} Type atom names such as \typed{SG} instead of numbers. To
+repair, type the source atom again and choose \textsf{2 Replace one existing
+bond}. See Chapter~\ref{ch:redox}.
+
+{\bfseries The Redox Site Preparer (\key{4d}) shows \texttt{None} under
+\textsf{Compatible Transformers} for a single heme site.}\\*
+\emph{Why:} Some bonds that the heme recipe needs inside the heme were not
+recorded, because the single-site route in \key{2a} does not show the bond
+requirements.\\
+\emph{What to do:} In \key{4d} type \typed{why 1} to see what is missing, then
+add those bonds in \key{2a}. See Chapter~\ref{ch:redox}.
+
+{\bfseries The site editor in \key{2a} drops back to the menu with
+\prompt{Error handling menu option 'edit': invalid literal for int() with base
+10}; your edits are lost.}\\*
+\emph{Why:} Any text that is not a number at a residue-number prompt ends the
+editor.\\
+\emph{What to do:} Give one answer per prompt and type \typed{save} often. See
+Chapter~\ref{ch:redox}.
+
+{\bfseries All options of \key{4d} are greyed out with \prompt{Already
+generated microstate(s)}.}\\*
+\emph{Why:} Microstates can be generated only once per session.\\
+\emph{What to do:} Start a new session in a new project folder. See
+Chapter~\ref{ch:redox}.
+
+{\bfseries \prompt{Required center count (expected 1, got 4)} for
+hemoglobin (4HHB).}\\*
+\emph{Why:} Several hemes were grouped into one site, but each heme recipe
+expects one heme per site.\\
+\emph{What to do:} Detect the hemes again as separate sites, one heme each.
+See Chapter~\ref{ch:redox}.
+
+{\bfseries \prompt{'FD1' is not a valid option for site 1} for an
+iron--sulfur cluster.}\\*
+\emph{Why:} The broken-symmetry code must belong to the redox state chosen
+for that site (FO, FR or FD codes).\\
+\emph{What to do:} Use a code from the list ProPrep prints with the message.
+See Chapter~\ref{ch:redox}.
+
+{\bfseries \prompt{Step 4 failed: Gaussian output not found: mk1.log}
+followed by a long technical report, in the Force Field Parameterizer
+(\key{2c}).}\\*
+\emph{Why:} This step needs the result of a Gaussian calculation that you run
+yourself. ProPrep has not crashed.\\
+\emph{What to do:} Type \key{s} to save and quit, run Gaussian on the
+\file{.gjf} file, then resume with \key{2c} option \key{3}. Without Gaussian,
+make AM1-BCC charges outside ProPrep and import them. See
+Chapter~\ref{ch:forcefields}.
+
+{\bfseries \prompt{Frame extraction failed: No prmtop file selected} in the
+QM/MM Preparator (\key{5c}).}\\*
+\emph{Why:} \key{5c} starts from a topology, and none was found.\\
+\emph{What to do:} Build the topology with \key{5a} first. See
+Chapter~\ref{ch:qmmm}.
+
+{\bfseries \prompt{orca\_mm not found ... Please ensure ORCA is installed}
+and no files are written (ORCA route of \key{5c}).}\\*
+\emph{Why:} ORCA's helper program \texttt{orca\_mm} is needed even to write the
+input files.\\
+\emph{What to do:} Install ORCA and give ProPrep its folder, or use the
+Gaussian route. See Chapter~\ref{ch:qmmm} and Appendix~\ref{app:software}.
+
+\section{Building the topology (tLEaP)}\label{sec:troubleshooting-topology}
+
+{\bfseries Back at the Topology Generator menu after \prompt{Please run
+RedoxSite detection and try again.}; no \file{_tleap.in} file was written.}\\*
+\emph{Why:} You pressed \key{Enter} at \prompt{Do you want to continue without
+bond definitions? [y/n] (n)}. The default \key{n} stops the build.\\
+\emph{What to do:} Run \key{5a} option \key{2} again (your settings are
+remembered) and type \key{y}. For an ordinary protein no bond definitions are
+needed. See Chapter~\ref{ch:topology}.
+
+{\bfseries \prompt{tLEaP completed successfully}, then \prompt{Errors = 42};
+or the menu says the topology was generated, but the \file{.prmtop} file is
+empty.}\\*
+\emph{Why:} In version 1.23.0 the success messages are printed even when
+tLEaP fails, and a 0-byte topology counts as present.\\
+\emph{What to do:} Trust \prompt{Errors =} and the file size. Read
+\file{leap.log} for the cause. See Chapter~\ref{ch:topology}.
+
+{\bfseries \prompt{tLEaP failed (exit code: 31)} with only \prompt{Unknown
+residue: HOH} on the screen.}\\*
+\emph{Why:} Crystal waters are left in an implicit-solvent build. The real
+reason, \prompt{Atom ... does not have a type}, is only in \file{leap.log}.\\
+\emph{What to do:} Remove the waters with the PDB Filter (\key{4a}) before
+building without explicit water. See Chapter~\ref{ch:topology}.
+
+{\bfseries \prompt{Unknown residue: HEC} (or another cofactor name), tLEaP
+fails with many errors.}\\*
+\emph{Why:} The heme, ligand or metal has no force-field parameters yet.
+ProPrep does not warn you before the build.\\
+\emph{What to do:} Prepare it first: hemes and other redox cofactors with
+\key{2a} and \key{4d} (Chapter~\ref{ch:redox}), other molecules with \key{2c}
+(Chapter~\ref{ch:forcefields}).
+
+{\bfseries \prompt{Could not find bond parameter for atom types: SH -
+SH}.}\\*
+\emph{Why:} Cysteines in disulfide bonds are still named CYS. The
+Protonation State Analyzer does not rename them to CYX.\\
+\emph{What to do:} Rename them to CYX (\key{2a} then \key{4d}) \emph{and} add
+a \texttt{bond} line for each pair in \key{5a} option \key{1}. See
+Chapter~\ref{ch:topology}.
+
+{\bfseries \prompt{Detected CYX residue with a Sulfur atom not bonded to
+another CYX Sulfur! Did you forget to make the disulfide bond?}}\\*
+\emph{Why:} The cysteines are named CYX, but no bond lines were given, so the
+topology has no disulfide bonds although the build ``succeeded''.\\
+\emph{What to do:} Add the bond lines (\key{5a} option \key{1}), then
+regenerate the input (\key{2}) and the topology (\key{4}). See
+Chapter~\ref{ch:topology}.
+
+{\bfseries A good \file{.prmtop} file became 0 bytes after you built a second
+version (for example implicit solvent).}\\*
+\emph{Why:} Both tLEaP inputs write the same output names. A failed second
+build empties the first file, without a warning.\\
+\emph{What to do:} Give each version its own output names on the
+\texttt{saveamberparm} line when you edit the template. See
+Chapter~\ref{ch:topology}.
+
+{\bfseries The constant-pH input file (\file{.cpin}) lists only LYS and TYR;
+ASP, GLU and HIS are missing.}\\*
+\emph{Why:} The topology was not built with the constant-pH force field, or
+the residues were not renamed (AS4, GL4). There is no warning.\\
+\emph{What to do:} Rename the residues with the constant-pH option of
+\key{4e} and build with the \textsf{Constant pH (ff10)} protein force field.
+See Chapter~\ref{ch:topology}.
+
+\section{Running a simulation}\label{sec:troubleshooting-md}
+
+{\bfseries \prompt{Error starting simulation: [Errno 2] No such file or
+directory: 'pmemd'} and \prompt{Simulations started: 0}.}\\*
+\emph{Why:} The default engine is \texttt{pmemd}, which is not installed with
+ProPrep. The recommended assignment even picks \texttt{pmemd.cuda} on a
+computer without a GPU.\\
+\emph{What to do:} Go back to \key{5b} option \key{1}. At the hardware step,
+choose \key{3} (same engine for all) and then \texttt{sander} (or
+\texttt{sander.MPI}). The queue menu of the Execute screen cannot change the
+engine. See Chapter~\ref{ch:runningmd}.
+
+{\bfseries The review table still shows the original lengths after you
+shortened the stages.}\\*
+\emph{Why:} Only the display is not updated.\\
+\emph{What to do:} Nothing; your changes are in the files. Open
+\file{simulation.mdin} in a stage folder to confirm. See
+Chapter~\ref{ch:runningmd}.
+
+{\bfseries \prompt{Enable Constant pH MD?} is offered with the default
+\key{y}, and \key{5b} uses a \file{_cpin.prmtop} topology.}\\*
+\emph{Why:} Making a cpin file in \key{5a} switches the default structure pair
+to the constant-pH one.\\
+\emph{What to do:} For an ordinary simulation, answer \key{n}, and select the
+normal topology and coordinate pair. See Chapter~\ref{ch:runningmd}.
+
+{\bfseries \prompt{Error importing restraints: 'MDRestraintModule' object has
+no attribute 'get\_from\_workspace'}.}\\*
+\emph{Why:} The message appears although the import worked.\\
+\emph{What to do:} Check with option \key{3} (display); if your restraints are
+listed, carry on. See Chapter~\ref{ch:runningmd}.
+
+\section{Analyzing results}\label{sec:troubleshooting-analysis}
+
+{\bfseries \prompt{Returning to MD Manager menu...} right after you type
+your list of analyses.}\\*
+\emph{Why:} In version 1.23.0 any list that contains the digit 0, such as
+\typed{10}, \typed{20} or \typed{15,18,20}, is read as ``exit''.\\
+\emph{What to do:} Leave out analyses 10 (angle) and 20 (density maps); they
+cannot be run in this version. See Chapter~\ref{ch:analysis}.
+
+{\bfseries \prompt{Failed to setup action} and a long technical report; you
+are back at the MD Manager menu.}\\*
+\emph{Why:} An atom selection does not exist, for example the CB atom of a
+glycine in a dihedral analysis.\\
+\emph{What to do:} Start the analysis again and choose atoms that exist. See
+Chapter~\ref{ch:analysis}.
+
+\section{Docking}\label{sec:troubleshooting-docking}
+
+{\bfseries \prompt{Template matching failed for: ['A:99', 'B:99']} or
+\prompt{Creation of data structure for receptor failed}.}\\*
+\emph{Why:} The last residue of each chain has no OXT atom, but ProPrep set
+it up as a charged chain end. This is common in PDB files.\\
+\emph{What to do:} In option \key{4}, type the residue (for example
+\typed{A:99}) and answer \key{b} (chain break); repeat for each chain. See
+Chapter~\ref{ch:docking}.
+
+{\bfseries Docking finishes in under a second with weak scores (about
+$-4$\,kcal/mol).}\\*
+\emph{Why:} The search box was placed around a ligand built from SMILES,
+which sits at the origin, not in the protein.\\
+\emph{What to do:} Define the box around named residues (\key{r}) or by
+typing its center and size (\key{c}). See Chapter~\ref{ch:docking}.
+
+{\bfseries \prompt{The ligand could not be built: Unsupported ligand file type
+'.smi'; use .sdf, .mol or .mol2.}}\\*
+\emph{Why:} A \file{.smi} library works for a campaign, but not as a single
+ligand. The dashboard still shows its name.\\
+\emph{What to do:} Run a campaign, or use an \file{.sdf}, \file{.mol} or
+\file{.mol2} file. Set the search box again after every ligand change. See
+Chapter~\ref{ch:docking}.
+
+\section{Membrane systems}\label{sec:troubleshooting-membrane}
+
+{\bfseries \prompt{tLEaP could not add the hydrogens ... Build anyway with
+packmol-memgen's own protonation?}; if you answer \key{y}, the build is
+refused several minutes later with \prompt{The protein in bilayer.pdb is not
+the one packmol-memgen was given}.}\\*
+\emph{Why:} The structure still contains ions, crystal waters or other
+residues that tLEaP cannot handle.\\
+\emph{What to do:} Answer \key{n}. Remove every non-protein component with the
+PDB Filter (\key{4a}), then build again. See Chapter~\ref{ch:membrane}.
+
+{\bfseries Lipid, box or orientation settings are back at their defaults when
+you open \key{4g} again.}\\*
+\emph{Why:} Choosing another protein, filtering, or returning after a build
+clears them without a message.\\
+\emph{What to do:} Read the \textsf{Current Configuration} block, or press
+\key{r} (review), before every build. See Chapter~\ref{ch:membrane}.
+
+{\bfseries Hundreds of tLEaP warnings scroll past after a membrane build.}\\*
+\emph{Why:} Lipid renaming and close contacts from packing produce many
+warnings.\\
+\emph{What to do:} Nothing, as long as the summary says \prompt{Errors = 0}.
+The first minimization removes the close contacts. See
+Chapter~\ref{ch:membrane}.
+
+\section{Sessions, batch runs and the browser}\label{sec:troubleshooting-sessions}
+
+{\bfseries ProPrep replays your whole session and then quits before you can
+type anything.}\\*
+\emph{Why:} You chose \textsf{Continue from end} on a session that ended with
+a normal exit, so the exit is replayed too.\\
+\emph{What to do:} Open the Session Editor and delete the last two answers,
+for example \typed{d 18-end}, then save. Use \textsf{Continue from end} only for
+interrupted sessions. See Chapter~\ref{ch:sessions}.
+
+{\bfseries \prompt{Invalid choice: undo. Please try again.}}\\*
+\emph{Why:} Session recording is off (\texttt{--no-session}, or option~3 at
+start-up).\\
+\emph{What to do:} Start ProPrep again with recording on. See
+Chapter~\ref{ch:sessions}.
+
+{\bfseries After \typed{undo} and \key{c} (change), ProPrep keeps the old
+answer: \prompt{[REPLAY: 'r' now means a different option; using 'd' ...]}.}\\*
+\emph{Why:} For menu questions, the stored answer is not updated in version
+1.23.0.\\
+\emph{What to do:} Use \key{r} (re-answer live) after \typed{undo}, or change
+the answer in the Session Editor. See Chapter~\ref{ch:sessions}.
+
+{\bfseries A replay stops to ask \prompt{Select menu mode [1/2]}.}\\*
+\emph{Why:} That question comes before recording starts, so it is not in the
+session file.\\
+\emph{What to do:} Add \texttt{--full-menu} (or \texttt{--workflow}) to the
+replay command. See Chapters~\ref{ch:sessions} and~\ref{ch:cmdline}.
+
+{\bfseries \prompt{The recorded session was started with --pdbfile
+my\_protein.pdb, but that file is not here}.}\\*
+\emph{Why:} The structure file the recording started from has been moved or
+deleted. Without it every tool says \prompt{Needs a loaded structure}.\\
+\emph{What to do:} Copy the file back into the project folder, or replay with
+\texttt{--pdbfile} and the file's path. See Chapter~\ref{ch:sessions}.
+
+{\bfseries Every batch run fails with \prompt{Setup error: [Errno 2] No such
+file or directory: 'batch\_out/\allowbreak run\_01'}.}\\*
+\emph{Why:} \texttt{--output-dir} does not create the output folder.\\
+\emph{What to do:} Create the folder first (\texttt{mkdir batch\_out}) and
+run the batch again. See Chapter~\ref{ch:batch}.
+
+{\bfseries \prompt{Replay diverged: no recorded answer for prompt ...} for one
+protein of a batch.}\\*
+\emph{Why:} That protein is asked different questions than the recorded one.
+For example, 1CRN has no crystal waters, so the water question never comes.\\
+\emph{What to do:} Use proteins with the same make-up (chains, waters,
+ligands), or record a template that fits them. Add \texttt{--batch-continue}
+to finish the others. See Chapter~\ref{ch:batch}.
+
+{\bfseries \prompt{! Input column 'P69905' matches no template variable} for a
+plain list of UniProt accessions.}\\*
+\emph{Why:} A first line that starts with a letter is taken as a column
+heading.\\
+\emph{What to do:} Put the line \typed{input\_protein} at the top of the list
+file. See Chapter~\ref{ch:batch}.
+
+\section{General: an error message full of technical text}\label{sec:troubleshooting-general}
+
+{\bfseries Many lines of technical text appear, often starting with
+\prompt{Traceback (most recent call last)} or \prompt{Error executing ...},
+and ending with a line such as \prompt{ValueError: ...}.}\\*
+\emph{Why:} This is a \term{traceback}: the program's own report of where an
+error happened. It is meant for the developers. In most cases ProPrep has not
+crashed: it stops the current action and returns to a menu.\\
+\emph{What to do:}
+\begin{enumerate}
+  \item Read the \emph{last} line. It often names the cause in plain words,
+  such as a file that is missing or a value it could not read.
+  \item Look up that message in this chapter.
+  \item Check what was saved. Answers given within the failed action are
+  usually lost; files written before it are kept.
+  \item Repeat the step, carefully, with valid answers. If it fails again,
+  start ProPrep with \texttt{--debug} and report the problem with the
+  error lines and your session file (Chapter~\ref{ch:help}).
+\end{enumerate}
+
+{\bfseries Lines with a date, a time and \texttt{INFO}, \texttt{WARNING} or
+\texttt{ERROR} appear in the middle of the screen.}\\*
+\emph{Why:} Some of ProPrep's internal log messages are shown on the screen.\\
+\emph{What to do:} Usually nothing. Read on to ProPrep's own message below
+them. See Chapter~\ref{ch:analysis}.
+
+{\bfseries A success message, but the expected file is missing or
+empty.}\\*
+\emph{Why:} Some steps in version 1.23.0 report success without checking the
+result (Chapter~\ref{ch:knownissues}).\\
+\emph{What to do:} Look in the project folder and check the file size, for
+example with \texttt{ls -l} in the Terminal. A 0-byte file is a failed step.
+See Chapter~\ref{ch:projectfolder}.
+
+{\bfseries You pressed \key{Enter} in the feedback form and it tried to post
+your report.}\\*
+\emph{Why:} The default of \prompt{Submit this feedback to GitHub Issues?
+[y/n] (y)} is yes.\\
+\emph{What to do:} Type \key{n} at that question if you are not ready, or
+press \key{Enter} at \prompt{Summary:} to cancel the form. See
+Chapter~\ref{ch:help}.

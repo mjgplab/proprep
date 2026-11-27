@@ -1,0 +1,41 @@
+\begin{titlepage}
+\thispagestyle{empty}
+\newgeometry{left=24mm,right=24mm,top=30mm,bottom=24mm}
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[ppblue] (current page.north west) rectangle ([yshift=-95mm]current page.north east);
+  \fill[ppteal] ([yshift=-95mm]current page.north west) rectangle ([yshift=-98mm]current page.north east);
+\end{tikzpicture}
+
+\vspace*{8mm}
+{\color{white}\sffamily\bfseries\fontsize{46}{50}\selectfont ProPrep\par}
+\vspace{4mm}
+{\color{white}\sffamily\Large Perform Protein Preparation like a Pro\par}
+\vspace{2mm}
+{\color{white!85!ppblue}\sffamily\large Learn the process, skip the pain\par}
+
+\vspace{48mm}
+{\sffamily\bfseries\Huge\color{ppblue} User Manual\par}
+\vspace{4mm}
+{\sffamily\Large\color{ppgrey} A plain-language guide to preparing proteins\\[2pt]
+for molecular dynamics and QM/MM simulations with Amber\par}
+
+\vspace{14mm}
+\begin{tcolorbox}[colback=pplight,colframe=pplight,arc=2pt,left=10pt,right=10pt,top=8pt,bottom=8pt]
+\sffamily
+\begin{tabular}{@{}ll@{}}
+\textbf{\color{ppblue}Software version} & ProPrep 1.23.0 \\
+\textbf{\color{ppblue}Manual edition}   & November 2026 \\
+\textbf{\color{ppblue}Written for}      & scientists who are not programmers \\
+\end{tabular}
+\end{tcolorbox}
+
+\vfill
+{\sffamily\small\color{ppgrey}
+ProPrep is developed by the Guberman-Pfeffer Lab, New Mexico State University,
+with contributions from Adara Walker and John Cairns.\\[3pt]
+If ProPrep helps your research, please cite:
+Walker, A. \& Guberman-Pfeffer, M.\,J. (2026). \emph{ProPrep: An Interactive and
+Instructional Interface for Proper Protein Preparation with AMBER.} bioRxiv.
+\url{https://doi.org/10.64898/2026.02.26.708365}\par}
+\restoregeometry
+\end{titlepage}

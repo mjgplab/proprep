@@ -1,0 +1,454 @@
+\chapter{Sessions: ProPrep remembers every answer}
+\label{ch:sessions}
+
+Every time you use ProPrep, it writes down each answer you type, in order, in
+a small file. That file is called a \term{session}. It lets you take back a
+wrong answer, carry on where you left off after a crash, repeat a whole
+preparation without typing, and turn one preparation into a recipe for many
+proteins (Chapter~\ref{ch:batch}).
+
+Recording is on from the start. You do not have to do anything to switch it
+on.
+
+\section{The session file}
+\label{sec:sessions-file}
+
+When ProPrep starts, it prints where it is recording:
+
+\begin{screen}
+Session recording to: ./proprep_session_20261121_122825.json
+Tip: Use --no-session to disable automatic session recording
+Tip: Type 'undo' at any prompt to rewind to an earlier answer
+\end{screen}
+
+The name holds the date and the time, so files never overwrite each other. A
+short preparation of ubiquitin (download \pdb{1UBQ}, remove the crystal
+waters, exit) made a file with 19 answers in it.
+
+\begin{watchout}
+The session file is written into the \textbf{project folder}: the folder named
+at \prompt{Project name}, not the folder you started ProPrep in. This matters
+when you want to resume later (Section~\ref{sec:sessions-resume}).
+\end{watchout}
+
+Two answers are never recorded, because they come before recording starts: the
+menu-mode question and the project name.
+
+\begin{behindscenes}
+The file is plain text in JSON form: a short block of information about the
+run (ProPrep's version, the command you typed, the folder, your description if
+you gave one) followed by one entry per answer, with the question, your reply
+and the menu options you were offered. It is written as you go, so a run that
+is interrupted still leaves a usable file.
+\end{behindscenes}
+
+You can label a session when you start it, which helps when several files sit
+side by side:
+
+\begin{terminal}
+proprep --full-menu --session-description "first recording 1UBQ"
+\end{terminal}
+
+The text appears in the \prompt{Notes} column when ProPrep later offers you
+the file.
+
+\section{Taking back an answer: \texttt{undo}}
+\label{sec:sessions-undo}
+
+Type \typed{undo} at any question instead of an answer. ProPrep lists your
+recent answers and asks which one to go back to.
+
+\begin{steps}
+  \item Type \typed{undo}.
+\begin{screen}
+Recent answers in this session
+ # ┃ module                ┃ question                           ┃ answer
+━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━
+13 │ PDB Filter            │ Proceed with filtering             │ yes  Yes
+14 │ PDB Filter            │ Chain A - Protein retention option │ r  Retain...
+15 │ PDB Filter            │ Chain A - Water retention option   │ r  Retain...
+16 │ PDB Filter            │ Apply filter selections ...        │ yes  Yes
+17 │ PDB Filter Menu       │ Select PDB Filter option           │ 2  Show ...
+Rewind to which answer? number to rewind to, [m]ore, or [x] cancel (17): §ans«15»
+\end{screen}
+  \item Type the number of the answer you want back. \key{m} shows the
+        previous page, \key{x} cancels.
+  \item ProPrep offers two ways to change it:
+\begin{screen}
+  15  Chain A - Water retention option  r  Retain entire component
+[r]e-answer it live, or [c]hange it and replay what followed? (r): §ans«r»
+\end{screen}
+  \item Type \key{r}. ProPrep says what it is about to do, replays everything
+        up to that question, and then asks it again, live:
+\begin{screen}
+[Rewinding: question 15 will be asked again; 3 answers from there on are
+set aside in a backup of the session log]
+...
+[Replay complete - now recording new interactions]
+\end{screen}
+\end{steps}
+
+Answer the question again and carry on as normal. The answers after the
+rewind point are kept in a backup file ending in \file{.bak-} plus the time,
+in case you want to look at them.
+
+\begin{watchout}
+Option \key{c} (\textsf{change it and replay what followed}) does not work
+reliably for menu questions in version 1.23.0. We changed a water answer from
+\typed{d} to \typed{r} this way; during the replay ProPrep printed
+\prompt{[REPLAY: 'r' now means a different option; using 'd' → Discard entire
+component]} and kept the old answer. Use \key{r} (re-answer live) instead, or
+the Session Editor (Section~\ref{sec:sessions-editor}).
+\end{watchout}
+
+\subsection{Where \texttt{undo} does not work}
+
+\begin{itemize}
+  \item \textbf{At the project-name question.} Recording has not started, so
+        the word is taken literally: a project folder called \file{undo} is
+        created.
+  \item \textbf{With \texttt{--no-session}.} You get
+        \prompt{Invalid choice: undo. Please try again.}
+  \item \textbf{During a hands-off replay} (\texttt{--force-replay}), where
+        there is nothing to record.
+\end{itemize}
+
+Two more things worth knowing. A typing mistake is recorded like any other
+answer, so it appears in the list. And rewinding to answer \typed{0} clears
+the whole recording: \prompt{[Session truncated to nothing - the first question
+will be asked live]}.
+
+\begin{watchout}
+In a tool with many settings spread over several menus, check your settings
+after an \texttt{undo}. In one of our membrane runs, a value set earlier in a
+different sub-menu was back at its default after a rewind
+(Chapter~\ref{ch:membrane}).
+\end{watchout}
+
+\section{Picking up an earlier session}
+\label{sec:sessions-resume}
+
+Start ProPrep \textbf{inside} the project folder that holds the session file.
+ProPrep then offers it to you:
+
+\begin{screen}
+Previous session files found!
+
+What would you like to do?
+  1. Start fresh session (record new interactions)
+  2. Resume a previous session from any point
+  3. Continue without session recording
+
+Select option  [1/2/3] (1):
+\end{screen}
+
+\begin{watchout}
+ProPrep only looks in the folder you start it in. Starting it in the folder
+\emph{above} the project folder goes straight to the project question, even
+though a session file is sitting one level down. Use \texttt{cd} to go into
+the project folder first.
+\end{watchout}
+
+Choice \key{1} starts a new recording next to the old one. Choice \key{3}
+records nothing. Choice \key{2} lists the files, newest first:
+
+\begin{screen}
+┏━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃ #   ┃ Filename                             ┃ Date/Time        ┃ Interactions ┃
+┡━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+│ 1   │ proprep_session_20261121_122825.json │ 2026-11-21 12:28 │ 19           │
+└─────┴──────────────────────────────────────┴──────────────────┴──────────────┘
+
+Select session to resume (0 to cancel)  [1/0] (0):
+\end{screen}
+
+\begin{watchout}
+The default answer here is \key{0}, which means \emph{cancel}. Pressing
+\key{Enter} does not resume anything; it starts a fresh session. Type the
+number of the file you want.
+\end{watchout}
+
+Pick a number and ProPrep offers three ways to use it:
+
+\begin{screen}
+Options:
+  1. Continue from end (append new interactions)
+  2. Open session editor (edit/delete multiple interactions)
+  3. Cancel
+\end{screen}
+
+Option \key{1} replays every recorded answer and then hands control back to
+you. Option \key{2} opens the editor described below. Option \key{3} starts a
+fresh session.
+
+\begin{watchout}
+\textbf{Do not use \textsf{Continue from end} on a session you ended
+normally.} The recording includes your exit, so ProPrep replays that too and
+quits before you can type anything:
+\begin{screen}
+Enter your choice [REPLAY: x]
+Are you sure you want to exit? [REPLAY: Yes]
+Goodbye!
+\end{screen}
+Files are re-created on the way through (the structure is downloaded again,
+the filter runs again), and then the program is gone. The fix is to delete the
+last two answers in the Session Editor first
+(Section~\ref{sec:sessions-editor}). \textsf{Continue from end} works as
+intended on a session that was interrupted, because those have no recorded
+exit.
+\end{watchout}
+
+\section{The Session Editor}
+\label{sec:sessions-editor}
+
+The editor lets you change or remove earlier answers and then run the
+preparation again from the corrected recording. Open it with a flag:
+
+\begin{terminal}
+proprep --full-menu --resume-session proprep_session_20261121_122825.json
+\end{terminal}
+
+and choose option \key{2}. (The same editor sits behind option \key{2} of the
+startup menu.)
+
+\begin{screen}
+╭─────────────────────────────── Session Editor ─────────────────────────────╮
+│ File: proprep_session_20261121_122825.json | 19 interactions | no changes │
+╰───────────────────────────────────────────────────────────────────────────╯
+Note: Editing a menu choice that changes the workflow path (e.g., picking
+a different tool) may invalidate later interactions. During replay, ProPrep
+will fall through to live input when recorded interactions no longer match.
+
+┏━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃  # ┃ Status ┃ Module             ┃ Question              ┃ Answer          ┃
+┡━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│  5 │   ·    │ Structure Loader   │ Enter PDB ID to ...   │ 1UBQ            │
+│ 16 │   ·    │ PDB Filter         │ Chain A - Water ...   │ Discard entire  │
+│ 18 │   ·    │ PDB Filter Menu    │ Select PDB Filter ... │ Exit            │
+│ 19 │   ·    │ Navigation         │ Confirm exit app...   │ Yes             │
+└────┴────────┴────────────────────┴───────────────────────┴─────────────────┘
+Page 1/1
+[e]dit #  [d]elete #|#-#|#-end  [u]ndo #|#-#  [n]ext  [b]ack  [j]ump #
+[p]review  save  quit  help
+\end{screen}
+
+The answers are shown in words (\prompt{Discard entire component}), not as the
+letters you typed. The \prompt{Status} column marks what you have changed:
+\texttt{E} for edited, \texttt{D} for deleted, \texttt{·} for untouched.
+
+\subsection{The commands}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Command} & \textbf{What it does} \\
+\midrule
+\typed{e 16} & Change answer 16. For a menu question ProPrep lists the
+  choices and marks the current one. \\
+\typed{d 18}, \typed{d 18-19}, \typed{d 18-end} & Skip these answers when the
+  session is replayed. \\
+\typed{u 19}, \typed{u 18-19} & Take back a pending change. \\
+\typed{n}, \typed{b}, \typed{j 15} & Next page, previous page, jump to the
+  page holding answer 15. \\
+\typed{p} & List the changes you have made but not yet saved. \\
+\typed{save} & Write the corrected file and run it. \\
+\typed{quit} & Leave without saving (it asks first if anything is pending).
+  In this mode, quitting starts a fresh session. \\
+\typed{help} & Show the command list. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Changing an answer looks like this:
+
+\begin{screen}
+> : §ans«e 16»
+Editing #16: Chain A - Water retention option
+Available options:
+  r: Retain entire component
+  s: Select specific residues
+  d: Discard entire component <-- current
+Current value: d (Discard entire component)
+New value (d): §ans«r»
+Marked #16 for edit: Discard entire component -> Retain entire component
+\end{screen}
+
+\subsection{Removing the recorded exit}
+
+This is the repair for the trap in Section~\ref{sec:sessions-resume}. The last
+two answers of a normally-ended session are the exit and the confirmation.
+Delete them:
+
+\begin{screen}
+> : §ans«d 18-end»
+Deleted #18-#19 (2 interactions) (use 'u 18-19' to restore)
+\end{screen}
+
+Then type \typed{save}. ProPrep reminds you that a changed answer can send the
+run down a different path, asks you to confirm, and writes a new file:
+
+\begin{screen}
+Session saved: proprep_session_20261121_122825_edited.json
+1 edit(s), 2 deletion(s) applied
+...
+Hybrid mode started:
+  Mode: Replay existing → Record new
+\end{screen}
+
+ProPrep then replays the corrected recording and stops at the first question
+that is no longer answered, which it now asks you live. Your original file is
+not changed; the corrected one gets a new name ending in \file{_edited.json},
+and each resume or rewind leaves a \file{.bak-} copy.
+
+\begin{tip}
+\prompt{Hybrid mode} is ProPrep's name for ``replay what is recorded, then
+record what I type next''. It is the mode you are in after a resume, an edit
+or an \texttt{undo}.
+\end{tip}
+
+\subsection{When the questions no longer match}
+
+If your change sends the run down a different path, the recorded answers after
+it do not fit the new questions. ProPrep does not guess: it stops replaying
+and asks you live from that point. The warning at the top of the editor says
+so. This is also why editing a tool choice is risky, while editing a value
+(a PDB code, a yes/no answer) is usually safe.
+
+\section{Replaying a session, and demonstrating it}
+\label{sec:sessions-replay}
+
+To repeat a whole preparation without typing anything, replay the file:
+
+\begin{terminal}
+proprep --full-menu --force-replay proprep_session_20261121_122825.json
+\end{terminal}
+
+ProPrep prints each question with its recorded answer in brackets and works
+through to the end:
+
+\begin{screen}
+[Session replay started: proprep_session_20261121_122825.json]
+Replaying session from: proprep_session_20261121_122825.json
+...
+Enter your choice [1a]
+Enter PDB ID (e.g., 1ABC, 7XYZ) [1UBQ]
+...
+Are you sure you want to exit? [Yes]
+Goodbye!
+[Session replay stopped]
+\end{screen}
+
+Our 19-answer session took about 10 seconds and re-created both output files
+in the folder we started in. The recording itself is not changed, and no new
+session file is written.
+
+For teaching or a demonstration, slow it down so the audience can follow:
+
+\begin{terminal}
+proprep --full-menu --force-replay session.json --demo-delay 0.5
+\end{terminal}
+
+\begin{screen}
+Demo mode: 0.5s delay between actions
+\end{screen}
+
+\begin{tip}
+Always add \texttt{--full-menu} (or \texttt{--workflow}) to a replay command.
+The menu-mode question is not part of a recording, so without the flag ProPrep
+stops and asks it before the replay starts.
+\end{tip}
+
+The \texttt{--demo-delay} option also works with \texttt{--resume-session}. On
+its own it does nothing, and ProPrep says so:
+\prompt{Warning: --demo-delay has no effect without --force-replay or
+--resume-session}.
+
+\begin{watchout}
+A session that was started from a local file with \texttt{--pdbfile} needs
+that file again. If it is missing, ProPrep tells you exactly where it looked
+and suggests copying the file in or passing \texttt{--pdbfile}, then carries
+on with no structure, so every tool reports
+\prompt{Needs a loaded structure}.
+\end{watchout}
+
+\section{Recovering after a crash or a closed window}
+\label{sec:sessions-crash}
+
+Because the file is written as you go, a run that ends badly, by Ctrl-C, a
+crash, or a closed browser tab, still leaves everything you had typed. To pick
+up:
+
+\begin{terminal}
+proprep --full-menu --resume-session proprep_session_20261121_130253.json
+\end{terminal}
+
+Choose option \key{1} (\textsf{Continue from end}). ProPrep re-enters each
+recorded answer, prints \prompt{[Replay complete - now recording new
+interactions]}, and leaves you exactly where you stopped, with recording
+continuing in the same file. This is safe here because an interrupted session
+has no recorded exit.
+
+We used this for real while writing this manual. A long force-field run
+(Chapter~\ref{ch:forcefields}), with dozens of answers in it, was recovered
+this way; the replay took seconds.
+
+\begin{watchout}
+Resuming replays your \emph{answers}, not ProPrep's memory. It therefore
+re-does the work, which may mean downloading and re-running tools. Reopening
+the project folder on its own restores nothing: loaded structures and detected
+sites are gone until the answers are replayed.
+\end{watchout}
+
+\section{Working without a session}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Option} & \textbf{What it does} \\
+\midrule
+\texttt{--no-session} & Records nothing and does not offer old sessions. No
+  \prompt{Session recording to:} line, and \typed{undo} is refused. \\
+\texttt{--session-dir DIR} & Keeps session files in \file{DIR} instead of the
+  project folder, and looks there for old ones. \\
+\texttt{--session-description TEXT} & A note stored with the file and shown
+  in the \prompt{Notes} column. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+You might turn recording off for a quick look at something, or when you share
+a folder and do not want extra files in it. Startup choice \key{3}
+(\textsf{Continue without session recording}) does the same for one run.
+
+\begin{watchout}
+In version 1.23.0, \texttt{--session-dir} must be an \textbf{absolute} path to
+a folder that \textbf{already exists}. A relative path, or a folder that is
+not there, stops ProPrep right after the project question with
+\prompt{Error: [Errno 2] No such file or directory}, and then confusingly
+prints \prompt{Session saved to:} for a file it did not write. The cause is
+that the path is worked out after ProPrep has moved into the project folder.
+\end{watchout}
+
+\section{If something goes wrong}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{What to do} \\
+\midrule
+No \prompt{Previous session files found!} question & You are not in the
+  project folder, or you used \texttt{--no-session}. \texttt{cd} into the
+  folder that holds the \file{proprep_session_*.json} file. \\
+ProPrep replays and exits at once & \textsf{Continue from end} on a session
+  that recorded your exit. Delete the last two answers in the editor. \\
+\prompt{Invalid choice: undo} & Recording is off for this run. \\
+Your edited answer is ignored during replay & Known problem with
+  \texttt{undo} option \key{c}. Use \key{r} or the Session Editor. \\
+\prompt{Session file not found: nope.json} & Check the name; ProPrep then
+  stops. \\
+A question is asked live in the middle of a replay & The recording no longer
+  matches, usually because the structure differs. Answer it and carry on. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+One more small oddity: on a normal exit ProPrep prints
+\prompt{[Session recording stopped]} but never a \prompt{Session saved to:}
+line. The file is there all the same.

@@ -1,0 +1,238 @@
+\chapter{Menu map}\label{app:menumap}
+
+This appendix lists every key in ProPrep~1.23.0's menus: the main menu, the
+settings keys, the first-level choices inside each tool, and where each tool
+sits in Workflow Mode. Section~\ref{sec:menus-main} explains how to read the
+menus.
+
+\section{Main menu (Full Menu)}\label{sec:menumap-main}
+
+Type the key at \prompt{Enter your choice (1a)}. \key{Enter} alone opens
+\key{1a}.
+
+\begin{longtable}{@{}p{0.07\linewidth}p{0.28\linewidth}p{0.47\linewidth}p{0.08\linewidth}@{}}
+\toprule
+\textbf{Key} & \textbf{Tool} & \textbf{What it is for} & \textbf{Ch.} \\
+\midrule
+\endhead
+\multicolumn{4}{@{}l}{\textsf{\bfseries 1. STRUCTURE INPUT}} \\
+\key{1a} & Structure Loader & Get a structure: PDB code, search, AlphaFold,
+AlphaFill or a local file; also Amber files and ligand files. &
+\ref{ch:structure} \\
+\key{1b} & Biological Assembly Generator & Build the working (biological) form
+of a molecule from the crystal's asymmetric unit. & \ref{ch:structure} \\
+\multicolumn{4}{@{}l}{\textsf{\bfseries 2. REDOX SITE DETECTION}} \\
+\key{2a} & Redox Site Detector & Find hemes, iron--sulfur clusters, flavins,
+metals and disulfides. & \ref{ch:redox} \\
+\key{2b} & Force Field Explorer & Look up atom types, residues and parameters
+in a force field. & \ref{ch:forcefields} \\
+\key{2c} & Force Field Parameterizer & Make parameters for ligands, modified
+amino acids and metal sites. & \ref{ch:forcefields} \\
+\multicolumn{4}{@{}l}{\textsf{\bfseries 3. STRUCTURE COMPARISON}} \\
+\key{3a} & Homology Searcher & BLAST search for similar sequences. &
+\ref{ch:compare} \\
+\key{3b} & Structure Aligner & Superimpose structures and compare them
+(RMSD). & \ref{ch:compare} \\
+\multicolumn{4}{@{}l}{\textsf{\bfseries 4. STRUCTURE PREPARATION}} \\
+\key{4a} & PDB Filter & Keep the chains and components you want; remove
+waters, ions, ligands. & \ref{ch:cleaning} \\
+\key{4b} & Amino Acid Mutator & Change residues. & \ref{ch:cleaning} \\
+\key{4c} & Structure Fixer & Find missing residues and atoms; add end caps;
+repair (needs MODELLER). & \ref{ch:cleaning} \\
+\key{4d} & Redox Site Preparer & Give redox sites the right names and
+oxidation states. & \ref{ch:redox} \\
+\key{4e} & Protonation State Analyzer & Predict pKa values and set residue
+charge states for your pH. & \ref{ch:protonation} \\
+\key{4f} & Structure Orientator & Rotate and move the structure onto the x, y
+and z axes. & \ref{ch:protonation} \\
+\key{4g} & Membrane Builder & Pack a protein into a lipid bilayer, or build a
+membrane alone. & \ref{ch:membrane} \\
+\multicolumn{4}{@{}l}{\textsf{\bfseries 5. SIMULATION SETUP \& EXECUTION}} \\
+\key{5a} & Topology Generator & Build the simulation system (topology and
+coordinates) with water and ions. & \ref{ch:topology} \\
+\key{5b} & Molecular Dynamics Manager & Set up, run, monitor and analyze
+simulations. & \ref{ch:runningmd}, \ref{ch:analysis} \\
+\key{5c} & QM/MM Preparator & Write Gaussian ONIOM or ORCA QM/MM input files.
+& \ref{ch:qmmm} \\
+\key{5d} & Molecular Docking & Dock a ligand with AutoDock Vina. &
+\ref{ch:docking} \\
+\multicolumn{4}{@{}l}{\textsf{\bfseries UTILITIES}} \\
+\key{ua} & Structure Viewer & Show structures (and trajectories) in the 3D
+viewer in your browser. & \ref{ch:compare} \\
+\bottomrule
+\end{longtable}
+
+\section{Settings and navigation keys}\label{sec:menumap-settings}
+
+\begin{longtable}{@{}p{0.12\linewidth}p{0.62\linewidth}p{0.16\linewidth}@{}}
+\toprule
+\textbf{Key} & \textbf{What it does} & \textbf{See} \\
+\midrule
+\endhead
+\key{w} & Workspace Options: 1 Show workspace status, 2 Show detailed
+workspace, 3 Save workspace, 4 Load workspace, 5 Reset workspace, 6 Toggle
+debug mode, 7 Show command history, 8 Save command history, 9 Load command
+history, 10 Replay command history, 11 Reset command history, 12 Back to main
+menu. & Section~\ref{sec:menus-workspace} \\
+\key{p} & Preferences: 1 Change default menu mode, 2 Change full-menu layout,
+3 Configure GitHub feedback, 4 Check for new ProPrep releases at startup,
+5 Reset all preferences to defaults, 6 Back to main menu. &
+Section~\ref{sec:menus-prefs} \\
+\key{h} & Help \& Workflows (its codes are out of date). &
+Section~\ref{sec:menus-help} \\
+\key{f} & Feedback \& Support. & Section~\ref{sec:help-feedback} \\
+\key{g} & Switch to Workflow Mode. & Section~\ref{sec:menus-workflow} \\
+\key{x} & Exit (asks to confirm). & Section~\ref{sec:starting-exit} \\
+\typed{undo} & At any question: go back to an earlier answer. &
+Section~\ref{sec:menus-undo} \\
+\key{b} & In a tool: back one level. & Section~\ref{sec:menus-nav} \\
+\key{m} & In a tool: straight to the main menu. & Section~\ref{sec:menus-nav} \\
+\bottomrule
+\end{longtable}
+
+\section{Inside each tool}\label{sec:menumap-tools}
+
+These are the numbered choices on each tool's own menu. Every tool menu also
+offers \key{b}, \key{m} and \key{x}. A choice that cannot be used yet shows
+\texttt{○} with a \texttt{⚠} reason; one that has been done shows \texttt{●}.
+
+\begin{longtable}{@{}p{0.24\linewidth}p{0.70\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{Choices} \\
+\midrule
+\endhead
+\key{1a} Structure Loader & 1 Load protein structure \textperiodcentered{}
+2 Load AMBER topology \& coordinate files \textperiodcentered{} 3 View
+structure metadata \textperiodcentered{} 4 Load a ligand file or library
+(SDF/mol2/SMILES) for docking.\newline
+\textit{Inside 1, the sources:} 1 Protein Data Bank (RCSB), 2 AlphaFold,
+3 AlphaFill, 4 local PDB file, 5 view local files together, 6 Done.
+\textit{RCSB methods:} 1 PDB ID, 2 title keyword, 3 gene or protein
+(UniProt), 4 ligand, 5 back. \\
+\key{1b} Biological Assembly & 1 Generate biological assembly from asymmetric
+unit. Then: an assembly number, \key{m} (manual matrix; stops ProPrep in
+1.23.0) or \key{c} cancel. \\
+\key{2a} Redox Site Detector & 1 Import redox sites from JSON file
+\textperiodcentered{} 2 Detect redox-active sites \textperiodcentered{} 3 View
+detected site summaries \textperiodcentered{} 4 Edit detected sites. \\
+\key{2b} Force Field Explorer & 1 Overview \textperiodcentered{} 2 Browse Atom
+Types \textperiodcentered{} 3 Browse Residues \textperiodcentered{} 4 Search
+Parameters \textperiodcentered{} 5 Reverse Lookup \textperiodcentered{} 6 Load
+Different Force Field \textperiodcentered{} 7 Type Structure Atoms
+\textperiodcentered{} b Back. \\
+\key{2c} Force Field Parameterizer & 1 Analyze and configure residue
+classifications \textperiodcentered{} 2 Import existing parameters into your
+library \textperiodcentered{} 3 Parameterize residues (new or resume)
+\textperiodcentered{} 4 View parameterization status \textperiodcentered{}
+5 Display detailed help information. \\
+\key{3a} Homology Searcher & 1 Run BLAST homology search \textperiodcentered{}
+2 View BLAST results \textperiodcentered{} 3 Retrieve AlphaFold structures for
+hits \textperiodcentered{} 4 Export alignments and annotations
+\textperiodcentered{} 5 Build homology model (MODELLER). \\
+\key{3b} Structure Aligner & 1 Align multiple PDB structures
+\textperiodcentered{} 2 Align structures using redox site residues
+\textperiodcentered{} 3 View alignment results. \\
+\key{4a} PDB Filter & 1 Filter PDB structure \textperiodcentered{} 2 Show
+filtering status \textperiodcentered{} 3 Export filter selection. For each
+component: \key{r} retain, \key{s} select residues, \key{d} discard. \\
+\key{4b} Amino Acid Mutator & 1 Display protein sequences with numbering
+\textperiodcentered{} 2 Specify amino acid mutations \textperiodcentered{}
+3 Show current mutation status. \\
+\key{4c} Structure Fixer & 1 Analyze structure completeness
+\textperiodcentered{} 2 Apply repairs/mutations/caps to structure
+\textperiodcentered{} 3 View structural issues report \textperiodcentered{}
+4 Export results to JSON. \\
+\key{4d} Redox Site Preparer & 1 Create transformer (interactive PDB editor)
+\textperiodcentered{} 2 Generate single redox microstate
+\textperiodcentered{} 3 Generate all redox microstates (batch processing). \\
+\key{4e} Protonation State Analyzer & 1 Analyze protonation states (PROPKA)
+\textperiodcentered{} 2 Calculate ideal charge capacitance
+\textperiodcentered{} 3 Set MD residue names \textperiodcentered{} 4 View
+analysis results \textperiodcentered{} 5 Export analysis results. \\
+\key{4f} Structure Orientator & 1 Orient structure along Cartesian axes. Then:
+1 principal axes (PCA), 2 two residues to an axis, 3 two atoms to an axis,
+4 plane normal to Z, 5 center at origin, 6 custom rotation, 7 cancel. \\
+\key{4g} Membrane Builder & 1 Build membrane-protein system. Its dashboard:
+1 Protein Selection, 2 Lipid Composition, 3 Solvent \& Ions, 4 Box \& Membrane
+Dims, 5 Protein Orientation, 6 Specialized Geometry, 7 PACKMOL Settings,
+8 Force Fields, 9 Custom Params \& Solutes; \key{r} review, \key{g} build,
+\key{b} back. \\
+\key{5a} Topology Generator & 1 Edit redox site bond definitions
+\textperiodcentered{} 2 Generate tLEaP input for single state
+\textperiodcentered{} 3 Generate tLEaP inputs for all redox microstates
+\textperiodcentered{} 4 Generate prmtop/rst7 files from tLEaP input files
+\textperiodcentered{} 5 Refine protonation states via PB (PBSA)
+\textperiodcentered{} 6 Generate cpin/cein file for constant pH or redox MD. \\
+\key{5b} Molecular Dynamics Manager & 1 Setup and configure simulations
+\textperiodcentered{} 2 Execute simulations \textperiodcentered{} 3 Monitor
+simulation progress \textperiodcentered{} 4 Analyze completed simulations
+\textperiodcentered{} 5 Manage Templates \& Protocols \textperiodcentered{}
+6 Manage cluster profiles \textperiodcentered{} 7 Manage run plans. \\
+\key{5c} QM/MM Preparator & 1 Run QM/MM preparation workflow
+\textperiodcentered{} 2 View current QM/MM configuration
+\textperiodcentered{} 3 Reset configuration to defaults. \\
+\key{5d} Molecular Docking & 1 Dock a ligand into the structure. Its dashboard:
+1 Receptor, 2 Ligand, 3 Kept HETATM, 4 Protonation, 5 Metals \& cofactors,
+6 Flexible, 7 Rotatable, 8 Search box, 9 Settings; \key{r} run docking,
+\key{c} campaign, \key{v} view results. \\
+\key{ua} Structure Viewer & 1 Launch interactive viewer \textperiodcentered{}
+2 View the loaded MD trajectory \textperiodcentered{} 3 Show available
+annotations \textperiodcentered{} 4 Save the scene shown in the open viewer
+\textperiodcentered{} 5 Load a saved scene \textperiodcentered{} 6 Launch
+viewer with electron density. \\
+\bottomrule
+\end{longtable}
+
+\section{Workflow Mode}\label{sec:menumap-workflow}
+
+In Workflow Mode the tools are numbered within each stage. The table gives the
+Workflow key and the matching Full Menu key.
+
+\begin{longtable}{@{}p{0.16\linewidth}p{0.10\linewidth}p{0.48\linewidth}p{0.16\linewidth}@{}}
+\toprule
+\textbf{Stage} & \textbf{Key} & \textbf{Tool} & \textbf{Full Menu} \\
+\midrule
+\endhead
+Load & \key{1} & Structure Loader & \key{1a} \\
+ & \key{2} & Biological Assembly Generator & \key{1b} \\
+\midrule
+Detect & \key{1} & Redox Site Detector & \key{2a} \\
+ & \key{2} & Force Field Explorer & \key{2b} \\
+ & \key{3} & Force Field Parameterizer & \key{2c} \\
+\midrule
+Compare & \key{1} & Homology Searcher & \key{3a} \\
+ & \key{2} & Structure Aligner & \key{3b} \\
+\midrule
+Fix & \key{1} & PDB Filter & \key{4a} \\
+ & \key{2} & Amino Acid Mutator & \key{4b} \\
+ & \key{3} & Structure Fixer & \key{4c} \\
+ & \key{4} & Redox Site Preparer & \key{4d} \\
+ & \key{5} & Protonation State Analyzer & \key{4e} \\
+ & \key{6} & Structure Orientator & \key{4f} \\
+ & \key{7} & Membrane Builder & \key{4g} \\
+\midrule
+Simulate & \key{1} & Topology Generator & \key{5a} \\
+ & \key{2} & Molecular Dynamics Manager & \key{5b} \\
+ & \key{3} & QM/MM Preparator & \key{5c} \\
+ & \key{4} & Molecular Docking & \key{5d} \\
+\midrule
+Any stage & \key{v} & Structure Viewer & \key{ua} \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Workflow Mode keys}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Key} & \textbf{What it does} \\
+\midrule
+\key{n} & Next stage (marks this one done; not on Simulate). \\
+\key{b} & Previous stage (not on Load). \\
+\key{l} \key{d} \key{c} \key{f} \key{s} & Jump to Load, Detect, Compare, Fix or
+Simulate. \\
+\key{u} & Utilities: \key{w} Workspace Options, \key{p} Preferences, \key{h}
+Help \& Workflows, \key{f} Feedback \& Support, \key{c} Cancel (the default). \\
+\key{a} & Switch to the Full Menu. \\
+\key{x} & Exit (asks to confirm). \\
+\bottomrule
+\end{tabularx}

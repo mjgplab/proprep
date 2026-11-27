@@ -1,0 +1,162 @@
+\chapter{What ProPrep is (and is not)}
+\label{ch:whatis}
+
+ProPrep helps you turn a protein structure from a database into a system that
+is ready to simulate with the Amber programs. It walks you through every step,
+asks you a short question at each one, and explains why the question matters.
+This chapter explains what that means in plain words, what ProPrep does for you,
+and what it leaves to you.
+
+\section{The problem ProPrep solves}
+\label{sec:whatis-problem}
+
+A structure from the \term{Protein Data Bank} (PDB, the public archive of
+experimentally solved structures) is a picture, not a model ready for
+simulation. A typical file has:
+\begin{itemize}
+  \item no hydrogen atoms, because X-ray experiments rarely see them;
+  \item missing pieces, such as loops or side chains that were too mobile to
+        see;
+  \item extra molecules: crystal waters, salts, and additives from the
+        experiment;
+  \item groups the simulation programs do not recognize on their own, such as
+        a heme, a metal ion, or a drug molecule;
+  \item amino acids whose charge depends on the \term{pH} (the acidity of the
+        surroundings), such as histidine.
+\end{itemize}
+
+Before a simulation can start, someone must decide what to keep, fix what is
+missing, choose the charge of every titratable residue, give every unusual
+group its parameters, and put the protein in a box of water and salt. Doing this
+by hand means many small programs, file formats and naming rules. ProPrep does
+that labor for you and keeps a record of every choice.
+
+\section{Words you will meet}
+\label{sec:whatis-words}
+
+\begin{description}
+  \item[A prepared structure] is a complete, consistently named model of your
+        protein. It has the parts you decided to keep, the missing atoms filled
+        in, and residue names that match the charge states you chose.
+  \item[A molecular dynamics simulation] (\term{MD}) is a calculation that
+        moves every atom a tiny step at a time, using the forces between the
+        atoms. Millions of steps make a short movie of how the protein moves in
+        water. The movie is saved as a \term{trajectory} file.
+  \item[A force field] is the set of numbers that describes these forces:
+        bond lengths, angles, charges, and so on. ProPrep uses the Amber
+        \term{force field}s, for example ff19SB for proteins.
+  \item[A topology] is the file that lists every atom of your system with its
+        force-field numbers. Together with a \term{coordinate file} (where each
+        atom is), it is what the simulation program reads.
+\end{description}
+
+\section{What ProPrep does}
+\label{sec:whatis-does}
+
+ProPrep covers the whole path from a PDB code to an analyzed simulation. The
+main stages, each with its own chapter in Part~IV, are:
+
+\begin{enumerate}
+  \item \textbf{Get a structure} from the PDB, from the AlphaFold database, or
+        from your own file (Chapter~\ref{ch:structure}).
+  \item \textbf{Clean and repair it}: choose which chains, waters and ligands
+        to keep, fill gaps, and make mutations (Chapter~\ref{ch:cleaning}).
+  \item \textbf{Set protonation states} at your chosen pH with PROPKA, with a
+        reason shown for each residue (Chapter~\ref{ch:protonation}).
+  \item \textbf{Handle special sites}: hemes, iron--sulfur clusters, metals
+        and ligands (Chapter~\ref{ch:redox} and Chapter~\ref{ch:forcefields}).
+  \item \textbf{Build the system}: force field, water box and salt, written as
+        an editable input file for Amber's tLEaP program
+        (Chapter~\ref{ch:topology}).
+  \item \textbf{Run and analyze the simulation} on your computer or on a
+        computing cluster (Chapters~\ref{ch:runningmd} and~\ref{ch:analysis}).
+\end{enumerate}
+
+It also builds membranes around membrane proteins (Chapter~\ref{ch:membrane}),
+docks small molecules (Chapter~\ref{ch:docking}), writes input files for
+QM/MM calculations (Chapter~\ref{ch:qmmm}), and compares and shows structures
+in 3D (Chapter~\ref{ch:compare}).
+
+\section{It automates the labor, not the decisions}
+\label{sec:whatis-idea}
+
+The idea behind ProPrep is stated in its own description: it \emph{automates
+the labor of preparation, not the decisions}. Each step is a small choice,
+usually a single key, shown together with what the step does, why it matters
+and how ProPrep will carry it out. You stay informed and in control instead of
+accepting hidden settings.
+
+In practice this means:
+\begin{itemize}
+  \item ProPrep \textbf{suggests} a choice (the default in brackets), but you
+        make it. Pressing \key{Enter} accepts the suggestion.
+  \item ProPrep \textbf{explains} each scientific choice on the screen, often in
+        a box with a short background text.
+  \item ProPrep \textbf{records} every answer in a \term{session file}. You
+        can replay the file, correct a wrong answer, or use it as a recipe for
+        many proteins (Chapters~\ref{ch:sessions} and~\ref{ch:batch}).
+  \item ProPrep \textbf{shows} the files it writes, such as the tLEaP input, so
+        you can read and edit them before they are used.
+\end{itemize}
+
+ProPrep works with text: menus, questions and answers. This keeps it usable
+over a remote connection to a computing cluster, and for researchers who use a
+screen reader. A 3D structure viewer in the web browser is available, but you
+never need it.
+
+\section{What ProPrep does not do}
+\label{sec:whatis-not}
+
+\begin{itemize}
+  \item \textbf{It does not make your scientific decisions.} It will not tell
+        you which pH, which chains or which water model is right for your
+        question. In our tests it also accepted some combinations that its
+        own lists advise against (for example the TIP3P water model with
+        ff19SB) without a warning. Read the explanations and decide.
+  \item \textbf{It does not run quantum-chemistry programs for you.} To make
+        new parameters, and for QM/MM, it writes input files for Gaussian or
+        ORCA. You need your own copy of those programs to run them
+        (Appendix~\ref{app:software}).
+  \item \textbf{It is not a simulation engine.} It drives Amber's programs.
+        The free installation includes \texttt{sander}; the faster
+        \texttt{pmemd} is a separate Amber program that you install
+        yourself.
+  \item \textbf{It prepares systems for Amber only.} The files it writes are
+        Amber files (\file{.prmtop}, \file{.rst7}, \file{.mdin}).
+  \item \textbf{It does not replace checking.} ProPrep reports what it did, but
+        a wrong choice upstream gives a wrong system downstream. Look at the
+        structure and the log files before you trust a long simulation.
+\end{itemize}
+
+\section{Who makes ProPrep, and how to cite it}
+\label{sec:whatis-cite}
+
+ProPrep is developed by the Guberman-Pfeffer Lab at New Mexico State
+University, with contributions from Adara Walker and John Cairns. It is free
+and open source under the MIT license. The source code is at
+\url{https://github.com/mjgplab/proprep}.
+
+When you leave ProPrep, it shows how to cite it:
+
+\begin{screen}
+┌───────────────────── Thank you for using ProPrep ──────────────────────┐
+│ If you found ProPrep useful, please cite:                              │
+│                                                                        │
+│ Walker, A. & Guberman-Pfeffer, M.J. (2026). ProPrep: An Interactive    │
+│ and Instructional Interface for Proper Protein Preparation with AMBER. │
+│ bioRxiv. https://doi.org/10.64898/2026.02.26.708365                    │
+│                                                                        │
+│ Feedback (positive or negative) is welcome at: mjgp@nmsu.edu           │
+└────────────────────────────────────────────────────────────────────────┘
+\end{screen}
+
+The developers ask you to cite both the article and the software itself. Each
+software release is archived with a \term{DOI} (a permanent web address for a
+publication or data set): \url{https://doi.org/10.5281/zenodo.21764540}. The
+file \file{CITATION.cff} in the ProPrep source code has the full details.
+
+\begin{tip}
+Write down the ProPrep version you used (\texttt{proprep --version} prints it)
+in your lab notebook and in your methods section. Session files are tied to the
+version that recorded them.
+\end{tip}

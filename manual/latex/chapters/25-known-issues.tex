@@ -1,0 +1,617 @@
+\chapter{Known limitations in version 1.23.0}\label{ch:knownissues}
+
+No program does everything perfectly. This chapter lists the limitations of
+ProPrep version 1.23.0 that we met while writing this manual, so that they do
+not surprise you. Each one comes with a way around it, where we found one.
+Everything here was seen on a real computer unless the text says otherwise.
+
+The tables follow the order of the main menu. For help with a particular
+message on the screen, see Chapter~\ref{ch:troubleshooting}.
+
+\section{Software that ProPrep does not include}\label{sec:knownissues-software}
+
+Some steps need programs or services that are not part of ProPrep. Without
+them, ProPrep gets as far as it can and then stops or skips that part.
+Appendix~\ref{app:software} explains each one in full.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.20\linewidth}>{\raggedright\arraybackslash}p{0.40\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Missing} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+MODELLER license key &
+  No loops, missing residues or atoms built (\key{4c}); standard mutations not
+  applied (\key{4b}); no alternate-location choice; no homology models
+  (\key{3a}). &
+  Free academic key (Chapter~\ref{ch:installation}). tLEaP still adds missing
+  side-chain atoms. \\
+\texttt{pmemd} (Amber), GPU &
+  The default MD engine is missing; runs stop at once. &
+  Choose \texttt{sander} or \texttt{sander.MPI}, which are included
+  (Chapter~\ref{ch:runningmd}). \\
+Gaussian &
+  No RESP charges for ligands or modified residues (\key{2c}); Gaussian QM/MM
+  input is written but cannot be run. &
+  AM1-BCC charges made outside ProPrep can be imported
+  (Chapter~\ref{ch:forcefields}). \\
+ORCA &
+  The ORCA route of \key{5c} writes no files, because it needs ORCA's
+  \texttt{orca\_mm} program. &
+  Install ORCA, or use the Gaussian route (Chapter~\ref{ch:qmmm}). \\
+Internet connection &
+  PDB and AlphaFold downloads, BLAST, AlphaFill and the OPM comparison fail;
+  some failures are reported misleadingly. &
+  Work online for these steps. \\
+\end{longtable}
+
+\section{Start-up, menus and the project folder}\label{sec:knownissues-start}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Start-up &
+  The \prompt{MODELLER not found ... To install} message appears whenever the
+  license key is missing, even though MODELLER is installed. &
+  Add the key, or ignore the message (Chapter~\ref{ch:installation}). \\
+ &
+  An \texttt{AMBERHOME} already set in the Terminal is kept without a warning,
+  so another Amber installation may be used. &
+  Check \texttt{echo \$AMBERHOME} before starting
+  (Chapter~\ref{ch:installation}). \\
+ &
+  A project name containing \texttt{/} stops ProPrep. \typed{undo} typed at
+  the project-name question creates a folder called \file{undo}. &
+  Use simple names (letters, digits, \texttt{-}, \texttt{\_}). \\
+\midrule
+\texttt{proprep-web} &
+  Closing the last browser tab shuts ProPrep down after about two seconds,
+  without asking. &
+  Exit with \key{x} and download the project first. Files and the session
+  are kept either way. \\
+ &
+  \textsf{Download project} packs everything in the folder
+  \texttt{proprep-web} was started from. &
+  Start \texttt{proprep-web} from a dedicated work folder, not your home
+  folder. \\
+\midrule
+All tools &
+  Each tool picks its input file by a fixed order of preference, not by date.
+  Files ProPrep made come before a newer download. &
+  Read the \prompt{Using ... file:} line. One protein per project folder
+  (Chapter~\ref{ch:projectfolder}). \\
+ &
+  Fixed output names such as \file{filtered_structure.pdb} and
+  \file{structure_with_md_names.pdb} are overwritten without asking. &
+  Copy or rename versions you want to keep. \\
+ &
+  Some hints have a gap where a key should be, such as \prompt{or press\quad to
+  return to the main menu}. &
+  The missing key is \key{m}. \\
+ &
+  Some steps report success although the result is missing or empty. &
+  Check the files in the project folder. \\
+\midrule
+Main menu &
+  A \texttt{✓} means ``available'', not ``done''. Codes are case-sensitive in
+  the Full Menu. &
+  Look for \texttt{●} inside the tool's own menu. Type codes in lower case. \\
+ &
+  Answering \key{n} to \prompt{Are you sure you want to exit?} inside a tool
+  returns to the main menu. &
+  Open the tool again. \\
+\midrule
+Workflow Mode &
+  Stage marks in the guide bar are not always right, and its help says
+  \key{s} skips a stage (it jumps to Simulate). &
+  Files are not affected (Chapter~\ref{ch:menus}). \\
+\midrule
+\key{w} Workspace &
+  \textsf{Save workspace} stores almost nothing; \textsf{Load workspace} and
+  \textsf{Load command history} restore little. \textsf{Reset workspace} also
+  leaves Workflow Mode. &
+  Rely on session files and the project folder. Press \key{g} to return to
+  Workflow Mode. \\
+\midrule
+\key{h} Help &
+  The Help page lists the menu codes of an older version. &
+  Use Appendix~\ref{app:menumap}. \\
+\midrule
+\key{f} Feedback &
+  The default answer to \prompt{Submit this feedback to GitHub Issues?} is
+  \key{y}. &
+  Type \key{n} if you are not ready. \\
+ &
+  The form's opening box points to option~2 of Preferences; it is option~3.
+  The token is saved as plain text in \file{~/.proprep/settings.json}. Its list
+  of tools uses old names. &
+  Use \key{p} then \key{3}. Give the token minimal permissions. Choose
+  \textsf{0~General} and name the tool (Chapter~\ref{ch:help}). \\
+\end{longtable}
+
+\section{Loading structures (1)}\label{sec:knownissues-load}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\key{1a} Structure Loader &
+  Entries available only in mmCIF format cannot be loaded. File browsers
+  accept only \file{.pdb} files, so AlphaFold and AlphaFill \file{.cif}
+  files are not listed. &
+  Load AlphaFold models by UniProt accession, or download the PDB-format file
+  (Chapter~\ref{ch:structure}). \\
+ &
+  Without internet, AlphaFold says \prompt{No AlphaFold structure found}. &
+  Check the connection. \\
+ &
+  AlphaFold metadata gives the number of atoms as \prompt{Length: ...
+  residues}. After a gene-name search, the UniProt ID shows as \prompt{N/A}. &
+  Read pLDDT, not the length. Retrieve by UniProt accession. \\
+ &
+  AlphaFill says \prompt{No transplanted ligands/cofactors found} even when the
+  model has them. &
+  Look at the file in the viewer (\key{ua}). \\
+ &
+  Downloading several search results at once skips the summary and the
+  hydrogen question, and only the last entry is used. &
+  Download each entry on its own. \\
+ &
+  The hydrogen-removal answer is reused for the rest of the session. Some
+  hydrogens of alternate locations are not removed (3NIR: 18 left). &
+  Start a new project to answer differently. \\
+\midrule
+\key{1b} Biological Assembly Generator &
+  \key{m} (manual matrix) stops ProPrep with \prompt{name 'self' is not
+  defined}. &
+  Choose a listed assembly number instead. \\
+ &
+  After building, \key{1b} uses the assembly as input and offers it again.
+  On a file without a header it finds \prompt{No REMARK 350 records}. &
+  Run \key{1b} once, right after loading; cancel with \key{c}. \\
+ &
+  An assembly downloaded directly (structure type~2) is a two-model file with
+  repeated chain names. &
+  Prefer \key{1b} for simulations. \\
+\end{longtable}
+
+\section{Detecting sites and making parameters (2)}\label{sec:knownissues-detect}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\key{2a} Redox Site Detector &
+  Caps and crystallization additives (ACE, GOL, ACT, EDO) are listed as
+  organic cofactors. &
+  Select only the centers you want. \\
+ &
+  Atom numbers in the bond search refer to a list that is sorted again for
+  each atom; bond lengths are not checked (an 8.21\,Å ``bond'' was
+  accepted). &
+  Type atom names such as \typed{SG} instead of numbers. \\
+ &
+  The single-site route does not show the bonds a heme recipe needs, so
+  \key{4d} may find no compatible transformer. &
+  In \key{4d} type \typed{why 1}, then add the bonds; or use templates
+  (Chapter~\ref{ch:redox}). \\
+ &
+  In the site editor, a non-number at a residue-number prompt closes the
+  editor and loses the edits. &
+  One answer per prompt; type \typed{save} often. \\
+ &
+  Export rejects the whole list if one number is invalid. Import also lists
+  session files, which contain no sites. &
+  Use numbers 1--3. Import \file{<PDB>_redox_sites.json}. \\
+\midrule
+\key{2b} Force Field Explorer &
+  The default selection is ff14SB with TIP3P, although the same screen
+  recommends ff19SB with OPC. Invalid numbers are ignored silently. &
+  Type the numbers you want; check the \prompt{Loading:} line. \\
+ &
+  The atom-type list starts with numbers such as $-0.00006$. Typing \key{q} at
+  a filter searches for ``q''. &
+  Always type a filter. Use \key{b} to go back. \\
+ &
+  Your own library entries appear under \textsf{Redox Cofactors (built-in)},
+  which shifts the row numbers. The custom file loader cannot take a typed
+  path. &
+  Choose rows by name. Copy files into the project folder first. \\
+\midrule
+\key{2c} Force Field Parameterizer &
+  Every charge route needs Gaussian; there is no AM1-BCC option. Without the
+  Gaussian output, step~4 prints a technical report (ProPrep has not
+  crashed). &
+  Run Gaussian and resume, or import AM1-BCC parameters made outside ProPrep
+  (Chapter~\ref{ch:forcefields}). \\
+ &
+  Option~4 may say \prompt{No parameterizations found in workspace} although
+  a job was saved. &
+  Use option~3 and resume. \\
+ &
+  Several copies of one ligand share one folder; answering \key{n} for the
+  second copy deletes the first copy's work. &
+  Parameterize one copy only. \\
+ &
+  For a modified amino acid, the Gaussian inputs start from the parent residue
+  (SEP is written as plain serine). CSD is mapped to ALA. &
+  Check the Force Field Explorer first (SEP is already covered). Edit the
+  \file{.gjf} files and the mapping. \\
+ &
+  \textsf{Save as a new version} in the library makes the new version the
+  default and reuses the same file names. &
+  Rename the new files before importing a second version. \\
+ &
+  The built-in help calls the metal steps ``coming soon''. &
+  The 15-step metal checklist is current. \\
+\midrule
+\key{2c} metal sites &
+  Step~12 can find no residues and write empty Gaussian inputs. No
+  workaround was found. &
+  Use a ready-made set (zinc, hemes, iron--sulfur) where possible. \\
+ &
+  Step~10 fails with \prompt{Fatal Error! bond: Argument \#2 is of type
+  String} when \key{2a} sites with bonds exist. &
+  Do not run \key{2a} beforehand; let step~11 detect the site. \\
+ &
+  Chloride ions are classed as unknown; supplying an ion library renames them
+  to silver. &
+  Discard crystallization ions in step~1. \\
+ &
+  Step~12 asks for a formal charge for every ligand atom. The suggested model
+  charge is always 0. Protonation suggestions ignore metal binding and
+  disulfides. &
+  Answer 0 (\,$-1$ for a thiolate S). Work out the total yourself. Use HID,
+  CYX or CYM where needed. \\
+ &
+  A metal on a crystal symmetry axis gives \prompt{No nearby atoms found}. &
+  Choose a fully coordinated metal, or build the assembly first. \\
+\midrule
+Library command &
+  With the conda installer, \texttt{proprep-library} stops with \prompt{bad
+  interpreter}. &
+  Type \texttt{python -m} \texttt{proprep.utils.\allowbreak
+  user\_library\_\allowbreak snapshots} with the same options. \\
+\end{longtable}
+
+\section{Comparing structures (3)}\label{sec:knownissues-compare}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\key{3a} Homology Searcher &
+  A BLAST search has no time limit and cannot be cancelled from the menu;
+  ours took almost four hours. &
+  Search \texttt{swissprot} or \texttt{pdb} with few hits. Press
+  \key{Control}+\key{C} to stop. \\
+ &
+  Homology models (option~5) need MODELLER. AlphaFold models of hits need a
+  search of \texttt{nr} or \texttt{swissprot}. &
+  See Section~\ref{sec:knownissues-software}. \\
+\midrule
+\key{3b} Structure Aligner &
+  After a TM-align run, viewing the results fails with an \prompt{Error
+  executing ...} line. &
+  Open the aligned files in the viewer. \\
+ &
+  The file browser mentions CIF but accepts only \file{.pdb}. Loaded structures
+  are not offered after you decline earlier aligned files. &
+  Add structures with the file browser. \\
+ &
+  Option~2 asks you to run redox detection in the ``PDB Filter module''; the
+  tool meant is \key{2a}. A wrong residue range is skipped, not asked again. &
+  Run \key{2a} first. Run the alignment again. \\
+ &
+  An aligned target you select is used by later tools in preference to newer
+  downloads. &
+  Answer \key{n} at target selection if you only want to compare. \\
+\end{longtable}
+
+\section{Preparing the structure (4)}\label{sec:knownissues-prepare}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\key{4a} PDB Filter &
+  A range (\typed{1-50}) or an out-of-range number at \prompt{Select residues}
+  stops the filter, and all answers are lost. &
+  Type single numbers separated by commas, or \typed{all}. \\
+ &
+  The water question accepts one choice only. In a water range, every number
+  must be a water. &
+  Type one choice; list water numbers. \\
+ &
+  Answering \key{n} at the final confirmation returns without a message.
+  Alternate locations are not removed. &
+  Run the filter again. Alternate locations need \key{4c} with MODELLER. \\
+\midrule
+\key{4b} Amino Acid Mutator &
+  Standard mutations are not applied without MODELLER, and no message says
+  so. \typed{clear} deletes all pending mutations without asking. &
+  Get a MODELLER key. Type carefully. \\
+\midrule
+\key{4c} Structure Fixer &
+  Without MODELLER only caps are added, and nothing is written unless at least
+  one cap is chosen; a pending non-standard mutation is then dropped. &
+  Add at least one cap (Chapter~\ref{ch:cleaning}). \\
+ &
+  The repaired file is numbered from 1 (2RH1: 29--1161 becomes 1--506). &
+  Use the new numbers in later steps. \\
+ &
+  The template comparison reports a missing OXT on nearly every residue and
+  takes 1--2 minutes. The sequence check counts numbering jumps in
+  engineered proteins as missing residues, or may report no problems when it
+  skipped its checks. &
+  Use REMARK~465 and REMARK~470 in the PDB file. \\
+\midrule
+\key{4d} Redox Site Preparer &
+  Microstates can be generated only once per session. &
+  Start a new session in a new project folder. \\
+ &
+  Each heme recipe needs one heme per site (4HHB grouped four). &
+  Detect one heme per site. \\
+ &
+  Progress lines and the residue mapping use intermediate residue numbers.
+  New propionate residues can be numbered between crystal waters. &
+  Trust \file{final_transformed_structure.pdb}. Check the QM/MM residue list
+  by name (\key{5c}). \\
+\midrule
+\key{4e} Protonation State Analyzer &
+  An invalid pH, threshold or override is replaced by the default without
+  asking again. &
+  Run the option again. \\
+ &
+  After overrides, \textsf{View} and \textsf{Export} still show PROPKA's
+  states and net charge. The export prompt does not list its formats. &
+  The written PDB file is correct. Type \typed{text} or \typed{csv}. \\
+ &
+  Disulfide cysteines are not renamed to CYX. Oriented files are not used. &
+  Use \key{2a} and \key{4d} for CYX. Orient last. \\
+\midrule
+\key{4f} Structure Orientator &
+  An oriented file is always the input, so rotations add up and names grow
+  (\file{..._oriented_oriented_...}). &
+  Orient once, as the last preparation step. \\
+\midrule
+\key{4g} Membrane Builder &
+  Settings return to their defaults, without a message, after choosing another
+  protein, filtering, or a build. &
+  Review (\key{r}) before every build. \\
+ &
+  If tLEaP cannot add hydrogens, ProPrep offers packmol-memgen's own
+  protonation; in our test that build was refused minutes later. &
+  Remove ions, waters and ligands with \key{4a} first. \\
+ &
+  A solvate-only build is still called \file{bilayer.pdb} and lists a lipid
+  force field. &
+  Ignore; the system has no lipids. \\
+\end{longtable}
+
+\section{Simulation and analysis (5)}\label{sec:knownissues-simulate}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\key{5a} Topology Generator &
+  The default answer \key{n} to \prompt{continue without bond definitions?}
+  discards the input. &
+  Type \key{y} for an ordinary protein. \\
+ &
+  Success messages appear even when tLEaP fails, and an empty
+  \file{.prmtop} is counted as made. A membrane build counts an internal file
+  as a topology. &
+  Trust \prompt{Errors =}, the file size and \file{leap.log}. \\
+ &
+  Two inputs write the same output names; a failed build empties the earlier
+  topology. &
+  Give each version its own names (\texttt{saveamberparm} line). \\
+ &
+  There is no warning before building with an unprepared cofactor, with
+  disulfides still named CYS, or with CYX but no bond lines. &
+  Prepare cofactors first; use CYX \emph{and} bond lines
+  (Chapter~\ref{ch:topology}). \\
+ &
+  Implicit-solvent builds get no \texttt{set default PBradii} line and fail
+  with crystal waters. &
+  Add the line in the template; remove waters with \key{4a}. \\
+ &
+  No warning for ff19SB with TIP3P. DNA, RNA, sugar and small-molecule force
+  fields are loaded by default. &
+  Choose OPC with ff19SB. Type \key{1} (None) for force fields you do not
+  need. \\
+ &
+  The PDB file is edited in place to add TER lines. &
+  The original is kept as \file{.pdb.ter_backup}. \\
+ &
+  Option~3 (all microstates) can end with no files and no message. After
+  \key{4d} batch generation, option~2 is blocked. &
+  Run option~2 on each microstate file, in a separate project. \\
+ &
+  A constant-pH \file{.cpin} includes ASP, GLU and HIS only with the
+  constant-pH force field and renamed residues. Afterwards the cpin topology
+  becomes the default for \key{5b}. &
+  Build as described in Chapter~\ref{ch:topology}. Answer \key{n} to
+  constant-pH MD for normal runs. \\
+ &
+  The bond editor does not check what you type, and \key{q} saves. A loaded
+  topology pair cannot be used by options 2--6. &
+  Check the bond list before saving. \\
+\midrule
+\key{5b} MD Manager &
+  Every stage starts with \texttt{pmemd}, which is not installed; the
+  recommended assignment picks \texttt{pmemd.cuda} even without a GPU. &
+  Choose \texttt{sander} at the hardware step (Chapter~\ref{ch:runningmd}). \\
+ &
+  The review table keeps the original stage lengths. Edits to settings are not
+  checked. &
+  Check \file{simulation.mdin} in each stage folder. \\
+ &
+  \textsf{Load a saved protocol} always says \prompt{No saved protocols
+  found}. &
+  Import the protocol's \file{.json} file. \\
+ &
+  A minimization made with the wizard includes pressure-control settings. &
+  Use a predefined stage, or answer the pressure questions carefully. \\
+ &
+  Distance restraints: the import reports an error although it worked; typed
+  entry fails because the file has no chain names; only \file{.disang} files
+  in the project folder are listed. &
+  Write a \file{.disang} file, import it, and check with option~3. \\
+ &
+  The restraint mask helper counts ions as residues. &
+  Use the protein's own residue numbers. \\
+ &
+  Cluster (SLURM) scripts may request a GPU for \texttt{sander}, use the wrong
+  topology for constant pH, or contain an unfilled job dependency. &
+  Read and edit the scripts before submitting. \\
+\midrule
+\key{5b} Analysis &
+  Any list of analyses containing the digit 0 means ``exit'', so Angle (10)
+  and Density maps (20) cannot be run. &
+  Leave them out. \\
+ &
+  An atom that does not exist (CB of glycine) ends the analysis with a
+  technical report. An empty solute mask is accepted. &
+  Restart with valid atoms and masks. \\
+ &
+  The default SASA region (C-alpha atoms) gives a meaningless value. A heating
+  stage is detected as NVT. &
+  Choose region~4. Correct the type at \prompt{Confirm simulation type}. \\
+ &
+  Exports overwrite the same file names. Plots appear only as text on the
+  screen. &
+  Copy files you want to keep. Plot from the CSV file. \\
+\midrule
+\key{5c} QM/MM Preparator &
+  Site residues are matched to the topology by number, so the HIGH layer can
+  include a water and miss a propionate (1HRC). &
+  Check the residue list by name and correct it (Chapter~\ref{ch:qmmm}). \\
+ &
+  The multiplicity defaults to 1 and is not checked. ScaleCharge values are
+  not checked, and an old ScaleCharge stays after a change. &
+  Set the multiplicity (2 for low-spin iron(III)). Check the route line. \\
+ &
+  Declining \prompt{Resume from saved state?} still reuses the old settings.
+  A charge that is not a whole number only gives a warning. &
+  Use option~3 (reset) first. Keep the total charge whole. \\
+ &
+  The MEDIUM layer method is fixed (HF/3-21G). &
+  Edit the \file{.com} file if needed. \\
+ &
+  Extracting several frames fails. The frame syntax shows a symbol instead of
+  \texttt{:end:}. &
+  Extract one frame at a time, in a fresh session. \\
+\midrule
+\key{5d} Molecular Docking &
+  A chain end without OXT is set up as charged, and preparing the receptor
+  fails. &
+  Set such ends to chain break (option~4). \\
+ &
+  A box around a ligand built from SMILES lies at the origin; overlap with the
+  protein is not checked. &
+  Define the box with \key{r} or \key{c}. \\
+ &
+  A \file{.smi} file cannot be used as a single ligand. Changing the ligand
+  clears the box and kept groups. &
+  Use \file{.sdf}, \file{.mol} or \file{.mol2}; set the box again. \\
+ &
+  With ad4, the top-scoring pose was not the closest to the crystal pose. &
+  Start with vina; compare the first few poses. \\
+\midrule
+\key{ua} Structure Viewer &
+  The viewer stops when ProPrep exits, and may use another port. Structures
+  from different alignment runs may not overlap. &
+  Use the address printed. Select the target at the end of each alignment. \\
+\end{longtable}
+
+\section{Sessions, templates and the command line}\label{sec:knownissues-sessions}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{What happens} & \textbf{Workaround} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Sessions &
+  \textsf{Continue from end} also replays a recorded exit, so ProPrep quits. &
+  Delete the last two answers in the Session Editor. \\
+ &
+  Session files are found only in the folder ProPrep starts in. The default
+  in the session list is \key{0} (cancel). &
+  Start inside the project folder; type the session number. \\
+ &
+  \typed{undo} then \key{c} on a menu question replays the old answer. &
+  Use \key{r}, or the Session Editor. \\
+ &
+  The menu-mode question is not recorded. &
+  Add \texttt{--full-menu} to replay commands. \\
+ &
+  No \prompt{Session saved to:} line at a normal exit. &
+  The file is saved as you go. \\
+\midrule
+Templates and batch &
+  Variables are not detected automatically. &
+  Mark them with \typed{v} in the Template Creator. \\
+ &
+  \texttt{--output-dir} does not create the folder, and every run fails. &
+  Create the folder first. \\
+ &
+  Recorded choices are not checked, so a wrong value can give a wrong result
+  without an error. &
+  Check list values by eye. \\
+ &
+  A plain list of UniProt accessions is read as having a header. &
+  Put \typed{input\_protein} on the first line. \\
+ &
+  Failed runs print a technical report over the progress bar. Forcing
+  \texttt{--web} on a Terminal recording can break the replay. &
+  Read the run's \file{error.log}. Let ProPrep choose the mode. \\
+\midrule
+Command line &
+  \texttt{--output-dir} and \texttt{--session-dir} with a relative path are
+  resolved in the wrong place; a missing session folder stops ProPrep. &
+  Give a full path to a folder that exists. \\
+ &
+  \texttt{--pdbview}, \texttt{--force-replay} and \texttt{--analysis} still ask
+  the menu-mode question. &
+  Add \texttt{--full-menu}. \\
+ &
+  With both \texttt{--pdbid} and \texttt{--pdbfile}, the file is ignored. A
+  failed \texttt{--pdbid} download is followed by a ``Downloaded and loaded''
+  line. &
+  Give only one. Trust \prompt{Failed to download}. \\
+\end{longtable}
+
+\section{Reporting new problems}\label{sec:knownissues-report}
+
+Later versions of ProPrep may fix many of these limitations. Type
+\texttt{proprep --version} to see which version you have, and check the
+release notes when you update.
+
+If you meet a problem that is not listed here or in
+Chapter~\ref{ch:troubleshooting}, please tell the developers. Chapter~\ref{ch:help}
+explains how to send a report and what to put in it.

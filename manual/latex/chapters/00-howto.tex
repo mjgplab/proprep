@@ -1,0 +1,117 @@
+\chapter{How to read this manual}
+\label{ch:howto}
+
+This manual is written for scientists who want to prepare a protein for a
+computer simulation, not for programmers. You do not need to know how to
+program. You will need to type a few short commands, and this manual shows you
+each one exactly.
+
+It describes \textbf{ProPrep version 1.23.0}. Every step in the step-by-step
+chapters was carried out on a real computer while this manual was being
+written, and the screens shown are the screens ProPrep actually printed. Where a
+feature could not be tried (because it needs software we did not have), the
+text says so.
+
+\section{How ProPrep talks to you}
+
+ProPrep is a conversation. It shows you a short menu or asks a question, you
+type an answer and press \key{Enter}, and it moves on. Most answers are a single
+letter or a short code such as \key{1a} or \key{y}. When a question shows a
+value in brackets, that value is the \term{default}: pressing \key{Enter}
+without typing anything accepts it.
+
+\begin{screen}
+Run BLAST with these parameters? [y/n] (y): §ans«y»
+\end{screen}
+
+Here \prompt{[y/n]} tells you the possible answers, \prompt{(y)} is the
+default, and the highlighted \screenans{y} is what was typed.
+
+\section{What the different styles mean}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Looks like} & \textbf{Means} \\
+\midrule
+\key{4e} & A key or menu code you type in ProPrep, then press \key{Enter}. \\
+\typed{1UBQ} & Text you type yourself, such as a name or a number. \\
+\prompt{Enter your choice} & A question or message exactly as ProPrep shows it. \\
+\file{filtered_structure.pdb} & The name of a file or folder on your computer. \\
+\menupath{4e}{Protonation State Analyzer} & A tool in ProPrep's main menu, with its code. \\
+\pdb{1UBQ} & The four-character code of a structure in the Protein Data Bank. \\
+\term{topology} & A technical word explained where it first appears and in the Glossary. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+A dark box shows what ProPrep prints on the screen; long screens are shortened,
+and \texttt{...} marks where lines were left out:
+
+\begin{screen}
+══ 4. STRUCTURE PREPARATION ══
+  4a. ○ PDB Filter
+        Filter PDB structures by component
+        ⚠ Needs a loaded structure
+...
+Enter your choice (1a): §ans«1a»
+\end{screen}
+
+A white box shows a command you type in your computer's \term{Terminal}
+(the program where you type commands), \emph{outside} ProPrep:
+
+\begin{terminal}
+proprep --version
+\end{terminal}
+
+\section{The colored boxes}
+
+\begin{tip}
+A shortcut or a good habit that saves time.
+\end{tip}
+
+\begin{watchout}
+A trap that caught us while testing ProPrep, and how to avoid it. Read these;
+several of them can cost you an hour.
+\end{watchout}
+
+\begin{needsoftware}
+This step needs a program that is not part of ProPrep, such as Gaussian or a
+MODELLER license key. The box says what is needed and what happens without it.
+\end{needsoftware}
+
+\begin{behindscenes}
+Optional background: what ProPrep is doing for you and why. You can skip these.
+\end{behindscenes}
+
+\section{How the step-by-step chapters are organized}
+
+Each chapter in Part~IV starts with an \textsf{At a glance} box that tells you
+what the tool does, when you need it, what must be done first, and which files
+it produces. Then comes \textsf{Step by step}, the recommended route that worked
+in our tests, followed by \textsf{Other choices} and \textsf{If something goes
+wrong}.
+
+\begin{glance}
+\glanceitem{What it does}{One or two sentences.}
+\glanceitem{You need it when}{The situations where this step matters.}
+\glanceitem{Before you start}{Steps or software that must come first.}
+\glanceitem{Where to find it}{\key{4e} in the main menu.}
+\glanceitem{You get}{The files it writes.}
+\end{glance}
+
+Numbered steps look like this:
+
+\begin{steps}
+  \item At \prompt{Enter your choice}, type \key{1a} and press \key{Enter}.
+  \item Type the PDB code, for example \typed{1UBQ}.
+\end{steps}
+
+\section{Where to start}
+
+\begin{itemize}
+  \item \textbf{New to ProPrep?} Read Chapters~\ref{ch:requirements}--\ref{ch:starting},
+        then work through the tutorial in Chapter~\ref{ch:tutorial}.
+  \item \textbf{Know what you want to do?} The table in Chapter~\ref{ch:bigpicture}
+        lists the chapters you need for each kind of project.
+  \item \textbf{Something went wrong?} Go to Chapter~\ref{ch:troubleshooting}.
+\end{itemize}

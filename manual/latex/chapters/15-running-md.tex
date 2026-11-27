@@ -1,0 +1,794 @@
+\chapter{Running a simulation}
+\label{ch:runningmd}
+
+Once you have a topology and coordinates, the Molecular Dynamics Manager
+(\key{5b}) sets up and runs the simulation. It writes the Amber input files for
+each stage, runs them on your computer or writes job scripts for a computing
+cluster, shows live progress, and analyzes the results. This chapter covers
+setting up and running; Chapter~\ref{ch:analysis} covers analysis.
+
+\begin{glance}
+\glanceitem{What it does}{Prepares, runs and monitors a series of simulation
+  stages (minimization, heating, equilibration, production).}
+\glanceitem{You need it when}{You want to simulate a system built in \key{5a},
+  or a \file{.prmtop}/\file{.rst7} pair loaded with \key{1a} \key{2}.}
+\glanceitem{Before you start}{A topology and coordinates
+  (Chapter~\ref{ch:topology}). An MD engine: \texttt{sander} and
+  \texttt{sander.MPI} come with ProPrep; \texttt{pmemd} does not.}
+\glanceitem{Where to find it}{\menupath{5b}{Molecular Dynamics Manager}.}
+\glanceitem{You get}{A folder \file{simulations/batch_<date>_<time>/} with
+  one subfolder per stage, each holding the input, energy output, final
+  coordinates and trajectory.}
+\end{glance}
+
+\section{The stages of a simulation}\label{sec:runningmd-stages}
+
+A freshly built system cannot simply be switched on: the added hydrogens and
+waters clash a little, and every atom is standing still. A \term{protocol}
+brings the system gently to the conditions you want, then records it. Most
+protocols have four kinds of stage:
+
+\begin{description}
+  \item[Minimization] Moves atoms slightly, without time passing, until the
+        clashes are gone and the energy stops falling. Measured in
+        \emph{cycles}.
+  \item[Heating] Gives the atoms speed, raising the temperature from 0 to the
+        target (for example 300\,K) over a few picoseconds.
+  \item[Equilibration] Lets the system settle. At \term{NPT} (constant
+        pressure) the box shrinks or grows until the water has its normal
+        density; at \term{NVT} (constant volume) the box size is fixed.
+  \item[Production] The run you keep and analyze. Snapshots are written to
+        the \term{trajectory} file at regular intervals.
+\end{description}
+
+During the early stages, \term{restraints} hold chosen atoms (often the
+protein backbone) near their starting positions, so the protein is not
+damaged while the water settles around it.
+
+Time in a simulation is counted in \term{steps}. A typical step is 2
+femtoseconds (fs). 500 steps make 1\,picosecond (ps), and 1,000\,ps make
+1\,nanosecond (ns). Research simulations usually run for tens or hundreds of
+nanoseconds.
+
+The settings of each stage live in an Amber input file, the \term{mdin} file.
+You rarely need to read it, but a few of its settings are worth knowing:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Setting} & \textbf{Meaning} \\
+\midrule
+\texttt{imin=1} & This stage is a minimization (\texttt{imin=0} or absent: dynamics) \\
+\texttt{maxcyc}, \texttt{ncyc} & Total minimization cycles; how many of them use the simple ``steepest descent'' method \\
+\texttt{nstlim}, \texttt{dt} & Number of steps; length of one step in ps (0.002 = 2\,fs) \\
+\texttt{temp0}, \texttt{tempi} & Target and starting temperature (K) \\
+\texttt{ntb}, \texttt{ntp} & Constant volume (\texttt{ntb=1}) or constant pressure (\texttt{ntb=2}, \texttt{ntp=1}) \\
+\texttt{ntwx}, \texttt{ntpr}, \texttt{ntwr} & Every how many steps to save a snapshot, print energies, write a restart file \\
+\texttt{ntr}, \texttt{restraint\_wt}, \texttt{restraintmask} & Restraints on or off, their strength, and which atoms \\
+\texttt{\&wt} lines & Changes during the stage, such as a temperature ramp \\
+\bottomrule
+\end{tabularx}
+
+\section{Step by step: set up and run}\label{sec:runningmd-steps}
+
+The Molecular Dynamics Manager menu:
+
+\begin{screen}
+══ Molecular Dynamics Manager Menu ══
+  1. ✓ Setup and configure simulations
+  2. ○ Execute simulations
+       ⚠ Need to setup simulations first
+  3. ○ Monitor simulation progress
+       ⚠ No simulations currently running
+  4. ✓ Analyze completed simulations
+  5. ✓ Manage Templates & Protocols
+  6. ✓ Manage cluster profiles (HPC configurations)
+  7. ✓ Manage run plans (per-protocol resource assignments)
+\end{screen}
+
+Setup (\key{1}) is a six-step guide with a progress bar at the top of each
+screen:
+
+\begin{screen}
+╭─────────────────────────────────────────────────────────────╮
+│ Step 1 of 6: Structure Files (Topology + Coordinates)       │
+│ [Files] → Protocol → Restraints → Queue → Hardware → Review │
+╰─────────────────────────────────────────────────────────────╯
+\end{screen}
+
+The route that worked for ubiquitin (shown in full in
+Chapter~\ref{ch:tutorial}):
+
+\begin{steps}
+  \item \key{5b}, then \key{1}.
+  \item \textbf{Files:} check that the right pair is listed, then \key{n}.
+  \item \textbf{Protocol:} \key{1} (predefined), \key{4} (Workshop), then
+        \key{e} to shorten it or \key{u} to use it as it is
+        (Section~\ref{sec:runningmd-protocols}).
+  \item \textbf{Restraints:} \key{s} to keep the protocol's restraints
+        (Section~\ref{sec:runningmd-restraints}).
+  \item \textbf{Queue:} \key{k} to keep the order.
+  \item \textbf{Hardware:} \key{3}, then \key{1} (sander) for every step
+        (Section~\ref{sec:runningmd-engine}). Then \key{n}.
+  \item \textbf{Review:} \key{3} (Write files and run locally now), then
+        \key{1} and \key{y} (Section~\ref{sec:runningmd-local}).
+\end{steps}
+
+Several prompts in the setup guide, such as \prompt{Enter choice:}, have no
+default. Pressing \key{Enter} alone gives \prompt{Received '', which is not
+one of the available options}; type the letter or number.
+
+\subsection{Step 1: Structure files}
+
+ProPrep lists the topology--coordinate pairs it found in the project:
+
+\begin{screen}
+  Structure Pairs: 1 selected
+    1. 1UBQ.prmtop + 1UBQ.rst7
+
+  Auto-detected: 1 pairs available
+
+What would you like to do?
+   1. Use 1UBQ (exact match)
+   2. Create custom pair (manual selection)
+   3. Browse for structure files (topology + coordinates)
+   4. Remove structure pair
+\end{screen}
+
+Use \key{2} to pick a topology and coordinates yourself, \key{3} to look in
+another folder, and \key{4} to remove a pair you do not want. Several pairs
+can be selected; each becomes its own simulation series. \key{h} explains the
+pairing rules.
+
+\begin{tip}
+After you make a constant-pH file (\key{5a} \key{6},
+Section~\ref{sec:topology-cpin}), ProPrep selects the \file{_cpin.prmtop}
+pair instead (\prompt{Use 1UBQ (cpin-ready)}). For an ordinary simulation,
+type \key{2} to add the normal pair and \key{4} to remove the cpin pair. In
+the custom list the same file may appear twice; either entry works.
+\end{tip}
+
+\section{Protocols}\label{sec:runningmd-protocols}
+
+\begin{screen}
+Protocol Source:
+
+   1. Use a predefined protocol     — standard multi-step protocols
+   2. Load a saved protocol         — reuse a protocol from a previous project
+   3. Build a custom protocol       — assemble steps from the template catalog
+   4. Create a step from scratch    — launch the parameter wizard
+\end{screen}
+
+\subsection{Predefined protocols}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Protocol} & \textbf{Stages} \\
+\midrule
+1 Membrane Protein Minimization (2) &
+  Restrained, then unrestrained minimization, for membrane systems
+  (Chapter~\ref{ch:membrane}). \\
+2 Basic Equilibration (6) &
+  Minimization; heating 0--300\,K (2\,ns); NPT density (1\,ns, CPU); NPT
+  relaxation (3\,ns, GPU); NVT equilibration (4\,ns); NVT production
+  (100\,ns). Based on Amber Tutorial~33. \\
+3 Staged Equilibration 310\,K (9) &
+  For metalloproteins and cofactors: minimization; heating to 310\,K; NPT
+  density and relaxation; restraints released in stages (10, 5,
+  2\,kcal/mol·Å²); 1\,ns unrestrained; 50\,ns NPT production. \\
+4 Workshop Protocol (4) &
+  1,000-cycle minimization; 20\,ps heating; 100\,ps NPT; 300\,ps NVT
+  production. Made for laptops: about 75~minutes with \texttt{sander}. \\
+5 York Lab Equilibration Tutorial (14) &
+  A detailed 14-stage solvent-then-solute equilibration ending with 100\,ns
+  production. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+After choosing a protocol you see its stages and these commands:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Type} & \textbf{To} \\
+\midrule
+\typed{p 1} & Preview the mdin file of stage 1, with a comment on every line \\
+\key{u} & Use the protocol as it is \\
+\key{s} & Use only some stages (for example only the minimization) \\
+\key{e} & Edit the protocol: change, remove, add or reorder stages \\
+\key{b} & Back to the list \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Shortening or changing a protocol}\label{sec:runningmd-edit}
+
+Type \key{e}, accept or type a protocol name, and the workflow editor opens.
+Its commands:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Command} & \textbf{What it does} \\
+\midrule
+\typed{edit 2} & Show stage 2's settings; then \typed{params} opens its mdin
+  file in the text editor, \typed{name} and \typed{desc} rename it,
+  \typed{files} changes its input and output names, \typed{back} returns \\
+\typed{remove 3} & Remove stage 3 (asks for confirmation) \\
+\typed{add before 2}, \typed{add after 3} & Insert a new stage \\
+\typed{move 3 to 1} & Reorder stages \\
+\typed{preview} & Show how files flow from stage to stage \\
+\typed{info} & Change the protocol's name and description \\
+\typed{save} & Save and continue the setup \\
+\typed{cancel} & Discard the changes \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+To make a stage shorter, change these lines in its mdin file:
+
+\begin{itemize}
+  \item \textbf{Minimization:} lower \texttt{maxcyc} (and \texttt{ncyc}).
+        For ubiquitin, \texttt{ncyc=100, maxcyc=300} was enough.
+  \item \textbf{Heating:} lower \texttt{nstlim}, and lower the step numbers
+        in the \texttt{\&wt} lines (\texttt{ISTEP1}, \texttt{ISTEP2}) to match,
+        or the temperature ramp will not fit the new length.
+  \item \textbf{Production:} lower \texttt{nstlim}, and lower \texttt{ntwx}
+        and \texttt{ntpr} so you still get enough snapshots. With
+        \texttt{nstlim=500, ntwx=25} you get 20 snapshots.
+\end{itemize}
+
+In the text editor (\texttt{nano}), move with the arrow keys, type your
+change, then press \key{Ctrl-X}, \key{y} and \key{Enter}. ProPrep prints
+\prompt{MDIN parameters updated} and lists the parameters again.
+
+\begin{watchout}
+Some screens of the editor do not match what is really run in version
+1.23.0:
+\begin{itemize}
+  \item ProPrep does not check your edits. A minimization saved without its
+        \texttt{imin=1} line was accepted without a warning. Read the
+        parameter list after every edit.
+  \item \typed{preview} shows \texttt{pmemd} commands and file names such as
+        \file{step_1.rst}, whatever engine you choose later. The real run uses
+        your engine and its own file names. Changing the names with
+        \typed{files} can break the preview's chain; removing a stage renumbers
+        the chain correctly on its own, so leave \typed{files} alone.
+  \item \typed{info} does not show information: it asks for a new name and
+        description.
+  \item \typed{preview} ends with \prompt{Preview template content for a
+        step? [y/n]}, which accepts only \key{y} or \key{n}.
+  \item The Review table at the end of setup shows the protocol's
+        \emph{original} lengths, not your shortened ones. The files written
+        do contain your changes.
+\end{itemize}
+\end{watchout}
+
+\subsection{Building a protocol from the catalog}
+
+Choice \key{3} (Build a custom protocol) lists all 35 built-in stages from
+the five protocols, numbered 1--35. Type numbers to add stages (\typed{18,21}),
+\typed{p 18} to preview one, \typed{c 18 22} to compare two side by side,
+\key{r} to remove the last one, and \key{d} when done; then give the protocol
+a name. Templates you imported yourself are not listed in this catalog.
+
+\subsection{A stage from scratch}
+
+Choice \key{4} starts a wizard that asks about every Amber setting in 13
+sections, with explanations at three levels of detail (Terse, Compact,
+Verbose). It covers minimization, dynamics and analysis runs. We made a
+minimization this way and ran it successfully with \texttt{sander}.
+
+\begin{watchout}
+With all defaults accepted, the wizard's minimization contained
+constant-pressure settings (\texttt{ntb=2}, \texttt{ntp=1},
+\texttt{barostat=2}), which do not belong in a minimization. \texttt{sander}
+ran it, with the note \prompt{mcbarint is greater than the number of steps.
+This is effectively constant volume.} Answer the pressure questions with care,
+or use a predefined minimization stage instead.
+\end{watchout}
+
+\subsection{Saved protocols and the template library}
+
+When you \typed{save} an edited protocol, ProPrep stores it in
+\file{~/.proprep/md_workflows/user/custom/} in your home folder, which is
+shared by all your projects. The library (\key{5b} \key{5}) lets you import
+mdin templates and protocol files, see statistics (35 built-in templates:
+8 minimization, 5 heating, 10 equilibration, 4 production, 8 other), preview
+templates, and delete your own templates and protocols.
+
+\begin{watchout}
+In version 1.23.0:
+\begin{itemize}
+  \item \key{2} (Load a saved protocol) always said \prompt{No saved protocols
+        found}, even when the library listed one. To reuse a protocol, use the
+        import option there with an exported \file{.json} file.
+  \item Deleting custom protocols in the library reports success, but the
+        files stay in \file{~/.proprep/md_workflows/user/custom/}. Delete them
+        by hand if needed.
+  \item An imported \file{.mdin} template is saved in the project
+        (\file{md_templates/user/custom/}), not in the folder the statistics
+        screen names.
+  \item The statistics show \prompt{? steps} for every custom protocol.
+\end{itemize}
+\end{watchout}
+
+\section{Restraints}\label{sec:runningmd-restraints}
+
+Step~3 of the setup shows the restraints of each stage:
+
+\begin{screen}
+Protocol Restraints:
+
+    #    Step                   Mask                 Weight    DISANG
+    1    Energy Minimization    @CA,C,O,N&!:WAT        10.0    —
+    2    System Heating         @CA,C,O,N&!:WAT         1.0    —
+    3    NVT Production MD      (none)                    —    —
+
+Options:
+   (e) Edit positional restraints
+   (g) Generate new restraint mask (atom type, chain, redox site selection)
+   (d) Configure DISANG restraints (distance/angle/torsion)
+   (r) Configure GROUP restraints (advanced: multi-group with FIND criteria)
+   (s) Continue with current restraints
+\end{screen}
+
+The predefined protocols already restrain sensible atoms. Type \key{s} unless
+you have a reason to change them.
+
+\subsection{Positional restraints and masks}
+
+A \term{positional restraint} pulls atoms back towards their starting
+positions, like a spring. The \emph{weight} is the spring strength in
+kcal/mol·Å²: 10 is firm, 1 is gentle, 0.1 is very light.
+
+The atoms are chosen with an Amber \term{mask}, a short code:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Mask} & \textbf{Means} \\
+\midrule
+\texttt{:1-76} & Residues 1 to 76 (\texttt{:} = residue numbers) \\
+\texttt{@CA} & All atoms named CA (\texttt{@} = atom names) \\
+\texttt{@CA,C,O,N} & The backbone atoms \\
+\texttt{!@H=} & Everything except hydrogens (\texttt{!} = not, \texttt{=} = any ending) \\
+\texttt{\&} & ``and'': \texttt{@CA\&:1-70} is the CA atoms of residues 1--70 \\
+\texttt{!:WAT} & Not water \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\key{e} lets you choose stages (\typed{2}, \typed{2-4} or \typed{all}), type a
+mask (or \typed{none} to remove restraints) and set a weight for each stage.
+\key{g} opens a mask generator that builds the mask from answers:
+
+\begin{screen}
+═══ General Structural Restraints ═══
+Choose atom types to restrain:
+  (b) Backbone atoms (@CA,C,O,N)
+  (h) Heavy atoms only (!@H=)
+  (c) Alpha carbons only (@CA)
+  (u) Custom atom selection (you specify)
+Select atom type (c): §ans«c»
+...
+Chain selection (all): §ans«A:1-70»
+...
+Exclude water molecules from restraints? [y/n] (y): §ans«y»
+...
+│ FINAL COMBINED MASK (saved to workspace):                │
+│   @CA&:1-70&!:WAT                                        │
+\end{screen}
+
+After \key{a} (accept), ProPrep asks which stages should use the new mask and
+with what weight. In our test the heating stage received
+\texttt{@CA\&:1-70\&!:WAT} with weight 2.0, and the run used it.
+
+\begin{tip}
+Residue numbers in masks count from 1 through the whole system, including
+ions. For ubiquitin the generator reported \prompt{Chain A: residues 1-102}:
+76 amino acids plus 26 ions.
+\end{tip}
+
+\subsection{Distance restraints (DISANG)}
+
+A \term{DISANG} file holds restraints on distances, angles or torsions, for
+example ``keep these two atoms between 35 and 40\,Å apart''. \key{d} opens
+the restraint manager:
+
+\begin{screen}
+═══ MD RESTRAINT CONFIGURATION ═══
+DISANG Restraints (Distance/Angle/Torsion)
+  1. ✓ Import DISANG restraints from file
+  2. ✓ Configure DISANG restraints interactively
+  3. ○ Display current DISANG restraints
+  4. ○ Export restraints to DISANG file
+...
+Choose option (or 'd' when done, 'x' to exit) (2):
+\end{screen}
+
+The route that worked:
+
+\begin{steps}
+  \item Write the restraint file yourself and give it a name ending in
+        \file{.disang} in the project folder. ProPrep lists only
+        \file{*.disang} files there.
+  \item Type \key{1} and accept the suggested file.
+  \item Type \key{3} to check that the restraint is listed.
+  \item Type \key{4} to export it (default \file{restraints.disang}).
+  \item Type \key{d}, choose the stages (for example \typed{3}) and the
+        \prompt{Restraint dump frequency} (how often the distances are
+        written).
+\end{steps}
+
+\begin{watchout}
+In version 1.23.0:
+\begin{itemize}
+  \item Importing printed \prompt{Error importing restraints:
+        'MDRestraintModule' object has no attribute 'get\_from\_workspace'},
+        yet the restraint was imported and later used correctly by
+        \texttt{sander}. Check with \key{3} and carry on.
+  \item Interactive entry (\key{2}) could not find any residue (\prompt{Residue
+        A:1 not found}): the structure ProPrep extracts from the topology has
+        no chain letters. Use a file instead.
+\end{itemize}
+\end{watchout}
+
+For a stage with DISANG restraints, ProPrep adds \texttt{nmropt=1} and
+three lines to its mdin file:
+\texttt{DISANG=}, \texttt{DUMPAVE=} and \texttt{LISTOUT=}. The measured
+distances appear in \file{restraints_dump.txt} in the stage folder.
+
+\subsection{GROUP restraints}
+
+\key{r} sets up \term{GROUP restraints}, an older Amber format that restrains
+several groups of atoms with different strengths. ProPrep asks for the number
+of groups (1--10), a title and force constant for each, search criteria
+(\texttt{CA * * *} means every atom named CA) and up to seven residue ranges,
+then shows the block and asks which stages should use it. They cannot be
+combined with a positional mask in the same stage. We configured a group but
+did not apply it to a run.
+
+\section{Choosing the engine and hardware}\label{sec:runningmd-engine}
+
+The \term{MD engine} is the program that does the calculation. Amber has
+several:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Engine} & \textbf{What it is} \\
+\midrule
+\texttt{sander} & AmberTools engine, one processor core. Installed with
+  ProPrep. \\
+\texttt{sander.MPI} & The same, shared over several cores with \term{MPI}
+  (a system for splitting work between processors). Installed with ProPrep. \\
+\texttt{pmemd} & Faster engine from the separate Amber package. \textbf{Not
+  installed with ProPrep.} \\
+\texttt{pmemd.MPI} & \texttt{pmemd} over several cores. Not installed. \\
+\texttt{pmemd.cuda} & \texttt{pmemd} on an NVIDIA graphics card (GPU), by far
+  the fastest. Not installed. \\
+\bottomrule
+\end{tabularx}
+
+\begin{needsoftware}
+\texttt{pmemd}, \texttt{pmemd.MPI} and \texttt{pmemd.cuda} are part of Amber,
+which is obtained and installed separately from AmberTools, and
+\texttt{pmemd.cuda} also needs an NVIDIA GPU. Without them, use
+\texttt{sander} or \texttt{sander.MPI}: everything in this chapter works, only
+more slowly. ProPrep can still write input files and cluster scripts for
+\texttt{pmemd} to run on another computer.
+\end{needsoftware}
+
+Step~5 of the setup:
+
+\begin{screen}
+  Minimization on CPU: GPU fixed-point precision (SPFP) can silently clip
+  large forces from atomic clashes in unrelaxed starting structures.
+  NPT equilibration on CPU: the GPU PME grid is fixed at run start and
+  cannot reorganize as box dimensions change during density equilibration.
+  NVT/production on GPU: once the structure is relaxed and density has
+  converged, GPU acceleration is safe and dramatically faster.
+
+  Available: 11 CPUs, 0 GPUs
+
+  Simulations: 3 configured
+    3x pmemd
+
+What would you like to do?
+   1. Apply recommended assignments (CPU for min/NPT, GPU for rest)
+   2. Configure individual simulation engines
+   3. Set all simulations to same engine
+   p. Load cluster profile
+   l. Load run plan (requires cluster profile)
+   s. Save current assignments as run plan (requires cluster profile)
+\end{screen}
+
+\begin{itemize}
+  \item \key{3} sets one engine for every stage. This is the simplest way to
+        choose \texttt{sander}.
+  \item \key{2} goes through the stages one by one. For \texttt{sander.MPI}
+        it also asks \prompt{Number of MPI processes}; for
+        \texttt{pmemd.cuda}, which GPU to use. This list marks missing
+        engines \prompt{(not installed)}.
+  \item \key{1} applies ProPrep's recommendation: CPU engines for
+        minimization and NPT, GPU for the rest.
+  \item \key{h} explains why some stages should not run on a GPU.
+\end{itemize}
+
+\begin{watchout}
+In version 1.23.0 every stage starts with the engine \texttt{pmemd}, which is
+not installed with ProPrep. The recommended assignment (\key{1}, also the
+default) chooses \texttt{pmemd.cuda} for heating and production even when the
+screen says \prompt{0 GPUs}, and only prints \prompt{No GPUs detected on this
+machine. Defaulting to GPU 0.} The list under \key{3} does not mark missing
+engines. If you run with a missing engine, the run stops with
+\prompt{Error starting simulation: [Errno 2] No such file or directory:
+'pmemd'} and \prompt{Simulations started: 0}. Go back to \key{5b} \key{1}
+and choose \texttt{sander} at this step; the queue menu of the Execute screen
+cannot change the engine.
+\end{watchout}
+
+How many processes? For ubiquitin (15,729 atoms) on an 11-core laptop,
+\texttt{sander.MPI} with 4 processes ran 2\,ps of heating in 22\,s, about
+7.7\,ns per day. Leave some cores free for the rest of your computer.
+
+Cluster profiles (\key{p}) and run plans (\key{l}, \key{s}) are for
+supercomputers; see Section~\ref{sec:runningmd-cluster}.
+
+\section{Running on your computer}\label{sec:runningmd-local}
+
+Step~6 shows a summary and the ways to finish:
+
+\begin{screen}
+What would you like to do?
+   1. Save setup to workspace (execute later with 'run' command)
+   2. Write MDIN only (no SLURM, no launch)
+   3. Write files and run locally now
+   4. Write MDIN + SLURM scripts (no launch) (manual wizard — no profile loaded)
+   5. Write files and submit via sbatch now (requires cluster profile)
+\end{screen}
+
+\begin{itemize}
+  \item \key{3} writes the files and opens the Execute Simulations menu. Type
+        \key{1} (Execute simulation queue) and \key{y}.
+  \item \key{2} only writes the input files and a script
+        \file{run_workflow.sh} that runs all stages in a row. You can start
+        the run later from \key{5b} \key{2}, or copy the folder to another
+        computer. ProPrep also asks \prompt{Add extended production run
+        cycles?}: \key{y} and a number adds that many extra production runs,
+        each continuing from the last.
+  \item \key{4} and \key{5} are for clusters
+        (Section~\ref{sec:runningmd-cluster}).
+  \item \key{1} saves the setup without writing files (not tried for this
+        manual).
+\end{itemize}
+
+When the run starts, ProPrep launches the first stage in the background and
+starts each following stage as soon as the one before has finished:
+
+\begin{screen}
+Executing simulation 1/3: 1UBQ_1UBQ_Energy Minimization
+...
+✓ Simulation '1UBQ_1UBQ_Energy Minimization' started in background (PID: 4080)
+...
+Executing simulation 2/3: 1UBQ_1UBQ_System Heating
+  Queued (depends on: 1UBQ_1UBQ_Energy Minimization)
+Will auto-start when dependency completes
+...
+===== Execute Simulations =====
+
+▶ Running: Energy Minimization
+   Next: System Heating (+1 more pending)
+\end{screen}
+
+You can keep using ProPrep while it runs. The Execute menu shows
+\prompt{Finished} for each completed stage.
+
+\subsection{Where the files go}
+
+Each run makes a new folder \file{simulations/batch_<date>_<time>/} in the
+project. (Choosing \key{2} and then running from \key{5b} \key{2} gives two
+batch folders: one with the written files, one with the actual run.)
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{In each stage folder} & \textbf{Contents} \\
+\midrule
+\file{simulation.mdin} & The settings for this stage \\
+\file{run_simulation.sh} & The exact command that was run \\
+\file{*.mdout} & Energies, temperature and pressure through the stage \\
+\file{*.rst7} & Final coordinates (the start of the next stage) \\
+\file{*.nc} & The trajectory (dynamics stages only) \\
+\file{mdinfo} & Progress of the running stage \\
+\file{simulation.stdout}, \file{.stderr} & Messages from the engine; look here if a stage fails \\
+\file{config.json} & ProPrep's record of the stage \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+The \file{shared/} folder holds the topology and starting coordinates. Inside
+each stage folder the incoming coordinates are always called
+\file{<name>.rst7}, even when they are really the previous stage's result.
+The chaining is correct; only the name is the same.
+
+\subsection{How long it takes}
+
+Measured for ubiquitin (15,729 atoms) on an 11-core Mac laptop:
+
+\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+\textbf{Stage} & \textbf{Engine} & \textbf{Length} & \textbf{Time} \\
+\midrule
+Minimization & sander.MPI, 4 processes & 300 cycles & 6\,s \\
+Heating & sander.MPI, 4 processes & 1,000 steps (2\,ps) & 22\,s \\
+Production & sander & 500 steps (1\,ps) & 33\,s \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+At this rate the full Workshop protocol (420\,ps) takes over an hour, and
+100\,ns would take weeks. Long simulations belong on a computer with a GPU and
+\texttt{pmemd.cuda}, usually a cluster.
+
+\section{Watching a running simulation}\label{sec:runningmd-monitor}
+
+Choose \key{3} in the Execute menu (or \key{5b} \key{3}) and pick a
+simulation:
+
+\begin{screen}
+AMBER Simulation Monitor
+Data & Status:
+ 1. Show current status
+ 2. Display energy summary
+ 3. Display temperature summary
+ 4. Display pressure summary
+ 5. Show timing information
+
+ASCII Plots:
+ 6. Plot energy (total)
+ 7. Plot temperature
+ 8. Plot pressure
+ 9. Plot kinetic energy
+10. Plot potential energy
+11. Plot RMS gradient
+
+Periodic box:
+12. Distance of the solute to its periodic images, so far
+
+Control:
+ r. Refresh data
+ b. ← Back
+\end{screen}
+
+\key{1} shows the current step, time, temperature and energy. \key{6}--\key{11}
+draw simple text plots in the window. \key{r} reads the latest values.
+
+Option \key{12} measures, for every snapshot so far, the shortest distance
+between the protein and its own copy in the neighboring box. It should stay
+well above the cutoff distance (usually 10\,Å); otherwise the protein can
+feel itself across the box edge and the box is too small. For ubiquitin's
+heating stage:
+
+\begin{screen}
+│ Box                       │ truncated octahedron; edges a 61.99-61.99, ...
+│ Closest approach          │ 29.28 Å at frame 17                         │
+│ Mean                      │ 30.01 ± 0.35 Å                              │
+│ Nonbonded cutoff          │ 10 Å                                        │
+│ Frames below the cutoff   │ 0 of 20                                     │
+
+The solute never comes within the 10 Å cutoff of its own image in the frames
+analysed; at its closest it is 19.28 Å beyond it.
+\end{screen}
+
+\prompt{Show timing information} said \prompt{No timing information
+available} for a stage that had just finished.
+
+\section{Running on a computing cluster}\label{sec:runningmd-cluster}
+
+Most university clusters use a job system called \term{SLURM}: you submit a
+script, and it runs when processors are free. ProPrep can write these scripts.
+We wrote them for this manual but had no cluster to run them on.
+
+At the Review step, \key{4} (Write MDIN + SLURM scripts) writes the input
+files and then asks for the job settings:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Question} & \textbf{Default} \\
+\midrule
+Job name; partition (queue) & \texttt{amber\_simulation}; \texttt{gpu} \\
+Nodes; tasks per node; CPUs per task & 1; 1; 4 \\
+Use GPU?; number; type & yes; 1; any \\
+Memory; time limit & 16G; 02:00:00 \\
+Email notifications & no \\
+Load modules? & yes, \texttt{amber/22} \\
+Conda environment; advanced options & no; no \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Ask your cluster's support team for the right partition, modules and
+account. The scripts go to the folder \file{simulations/slurm_scripts/}.
+There is one \file{stepN.sh} per stage, plus \file{submit_workflow.sh},
+which submits them all so that each waits for the one before. On the cluster you would run
+\texttt{./submit\_workflow.sh} and watch with \texttt{squeue -u \$USER}.
+
+\begin{watchout}
+Check the scripts before you submit them. In our test (version 1.23.0):
+\begin{itemize}
+  \item With all defaults, a GPU was requested on a \texttt{gpu} partition
+        even though the engine was \texttt{sander}, which cannot use a GPU.
+  \item For a constant-pH production stage, \file{step2.sh} used the
+        ordinary topology instead of the \file{_cpin.prmtop} one. The local
+        \file{run_workflow.sh} was correct.
+  \item \file{step2.sh} contains a line \texttt{\#SBATCH
+        --dependency=afterok:\$STEP1\_JOBID}, which fails if you submit that
+        script on its own. Use \file{submit_workflow.sh}.
+\end{itemize}
+\end{watchout}
+
+\subsection{Cluster profiles and run plans}
+
+A \term{cluster profile} stores the details of one cluster (job system,
+modules, partitions, which engine to use on CPU or GPU nodes) so you do not
+type them each time. ProPrep includes one example, \textsf{TAMU ACES}. Manage
+profiles with \key{5b} \key{6}: show, fill in required fields (such as your
+account), edit the full file, create a new profile from a template, export,
+import and delete. A \term{run plan} remembers which engine and resources
+each stage of a protocol uses; it is saved at the hardware step (\key{s}) and
+managed with \key{5b} \key{7}. Review option~\key{5} (submit with
+\texttt{sbatch} now) needs a loaded profile and a SLURM system; it was not
+tried for this manual.
+
+\section{Constant-pH simulations}\label{sec:runningmd-cph}
+
+If the project has a cpin file (Section~\ref{sec:topology-cpin}), ProPrep
+offers constant-pH MD after you choose the protocol:
+
+\begin{screen}
+Constant pH MD Available
+  CPIN file: 1UBQ.cpin (8 residues)
+  Solvent model: explicit
+  Modified topology: 1UBQ_cpin.prmtop
+...
+Enable Constant pH MD for production steps? [y/n] (y): §ans«y»
+Target pH (7.0): §ans«»
+Steps between protonation state attempts (ntcnstph) (100): §ans«»
+Solvent relaxation steps after protonation change (ntrelax) (200): §ans«»
+Salt concentration in M (saltcon) (0.1): §ans«»
+✓ Constant pH MD enabled
+  icnstph=2, solvph=7.0, ntcnstph=100, ntrelax=200, saltcon=0.1
+  -cpin -cpout -cprestrt will be applied to production steps only
+\end{screen}
+
+The \prompt{saltcon} value is not the salt in your water box; leave it at
+0.1. Constant-pH settings apply only to production stages. The default is
+\key{y}; answer \key{n} for an ordinary simulation. We wrote constant-pH
+input files and scripts but did not run a constant-pH simulation for this
+manual.
+
+\section{If something goes wrong}\label{sec:runningmd-problems}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{Why, and what to do} \\
+\midrule
+\prompt{No such file or directory: 'pmemd'}, \prompt{Simulations started: 0} &
+  The engine is \texttt{pmemd} (the default), which is not installed. Redo
+  \key{5b} \key{1} and choose \texttt{sander} at the hardware step. \\
+\prompt{Received '', which is not one of the available options} &
+  That prompt has no default. Type a letter or number. \\
+The Review table shows the old lengths &
+  Display only; your edited values are in the files. Open
+  \file{simulation.mdin} in a stage folder to confirm. \\
+\prompt{No saved protocols found} &
+  Known limitation; import the protocol's \file{.json} file instead. \\
+\prompt{Residue A:1 not found} in DISANG entry &
+  Use a \file{.disang} file and import it. \\
+A stage stops early or never finishes &
+  Read \file{simulation.stderr} and the end of the \file{.mdout} file in the
+  stage folder. \\
+Wrong Amber programs are used &
+  Another Amber installation is active (\texttt{AMBERHOME}); see
+  Section~\ref{sec:tutorial-before}. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+See also Chapters~\ref{ch:troubleshooting} and~\ref{ch:knownissues}.

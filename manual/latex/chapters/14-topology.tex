@@ -1,0 +1,811 @@
+\chapter{Building the simulation system}
+\label{ch:topology}
+
+Before a simulation can start, the computer needs a complete description of
+the system: every atom, its charge, every bond, and the water and salt around
+the protein. The Topology Generator (\key{5a}) builds this description for
+you. It writes an input file for \term{tLEaP}, the AmberTools program that
+builds simulation systems, runs it, and checks the result.
+
+\begin{glance}
+\glanceitem{What it does}{Turns your prepared protein into the two files an
+  Amber simulation needs, adding a water box and salt on the way.}
+\glanceitem{You need it when}{You want to run a simulation (\key{5b}) or
+  prepare a QM/MM model from a solvated system.}
+\glanceitem{Before you start}{A loaded structure (\key{1a}). Optional:
+  cleaned (\key{4a}), protonated (\key{4e}). Disulfides, hemes, metals and
+  ligands must be prepared first (see Section~\ref{sec:topology-special}).}
+\glanceitem{Where to find it}{\menupath{5a}{Topology Generator}, in section
+  \textsf{5.\ SIMULATION SETUP \& EXECUTION}.}
+\glanceitem{You get}{\file{<name>_tleap.in}, \file{<name>.prmtop},
+  \file{<name>.rst7}, \file{<name>_parmed.pdb}, \file{leap.log}.}
+\end{glance}
+
+\section{Topology and coordinates}\label{sec:topology-files}
+
+An Amber simulation reads two files:
+
+\begin{itemize}
+  \item The \term{topology} file (\file{.prmtop}, sometimes called
+        \file{.parm7}) is the parts list. It names every atom, gives its
+        charge and type, and lists every bond, angle and twist together with
+        the force-field numbers that describe them. It does not say where
+        the atoms are.
+  \item The \term{coordinate} file (\file{.rst7}, sometimes \file{.inpcrd})
+        gives the position of every atom and the size of the box.
+\end{itemize}
+
+The two files belong together: atom number 500 in one is atom number 500 in
+the other. ProPrep names them after your structure, for example
+\file{1UBQ.prmtop} and \file{1UBQ.rst7}.
+
+\section{The Topology Generator menu}
+
+\begin{screen}
+══ Topology Generator Menu ══
+  1. ✓ Edit redox site bond definitions
+  2. ✓ Generate tLEaP input for single state
+  3. ○ Generate tLEaP inputs for all redox microstates
+       ⚠ Need batch microstate metadata from Redox Site Prep
+  4. ○ Generate prmtop/rst7 files from tLEaP input files
+       ⚠ Need to generate tLEaP input first
+  5. ○ Refine protonation states via PB (PBSA)
+       ⚠ Need to generate topology files first
+  6. ○ Generate cpin/cein file for constant pH or redox MD
+       ⚠ Need to generate topology files first
+
+→ Suggestion: Edit bonds (option 1) if needed, then generate tLEaP input for
+single state (option 2)
+\end{screen}
+
+A tick (\texttt{✓}) means the option can be used now, a circle (\texttt{○})
+that it is blocked, with the reason on the yellow line below. A dot
+(\texttt{●}) marks a step you have already done. Choosing a blocked option
+redraws the menu without a message.
+
+The usual route is \key{2} (write the tLEaP input) followed by \key{4} (run
+tLEaP). Option~\key{1} is needed only for special bonds, such as disulfides.
+
+\section{Step by step: a solvated protein}\label{sec:topology-steps}
+
+This is the route that worked for ubiquitin (\pdb{1UBQ}). The tutorial in
+Chapter~\ref{ch:tutorial} shows every screen; here is the short version.
+
+\begin{steps}
+  \item Type \key{5a}, then \key{2}.
+  \item Choose the protein force field (Section~\ref{sec:topology-ff}). Press
+        \key{Enter} for ff19SB.
+  \item At \prompt{Select modified amino acids ()}, press \key{Enter} (none).
+  \item Type \key{1} (None) for DNA, RNA, carbohydrate, lipid and small
+        molecule force fields, unless your system contains them.
+  \item Choose the water model (Section~\ref{sec:topology-water}) and press
+        \key{Enter} at the ion parameters.
+  \item Choose explicit solvent, the box shape and the buffer
+        (Section~\ref{sec:topology-box}).
+  \item Choose the salt (Section~\ref{sec:topology-salt}).
+  \item ProPrep shows the tLEaP input. Type \key{n} at \prompt{Edit the tLEaP
+        template?} unless you want to change it
+        (Section~\ref{sec:topology-edit}).
+  \item At \prompt{Do you want to continue without bond definitions? [y/n]
+        (n)}, type \key{y}.
+  \item Press \key{Enter} to accept the file name, and \key{Enter} again to
+        view the file.
+  \item Type \key{4} and press \key{Enter} at \prompt{Run
+        \textless name\textgreater\_tleap.in?}
+        (Section~\ref{sec:topology-run}).
+\end{steps}
+
+\begin{watchout}
+The bond question defaults to \key{n}. In version 1.23.0, \key{n} abandons
+the whole step: ProPrep prints \prompt{Please run RedoxSite detection and try
+again.} and returns to the menu without writing a file. For a protein without
+special bonds, always type \key{y}. Your earlier answers are kept, so a second
+attempt is quick.
+\end{watchout}
+
+\section{Choosing a force field}\label{sec:topology-ff}
+
+A \term{force field} is the set of rules and numbers that tells the
+simulation how strongly atoms attract, repel and hold on to each other. You
+choose one for each kind of molecule in the system. Chapter~\ref{ch:forcefields}
+explains how to find or make parameters for molecules that no force field
+covers.
+
+\begin{tabularx}{\linewidth}{@{}rlL@{}}
+\toprule
+\textbf{\#} & \textbf{Protein force field} & \textbf{ProPrep's note} \\
+\midrule
+1 & None & No protein in system \\
+2 & \textbf{ff19SB} (default) & Latest Amber protein force field; use with OPC water \\
+3 & ff14SB & Widely validated, good for most applications \\
+4 & ff15ipq & Requires SPC/Eb water \\
+5 & fb15 & Use with TIP3P-FB or TIP4P-FB \\
+6 & ff03.r1 & Older alternative \\
+7 & ff99SBildn & Legacy \\
+8 & Constant pH (ff10) & For constant-pH simulations (Section~\ref{sec:topology-cpin}) \\
+9 & Constant Redox (ff10) & For constant-redox simulations \\
+10 & Constant pH + Redox (ff10) & Both \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Use \textbf{ff19SB} unless you have a reason to match earlier work done with
+another force field. Pick ff14SB if you want to stay with the most widely
+used older choice.
+
+The next questions ask for force fields for other kinds of molecule:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Question} & \textbf{Choices (default first)} \\
+\midrule
+Modified amino acids & none (Enter); 2 Modified AA ff19SB; 3 Modified ff14SB;
+  4--6 phosphorylated (ff19SB, ff14SB, ff99SB); 7 mimetic and 8 fluorinated
+  (ff15ipq). Several may be given, separated by commas. \\
+DNA & OL24; 1 None; OL21; OL15; bsc1; tumuc1. Only OL24 and OL21 suit ff19SB. \\
+RNA & OL3; 1 None; LJbb; ROC; YIL; Shaw; modrna08 \\
+Carbohydrate & GLYCAM\_06j; 1 None; GLYCAM\_06EPb \\
+Lipid & lipid21; 1 None; lipid17 \\
+Small molecule & GAFF2; 1 None; GAFF \\
+\bottomrule
+\end{tabularx}
+
+\begin{tip}
+For DNA, RNA, carbohydrates, lipids and small molecules the default is a real
+force field, not \prompt{None}, even when your system contains none of these.
+Extra force fields do no harm to a protein, but type \key{1} for each one you
+do not need, so that the input file stays short and clear.
+\end{tip}
+
+\section{Choosing a water model}\label{sec:topology-water}
+
+The \term{water model} is the recipe for a single water molecule: where its
+charges sit and how big it is. Models differ in accuracy and speed. A
+\emph{three-point} model has three charged sites (the three atoms); a
+\emph{four-point} model adds one extra site, which makes it more accurate but
+a little slower.
+
+\begin{tabularx}{\linewidth}{@{}rlL@{}}
+\toprule
+\textbf{\#} & \textbf{Water} & \textbf{ProPrep's note} \\
+\midrule
+1 & None & Implicit solvent, no water molecules (Section~\ref{sec:topology-implicit}) \\
+2 & OPC & 4-point; recommended for ff19SB \\
+3 & OPC3 & 3-point OPC, faster, good accuracy \\
+4 & OPC3-pol & Polarizable OPC3 \\
+5 & TIP4P-Ew & 4-point, good alternative \\
+6 & TIP3P & 3-point, traditional; recommended for the constant-pH force field \\
+7 & SPC/E & 3-point \\
+8 & SPC/Eb & Required for ff15ipq \\
+9 & TIP5P & 5-point (use with GLYCAM\_06EPb) \\
+10, 11 & TIP3P-FB, TIP4P-FB & For fb15 \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+The default is the model recommended for your protein force field: OPC for
+ff19SB, TIP3P for the constant-pH force field. When you run \key{2} again, the
+default becomes your previous choice. The ubiquitin tutorial used ff19SB with
+TIP3P; the crambin and cytochrome~c tests used ff19SB with OPC.
+
+\begin{watchout}
+ProPrep does not warn you if you combine a force field with a water model it
+does not recommend. The TIP3P line reads ``not recommended'' for ff19SB but
+``Recommended'' for the constant-pH force field. Check the
+\prompt{Recommended} label next to the water model before you choose.
+\end{watchout}
+
+\subsection{Ion parameters}
+
+Next comes \prompt{Select divalent+ ion parameters}. These numbers describe
+metal ions such as Mg\textsuperscript{2+}, Ca\textsuperscript{2+} and
+Zn\textsuperscript{2+}; sodium and chloride parameters are loaded with the
+water model anyway. The default always follows the water model (for example
+\prompt{12-6-4 TIP3P} with TIP3P, \prompt{12-6-4 OPC} with OPC). Press
+\key{Enter}. With a \term{12-6-4} set, ProPrep later adds a small correction
+for ions to the topology with ParmEd (Section~\ref{sec:topology-run}).
+
+\section{Box shape and size}\label{sec:topology-box}
+
+After the force fields, ProPrep asks how to surround the protein.
+
+\begin{screen}
+Solvent Model
+  1. Explicit solvent (solvation box with water molecules)
+  2. Implicit solvent (GB/PB continuum model, no water box)
+Select solvent model [1/2] (1): §ans«»
+
+Box Shape
+  1. Truncated octahedron (Recommended) - ~29% fewer waters than rectangular
+  2. Rectangular box
+Select box shape [1/2] (1): §ans«»
+
+Buffer Distance
+Distance from solute to box edge. 8-10 A typical, 12-15 A for large
+conformational changes.
+solvateOct accepts only a single uniform buffer in this AmberTools build.
+Switch to a rectangular box if you need per-axis buffers.
+Buffer distance (Angstroms) (10.0): §ans«10»
+\end{screen}
+
+\begin{itemize}
+  \item \textbf{Explicit solvent} puts real water molecules around the
+        protein. Choose it for almost all work.
+  \item The simulation box repeats itself in every direction, like tiles
+        (this is called \term{periodic boundaries}). A \term{truncated
+        octahedron} is a box with its corners cut off. For a roughly round
+        protein it needs about 29\,\% less water than a rectangular box, so
+        the simulation runs faster.
+  \item The \term{buffer} is the smallest distance between the protein and
+        the edge of the box. 10\,Å is usual; use 12--15\,Å if the protein may
+        unfold or change shape a lot. ProPrep accepts 5--25\,Å.
+\end{itemize}
+
+A \textbf{rectangular box} (\key{2}) adds a question about the buffer:
+
+\begin{screen}
+  1. Uniform (Recommended) - same buffer in x, y, z
+  2. Per-axis - different x, y, z buffers
+Select buffer mode [1/2] (1): §ans«2»
+Buffer in X direction (Angstroms) (10.0): §ans«10»
+Buffer in Y direction (Angstroms) (10.0): §ans«10»
+Buffer in Z direction (Angstroms) (10.0): §ans«15»
+\end{screen}
+
+A per-axis buffer is useful for long, thin molecules. The truncated
+octahedron accepts only one value for all directions.
+
+If you type something that is not a number, ProPrep says \prompt{Please enter
+a number}; a value outside the range gives \prompt{Value should be between 5.0
+and 25.0 Angstroms}. In both cases the question is asked again.
+
+\section{Salt and neutralizing ions}\label{sec:topology-salt}
+
+Two things decide how many ions go into the box:
+
+\begin{itemize}
+  \item \textbf{Neutralizing.} The standard way of computing long-range
+        electric forces in a periodic box needs a box with zero total charge.
+        If the protein is charged, oppositely charged \term{counter-ions} are
+        added.
+  \item \textbf{Salt concentration.} Real cells contain about 150\,mM salt,
+        which screens charges and affects how the protein behaves. Extra pairs
+        of ions are added to reach the concentration you choose.
+\end{itemize}
+
+For each salt, ProPrep asks for a positive ion (\prompt{Cation}), a negative
+ion (\prompt{Anion}) and a concentration:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Question} & \textbf{Choices (default first)} \\
+\midrule
+Cation & Na\textsuperscript{+}; K\textsuperscript{+}; Li\textsuperscript{+};
+  Cs\textsuperscript{+}; Rb\textsuperscript{+}; Mg\textsuperscript{2+};
+  Ca\textsuperscript{2+}; Zn\textsuperscript{2+}. A 2+ ion gives a salt with
+  two anions, such as MgCl\textsubscript{2}. \\
+Anion & Cl\textsuperscript{--}; Br\textsuperscript{--}; F\textsuperscript{--};
+  I\textsuperscript{--} \\
+Concentration & 1 150\,mM; 2 100\,mM; 3 50\,mM; 4 Neutralize only (0\,mM);
+  5 Custom (0--1000\,mM) \\
+Add another salt? & \key{n} (default) or \key{y} \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+ProPrep then runs tLEaP for a moment to count the water molecules and the
+charge of your system, and shows how it computed the ion numbers:
+
+\begin{screen}
+Running tLEaP info pass for accurate ion counts...
+  → Net charge: +0.0
+  → Water count: 4792
+  ✓ Got required info, terminating tLEaP early
+╭──────── Ion Calculation -- 150 mM NaCl, SPLIT Method ────────╮
+...
+│    Step 2  formula units:  No = Nw · M / 55.5 = 4792 · 0.15 / 55.5 = 13.0 -> 13
+...
+│  Result: total charge = system (+0) + ions (+0) = 0  ->  13 Na+ + 13 Cl-
+...
+\end{screen}
+
+\begin{behindscenes}
+ProPrep counts ions with the \term{SPLIT method} (Machado and Pantano,
+2020). It shares the protein's charge between the two kinds of ion, so the box
+is neutral and reaches the target concentration in one step. The panel also
+warns that the box shrinks by 5--10\,\% when the simulation first runs at
+constant pressure, so a 150\,mM target ends up at about 158--165\,mM. This is
+normal practice.
+\end{behindscenes}
+
+\subsection{Two or more salts}
+
+Answer \key{y} at \prompt{Add another salt?} to add a second salt. In our
+crambin test we added 150\,mM KCl and 10\,mM MgCl\textsubscript{2}. ProPrep
+then asks which salt should neutralize the protein's charge:
+
+\begin{screen}
+Charge Neutralization
+Choose which salt's ions are used to balance the protein charge via tLEaP's
+`addions` command.
+  1. KCl
+  2. MgCl2
+Use which salt for neutralization [1/2] (1): §ans«»
+\end{screen}
+
+The result for crambin was 11 K\textsuperscript{+}, 1 Mg\textsuperscript{2+}
+and 13 Cl\textsuperscript{--}, with the line \prompt{Charge balance verified}.
+
+\subsection{Neutralize only}
+
+Choice \key{4} adds only the counter-ions. For cytochrome~c (\pdb{1HRC}),
+which has a charge of +8, ProPrep wrote \texttt{addions mol Cl- 0}, which tells
+tLEaP to add as many chloride ions as needed (here eight) near the positive
+charges.
+
+\section{Looking at and editing the tLEaP input}\label{sec:topology-edit}
+
+ProPrep turns your answers into a \term{template}: the tLEaP input with
+placeholders that it fills in later. It prints the template with line numbers
+and asks \prompt{Edit the tLEaP template? [y/n] (y)}.
+
+\begin{screen}
+   4 source leaprc.protein.ff19SB
+...
+   9 source leaprc.water.tip3p
+  10 loadamberparams frcmod.ions1lm_1264_tip3p
+  11 loadamberparams frcmod.ions234lm_1264_tip3p
+  12
+  13 # === CUSTOM ATOM TYPES (auto-filled by ProPrep) ===
+  14 # ATOM_TYPES_SECTION
+...
+  20 mol = loadpdb /Users/you/project/ubq/1UBQ.pdb
+...
+  23 # BOND_DEFINITIONS_SECTION
+...
+  26 solvateoct mol TIP3PBOX 10.00
+...
+  30 addionsrand mol Na+ 13 Cl- 13
+...
+  33 check mol
+...
+  36 saveamberparm mol 1UBQ.prmtop 1UBQ.rst7
+...
+Edit the tLEaP template? [y/n] (y):
+\end{screen}
+
+In plain words: load the force fields (\texttt{source},
+\texttt{loadamberparams}), read your protein (\texttt{loadpdb}), surround it
+with water (\texttt{solvateoct}), add ions (\texttt{addionsrand}), check it
+(\texttt{check}) and save the two files (\texttt{saveamberparm}). The lines
+ending in \texttt{\_SECTION} are filled in by ProPrep: custom atom types and
+parameters for special residues, and bond lines from the bond editor.
+
+Answering \key{y} opens the template in a text editor (\texttt{nano}, or the
+editor named in your \texttt{EDITOR} setting). Make your change, then press
+\key{Ctrl-X}, \key{y} and \key{Enter} to save. ProPrep says
+\prompt{Template updated successfully!}. Your changes are kept and used again
+the next time you run \key{2}.
+
+\begin{tip}
+The most useful edit is the last line, \texttt{saveamberparm}. It sets the
+names of the topology and coordinate files. Change them whenever you make a
+second, different system from the same PDB file (see the watch-out in
+Section~\ref{sec:topology-implicit}).
+\end{tip}
+
+\subsection{Running option 2 again}
+
+The second time you choose \key{2}, ProPrep shows your previous settings and
+asks whether to change them:
+
+\begin{screen}
+Previous settings: protein: {'name': 'ff19SB', 'leaprc': 'leaprc.protein.ff19SB',
+'recommended': True, ...}, water: {'name': 'TIP3P', ...}
+Solvation: truncated octahedron, 10.0 A buffer, 150 mM NaCl
+Reconfigure all settings (forcefields, solvation, template)? [y/n] (n):
+\end{screen}
+
+The settings appear in a computer-style list; the last line,
+\prompt{Solvation: \ldots}, is the easiest to read. Press \key{Enter} to keep
+everything, or type \key{y} to answer all the questions again.
+
+\subsection{File name and viewing}
+
+After the bond question, ProPrep asks \prompt{Enter output filename for tLEaP
+input} with the default \file{<pdb name>_tleap.in}, then \prompt{View the
+tLEaP input file? [y/n] (y)}. Viewing shows the finished file in a box, with
+the \texttt{\_SECTION} lines replaced by comments such as \texttt{\# No custom
+atom types needed}.
+
+\section{Running tLEaP}\label{sec:topology-run}
+
+Option~\key{4} runs tLEaP on the input files in your project folder. With one
+file, ProPrep shows a status table and asks \prompt{Run
+\textless name\textgreater\_tleap.in? [y/n] (y)}. If the topology already
+exists it asks \prompt{Topology already exists. Regenerate \ldots? [y/n] (n)}
+instead.
+
+With several input files it offers:
+
+\begin{screen}
+Run options:
+All topology files already exist.
+  1. Regenerate all (2 files)
+  2. Select specific files
+  3. Skip - all topologies already exist
+Select option [1/2/3] (3): §ans«2»
+
+Select files to run (comma-separated numbers, 'all', or 'skip'):
+   1. ✓ 1UBQ_gb_tleap.in
+   2. ✓ 1UBQ_tleap.in
+
+✓ = topology exists, ○ = needs generation
+Enter file numbers (e.g., 1,3,5 or 'all' or 'skip') (skip): §ans«1»
+\end{screen}
+
+A successful run of \pdb{1UBQ} looked like this (shortened):
+
+\begin{screen}
+✓ Inserted 57 TER record(s) in 1UBQ.pdb
+Running: tleap -s -f 1UBQ_tleap.in
+✓ tLEaP completed successfully
+
+tLEaP Summary: Exiting LEaP: Errors = 0; Warnings = 13; Notes = 1.
+...
+Running ParmEd validation on 1UBQ.prmtop...
+  ✓ Initial validity check passed
+  ✓ Molecule definitions are correct
+  Applying 12-6-4 LJ potential (water model: TIP3P)...
+  ✓ Added LENNARD_JONES_CCOEF (C4 terms) for 12-6-4 potential
+...
+All expected topology files were generated successfully!
+\end{screen}
+
+What happens, in order:
+
+\begin{enumerate}
+  \item \textbf{TER records.} tLEaP needs a \term{TER record} (an
+        end-of-molecule line) after every separate molecule, such as each
+        crystal water. ProPrep adds missing ones. It edits your PDB file in
+        place and keeps the original as \file{<name>.pdb.ter_backup}.
+  \item \textbf{tLEaP.} The summary line counts errors, warnings and notes.
+        \textbf{Errors = 0} is what matters. Warnings such as \prompt{Close
+        contact of 1.3 angstroms between nonbonded atoms H and H1} are normal
+        for freshly added hydrogens.
+  \item \textbf{ParmEd.} \term{ParmEd}, Amber's topology editor, checks the
+        topology, makes sure molecules are defined correctly, and adds the
+        12-6-4 ion terms if you chose such a set. It then overwrites the
+        \file{.prmtop} with the corrected version.
+  \item \textbf{Validation.} A table shows whether the expected
+        \file{.prmtop} and \file{.rst7} were found.
+\end{enumerate}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{File} & \textbf{Contents} \\
+\midrule
+\file{<name>.prmtop} & The topology (for ubiquitin 2.9\,MB, 15,729 atoms) \\
+\file{<name>.rst7} & The coordinates (574\,kB) \\
+\file{<name>_parmed.pdb} & The whole system as a PDB, same atom order as the topology \\
+\file{<name>_parmed_replay.py} & A script to repeat the ParmEd step by hand \\
+\file{leap.log} & tLEaP's complete report; the place to look when something fails \\
+\file{<name>.pdb.ter_backup} & Your PDB as it was before TER records were added \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+The output files are named \file{.prmtop}, not \file{.parm7}; the name comes
+from the \texttt{saveamberparm} line of the input. The whole step takes a few
+seconds for a small protein.
+
+\section{Other choices}
+
+\subsection{Implicit solvent}\label{sec:topology-implicit}
+
+In \term{implicit solvent} the water is not made of molecules but replaced by
+a smooth surrounding medium, the \term{Generalized Born} (GB) model. It is
+much cheaper but less realistic. ProPrep switches to it when you choose water
+model \key{1} (None) or solvent model \key{2}. The ion question then defaults
+to \prompt{13 Default only}, and ProPrep writes no water box.
+
+\begin{watchout}
+Our implicit-solvent test on raw \pdb{1UBQ} (ff14SB, no water) failed in
+version 1.23.0:
+\begin{itemize}
+  \item The 58 crystal waters were still in the PDB, and without a water
+        model tLEaP did not recognize them: \prompt{tLEaP failed (exit code:
+        31)}, \prompt{Unknown residue: HOH}. Remove all waters with
+        \key{4a} (Chapter~\ref{ch:cleaning}) before an implicit-solvent build.
+  \item ProPrep did not add the radii that a GB simulation needs (the
+        \texttt{set default PBradii} line). Add such a line yourself when you
+        edit the template.
+  \item The new input used the same output names (\file{1UBQ.prmtop},
+        \file{1UBQ.rst7}) as the earlier explicit-solvent input. The failed
+        run left \file{1UBQ.prmtop} at 0 bytes and so destroyed the good
+        topology. Give every variant its own names on the
+        \texttt{saveamberparm} line.
+\end{itemize}
+\end{watchout}
+
+\subsection{Disulfide bonds}\label{sec:topology-disulfide}
+
+A \term{disulfide bond} links the sulfur atoms of two cysteines. tLEaP makes
+it only when \emph{both} of these are true:
+
+\begin{enumerate}
+  \item Both cysteines are named \textbf{CYX} in the PDB file (the Amber name
+        for a cysteine in a disulfide; Appendix~\ref{app:residues}).
+  \item The tLEaP input contains a \texttt{bond} line for each pair, for
+        example \texttt{bond mol.3.SG mol.40.SG}.
+\end{enumerate}
+
+Our tests on crambin (\pdb{1CRN}, three disulfides) showed what happens
+otherwise:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What was done} & \textbf{Result} \\
+\midrule
+Names left as CYS, no bond lines &
+  tLEaP: \prompt{Errors = 42}, \prompt{Could not find bond parameter for atom
+  types: SH - SH}. No topology. \\
+Names left as CYS, bond lines added &
+  The same errors (60). No topology. \\
+Names CYX, no bond lines &
+  \prompt{Errors = 0}, but the topology has \emph{no} disulfides. Only a
+  yellow ParmEd line hints at it. \\
+Names CYX \emph{and} bond lines & Correct topology, no warnings. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+The Protonation State Analyzer (\key{4e}) did \emph{not} rename the cysteines
+to CYX. The Redox Site Detector (\key{2a}) followed by the Redox Site Preparer
+(\key{4d}) with its disulfide option did (Chapter~\ref{ch:redox}).
+
+\begin{watchout}
+A CYX build without bond lines reports success. Look for this line in the
+ParmEd output; it means the disulfides are missing:
+\begin{screen}
+• Detected CYX residue with a Sulfur atom not bonded to another CYX
+  Sulfur! Did you forget to make the disulfide bond?
+\end{screen}
+\end{watchout}
+
+\subsubsection{Adding bond lines with the bond editor}
+
+Option~\key{1} opens the \textsf{tLEaP Bond Editor Dashboard}. If ProPrep has
+found no bonds itself it first asks \prompt{Do you want to continue without
+bond definitions?}; either answer opens the editor.
+
+\begin{screen}
+═══ tLEaP Bond Editor Dashboard ═══
+Showing: All Bond Categories
+No bonds to display
+Commands:
+Filters: [d]isulfide [m]etal [p]eptide [o]ther [all] categories
+Actions: [a]dd bond, [#] edit bond, [x#] delete bond, [s]ave, [q]uit, [h]elp
+Command (q): §ans«a»
+
+Add New Bond
+Enter tLEaP bond command (e.g. ...): §ans«bond mol.3.SG mol.40.SG»
+Select category:
+  1. Covalent Bonds
+  2. Disulfide Bonds (SG-SG)
+...
+  6. Other Bonds
+Category (6): §ans«2»
+\end{screen}
+
+\begin{steps}
+  \item Type \key{a}, then the bond line. Numbers are residue numbers as tLEaP
+        sees them (counted from 1 along the file); \texttt{SG} is the sulfur
+        atom.
+  \item Type \key{2} (Disulfide Bonds). Press \key{Enter} at \prompt{Press
+        Enter to continue}.
+  \item Repeat for each pair, then type \key{s} to save. ProPrep reports, for
+        example, \prompt{Saved 3 bond definitions}.
+  \item Run \key{2} again (keep the settings) and then \key{4}. The input
+        now contains the lines under \texttt{\# Disulfide bonds (CYS/CYX
+        SG-SG)}.
+\end{steps}
+
+Other keys: a number edits that bond, \texttt{x} followed by a number deletes
+it, \key{d} \key{m} \key{p} \key{o} show one category, \key{h} shows help.
+Typing \key{q} \emph{saves} and leaves; there is no ``quit without saving''.
+
+\begin{watchout}
+The editor accepts any text as a bond. In our test a stray \key{n} typed at
+a prompt was saved as a ``bond'' called \texttt{n}. After each \key{a}, the
+pause \prompt{Press Enter to continue} swallows whatever you type. Check the
+list before you save.
+\end{watchout}
+
+\subsection{Hemes, metals and ligands}\label{sec:topology-special}
+
+Standard force fields know only standard residues. A heme, a metal site or a
+drug molecule needs its own names and parameters, which ProPrep prepares with
+the Redox Site Detector (\key{2a}), the Redox Site Preparer (\key{4d}) and,
+if needed, the Force Field Parameterizer (\key{2c}). The Topology Generator
+then fills the \texttt{ATOM\_TYPES} and \texttt{FORCEFIELD\_PARAMETERS}
+sections of the template for you.
+
+Going straight to \key{5a} does not work. Cytochrome~c (\pdb{1HRC}) taken
+directly from the PDB gave \prompt{tLEaP failed (exit code: 31)} with
+\prompt{Errors = 159} and \prompt{Unknown residue: HEC}. ProPrep did not warn
+about the heme before running tLEaP. Prepare hemes as described in
+Chapter~\ref{ch:redox}, and ligands and metals as in
+Chapter~\ref{ch:forcefields}.
+
+\subsection{Many redox microstates at once (option 3)}
+
+When the Redox Site Preparer (\key{4d}) has produced a batch of
+\term{microstates} (the same protein with different sites oxidized or
+reduced), option~\key{3} writes one tLEaP input for each. Option~\key{2} is
+then blocked with \prompt{Batch microstates already generated}.
+
+\begin{watchout}
+In version 1.23.0, option~\key{3} silently writes nothing when no site needs
+force-field files, for example a batch of crambin microstates that differ only
+in their disulfides. ProPrep showed \prompt{Found 4 microstates to process}
+and then the menu again, with no input files and no message. Use option~\key{2}
+on each microstate PDB instead.
+\end{watchout}
+
+\subsection{Starting from an existing topology and coordinates}
+
+If you already have a \file{.prmtop} and \file{.rst7} pair, for example from a
+colleague, you can skip this chapter. In the Structure Loader type \key{1a},
+\key{2} (Load AMBER topology \& coordinate files), pick the topology in the
+file browser (type a folder path to jump there), answer \key{r} at
+\prompt{Coordinate source: [r]st7/inpcrd or [t]rajectory}, and pick the
+coordinates. ProPrep confirms \prompt{Loaded topology + rst7 pair into
+workspace}.
+
+The pair can be used in the Molecular Dynamics Manager (\key{5b}) and the
+QM/MM Preparator. Inside \key{5a}, options 2--6 stay blocked, so PB refinement
+and cpin files need a topology built in \key{5a}.
+
+\begin{tip}
+After you pick the topology, the file browser returns to your project folder,
+not the topology's folder. Type the full path of the coordinate file, or
+navigate back to it.
+\end{tip}
+
+\subsection{Refining protonation states with PB (option 5)}
+
+Option~\key{5} opens \textsf{PB Titrate}, a checklist of eleven steps that
+predicts the protonation state of each titratable residue from
+\term{Poisson--Boltzmann} electrostatics and can write the result into the
+topology. Its defaults are an internal dielectric of 4, 150\,mM ionic
+strength, a 0.5\,Å grid and pH~7.0. We opened the checklist and its
+information pages but did not run the calculations for this manual.
+Opening it creates a folder \file{pb_titrate_work/} in the project. To leave,
+type \key{q} and then \key{y} (\key{Enter} alone means ``no'' and keeps you
+in the checklist).
+
+\subsection{Files for constant-pH simulations (option 6)}\label{sec:topology-cpin}
+
+In a \term{constant-pH} simulation, residues such as Asp, Glu, His, Lys and
+Tyr can gain and lose protons while the simulation runs. Amber needs a
+\term{cpin} file listing these residues. Option~\key{6} makes it with the
+AmberTools program \texttt{cpinutil.py}.
+
+\begin{steps}
+  \item Type \key{6}. Choose \key{1} (Implicit solvent) or \key{2} (Explicit
+        solvent).
+  \item ProPrep lists the titratable residues it found, with default pKa
+        values. Choose which to include: \key{1} all, \key{2} by type,
+        \key{3} by number, \key{4} exclude some, \key{5} by pKa range.
+  \item Choose the starting states: \key{1} cpinutil defaults, or \key{2} by
+        target pH (ProPrep then shows, for example, \prompt{TYR (pKa 9.6): pH
+        7.0 \textless{} pKa \textrightarrow{} State 0 = OH (protonated, neutral)}).
+  \item Accept the file name.
+\end{steps}
+
+For explicit solvent you get \file{<name>.cpin}, a modified topology
+\file{<name>_cpin.prmtop} and a script \file{<name>_cpin_generate.sh}.
+
+\begin{watchout}
+\begin{itemize}
+  \item Build the topology with a \textbf{Constant pH (ff10)} force field
+        (\key{8}). With ordinary ff19SB, ProPrep still made a cpin file for
+        ubiquitin, but it contained only lysines and a tyrosine: aspartates,
+        glutamates and histidines cannot titrate in that topology. ProPrep
+        gave no warning.
+  \item Even with the constant-pH force field, aspartate and glutamate are
+        only found if they were renamed AS4 and GL4 first (for example with
+        \key{4e} and its constant-pH option, Chapter~\ref{ch:protonation}).
+  \item Making a cpin file switches the Molecular Dynamics Manager to the
+        \file{_cpin.prmtop} topology and asks to enable constant-pH MD by
+        default. Remove that pair in the first setup step if you want an
+        ordinary simulation (Chapter~\ref{ch:runningmd}).
+\end{itemize}
+\end{watchout}
+
+\section{If something goes wrong}\label{sec:topology-problems}
+
+\subsection{ProPrep says it worked, but it did not}
+
+In version 1.23.0 several messages can be too optimistic after a failed
+tLEaP run:
+
+\begin{itemize}
+  \item \prompt{tLEaP completed successfully} followed by \prompt{Errors = 42}.
+  \item \prompt{Results: 1/1 files processed successfully} together with
+        \prompt{Some expected files are missing}.
+  \item The menu suggestion \prompt{Topology files generated (1 prmtop
+        files)} although the \file{.prmtop} is empty.
+  \item A status table showing \texttt{prmtop ✓} for a 0-byte file.
+\end{itemize}
+
+Trust the \prompt{Errors =} count and the size of the file. A real topology
+for even a small protein is at least several hundred kilobytes. To check the
+sizes, open the project folder in your file browser, or type in the Terminal
+(inside the project folder):
+
+\begin{terminal}
+ls -l *.prmtop *.rst7
+\end{terminal}
+
+A line with \texttt{0} before the date means the file is empty.
+
+\subsection{The real error is only in leap.log}
+
+ProPrep shows tLEaP's warnings and the error count, but not always the line
+that explains a failure. In the implicit-solvent test the screen showed only
+\prompt{Unknown residue: HOH}; the real reason was in \file{leap.log}:
+
+\begin{screen}
+FATAL: Atom .R<HOH 120>.A<O 1> does not have a type
+\end{screen}
+
+Open \file{leap.log} in the project folder with any text editor and search for
+\texttt{FATAL} or \texttt{Error}, or type in the Terminal:
+
+\begin{terminal}
+grep -n "FATAL\|Error" leap.log
+\end{terminal}
+
+\subsection{Common problems}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{Why, and what to do} \\
+\midrule
+Back at the menu, no \file{_tleap.in} written &
+  You answered \key{n} (the default) to \prompt{continue without bond
+  definitions?}. Run \key{2} again and type \key{y}. \\
+\prompt{Unknown residue: HOH} &
+  Crystal waters in an implicit-solvent build. Remove waters with \key{4a}. \\
+\prompt{Unknown residue: HEC} (or another name) &
+  A heme, ligand or metal without parameters. Prepare it first
+  (Chapters~\ref{ch:redox} and~\ref{ch:forcefields}). \\
+\prompt{Could not find bond parameter for atom types: SH - SH} &
+  Disulfide cysteines still named CYS. Rename them to CYX and add bond lines
+  (Section~\ref{sec:topology-disulfide}). \\
+\prompt{Illegal CONECT record in pdb file} &
+  The PDB's CONECT lines no longer match after renaming. Harmless by itself,
+  but check that disulfides were made. \\
+A good topology became 0 bytes &
+  Two input files write the same output names. Give each its own names on the
+  \texttt{saveamberparm} line. \\
+\prompt{ParmEd validation failed: Could not identify file format} &
+  tLEaP did not write a topology. Read \file{leap.log}. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{ProPrep uses another Amber installation}
+
+Every tLEaP message shows the program's full path, for example\\
+\texttt{.../envs/<name>/bin/teLeap}. If that folder is not ProPrep's own, a
+different Amber installation is being used. This happens when the
+\texttt{AMBERHOME} setting points elsewhere; ProPrep keeps it without a
+message. Close ProPrep, type \texttt{unset AMBERHOME} in the Terminal (after
+starting the ProPrep environment), and start ProPrep again. A repeat of the
+ubiquitin build with only ProPrep's own AmberTools gave the same result
+(\prompt{Errors = 0; Warnings = 13}). See also Chapter~\ref{ch:installation}.
+
+More symptoms are listed in Chapter~\ref{ch:troubleshooting}, and the
+limitations of version 1.23.0 in Chapter~\ref{ch:knownissues}.

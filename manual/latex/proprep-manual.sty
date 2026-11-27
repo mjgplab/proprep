@@ -1,0 +1,165 @@
+% proprep-manual.sty — house style for the ProPrep User Manual (compile with XeLaTeX)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{proprep-manual}[2026/11/23 ProPrep manual style]
+
+% ---------- Page and fonts ----------
+\RequirePackage[a4paper,inner=28mm,outer=24mm,top=26mm,bottom=28mm,headheight=14pt]{geometry}
+\RequirePackage{fontspec}
+\setmainfont{texgyrepagella}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold,
+  ItalicFont=*-italic, BoldItalicFont=*-bolditalic, Ligatures=TeX, Numbers=OldStyle]
+\setsansfont{texgyreheros}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold,
+  ItalicFont=*-italic, BoldItalicFont=*-bolditalic, Ligatures=TeX, Scale=0.92]
+\IfFontExistsTF{Menlo}
+  {\setmonofont{Menlo}[Scale=0.84]}
+  {\setmonofont{Latin Modern Mono}}
+\newfontfamily\screenfont{Menlo}[Scale=0.78]
+\linespread{1.08}
+\RequirePackage{microtype}
+\RequirePackage[english]{babel}
+
+% ---------- Colours ----------
+\RequirePackage[table]{xcolor}
+\definecolor{ppblue}{HTML}{1F4E79}
+\definecolor{ppteal}{HTML}{0F7173}
+\definecolor{ppgreen}{HTML}{2E7D32}
+\definecolor{pporange}{HTML}{B85C00}
+\definecolor{ppred}{HTML}{A61B1B}
+\definecolor{pppurple}{HTML}{5B3A8C}
+\definecolor{ppgrey}{HTML}{5F6368}
+\definecolor{pplight}{HTML}{F3F6F9}
+\definecolor{screenbg}{HTML}{1E2329}
+\definecolor{screenfg}{HTML}{E6E6E6}
+\definecolor{screenans}{HTML}{FFD166}
+
+% ---------- Structure ----------
+\RequirePackage{graphicx}
+\RequirePackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,calc,fit,backgrounds}
+\RequirePackage{tcolorbox}
+\tcbuselibrary{breakable}
+\RequirePackage{fancyvrb}
+\RequirePackage{enumitem}
+\RequirePackage{booktabs,tabularx,longtable,array,multicol}
+\RequirePackage{caption}
+\captionsetup{font={small,sf},labelfont=bf}
+\RequirePackage{parskip}
+\setlength{\parskip}{0.55\baselineskip plus 2pt}
+\RequirePackage{etoolbox}
+\RequirePackage{makeidx}
+\makeindex
+\RequirePackage[hyphens]{url}
+\RequirePackage[colorlinks=true,linkcolor=ppblue,urlcolor=ppteal,citecolor=ppblue,
+  bookmarksnumbered=true,pdftitle={ProPrep User Manual},pdfauthor={ProPrep}]{hyperref}
+
+% ---------- Headings ----------
+\RequirePackage{titlesec}
+\titleformat{\chapter}[display]
+  {\sffamily\bfseries\color{ppblue}}
+  {\large\MakeUppercase{\chaptertitlename}~\thechapter}
+  {4pt}
+  {\Huge}
+  [\vspace{2pt}{\color{ppteal}\titlerule[1.2pt]}]
+\titlespacing*{\chapter}{0pt}{-10pt}{22pt}
+\titleformat{\section}{\sffamily\Large\bfseries\color{ppblue}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries\color{ppteal}}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{}{0em}{}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+
+\RequirePackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE]{\sffamily\small\color{ppgrey}\leftmark}
+\fancyhead[RO]{\sffamily\small\color{ppgrey}\rightmark}
+\fancyfoot[LE,RO]{\sffamily\small\thepage}
+\fancyfoot[RE,LO]{\sffamily\footnotesize\color{ppgrey}ProPrep 1.23.0 User Manual}
+\renewcommand{\headrulewidth}{0.3pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\sffamily\small\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ---------- Lists ----------
+\setlist{itemsep=2pt,topsep=3pt}
+% Numbered steps: \begin{steps} \item ... \end{steps}
+\newlist{steps}{enumerate}{2}
+\setlist[steps,1]{label={\sffamily\bfseries\color{ppteal}\arabic*}, leftmargin=2.0em, itemsep=5pt}
+\setlist[steps,2]{label={\sffamily\color{ppteal}\alph*.}, leftmargin=1.6em}
+
+% ---------- Inline markup ----------
+% A menu key the reader presses, e.g. \key{4e}, \key{y}, \key{Enter}
+\newcommand{\key}[1]{\tikz[baseline=(k.base)]\node[draw=ppgrey,fill=pplight,rounded corners=2pt,
+  inner xsep=3pt,inner ysep=1.5pt,font=\ttfamily\small\bfseries](k){\strut#1};}
+% Something the reader types (a word, a name, a number)
+\newcommand{\typed}[1]{{\ttfamily\bfseries\color{ppblue}#1}}
+% A prompt or message exactly as ProPrep shows it
+\newcommand{\prompt}[1]{{\color{ppgrey}\guillemotleft{\screenfont\small#1}\guillemotright}}
+% A file or folder name
+\DeclareUrlCommand\file{\def\UrlFont{\ttfamily\small\color{pppurple}}%
+  \def\UrlBreaks{\do\/\do\.\do\_\do\-}\def\UrlBigBreaks{}%
+  \def\UrlSpecials{\do\<{\mbox{\ttfamily\small\color{pppurple}\textless}}%
+                   \do\>{\mbox{\ttfamily\small\color{pppurple}\textgreater}}}}
+% A menu path, e.g. \menupath{4e}{Protonation State Analyzer}
+\newcommand{\menupath}[2]{\key{#1}\,\textsf{#2}}
+% A term explained here and listed in the glossary/index
+\newcommand{\term}[1]{\textbf{\textit{#1}}\index{#1}}
+% Protein/PDB identifiers
+\newcommand{\pdb}[1]{\textsf{\bfseries #1}}
+
+% ---------- Boxes ----------
+\tcbset{ppbox/.style={breakable,boxrule=0pt,leftrule=3.2pt,arc=1.5pt,
+  left=8pt,right=8pt,top=5pt,bottom=5pt,before skip=9pt,after skip=9pt,
+  fonttitle=\sffamily\bfseries\small,coltitle=black,attach title to upper={\enspace}}}
+
+\newtcolorbox{tip}[1][]{ppbox,colback=ppgreen!6,colframe=ppgreen,
+  title={\textcolor{ppgreen}{Tip}},#1}
+\newtcolorbox{watchout}[1][]{ppbox,colback=pporange!7,colframe=pporange,
+  title={\textcolor{pporange}{Watch out}},#1}
+\newtcolorbox{needsoftware}[1][]{ppbox,colback=ppred!5,colframe=ppred,
+  title={\textcolor{ppred}{Needs extra software}},#1}
+\newtcolorbox{behindscenes}[1][]{ppbox,colback=pppurple!5,colframe=pppurple,
+  title={\textcolor{pppurple}{Behind the scenes}},#1}
+\newtcolorbox{example}[1][]{ppbox,colback=ppblue!4,colframe=ppblue,
+  title={\textcolor{ppblue}{Example}},#1}
+
+% "At a glance" box at the start of each task chapter
+\newtcolorbox{glance}{breakable,colback=pplight,colframe=ppblue,boxrule=0.6pt,arc=2pt,
+  left=10pt,right=10pt,top=6pt,bottom=6pt,before skip=4pt,after skip=12pt,
+  title={\sffamily\bfseries At a glance},coltitle=white,colbacktitle=ppblue,fonttitle=\sffamily}
+\newcommand{\glanceitem}[2]{\par\noindent\textsf{\bfseries\color{ppblue}#1}\quad #2\par\smallskip}
+
+% ---------- Screens (what ProPrep prints) ----------
+% \begin{screen} ... \end{screen}  — verbatim; max 86 characters per line.
+% Inside a screen, mark what the user typed as  §ans«1a»  (shown highlighted).
+\newcommand{\screenans}[1]{\textcolor{screenans}{\bfseries #1}}
+\DefineVerbatimEnvironment{screenverb}{Verbatim}{fontsize=\normalsize,formatcom=\screenfont\color{screenfg},
+  commandchars=§«»}
+\newcommand{\ans}{\screenans}
+\newenvironment{screen}
+  {\VerbatimEnvironment
+   \begin{tcolorbox}[breakable,colback=screenbg,colframe=screenbg,arc=3pt,boxrule=0pt,
+     left=7pt,right=5pt,top=5pt,bottom=5pt,before skip=8pt,after skip=10pt]
+   \begin{screenverb}[]}
+  {\end{screenverb}\end{tcolorbox}}
+
+% Commands typed in the computer's Terminal (not inside ProPrep)
+\DefineVerbatimEnvironment{shellverb}{Verbatim}{fontsize=\small,formatcom=\ttfamily\color{ppblue}}
+\newenvironment{terminal}
+  {\VerbatimEnvironment
+   \begin{tcolorbox}[breakable,colback=white,colframe=ppblue!50,arc=2pt,boxrule=0.5pt,
+     left=7pt,right=5pt,top=4pt,bottom=4pt,before skip=8pt,after skip=9pt,
+     title={\sffamily\scriptsize\bfseries Type in the Terminal},fonttitle=\sffamily,
+     coltitle=ppblue,colbacktitle=ppblue!8,toptitle=1pt,bottomtitle=1pt]
+   \begin{shellverb}[]}
+  {\end{shellverb}\end{tcolorbox}}
+
+% ---------- Tables ----------
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\renewcommand{\arraystretch}{1.25}
+
+% ---------- Part pages ----------
+\titleformat{\part}[display]{\centering\sffamily\bfseries\color{ppblue}}
+  {\Large\MakeUppercase{\partname}~\thepart}{10pt}{\Huge}
+
+% ---------- Line breaking ----------
+\setlength{\emergencystretch}{2.5em}
+\makeatletter\renewcommand{\@pnumwidth}{2.4em}\renewcommand{\@tocrmarg}{3.2em}\makeatother
+
+\endinput

@@ -1,0 +1,313 @@
+\chapter{Your project folder}\label{ch:projectfolder}
+
+Everything ProPrep makes for a project goes into one folder: downloaded
+structures, cleaned and protonated versions, simulation input files, results
+and the record of your answers. This chapter tells you what the common files
+are, and, most importantly, which file each tool picks up as its input. Knowing
+that saves you from building a simulation from the wrong version of your
+protein.
+
+\section{Where the project folder is}\label{sec:projectfolder-where}
+
+The project folder is the folder named at \prompt{Project name}
+(Section~\ref{sec:starting-questions}), created inside the folder you started
+ProPrep from. ProPrep works inside it until you exit.
+
+ProPrep uses the folder you started from as the project folder in these cases:
+\begin{itemize}
+  \item you pressed \key{Enter} at \prompt{Project name (.)};
+  \item you started with \typed{--pdbid}, \typed{--pdbfile} or
+  \typed{--analysis}, which skip the project question;
+  \item you resumed a recorded session.
+\end{itemize}
+With \typed{--output-dir}, ProPrep uses (and creates) the folder you name
+there (Chapter~\ref{ch:cmdline}).
+
+\begin{tip}
+To find the folder, look at the line ProPrep prints after the project name, for
+example \texttt{✓ Project directory: /Users/.../ProPrep-work/myproject}. In the
+browser version, \textsf{Download project} gives you a copy of it as a
+\file{.zip} file.
+\end{tip}
+
+\section{A real project folder}\label{sec:projectfolder-example}
+
+Here is what was in a project for HIV protease (\pdb{1HSG}) after loading it,
+removing waters and the inhibitor (\key{4a}), assigning protonation states
+(\key{4e}) and orienting it once (\key{4f}):
+
+\begin{tabularx}{\linewidth}{@{}p{0.47\linewidth}L@{}}
+\toprule
+\textbf{File or folder} & \textbf{What it is} \\
+\midrule
+\file{1HSG.pdb} & The structure as downloaded from the Protein Data Bank. \\
+\file{filtered_structure.pdb} & Protein only, made by the PDB Filter. \\
+\file{filter_statistics.json} & What the filter kept and removed. \\
+\file{propka_results/} & Raw results of the pKa prediction. \\
+\file{ph_profile.csv} & Predicted charge over a range of pH values. \\
+\file{protonation_analysis.csv} & Table of every titratable residue. \\
+\file{structure_with_md_names.pdb} & Filtered protein with Amber residue names
+(such as HID, HIP, ASH) for the chosen pH. \\
+\file{structure_with_md_names_oriented.pdb} & The same, rotated to line up with
+the x, y and z axes. \\
+\file{..._oriented.orientation.json} & The rotation that was applied. \\
+\file{proprep_session_20261121_122925.json} & The session file: every answer
+typed. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+A project that went on to build and run a simulation of ubiquitin
+(\pdb{1UBQ}) also held these files and folders, which the next section
+explains:
+\begin{itemize}
+  \item \file{1UBQ_tleap.in}, \file{1UBQ.prmtop}, \file{1UBQ.rst7} and
+  \file{leap.log};
+  \item \file{1UBQ_parmed.pdb} and \file{1UBQ.pdb.ter_backup};
+  \item the \file{simulations/} folder.
+\end{itemize}
+
+\section{The common files}\label{sec:projectfolder-files}
+
+In the tables below, a code such as \file{1UBQ} or \file{1HRC} stands for the
+name of your own structure. Appendix~\ref{app:filetypes} explains the file formats.
+
+\subsection*{Your records}
+
+\begin{tabularx}{\linewidth}{@{}p{0.40\linewidth}L@{}}
+\toprule
+\textbf{File} & \textbf{What it is for} \\
+\midrule
+\file{proprep_session_<date>_<time>.json} & The \term{session file}: every
+answer you typed, in order. It lets you resume, undo, repeat and turn the run
+into a template. Keep it. A new one is started each time you start ProPrep. \\
+\file{....json.bak-<date>_<time>} & A backup of the session file, made each
+time you use \key{undo} or resume. \\
+\file{..._edited.json}, \file{..._template.json} & Made by the session editor
+and the template creator (Chapters~\ref{ch:sessions} and~\ref{ch:batch}). \\
+\file{history.json} & Only if you chose \textsf{Save command history} under
+\key{w}. A list of menu actions; not needed. \\
+\file{workspace.json} & Only if you chose \textsf{Save workspace} under \key{w}.
+In version 1.23.0 it holds almost nothing (Section~\ref{sec:menus-workspace}). \\
+\bottomrule
+\end{tabularx}
+
+\subsection*{Structures (PDB files)}
+
+A \term{PDB file} (\file{.pdb}) is a text file listing every atom of a
+structure with its position. ProPrep keeps every version it makes as a separate
+file, so you can always go back to an earlier stage.
+
+\begin{tabularx}{\linewidth}{@{}p{0.40\linewidth}p{0.10\linewidth}L@{}}
+\toprule
+\textbf{File} & \textbf{Made by} & \textbf{What it is} \\
+\midrule
+\file{1UBQ.pdb} & \key{1a} & The downloaded structure. AlphaFold and
+AlphaFill models arrive as \file{.cif} files. \\
+\file{1UBQ_noH.pdb} & \key{1a} & The download with hydrogen atoms
+removed (if you said yes when asked). \\
+\file{1HHO_biological_assembly.pdb} & \key{1b} & The biological
+assembly built from the crystal's asymmetric unit. \\
+\file{1HRC_aligned.pdb} & \key{3b} & A structure moved onto another
+one by the Structure Aligner. \\
+\file{filtered_structure.pdb} & \key{4a} & Only the chains and components you
+kept. It has no header lines. \\
+\file{repaired_structure.pdb} & \key{4c} & The repaired structure, renumbered
+from 1. \\
+\file{1HRC_redox_sites.json} & \key{2a} & The redox sites found. \\
+\file{final_transformed_structure.pdb} & \key{4d} & The structure with redox
+sites renamed and prepared for the force field. \\
+\file{structure_with_md_names.pdb} & \key{4e} & Residue names set for the
+chosen pH. Only names change; hydrogens are added later. \\
+\file{name_oriented.pdb} & \key{4f} & The input structure rotated or
+moved. Each further run adds another \file{_oriented}. \\
+\file{bilayer.pdb} & \key{4g} & The protein packed into a lipid membrane. \\
+\bottomrule
+\end{tabularx}
+
+\begin{watchout}
+Several of these names are fixed, so running a tool again overwrites the
+earlier file without asking. This was seen for \file{filtered_structure.pdb}
+and \file{structure_with_md_names.pdb}. If you want to keep a version, copy or
+rename it before running the tool again.
+\end{watchout}
+
+\subsection*{Simulation set-up and results}
+
+\begin{tabularx}{\linewidth}{@{}p{0.40\linewidth}p{0.10\linewidth}L@{}}
+\toprule
+\textbf{File} & \textbf{Made by} & \textbf{What it is} \\
+\midrule
+\file{1UBQ_tleap.in} & \key{5a} & The instructions ProPrep wrote for
+Amber's tLEaP program, which builds the simulation system. \\
+\file{1UBQ.prmtop} & \key{5a} & The \term{topology}: every atom,
+bond and force-field parameter of the system. \\
+\file{1UBQ.rst7} & \key{5a} & The starting coordinates of every atom,
+including water and ions. \\
+\file{leap.log} & \key{5a} & tLEaP's full log. Look here when a build fails. \\
+\file{1UBQ_parmed.pdb} & \key{5a} & A PDB file of the finished system,
+in the same atom order as the topology. \\
+\file{1UBQ_parmed_replay.py} & \key{5a} & A script that repeats the
+final checking step by hand. \\
+\file{1UBQ.pdb.ter_backup} & \key{5a} & Your PDB as it was before
+ProPrep added missing chain-break (TER) lines to it. \\
+\file{1UBQ.cpin} & \key{5a} & Input for constant-pH simulations. \\
+\file{simulations/}\newline\file{batch_<date>_<time>/} & \key{5b} & One folder per set of
+simulations, with a folder per step (minimization, heating, production) holding
+its input, output, coordinates and trajectory. \\
+\file{simulations/slurm_scripts/} & \key{5b} & Scripts for running on a
+computing cluster. \\
+\file{..._trajectory_analysis.csv} & \key{5b} & Exported analysis
+results (also as \file{.json}). \\
+\file{docking/} & \key{5d} & One folder per docking run, with the poses. \\
+\file{small_molecule_params_MK1/} & \key{2c} & New force-field
+parameters for a ligand (similar folders for metal sites and modified amino
+acids). \\
+\bottomrule
+\end{tabularx}
+
+\begin{watchout}
+Two topology builds can write the same \file{.prmtop} name. In one test, a
+failed second build left \file{1UBQ.prmtop} empty (0 bytes) and so destroyed the
+good topology from the first build. Chapter~\ref{ch:topology} explains how to
+avoid this.
+\end{watchout}
+
+\section{Which file each tool picks up}\label{sec:projectfolder-pickup}
+
+ProPrep remembers every structure file it has loaded or made during the run.
+When you open a tool, it has to choose one of them as its input. Each tool
+chooses by \textbf{its own fixed order of preference}, not by which file you made
+last. This is the most important thing to understand about the project folder.
+
+Every tool tells you its choice on one of its first lines. Always look for it:
+
+\begin{screen}
+Using filtered structure: filtered_structure.pdb
+...
+Using Protonation-Updated PDB file: structure_with_md_names.pdb
+...
+Using Oriented PDB file: structure_with_md_names_oriented.pdb
+\end{screen}
+
+Some tools ask you instead, with a table:
+
+\begin{screen}
+          Available Structures in Workspace
+┏━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ Option ┃ Type                ┃ File Path
+┡━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+│   1    │ Oriented            │ structure_with_md_names_oriented_..._oriented.pdb
+│   2    │ Protonation-Updated │ structure_with_md_names.pdb
+│   3    │ Filtered            │ filtered_structure.pdb
+│   4    │ RCSB PDB            │ /Users/.../hsg/1HSG.pdb
+└────────┴─────────────────────┴────────────────────────────────────────────────────
+Select structure to use (1): §ans«4»
+\end{screen}
+
+The table below shows what each tool picked in our tests. ``First choice''
+means the tool takes the first kind of file in the list that exists.
+
+\begin{longtable}{@{}p{0.27\linewidth}p{0.67\linewidth}@{}}
+\toprule
+\textbf{Tool} & \textbf{Which structure it uses} \\
+\midrule
+\endhead
+\menupath{4a}{PDB Filter} & The only structure, if there is one. If there are
+several, it asks you (table above). \\
+\menupath{4b}{Amino Acid Mutator} & Asks you when there are several. \\
+\menupath{4c}{Structure Fixer} & The filtered structure if there is one,
+otherwise the downloaded or local PDB file. Never an AlphaFold model. \\
+\menupath{4e}{Protonation} & First choice: redox-prepared, then repaired, then
+filtered, then hydrogen-stripped, then the download. It \textbf{never} uses an
+oriented file or its own earlier result. \\
+\menupath{4f}{Structure Orientator} & First choice: \textbf{an earlier oriented
+file}, then protonated, then redox-prepared, then repaired, then filtered, then
+the download. \\
+\menupath{4d}{Redox Site Preparer} & Used \file{structure_with_md_names.pdb}
+when \key{4e} had been run first, otherwise the download. \\
+\menupath{5a}{Topology Generator} & Seen using, in different projects: the
+membrane system (\file{bilayer.pdb}), the protonated file, the redox-prepared
+file, or the download when nothing else had been made. According to the
+program's source, an oriented file comes before the protonated one. \\
+\menupath{1b}{Biological Assembly} & Prefers files ProPrep made itself (for
+example a \file{_noH} file or an earlier assembly) over a new download. \\
+\menupath{3a}{Homology Searcher} & Asks you, with a table, when several
+structures are loaded. \\
+\menupath{ua}{Structure Viewer} & Asks you, with a table. \\
+\bottomrule
+\end{longtable}
+
+\subsection*{What this means in practice}
+
+These orders give sensible results when you follow the usual sequence, and
+surprising ones when you do not. In our tests:
+
+\begin{itemize}
+  \item \textbf{Filter, then protonate:} works. \key{4e} used
+  \file{filtered_structure.pdb}.
+  \item \textbf{Filter, then fix:} works. \key{4c} used the filtered structure
+  and still found the missing residues listed in the original download.
+  \item \textbf{Fix, then protonate:} works, but the repaired file is
+  renumbered from 1. For \pdb{2RH1}, whose residues are numbered 29--1161 in the
+  original file, the protonation tables then listed residues up to 430. Use the
+  new numbers when you change a residue's state.
+  \item \textbf{Protonate, then orient:} works. \key{4f} used the protonated
+  file, and its result has the same name with \file{_oriented} added.
+  \item \textbf{Orient, then filter and protonate again:} goes wrong. After a
+  second filter (one chain only) and a new protonation, \key{4f} still picked the
+  \emph{old} oriented file, with two chains and the old residue names, because
+  an oriented file always comes first. Meanwhile \key{4e} ignored the oriented
+  coordinates. The new work and the oriented file no longer matched.
+  \item \textbf{Loading a second protein:} a new download is not used if ProPrep
+  has already made a file of its own. After making an assembly of \pdb{1HHO}
+  and then loading \pdb{4HHB}, \key{1b} still used
+  \file{1HHO_biological_assembly.pdb}. Files ProPrep made always outrank a fresh
+  download.
+\end{itemize}
+
+\section{Practical rules}\label{sec:projectfolder-rules}
+
+\begin{enumerate}
+  \item \textbf{One protein per project.} Start a new project (a new project
+  name) for each protein or each version of a protein. Mixing proteins in one
+  folder makes tools pick the wrong file.
+  \item \textbf{Follow the usual order:} load, filter, fix, protonate, then
+  orient, then build the topology. Chapter~\ref{ch:bigpicture} shows the full
+  sequence.
+  \item \textbf{Orient last.} Orientation should be the final change to your
+  structure before the topology. If you change anything after orienting
+  (filter, fix, mutate or protonate again), run \key{4f} again so the oriented
+  file is up to date. Run it once per change: each run starts from the previous
+  oriented file and adds another \file{_oriented} to the name.
+  \item \textbf{Check the \texttt{Using ...} line} every time you open a tool.
+  If it names the wrong file, stop and fix that first.
+  \item \textbf{To switch to a different structure,} start a new project. Within
+  the same run, \key{w} then \textsf{5.~Reset workspace} makes ProPrep forget
+  everything it loaded and made (your files stay on disk), so you can load
+  afresh.
+  \item \textbf{Keep the session file.} It is the full record of how the
+  structure was prepared, and the only record ProPrep can replay.
+\end{enumerate}
+
+\section{ProPrep's own folder}\label{sec:projectfolder-home}
+
+Besides your project folders, ProPrep keeps a few things in a folder called
+\file{.proprep} in your home folder (written \file{~/.proprep}). Its name starts
+with a dot, so it is hidden in normal folder views. You normally never need to
+open it.
+
+\begin{tabularx}{\linewidth}{@{}p{0.36\linewidth}L@{}}
+\toprule
+\textbf{Inside \file{~/.proprep}} & \textbf{What it is} \\
+\midrule
+\file{settings.json} & Your Preferences (Section~\ref{sec:menus-prefs}),
+including a GitHub token if you stored one. \\
+\file{update_check.json} & When ProPrep last checked for a new version. \\
+\file{web_sessions/} & Plain-text logs of browser sessions. \\
+\file{forcefield_params/}, \file{transformers/} & Your personal parameter
+library (Chapter~\ref{ch:forcefields}). \\
+\file{library_snapshots/} & Saved copies of that library (Chapter~\ref{ch:cmdline}). \\
+\file{feedback/} & Feedback that could not be sent (Chapter~\ref{ch:help}). \\
+\bottomrule
+\end{tabularx}

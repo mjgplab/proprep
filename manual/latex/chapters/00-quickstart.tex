@@ -1,0 +1,97 @@
+\chapter{Quick start}
+\label{ch:quickstart}
+
+These two pages take you from nothing to an analyzed simulation of ubiquitin
+(\pdb{1UBQ}), a small protein of 76 residues. Each step names the keys to type
+and the chapter that explains it; the tutorial in Chapter~\ref{ch:tutorial}
+shows every screen. Type each key, then press \key{Enter}. Pressing \key{Enter}
+alone accepts the value shown in brackets, such as \prompt{(y)}.
+
+\section*{1. Install ProPrep}
+
+Download the installer for your computer from the releases page,\newline
+\url{https://github.com/mjgplab/proprep/releases/latest}.\newline On a Mac with an
+Apple chip, open the Terminal and type (replace \texttt{<version>} with the
+number in the file name):
+
+\begin{terminal}
+bash ~/Downloads/ProPrep-<version>-MacOSX-arm64.sh -b -p ~/ProPrep
+\end{terminal}
+
+Intel Macs, Windows and Linux use a different file; see
+Chapter~\ref{ch:installation}.
+
+\section*{2. Start ProPrep and make a project}
+
+\begin{terminal}
+~/ProPrep/bin/proprep-web
+\end{terminal}
+
+ProPrep opens in your web browser (Chapter~\ref{ch:starting}). At
+\prompt{Select menu mode [1/2]}, type \key{2} for the Full Menu, which this
+manual uses. Press \key{Enter} at \prompt{Save this as your default
+preference?}. At \prompt{Project name (.)}, type \typed{ubq}: ProPrep makes a
+folder \file{ubq} and saves everything there.
+
+\section*{3. Load ubiquitin}
+
+Type \key{1a}, then \key{1} (Load protein structure), \key{1} (Protein Data
+Bank), \key{1} (Enter PDB ID directly). Type \typed{1UBQ}, then \key{1}
+(Asymmetric unit). ProPrep downloads the file and shows its title. Type
+\key{6} (Done) and then \key{m} to return to the main menu
+(Chapter~\ref{ch:structure}).
+
+\section*{4. Build the simulation system}
+
+The Topology Generator writes the two files a simulation needs: the
+\term{topology} (\file{.prmtop}, the list of atoms, bonds and force-field
+parameters) and the \term{coordinates} (\file{.rst7}, where every atom is). It
+also surrounds the protein with water and salt (Chapter~\ref{ch:topology}).
+
+\begin{steps}
+  \item Type \key{5a}, then \key{2}. Press \key{Enter} for the protein force
+        field (ff19SB) and for modified amino acids (none).
+  \item Type \key{1} (None) for DNA, RNA, carbohydrate, lipid and small
+        molecule. Then press \key{Enter} at every question up to
+        \prompt{Add another salt?}: OPC water, explicit solvent, truncated
+        octahedron, 10\,\AA{} buffer, 150\,mM NaCl.
+  \item At \prompt{Edit the tLEaP template?} type \key{n}. At
+        \prompt{Do you want to continue without bond definitions?} type
+        \key{y}; the default \key{n} throws the input away. Press \key{Enter}
+        twice more.
+  \item Type \key{4} and press \key{Enter}. After a few seconds ProPrep says
+        \prompt{All expected topology files were generated successfully!}
+\end{steps}
+
+\section*{5. Run a short simulation}
+
+Type \key{m}, then \key{5b} and \key{1} (Chapter~\ref{ch:runningmd}).
+\begin{steps}
+  \item Type \key{n} (files), \key{1} (predefined protocol), \key{4} (Workshop),
+        \key{u} (use as-is), \key{s} (restraints), \key{k} (queue).
+  \item At the hardware step type \key{3} (Set all simulations to same
+        engine), \key{1} (sander), then \key{n}.
+  \item At Review \& Save type \key{3} (run locally now), then \key{1} and
+        \key{y}.
+\end{steps}
+
+\begin{watchout}
+The engine starts as \texttt{pmemd}, which the free installation does not
+include. If you skip step~2, the run stops with \prompt{No such file or
+directory: 'pmemd'}.
+\end{watchout}
+
+ProPrep says this protocol takes about 75~minutes with \texttt{sander}.
+Shortened (Chapter~\ref{ch:runningmd}), the same system ran in about a minute
+on our test laptop. Type \key{3} in the Execute Simulations menu to watch.
+
+\section*{6. Look at the results}
+
+When every step shows \prompt{Finished}, type \key{4} in the Execute
+Simulations menu (from the main menu: \key{5b}, \key{4}; see
+Chapter~\ref{ch:analysis}). Press \key{Enter} to pick the most recent
+simulation, type \key{2} (Trajectory analysis) and pick the \file{.nc} file by
+its number. At \prompt{Select analyses} type \key{1} (RMSD), then \key{1}
+(Backbone atoms), and \key{Enter} for frame~0. ProPrep prints the RMSD
+statistics and a text plot. Press \key{Enter} twice, type \key{0} to leave, and
+\key{x} then \key{y} to exit ProPrep.

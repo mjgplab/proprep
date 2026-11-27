@@ -1,0 +1,557 @@
+\chapter{Comparing and viewing structures}
+\label{ch:compare}
+
+Three tools help you look beyond a single file. The Homology Searcher finds
+proteins related to yours. The Structure Aligner lays two or more structures on
+top of each other and measures how different they are. The Structure Viewer
+shows any of your structures in 3D in a web browser. None of them is needed to
+prepare a simulation, but they help you choose and check your starting
+structure.
+
+\begin{glance}
+\glanceitem{What it does}{BLAST search for related proteins (3a);
+  superposition with RMSD and TM-score (3b); interactive 3D view (ua).}
+\glanceitem{You need it when}{You look for a better template or a homolog's
+  AlphaFold model, compare a crystal structure with an NMR or predicted one, or
+  want to see what a step did.}
+\glanceitem{Before you start}{A loaded structure. Internet access for BLAST.
+  A web browser on the same computer for the viewer.}
+\glanceitem{Where to find it}{\menupath{3a}{Homology Searcher},
+  \menupath{3b}{Structure Aligner}, \menupath{ua}{Structure Viewer}; on the
+  command line \texttt{-{}-pdbview}.}
+\glanceitem{You get}{\file{blast_export.xml}, AlphaFold models in
+  \file{homologs/}, aligned files such as \file{1AKK_aligned.pdb}, saved viewer
+  scenes.}
+\end{glance}
+
+\section{Finding related proteins with BLAST}
+\label{sec:compare-blast}
+
+\term{BLAST} compares the amino-acid sequence of your protein with all the
+sequences in a database and lists the most similar ones. ProPrep sends the
+search to the public BLAST server of the NCBI (the US National Center for
+Biotechnology Information), so you do not need BLAST on your computer. You need
+an internet connection, and patience.
+
+For each hit, BLAST reports the \term{identity} (the percentage of aligned
+positions with the same amino acid) and the \term{E-value}: the number of hits
+this good you would expect by pure chance. The smaller the E-value, the more
+certain the relationship; values below about $10^{-5}$ are usually taken as
+real relatives.
+
+\subsection{Step by step: a BLAST search for hemoglobin alpha}
+
+\begin{steps}
+  \item Type \key{3a}, then \key{1} (\prompt{Run BLAST homology search}).
+  \item If several structures are loaded, ProPrep shows them in a table. Type
+        the number of the one whose sequence you want:
+\begin{screen}
+                   Available Structures in Workspace
+┃ Option ┃ Type                ┃ File Path                         ┃      Size ┃
+│   1    │ Biological Assembly │ .../asm/1HHO_biological_assembly… │ 396.31 KB │
+│   2    │ RCSB PDB            │ .../asm/4HHB.pdb                  │ 462.74 KB │
+Select structure to use (1): §ans«2»
+\end{screen}
+  \item Choose where the sequence comes from. \key{3} takes it from the loaded
+        structure; \key{1} lets you paste a sequence; \key{2} reads a FASTA
+        file. Then choose the chain:
+\begin{screen}
+Sequence input methods:
+1. Enter sequence directly
+2. Load from FASTA file
+3. Use sequence from loaded structure (4HHB)
+Choose input method (1): §ans«3»
+
+Available chains in structure 4HHB:
+Chain A: 141 residues
+Chain B: 146 residues
+Chain C: 141 residues
+Chain D: 146 residues
+Select chain (A): §ans«A»
+Using sequence from chain A (141 residues)
+\end{screen}
+  \item Choose the program and the database. For a protein, the program is
+        \key{2} (\prompt{blastp}, protein against protein). For the database,
+        type \key{3} (swissprot):
+\begin{screen}
+Database Options:
+1. nr - Non-redundant protein sequences
+2. refseq_protein - NCBI protein reference sequences
+3. swissprot - UniProtKB/Swiss-Prot
+4. pdb - Protein Data Bank proteins
+
+Note: Options 1 and 3 allow retrieval of AlphaFold structures for homologs.
+Select database (1): §ans«3»
+\end{screen}
+        \prompt{swissprot} holds about half a million carefully checked
+        proteins; \prompt{pdb} holds only proteins with an experimental
+        structure. Both are far smaller and faster than \prompt{nr}, the
+        default, which holds hundreds of millions of sequences. Choose
+        \prompt{swissprot} if you want AlphaFold models of the hits, and
+        \prompt{pdb} if you want experimental structures.
+  \item Press \key{Enter} to keep the E-value threshold of 10.0. Type a
+        small maximum number of hits, for example \typed{20}.
+  \item Choose the \term{scoring matrix}, the table that says how similar two
+        amino acids are. The default, \prompt{1. BLOSUM62 - General purpose},
+        suits almost every search; the screen explains the others.
+  \item Check the summary and type \key{y}:
+\begin{screen}
+Ready to run BLAST with the following parameters:
+  Program: blastp
+  Database: swissprot
+  Sequence length: 141 characters
+  E-value threshold: 10.0
+  Maximum hits: 20
+Run BLAST with these parameters? [y/n] (y): §ans«y»
+This may take several minutes depending on sequence length and server load.
+\end{screen}
+\end{steps}
+
+\begin{watchout}
+\textbf{A BLAST search can take hours.} The search waits in the NCBI's public
+queue, and ProPrep shows no progress and offers no way to cancel. In our test,
+after 10 minutes a warning appeared:
+\begin{screen}
+BiopythonWarning: BLAST request G3XE7CNX016 is taking longer than 10 minutes,
+consider re-issuing it
+\end{screen}
+You can ignore it and keep waiting. Our search finished after almost four hours
+(\prompt{BLAST search completed in 13741s}). The only way to stop earlier is
+\key{Ctrl}+\key{C}. To keep waits short, use \prompt{swissprot} or
+\prompt{pdb}, not \prompt{nr}, and ask for few hits.
+\end{watchout}
+
+\subsection{Reading the results}
+
+When the search is done, ProPrep saves the full result as
+\file{blast_results_blastp.xml} and shows a table (shortened here):
+\begin{screen}
+BLAST search completed in 13741s. Found 20 hits.
+
+===== BLAST Results Summary =====
+Query: unnamed protein product
+Database: swissprot
+Number of hits: 20
+
+┃ Hit ┃ Description                                  ┃ Score ┃ E-value  ┃ Identity ┃
+│ 1   │ sp|P69905.2| RecName: Full=Hemoglobin sub... │ 284   │ 2.28e-99 │ 100.0%   │
+│ 2   │ sp|P01923.1| RecName: Full=Hemoglobin sub... │ 283   │ 9.61e-99 │ 99.3%    │
+│ 3   │ sp|Q9TS35.2| RecName: Full=Hemoglobin sub... │ 279   │ 1.84e-97 │ 98.6%    │
+...
+│ 20  │ sp|Q7M3B6.1| RecName: Full=Hemoglobin sub... │ 271   │ 3.04e-94 │ 95.7%    │
+
+View detailed alignment for specific hits? [y/n] (y): §ans«y»
+Enter hit numbers (comma-separated) (1): §ans«1»
+\end{screen}
+All 20 hits are alpha chains of hemoglobin from different animals. The
+best hit is the human alpha chain itself (UniProt \pdb{P69905}), with 100\% identity, as
+expected for a search with a human protein. The detailed view shows the
+sequence alignment:
+\begin{screen}
+Score: 726.0 bits (284.263)
+E-value: 2.28437e-99
+Identities: 141/141 (100.0%)
+Positives: 141/141 (100.0%)
+Query range: 1-141
+Subject range: 2-142
+
+Alignment:
+Query     1  VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGK  60
+             VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGK
+Sbjct     2  VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGK  61
+...
+\end{screen}
+The query starts at 1 and the database entry (\prompt{Sbjct}) at 2, because
+the UniProt sequence includes the first methionine, which is removed in the
+mature protein and absent from the crystal structure.
+
+Option \key{2} of the Homology Searcher menu (\prompt{View BLAST results})
+shows the results again later.
+
+\subsection{AlphaFold models of the hits}
+
+Option \key{3} (\prompt{Retrieve AlphaFold structures for hits}) downloads the
+predicted structures of chosen hits. It works only after a search of
+\prompt{nr} or \prompt{swissprot}. ProPrep lists the hits with their UniProt
+IDs and asks how to choose:
+\begin{screen}
+Selection Methods:
+1. Top N hits
+2. By E-value threshold
+3. By identity % threshold
+4. Manual selection (enter ranks)
+5. All hits
+Select method (1): §ans«1»
+Enter number of top hits to retrieve (max 20) (5): §ans«2»
+Saving structures to: .../asm/homologs
+...
+✓ Successfully retrieved 2 AlphaFold structures
+\end{screen}
+The models are saved in the folder \file{homologs/}, for example as
+\file{AF-P01923-F1-model_v6.cif}. ProPrep then offers to make one of
+them the structure for later steps
+(\prompt{Would you like to select a homolog for downstream processing?}); we
+chose the second, and ProPrep said
+\prompt{Selected P01923 for downstream processing}.
+
+\subsection{Saving the results}
+
+Option \key{4} (\prompt{Export alignments and annotations}) saves the results
+as \file{blast_export.xml}, in the standard BLAST XML format that other
+programs read. If you answer \key{y} to the next question, it also saves a
+table that opens in a spreadsheet:
+\file{blast_export_summary.tsv}.
+
+\subsection{Homology models}
+
+\begin{needsoftware}
+Option \key{5} (\prompt{Build homology model (MODELLER)}) builds a model of
+your protein from the structure of a relative, a so-called
+\term{homology model}. It needs MODELLER with a valid license key
+(Section~\ref{sec:cleaning-fixer}). Without it the menu shows
+\prompt{MODELLER not installed} and the option is blocked. It was not tried for
+this manual.
+\end{needsoftware}
+
+\section{Superimposing structures with the Structure Aligner}
+\label{sec:compare-align}
+
+To compare two structures of the same or related proteins, you first have to
+lay one on top of the other as closely as possible. This is a
+\term{superposition}. One structure stays where it is: the
+\term{reference}. The others, the \term{targets}, are rotated and moved onto it.
+Then ProPrep measures what is left over.
+
+Two numbers describe the result:
+\begin{description}
+  \item[RMSD] The \term{root-mean-square deviation}: the typical distance
+        between matching atoms after superposition, in Å. Near 0 means
+        practically identical. In our tests, the same protein measured by X-ray
+        and by NMR differed by about 1.7~Å, and a crystal structure and its
+        AlphaFold prediction by 0.34~Å. A few large local differences (a loop,
+        a chain end) can raise the RMSD a lot.
+  \item[TM-score] A score from 0 to 1 that says how similar the overall
+        \emph{fold} is, and is less affected by small floppy regions. Above
+        about 0.5 two proteins have the same fold; close to 1 they are
+        practically identical.
+\end{description}
+
+You also choose which atoms to compare: the \term{backbone} (the atoms N, CA,
+C and O that every amino acid has; the default), only the \term{alpha carbons}
+(CA, one point per residue), or all atoms. Backbone or CA comparisons work even
+when the side chains differ.
+
+\subsection{Step by step: crystal against NMR structure of cytochrome c}
+
+The example compares horse cytochrome~c measured by X-ray (\pdb{1HRC}) with
+the same protein measured by NMR (\pdb{1AKK}). Both were loaded from the RCSB
+first; \pdb{1AKK} was loaded last.
+
+\begin{steps}
+  \item Type \key{3b}, then \key{1} (\prompt{Align multiple PDB structures}).
+        Step~1 adds the latest RCSB structure by itself and lists other PDB
+        files in the project folder:
+\begin{screen}
+Step 1: Load Structures
+✓ Selected RCSB PDB: .../align/1AKK.pdb
+✓ Added 1 workspace structure(s)
+...
+Available local structure files:
+  • 1HRC.pdb
+
+Options:
+  1. Browse for local structure file (PDB/CIF)
+  2. Download PDB from database
+  3. Done (proceed with alignment)
+Select option (1): §ans«1»
+\end{screen}
+  \item Add the second structure: \key{1} opens the file browser (choose
+        \file{1HRC.pdb}); \key{2} downloads one by PDB code. Then type \key{3}
+        (Done). For each structure, press \key{Enter} at
+        \prompt{Use entire structure from \ldots ? [y/n] (y)}; answering
+        \key{n} lets you choose a model and chains.
+  \item Step~2: choose the reference. ProPrep advises an experimental
+        structure if you want to keep its ligands, or an AlphaFold model if you
+        want a complete chain. Type \key{2} (\file{1HRC.pdb}).
+  \item Step~3: press \key{y} at \prompt{Use all common residues for
+        alignment?}.
+  \item Step~4: choose how matching residues are found:
+\begin{screen}
+Step 4: Residue Mapping Strategy
+  [1] Sequence-based (automatic) - for homologous proteins with similar
+      sequences
+  [2] Structure-based (TM-align) - for proteins with same fold but different
+      sequences
+  [3] Manual specification - for identical numbering or custom residue selection
+Select method (1): §ans«1»
+\end{screen}
+  \item Step~5: press \key{Enter} for backbone atoms (mode \key{2}).
+  \item ProPrep aligns the sequences (\prompt{Alignment: 104/104 identical
+        (100.0\%)}) and asks whether to match non-protein groups such as the
+        heme by their position
+        (\prompt{Interactively map non-protein residues using spatial
+        proximity? [y/n] (n)}). Press \key{Enter} (no) unless you want to
+        carry ligands from one structure to another.
+  \item Step~6: press \key{Enter} at \prompt{Save intermediate alignment
+        steps for debugging?}.
+\end{steps}
+
+ProPrep adds residues one by one and shows how the RMSD develops, then the
+result:
+\begin{screen}
+RMSD Progress: 1AKK
+...
+  Final RMSD: 1.679 Å
+
+Saving Aligned Structures...
+✓ 1AKK_aligned.pdb
+✓ 1HRC_aligned.pdb
+...
+Select Target Structure for Downstream Processing
+...
+│ 1 │ 1AKK_aligned.pdb │ 1AKK.pdb │
+Select target structure (or 'n' to skip) (1): §ans«1»
+...
+✓ Structure alignment complete!
+\end{screen}
+It takes a few seconds. Both structures are saved in the common position:
+\file{1AKK_aligned.pdb} and \file{1HRC_aligned.pdb}. An RMSD of 1.7~Å between
+a crystal and an NMR structure of the same protein is normal: NMR structures
+are more spread out, especially at the surface.
+
+The last question makes one aligned target the structure for later steps.
+Answer \key{n} if you only wanted the comparison.
+
+\begin{watchout}
+An aligned file that you select here outranks a fresh download in later tools
+(Section~\ref{sec:structure-switching}). If you align only to compare, answer
+\key{n} at \prompt{Select target structure}, or do the comparison in a separate
+project.
+\end{watchout}
+
+\subsection{Structure-based alignment with TM-align}
+
+When two proteins have the same shape but different sequences, sequence
+matching fails. Strategy \key{2} uses \term{TM-align}, which matches residues
+by their position in space. The example compared hemoglobin alpha in the
+crystal (\pdb{4HHB}, chain A) with its AlphaFold prediction (\pdb{P69905}).
+
+The AlphaFold download is an mmCIF file, which the aligner's browser does not
+list (Section~\ref{sec:structure-alphafold}). So we downloaded the model
+in PDB format from the AlphaFold Database website, put it into the project
+folder as \file{AF-P69905-F1-model_v6.pdb}, and picked that. For \pdb{4HHB} we answered \key{n} at
+\prompt{Use entire structure} and chose chain A only. With the AlphaFold model
+as reference and strategy \key{2}:
+\begin{screen}
+Performing TM-align structure-based alignment...
+
+Aligning: 4HHB.pdb
+  Aligning all chains combined
+  Reference: 142 CA atoms
+  Target: 141 CA atoms
+
+  TM-score (normalized by target): 0.9943
+  TM-score (normalized by reference): 0.9874
+  RMSD: 0.335 Å
+\end{screen}
+A TM-score of 0.99 and an RMSD of 0.34~Å mean the prediction and the crystal
+structure are practically identical. The score is given twice because it can
+be scaled by the length of either structure. TM-align always uses the alpha
+carbons, so there is no atom-mode question. If a structure has several chains,
+ProPrep first asks whether to align all chains together or one chain.
+
+\subsection{Other choices in the aligner}
+
+\begin{itemize}
+  \item \textbf{Part of the protein only.} Answer \key{n} at
+        \prompt{Use all common residues for alignment?} and choose \key{1} to
+        type ranges such as \typed{A:1-40}. With residues 1--40, strategy
+        \key{3} (manual, same numbering) and CA atoms, \pdb{1HRC} and
+        \pdb{1AKK} gave 1.991~Å. A wrongly typed range is reported
+        (\prompt{Invalid format. Use chain:start-end}) and skipped without
+        asking again.
+  \item \textbf{Repeated runs.} A second run does not overwrite: it writes
+        \file{1HRC_aligned_2.pdb} and so on. At the start ProPrep asks
+        \prompt{Include these aligned structures for further alignment?};
+        answer \key{y} to build on them.
+  \item \textbf{Aligning on redox sites} (option \key{2}) needs sites found by
+        the Redox Site Detector \key{2a} first (Chapter~\ref{ch:redox}).
+  \item \textbf{Viewing the result} (option \key{3}) prints the RMSD after each
+        step of a sequence-based run.
+\end{itemize}
+
+\begin{watchout}
+In version 1.23.0:
+\begin{itemize}
+  \item Option \key{3} (\prompt{View alignment results}) after a TM-align run
+        prints \prompt{Error executing Structure Aligner.\_view\_alignment\_results:
+        'step'} and a long error message. ProPrep keeps running; the aligned
+        files are fine.
+  \item The browser says \prompt{PDB/CIF} but refuses \file{.cif} files.
+  \item If you answer \key{n} to \prompt{Include these aligned structures for
+        further alignment?}, the loaded structures are not offered either
+        (\prompt{Current structures: 0}); add them with the browser.
+  \item With fewer than two structures ProPrep stops with
+        \prompt{At least 2 structures required for alignment}.
+  \item After any alignment, option \key{2} looks available. Without detected
+        sites it says \prompt{Please run redox site detection first (PDB Filter
+        module)}; the right tool is \key{2a}.
+\end{itemize}
+\end{watchout}
+
+\section{Viewing structures in 3D}
+\label{sec:compare-viewer}
+
+ProPrep has a 3D viewer that runs in your web browser. ProPrep starts a small
+web server on your own computer and gives you its address, for example
+\url{http://localhost:8765/viewer}. ``\term{localhost}'' means ``this
+computer'': the page is not on the internet and nobody else can see it.
+
+\subsection{Step by step: opening the viewer}
+
+\begin{steps}
+  \item Type \key{ua} (Structure Viewer), then \key{1}
+        (\prompt{Launch interactive viewer}).
+  \item Choose one or more structures from the table, by number, range
+        (\typed{1-3}), list (\typed{1,2}) or \typed{all}:
+\begin{screen}
+Select one or more structures to view in the interactive viewer.
+Structures will be displayed together (superimposed if aligned).
+...
+┃ Option ┃ Type              ┃ File Path                          ┃
+│   1    │ Aligned Target    │ .../align/1AKK_aligned.pdb         │
+│   2    │ Aligned Reference │ .../align/1HRC_aligned_2.pdb       │
+│   3    │ RCSB PDB          │ .../align/4HHB.pdb                 │
+│   4    │ AlphaFold         │ .../align/AF-P69905-F1-model_v6.…  │
+...
+Select structure(s) (1): §ans«1,2»
+✓ Selected 2 structures
+✓ Structure viewer launched at http://localhost:8765/viewer (2 structures)
+\end{screen}
+  \item ProPrep tries to open the page in your default browser. If no page
+        appears, open your browser yourself and type the address from the last
+        line.
+\end{steps}
+
+The page is called ``ProPrep Interactive Structure Viewer''. It shows the
+protein as a cartoon and ligands as balls and sticks. When you use
+\texttt{proprep-web} (Chapter~\ref{ch:starting}), the viewer appears in a panel
+next to the ProPrep terminal instead.
+
+Notes on the address:
+\begin{itemize}
+  \item The number after \texttt{localhost:} is the \term{port}. ProPrep uses
+        8765 if it is free, otherwise the next free number (8766, 8767,
+        \ldots). Always use the address ProPrep prints.
+  \item The viewer runs as long as ProPrep runs. There is no ``stop'' option;
+        it stops when you leave ProPrep with \key{x}.
+  \item If ProPrep runs on a remote computer that you reach by SSH, it cannot
+        open a browser there. It then prints a suggested command to make the
+        address reachable from your own computer (not tried for this manual).
+\end{itemize}
+
+\begin{tip}
+Many tools open the viewer by themselves: viewing metadata
+(Section~\ref{sec:structure-metadata}), \prompt{View local files together},
+the PDB Filter's viewer question, the protonation rationale
+(Section~\ref{sec:protonation-propka}) and the orientator. Read the printed
+address each time: a second viewer can open on a new port. In our test the
+electron-density option opened port 8766 while 8765 was still running.
+\end{tip}
+
+\begin{watchout}
+Choose structures from the same alignment run. The table lists the latest
+``Aligned Target'' and ``Aligned Reference'', which can come from
+\emph{different} runs: here \file{1AKK_aligned.pdb} came from the first run and
+\file{1HRC_aligned_2.pdb} from a later one, so they are not in the same frame.
+Select the target at the end of each alignment, or use a fresh project.
+\end{watchout}
+
+\subsection{Other viewer options}
+
+\begin{description}[style=nextline]
+  \item[2 View the loaded MD trajectory] Shows a simulation as a movie. It
+        needs a topology and trajectory loaded with \key{1a} option \key{2}
+        (Chapter~\ref{ch:analysis}); it was not tried for this chapter.
+  \item[3 Show available annotations] Lists what ProPrep can mark on the
+        structure: redox sites, titratable residues, filter selections, bond
+        classifications and aligned structures. In our test it said
+        \prompt{No annotations found in workspace} even though aligned
+        structures existed.
+  \item[4 Save the scene] Saves what the open viewer shows (structures and
+        display styles) in a file ending in \file{.scene.json}. The suggested
+        name contains the date and time.
+  \item[5 Load a saved scene] Lists the saved scenes and applies one to the
+        open viewer.
+  \item[6 Electron density] Shows the experimental electron density of an
+        X-ray structure around the model (next section).
+\end{description}
+
+\subsection{Electron density}
+
+An X-ray structure is a model built into a map of \term{electron density}.
+Looking at the map shows how well each part of the model is supported by the
+data. Option \key{6} fetches two maps from the European PDB (PDBe): the
+\term{2mFo-DFc} map, the density the model was built into, and the
+\term{mFo-DFc} difference map, which shows where data and model disagree.
+ProPrep's own explanation adds: \prompt{Trust the difference map more}.
+
+You choose a structure and a margin around the model (default 5~Å). For the
+high-resolution crambin structure \pdb{3NIR}:
+\begin{screen}
+3NIR.pdb: fetching the maps of 3NIR from PDBe...
+✓ 3NIR.pdb: density of 3NIR (2mFo-DFc sigma 1.033, mFo-DFc difference sigma
+0.263). Its atoms sit at +10.17 sigma of the 2mFo-DFc map on average
+✓ Structure viewer launched at http://localhost:8765/viewer (1 structure)
+\end{screen}
+A model in its own density usually sits around $+3$~sigma; much more means a
+very clear map. The maps are saved in the project folder (\file{3nir_2fofc.ccp4}
+and others). They can be large: about 5.5~MB each as downloaded, and 22.9~MB
+each after cutting around the model.
+
+Maps exist only for X-ray entries deposited with their measured data, and only
+for structures still in their original position (as downloaded, filtered or
+protonated, but not superimposed onto another structure). For \pdb{4HHB}
+ProPrep said \prompt{PDBe has no maps for 4HHB} and opened the viewer without
+density. NMR and cryo-EM entries have no such maps.
+
+\subsection{A quick look from the command line: \texttt{-{}-pdbview}}
+
+To look at a structure without starting a project, start ProPrep like this:
+\begin{terminal}
+proprep --full-menu --pdbview 1UBQ
+\end{terminal}
+ProPrep downloads \pdb{1UBQ}, opens the viewer and prints the address:
+\begin{screen}
+✓ Structure viewer launched at http://localhost:8766/viewer (1 structure)
+\end{screen}
+You can also give a file: \texttt{proprep -{}-full-menu -{}-pdbview 1UBQ.pdb}.
+ProPrep then shows the main menu with the structure loaded. Nothing is
+recorded in a session file. Without \texttt{-{}-full-menu} (or
+\texttt{-{}-workflow}) ProPrep first asks which menu mode you want. A file that
+does not exist gives \prompt{File not found} and the main menu.
+
+\section{If something goes wrong}
+\label{sec:compare-problems}
+
+\begin{description}[style=nextline]
+  \item[BLAST runs for a very long time] This is the NCBI queue. Wait, or stop
+        with \key{Ctrl}+\key{C} and search again with \prompt{swissprot} or
+        \prompt{pdb} and fewer hits.
+  \item[``Retrieve AlphaFold structures'' finds nothing] It works only after a
+        search of \prompt{nr} or \prompt{swissprot}.
+  \item[The aligner does not list my AlphaFold file] It lists only
+        \file{.pdb} files. Download the PDB-format model from the AlphaFold
+        Database website.
+  \item[``Error executing Structure Aligner.\_view\_alignment\_results'']
+        Viewing results after a TM-align run fails in 1.23.0. The aligned
+        files are fine; open them in the viewer.
+  \item[The viewer page does not open] Open the printed address in your
+        browser yourself. Use exactly the port number ProPrep printed.
+  \item[The viewer address no longer works] ProPrep has been closed; the
+        viewer stops with it. Start it again from \key{ua}.
+  \item[Two aligned structures do not overlap in the viewer] They come from
+        different alignment runs. Align again and select the target.
+\end{description}
+
+See also Chapters~\ref{ch:troubleshooting} and~\ref{ch:knownissues}.

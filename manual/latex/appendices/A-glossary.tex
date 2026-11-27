@@ -1,0 +1,549 @@
+\chapter{Glossary}\label{app:glossary}
+
+This glossary explains the technical words used in this manual. Each word is
+also printed in \textbf{\textit{bold italics}} where the manual first uses it.
+Where a word has more than one meaning, the meanings are numbered.
+
+\begingroup
+\setlist[description]{font=\normalfont\bfseries,leftmargin=1.5em,itemsep=3pt,parsep=0pt}
+
+\section*{0--9}
+
+\begin{description}
+\item[12-6-4 ion model] A more accurate set of parameters for metal ions that
+  adds an extra attraction term. ProPrep adds it to the topology with ParmEd.
+  See Chapter~\ref{ch:topology}.
+\item[2mFo--DFc map] The electron-density map into which an X-ray model was
+  built. See Chapter~\ref{ch:compare}.
+\end{description}
+
+\section*{A}
+
+\begin{description}
+\item[accession] The code that identifies a protein in UniProt, for example
+  P69905 (human hemoglobin alpha).
+\item[ACE] An acetyl cap: a small neutral group added before the first residue
+  of a chain, so the chain start carries no artificial charge.
+\item[alpha carbons (CA)] The central carbon atom of each amino acid. They give
+  one point per residue and are often used to compare protein shapes.
+\item[AlphaFill] A database that takes AlphaFold models and copies in
+  (``transplants'') ligands, cofactors and metal ions from similar
+  experimental structures.
+\item[AlphaFold] A program that predicts a protein's 3D structure from its
+  sequence. Its models are available from the AlphaFold Database by UniProt
+  accession. See Chapter~\ref{ch:structure}.
+\item[alternate locations (altlocs)] Atoms that the experiment saw in two or
+  more positions, each for a share of the time (its occupancy). A simulation
+  needs exactly one position per atom.
+\item[AM1-BCC] A fast way to compute partial charges for a small molecule,
+  built into AmberTools. Less careful than RESP, but it needs no
+  quantum-chemistry program. See Chapter~\ref{ch:forcefields}.
+\item[AMBERHOME] A setting in the Terminal that names the folder of an Amber
+  installation. If it points to another Amber, ProPrep uses that one instead of
+  its own. See Chapter~\ref{ch:installation}.
+\item[AmberTools] The free part of the Amber simulation package (tLEaP,
+  sander, cpptraj, antechamber, ParmEd and others). It is installed together
+  with ProPrep.
+\item[AS4] The Amber name for an aspartate that may gain or lose a proton
+  during a constant-pH simulation.
+\item[asymmetric unit] The chains actually written in a crystal-structure
+  file. It may hold part of the working molecule, exactly one copy, or
+  several copies.
+\item[atom type] A short code that tells the force field what kind of atom
+  this is, for example \texttt{CX} for a protein C-alpha. Bond, angle and other
+  parameters are looked up by atom type.
+\item[axial ligand] A protein side chain that binds the metal of a flat ring,
+  such as a heme, from above or below the ring. In cytochrome~c these are His18
+  and Met80.
+\end{description}
+
+\section*{B}
+
+\begin{description}
+\item[backbone] The atoms N, CA, C and O that every amino acid has. Comparing
+  backbones works even when the side chains differ.
+\item[batch processing] Running a template over a list of proteins without
+  typing. See Chapter~\ref{ch:batch}.
+\item[biological assembly] The form of the molecule believed to exist and work
+  in the cell, for example the hemoglobin tetramer. It is built from the
+  asymmetric unit using the instructions in REMARK~350.
+\item[BLAST] A program that compares a sequence with all sequences in a
+  database and lists the most similar ones. ProPrep uses the public BLAST
+  server of the NCBI.
+\item[box padding] In a membrane system, the width of lipid kept between the
+  protein and the side of the box. The default is 15\,Å.
+\item[breadcrumb] The \texttt{Navigation:} line at the top of each ProPrep
+  screen, which shows where you are in the menus.
+\item[broken-symmetry] For iron--sulfur clusters: one of several equivalent
+  ways of pairing the spins of the iron atoms. ProPrep's parameter sets come
+  in several such variants (codes such as FO1, FR2, FD0).
+\item[b-type heme] A heme held in the protein only by its axial ligands,
+  without covalent bonds to the protein (PDB name HEM, as in hemoglobin).
+\item[buffer] The smallest distance between the protein and the edge of the
+  simulation box, usually 10\,Å.
+\item[buried surface area (BSA)] The surface two chains hide from water by
+  touching each other, in Å\textsuperscript{2}. Large values (over about
+  1000\,Å\textsuperscript{2}) suggest a real complex.
+\end{description}
+
+\section*{C}
+
+\begin{description}
+\item[campaign] Docking every molecule of a library file into one receptor and
+  box with the same settings, giving a results table and a best pose per
+  molecule.
+\item[cap (terminal cap)] A small neutral group (ACE or NME) that closes a
+  chain end instead of the charged terminus. It is used when the real protein
+  continues beyond the structure.
+\item[chain break] A place where the protein chain continues in reality but
+  the atoms are missing from the file. Such an end is left neutral; a real
+  chain end is charged.
+\item[charge (of a QM region)] The total charge of the atoms treated with
+  quantum mechanics, always a whole number.
+\item[chimera] An engineered protein made from parts of two proteins, for
+  example the $\beta_2$-adrenergic receptor with T4 lysozyme
+  inserted (2RH1).
+\item[cluster profile] A saved description of one computing cluster (job
+  system, modules, partitions, engines) that ProPrep uses to write job
+  scripts.
+\item[component] In the PDB Filter, one kind of material in a chain: the
+  protein, the waters, or a particular ligand or ion.
+\item[composition] What a PDB entry contains, in the depositors' words:
+  molecule names, chains, organism and mutations.
+\item[conda] A program that installs scientific software and everything it
+  needs into separate, self-contained folders.
+\item[conda environment] One such self-contained folder of software. The conda
+  installer puts ProPrep in an environment named \texttt{ProPrep}, switched on
+  with \texttt{conda activate ProPrep}.
+\item[constant-pH simulation] A simulation in which chosen residues can gain
+  and lose protons while it runs, so their states follow the pH instead of
+  being fixed.
+\item[coordinate file (coordinates)] The file (\file{.rst7}) that gives the
+  position of every atom, and the box size. It belongs to one topology; after
+  a simulation stage it also holds the atom velocities.
+\item[counter-ions] Ions of opposite charge added to make the total charge of
+  the simulation box zero.
+\item[cpin] The Amber input file that lists the titratable residues and their
+  possible states for a constant-pH simulation.
+\item[C-terminus] The end of a protein chain, with a carboxyl group that
+  normally carries a negative charge.
+\item[c-type heme] A heme bonded to the protein through two cysteines (PDB
+  name HEC, as in cytochrome~c).
+\end{description}
+
+\section*{D}
+
+\begin{description}
+\item[default] The answer shown in parentheses at the end of a question, for
+  example \texttt{(y)}. Pressing \key{Enter} without typing anything accepts
+  it.
+\item[desolvation] The effect of a residue being buried away from water. It
+  favors the uncharged form and so shifts the pKa.
+\item[dihedral] A twist angle around a bond, defined by four atoms in a row.
+\item[DISANG] An Amber file of restraints on distances, angles or twists
+  between specific atoms.
+\item[disulfide bond] A covalent bond between the sulfur atoms of two
+  cysteines. In Amber, both cysteines must be named CYX and joined by a
+  \texttt{bond} line. See Chapter~\ref{ch:topology}.
+\item[docking] Predicting where a small molecule sits in a protein's pocket,
+  and how tightly, by trying many positions and scoring each one. See
+  Chapter~\ref{ch:docking}.
+\item[DOI] Digital Object Identifier: a permanent web address for a
+  publication, software release or data set.
+\end{description}
+
+\section*{E}
+
+\begin{description}
+\item[electron density] The experimental map of an X-ray structure into which
+  the atomic model is built.
+\item[electronic embedding] In QM/MM, the MM partial charges act on the QM
+  electrons, so the protein polarizes the QM region.
+\item[E-value] In BLAST, the number of hits this good you would expect by
+  chance. The smaller it is, the more certain the relationship.
+\item[exhaustiveness] How hard a docking search works. Higher is slower and
+  more thorough; the default is 8.
+\item[extension] The end of a file name after the last dot, such as
+  \file{.pdb}. It tells you what kind of file it is. See
+  Appendix~\ref{app:filetypes}.
+\end{description}
+
+\section*{F}
+
+\begin{description}
+\item[force field] The set of rules and numbers (parameters) that describes
+  how atoms attract, repel and hold on to each other in a simulation, for
+  example ff19SB for proteins. It recognizes residues by their names. See
+  Chapter~\ref{ch:forcefields}.
+\item[formal charge] The whole-number charge given to an atom or ion by
+  chemistry rules (Zn\textsuperscript{2+}: +2, a thiolate sulfur: $-1$), as
+  opposed to a partial charge.
+\item[frame] One snapshot in a trajectory.
+\item[Full Menu] ProPrep's main menu that shows every tool at once, each with
+  a fixed code such as \key{1a} or \key{4e}. This manual uses Full Menu codes.
+  See Chapter~\ref{ch:menus}.
+\end{description}
+
+\section*{G}
+
+\begin{description}
+\item[GAFF2] The General Amber Force Field, version~2: Amber's force field for
+  drug-like organic molecules.
+\item[Generalized Born (GB)] The most common implicit-solvent model in Amber.
+\item[GL4] The Amber name for a glutamate that may gain or lose a proton
+  during a constant-pH simulation.
+\item[GROUP restraints] An older Amber format for restraining several groups of
+  atoms, each with its own strength.
+\end{description}
+
+\section*{H}
+
+\begin{description}
+\item[HID] The Amber name for neutral histidine with its proton on the delta
+  nitrogen (ND1).
+\item[HIE] The Amber name for neutral histidine with its proton on the epsilon
+  nitrogen (NE2); the more common neutral form.
+\item[HIP] The Amber name for positively charged histidine, with protons on
+  both ring nitrogens.
+\item[homology model] A model of a protein built from the known structure of a
+  related protein. ProPrep needs MODELLER to build one.
+\end{description}
+
+\section*{I}
+
+\begin{description}
+\item[identity] In a sequence alignment, the percentage of aligned positions
+  that have the same amino acid.
+\item[implicit solvent] Water replaced by a smooth surrounding medium instead
+  of water molecules. Cheaper, but less realistic, than explicit water.
+\item[isoelectric point (pI)] The pH at which a protein's net charge is zero.
+\item[issue] A report (problem, question or suggestion) posted on a software
+  project's public GitHub page. ProPrep's feedback form can create one.
+\end{description}
+
+\section*{L}
+
+\begin{description}
+\item[large model] In the MCPB metal-site method, the bigger cut-out of the
+  metal site, used for the quantum calculation that gives the charges.
+\item[layers (ONIOM)] The parts into which ONIOM splits the system: HIGH
+  (quantum mechanics), an optional MEDIUM (a cheaper quantum method) and LOW
+  (force field).
+\item[leaflet] One of the two layers of a lipid bilayer. An asymmetric
+  membrane has different lipids in each leaflet.
+\item[license key] A personal code you receive after registering for a
+  program, here MODELLER, that lets it run. See
+  Chapter~\ref{ch:installation}.
+\item[ligand] (1)~In docking, the small molecule being docked. (2)~For metals
+  and cofactors, a protein residue (or water) whose atoms bind the metal and
+  hold it in place.
+\item[link atom] A hydrogen atom added where a bond crosses from the QM region
+  to the MM region, so the QM region has no loose bond.
+\item[lipid bilayer] The two-layer sheet of fat-like molecules that forms a
+  cell membrane. Simulations of membrane proteins build a small patch of one.
+\item[lipids] The fat-like molecules a membrane is made of. Each has a
+  water-liking head and oily tails.
+\item[localhost (127.0.0.1)] The name and address a computer uses for itself.
+  A web page at this address comes from a program on your own computer, not
+  from the internet.
+\item[loops] (1)~Flexible parts of a protein chain between its helices and
+  strands, often missing from experimental structures. (2)~In membrane
+  building, rounds of rearranging molecules during packing.
+\end{description}
+
+\section*{M}
+
+\begin{description}
+\item[mask] A short Amber code that selects atoms, for example \texttt{:1-76}
+  (residues 1 to 76) or \texttt{@CA} (all atoms named CA).
+\item[MCPB] Metal Center Parameter Builder: the Amber method for making
+  parameters for a metal and the residues that bind it, from quantum
+  calculations on a small and a large model.
+\item[MD engine] The program that actually runs the simulation:
+  \texttt{sander} and \texttt{sander.MPI} (included with ProPrep), or
+  \texttt{pmemd}, \texttt{pmemd.MPI} and \texttt{pmemd.cuda} (a separate Amber
+  package). See Chapter~\ref{ch:runningmd}.
+\item[mdin] The Amber input file that holds the settings of one simulation
+  stage: number of steps, temperature, restraints and so on.
+\item[mdout] Amber's text output for a stage: energies, temperature and
+  pressure printed at regular intervals.
+\item[mechanical embedding] In QM/MM, the MM charges do not act on the QM
+  electrons; the two regions interact only through the force field.
+\item[MEMEMBED] A program that works out how a protein sits in a membrane.
+  ProPrep's default for orienting membrane proteins.
+\item[mFo--DFc map] The difference electron-density map. It shows where the
+  experimental data and the model disagree.
+\item[microstate] One version of a protein that differs from the others only
+  in the state of some sites, for example which hemes are oxidized or which
+  disulfides are formed. See Chapter~\ref{ch:redox}.
+\item[missing atoms] Atoms of a residue, usually side-chain atoms, that the
+  experiment did not see.
+\item[missing residues] Whole residues that were in the sample but not seen in
+  the experiment, typically flexible loops and chain ends.
+\item[MM (molecular mechanics)] Treating atoms as balls and springs with a
+  force field, as in MD. Fast, but it cannot describe electrons.
+\item[mmCIF] The newer file format for structures (\file{.cif} files), used by
+  AlphaFold, AlphaFill and very large PDB entries. Most of ProPrep expects PDB
+  format.
+\item[MODELLER] A program from the Sali lab that builds missing parts of
+  protein structures, standard mutations and homology models. It is installed
+  with ProPrep but needs a free academic license key.
+\item[molar ratio] How many molecules of one lipid are used for each of the
+  others, for example POPC to cholesterol at 3:1.
+\item[molecular dynamics (MD)] A calculation that moves every atom a tiny step
+  at a time according to the forces between atoms, producing a film of how a
+  molecule moves.
+\item[MPI] A system for splitting one calculation between several processor
+  cores, used by \texttt{sander.MPI} and \texttt{pmemd.MPI}.
+\item[multiplicity] The number of unpaired electrons plus one: 1 when all
+  electrons are paired, 2 for one unpaired electron (for example low-spin
+  iron(III)). Gaussian needs it for every QM region.
+\end{description}
+
+\section*{N}
+
+\begin{description}
+\item[net charge] The total charge of a molecule, a whole number.
+\item[NME] An N-methyl amide cap: a small neutral group added after the last
+  residue of a chain.
+\item[NPT] A simulation at constant number of particles, pressure and
+  temperature. The box size can change, so the water reaches its normal
+  density.
+\item[N-terminus] The start of a protein chain, with an amino group that
+  normally carries a positive charge.
+\item[NVT] A simulation at constant number of particles, volume and
+  temperature. The box size is fixed.
+\end{description}
+
+\section*{O}
+
+\begin{description}
+\item[objective] In membrane building, the number packmol lowers while
+  packing. It measures how badly molecules still overlap.
+\item[occupancy] The share of time an atom spends in a given position, when it
+  was seen in more than one.
+\item[ONIOM] Gaussian's method for QM/MM calculations, which splits the system
+  into layers treated at different levels. See Chapter~\ref{ch:qmmm}.
+\item[OPM database] Orientations of Proteins in Membranes: a public collection
+  of membrane proteins already placed in a membrane. ProPrep can compare its
+  own placement with it.
+\item[option] An extra instruction typed after a command, starting with two
+  hyphens, such as \texttt{--full-menu}. It applies to that run only. Also
+  called a flag. See Chapter~\ref{ch:cmdline}.
+\item[orientation] Turning and moving a membrane protein so that its
+  water-repelling band lies in the plane of the membrane.
+\item[OXT] The second oxygen of the carboxyl group at a charged chain end. It
+  exists only on the last residue; many PDB files lack it.
+\end{description}
+
+\section*{P}
+
+\begin{description}
+\item[packmol-memgen] The program, part of AmberTools, that ProPrep uses to
+  pack lipids, water and ions around a membrane protein.
+\item[parameters] The numbers in a force field: charges, bond lengths and
+  stiffness, angles, twists and atom sizes.
+\item[ParmEd] Amber's topology editor. ProPrep uses it to check each new
+  topology and to add the 12-6-4 ion terms.
+\item[partial charge] A fraction of an electron's charge placed on each atom
+  by the force field.
+\item[PDB file] A text file (\file{.pdb}) that lists every atom of a structure
+  with its position. Most ProPrep steps read and write this format.
+\item[PDB format] The older structure file format (\file{.pdb} files), which
+  most of ProPrep expects.
+\item[PDBQT] The file format AutoDock needs. ProPrep writes it for you from
+  the protein and the ligand.
+\item[periodic boundaries] The simulation box is repeated in every direction
+  like tiles, so a molecule leaving one side enters from the other.
+\item[personal access token] A long code, like a password, made on the GitHub
+  website, that lets ProPrep's feedback form post on your behalf.
+\item[pH] A measure of how acidic the surroundings are. It decides whether
+  groups such as histidine or glutamate carry a proton, and so a charge.
+\item[pKa] The pH at which half of the molecules of a group carry their
+  proton. Below it the group is mostly protonated, above it mostly not.
+\item[pLDDT] AlphaFold's confidence score for each residue, from 0 to 100.
+  Above 90 is very reliable; below 50 is usually disordered.
+\item[plugins] Add-on packages, installed separately, that add their own items
+  to ProPrep's menus.
+\item[Poisson--Boltzmann (PB)] A way of calculating the electrostatic energy of
+  a molecule in salt water. ProPrep's PB titration uses it to predict pKa
+  values.
+\item[POPC] A common neutral lipid of animal cell membranes, the usual first
+  choice for a simple membrane.
+\item[port] The number after the colon in a local web address such as
+  \texttt{http://127.0.0.1:8000/}. It tells the browser which program on your
+  computer to talk to.
+\item[positional restraint] A spring-like force that pulls chosen atoms back
+  towards their starting positions.
+\item[PPM3] A program that works out how a protein sits in a membrane; the
+  method behind the OPM database. Slower than MEMEMBED.
+\item[principal axes] The natural long, middle and short directions of a
+  molecule, worked out from how its mass is spread.
+\item[project folder] The folder in which ProPrep saves every file of one
+  project. You name it at the start. See Chapter~\ref{ch:projectfolder}.
+\item[propionates] The two acid side groups of a heme. Each can be charged or
+  neutral. ProPrep's heme sets make them separate residues.
+\item[PROPKA] A program that estimates the pKa of each titratable residue from
+  the protein structure. See Chapter~\ref{ch:protonation}.
+\item[Protein Data Bank (PDB)] The public archive of experimentally solved
+  structures of proteins and nucleic acids. Each entry has a four-character
+  code such as 1UBQ.
+\item[protocol] The ordered list of simulation stages (minimization, heating,
+  equilibration, production) and their settings.
+\item[protonation state] Whether a titratable group carries its proton, and
+  so its charge.
+\end{description}
+
+\section*{Q}
+
+\begin{description}
+\item[QM (quantum mechanics)] Calculating the electrons explicitly. It can
+  describe bond breaking, charge transfer and spin, but is slow and limited
+  to a few hundred atoms.
+\item[QM/MM] A calculation that treats a small region, such as a redox site,
+  with QM and the rest of the protein with MM. See Chapter~\ref{ch:qmmm}.
+\item[quaternary structure] How several chains assemble into one molecule,
+  for example the four chains of hemoglobin.
+\end{description}
+
+\section*{R}
+
+\begin{description}
+\item[radius of gyration (Rg)] The average distance of the atoms from the
+  center of the molecule; a measure of how compact it is.
+\item[receptor] The protein a molecule is docked into.
+\item[redocking] Removing a molecule from a structure solved with it, and
+  docking it back. It tests whether the settings reproduce a known answer.
+\item[redox center] The atom or group in a protein that gains or loses
+  electrons, such as the iron of a heme or an iron--sulfur cluster.
+\item[redox site] A redox center together with the residues that bind it and
+  the bonds between them, as recorded by the Redox Site Detector.
+\item[reference] In a superposition, the structure that stays in place while
+  the others are moved onto it.
+\item[REMARK 350] Lines in a PDB file that describe how to build the
+  biological assembly from the asymmetric unit.
+\item[REMARK 465] Lines in a PDB file that list residues that were in the
+  sample but not seen.
+\item[REMARK 470] Lines in a PDB file that list atoms that were not seen.
+\item[residue template] The description of one residue in a force field: its
+  atoms, their types and charges.
+\item[resolution] How fine the detail of an X-ray or cryo-EM structure is, in
+  Å. Smaller is better; 2\,Å or less is good.
+\item[RESP] Restrained electrostatic potential charges: partial charges
+  fitted to a quantum-chemical calculation (in ProPrep, from Gaussian). The
+  standard careful method for Amber.
+\item[restraints] Extra forces that hold chosen atoms near a position or at a
+  distance, for example to protect the protein while the system settles.
+\item[RMSD (root-mean-square deviation)] The typical distance, in Å, between
+  matching atoms of two structures after lining them up. Near 0 means
+  practically identical; in docking, under about 2\,Å from the crystal pose
+  counts as a success.
+\item[RMSF (root-mean-square fluctuation)] How far each residue wanders around
+  its own average position during a simulation. It shows which parts are
+  flexible.
+\item[route line] The line in a Gaussian input file that starts with
+  \texttt{\#} and states the method, basis set and options.
+\item[run plan] A saved choice of engines and resources for each stage of a
+  protocol, used with a cluster profile.
+\end{description}
+
+\section*{S}
+
+\begin{description}
+\item[scoring function] The formula that turns a docking pose into a number in
+  kcal/mol. ProPrep offers vina, vinardo and ad4. Scores from different
+  functions cannot be compared.
+\item[scoring matrix] The table BLAST uses to judge how similar two amino
+  acids are. BLOSUM62 is the general-purpose default.
+\item[search box] The part of the protein that a docking run searches.
+\item[SEQRES] Records in a PDB file that give the full sequence of the sample,
+  including parts that were not seen.
+\item[session file] The file \file{proprep_session_<date>_<time>.json} in
+  which ProPrep records every answer you type, in order. It is used to undo,
+  resume, replay and make templates. See Chapter~\ref{ch:sessions}.
+\item[SLURM] The job system used on most computing clusters: you submit a
+  script, and it runs when processors are free.
+\item[small model] In the MCPB metal-site method, the small cut-out of the
+  metal site, used for the quantum calculation that gives bond and angle
+  stiffness.
+\item[SMILES] A way of writing a molecule as one line of text, for example
+  \texttt{CC(=O)Nc1ccc(O)cc1} for paracetamol.
+\item[snapshot] (1)~One saved set of atom positions in a trajectory. (2)~A
+  saved copy of your personal force-field library, made with the
+  \texttt{proprep-library} command.
+\item[SPLIT method] The rule ProPrep uses to count ions: the protein's charge
+  is shared between both kinds of ion, so the box is neutral and has the
+  chosen salt concentration.
+\item[steps] The tiny time increments of a simulation, usually 2~femtoseconds
+  each; 500 steps make 1~picosecond.
+\item[superposition] Laying one structure on top of another as closely as
+  possible, by rotating and moving it.
+\end{description}
+
+\section*{T}
+
+\begin{description}
+\item[targets] In a superposition, the structures that are moved onto the
+  reference.
+\item[tautomers] Forms of a molecule that differ only in where a proton sits;
+  for histidine, HID and HIE.
+\item[template] (1)~The tLEaP input file that ProPrep builds from your
+  answers, which you can edit. (2)~In the Redox Site Detector, your own label
+  for a detection recipe that is applied to all sites with that label. (3)~A
+  recorded session with some answers marked as blanks, so the same steps can
+  be run on many proteins (Chapter~\ref{ch:batch}).
+\item[TER record] A line in a PDB file that marks the end of a chain or
+  molecule. tLEaP needs one after each separate molecule.
+\item[Terminal] The program where you type commands to your computer: Terminal
+  on macOS, or the Ubuntu window on Windows.
+\item[terminal caps] See \emph{cap}.
+\item[titratable] Able to gain or lose a proton depending on pH, such as Asp,
+  Glu, His, Cys, Tyr, Lys and the chain ends.
+\item[tLEaP] The AmberTools program that builds the simulation system: it adds
+  missing hydrogens and atoms, applies the force field, adds water and ions,
+  and writes the topology and coordinates. See Chapter~\ref{ch:topology}.
+\item[TM-align] A program that superimposes proteins by matching residues by
+  their position in space, so it works for different sequences with the same
+  fold.
+\item[TM-score] A score from 0 to 1 for how similar two folds are. Above about
+  0.5 means the same fold.
+\item[topology] The file (\file{.prmtop}) that lists every atom of the
+  simulated system with its charge and type, and every bond, angle and twist
+  with its force-field numbers. It holds no positions; those are in the
+  coordinate file.
+\item[traceback] The full technical error report a program prints when it
+  stops with an error: the list of program steps that led to it. See
+  Chapter~\ref{ch:troubleshooting}.
+\item[trajectory] The file (usually \file{.nc}) of snapshots of all atom
+  positions written during a simulation; the main input for analysis.
+\item[transformer] A recipe in ProPrep that renames and splits the residues of
+  a redox site so that they match a bundled parameter set. See
+  Chapter~\ref{ch:redox}.
+\item[truncated octahedron] A simulation box with its corners cut off. It fits
+  a roughly round protein with less water than a rectangular box.
+\end{description}
+
+\section*{U}
+
+\begin{description}
+\item[Ubuntu] The Linux system that WSL installs by default. Its window is the
+  Terminal you use for ProPrep on Windows.
+\item[UniProt] The main database of protein sequences and their descriptions.
+\end{description}
+
+\section*{W}
+
+\begin{description}
+\item[water layer] In a membrane system, the thickness of water above and
+  below the membrane. The default is 17.5\,Å.
+\item[water model] The recipe for a single water molecule in a simulation,
+  for example TIP3P (three points) or OPC (four points).
+\item[Windows Subsystem for Linux (WSL)] A part of Windows 10 and 11 that runs
+  a small Linux system alongside Windows. ProPrep runs inside it on Windows.
+\item[Workflow Mode] ProPrep's guided main menu, which shows only the tools of
+  one stage at a time (Load, Detect, Compare, Fix, Simulate).
+\item[workspace] What ProPrep holds in its memory during a run: the
+  structures loaded, the files it has made and the results of each tool. It
+  starts empty every time ProPrep starts; files on disk stay.
+\end{description}
+\endgroup

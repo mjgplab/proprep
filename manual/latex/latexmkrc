@@ -1,0 +1,5 @@
+# Build:  latexmk      (from manual/latex) -> main.pdf with XeLaTeX
+$pdf_mode = 5;
+$xelatex = 'xelatex -interaction=nonstopmode -file-line-error -synctex=1 %O %S';
+$makeindex = 'makeindex %O -o %D %S';
+@default_files = ('main.tex');

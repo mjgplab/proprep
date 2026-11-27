@@ -1,0 +1,16 @@
+# Test-run outputs and driver transcripts (hundreds of MB; kept locally as evidence)
+runs/
+# LaTeX build products (the finished PDF is kept as ProPrep-User-Manual.pdf)
+latex/main.pdf
+latex/*.aux
+latex/*.log
+latex/*.toc
+latex/*.out
+latex/*.idx
+latex/*.ind
+latex/*.ilg
+latex/*.fls
+latex/*.fdb_latexmk
+latex/*.synctex.gz
+latex/*.xdv
+latex/build.out

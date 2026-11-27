@@ -1,0 +1,530 @@
+\chapter{Protonation states and orientation}
+\label{ch:protonation}
+
+Before a simulation, you must decide which acidic and basic groups of the
+protein carry a proton, and therefore a charge. This chapter explains in plain
+words what that means and why the pH matters, then shows how ProPrep predicts
+the states with PROPKA and writes the right residue names into the structure.
+The last part covers the Structure Orientator, which turns the finished
+structure to line it up with the axes.
+
+\begin{glance}
+\glanceitem{What it does}{Predicts the protonation state of every titratable
+  residue at your pH, lets you accept or change each one, and writes a PDB file
+  with the matching Amber residue names. Optionally rotates and centers the
+  structure.}
+\glanceitem{You need it when}{Always for a standard simulation: every residue
+  needs a fixed charge. Orientation only when your setup needs a particular
+  direction (membranes, fields, pulling).}
+\glanceitem{Before you start}{Filter and repair first
+  (Chapter~\ref{ch:cleaning}); the analyzer uses the filtered or repaired file
+  automatically. Orient last.}
+\glanceitem{Where to find it}{\menupath{4e}{Protonation State Analyzer} and
+  \menupath{4f}{Structure Orientator}; ``fix'' stage in Workflow Mode.}
+\glanceitem{You get}{\file{structure_with_md_names.pdb}, a PROPKA report in
+  \file{propka_results/}, optional \file{ph_profile.csv}; from 4f a file ending
+  in \file{_oriented.pdb}.}
+\end{glance}
+
+\section{What protonation means, and why pH matters}
+\label{sec:protonation-why}
+
+Some amino-acid side chains can take up or give away a proton (a hydrogen ion,
+H$^+$). Gaining a proton adds a positive charge; losing one adds a negative
+charge. Whether a group carries its proton is its \term{protonation state}. The
+groups that can change are called \term{titratable} residues: aspartate (Asp),
+glutamate (Glu), histidine (His), cysteine (Cys), tyrosine (Tyr), lysine (Lys),
+arginine (Arg), and the two chain ends.
+
+Each group has a \term{pKa}: the pH at which half of the molecules carry the
+proton. When the pH is below the pKa (more acidic), the group mostly
+\emph{has} its proton. When the pH is above the pKa, it mostly does not. The
+textbook values ProPrep uses are:
+
+\begin{tabularx}{\linewidth}{@{}lrL@{}}
+\toprule
+\textbf{Group} & \textbf{pKa} & \textbf{At pH 7, usually\ldots} \\
+\midrule
+Asp & 3.65 & without proton, charge $-1$ \\
+Glu & 4.25 & without proton, charge $-1$ \\
+His & 6.00 & close to its pKa: mostly neutral, partly charged \\
+Cys & 8.18 & with proton, neutral \\
+Tyr & 10.07 & with proton, neutral \\
+Lys & 10.53 & with proton, charge $+1$ \\
+Arg & 12.48 & with proton, charge $+1$ \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\noindent So the pH you choose decides the charges. At pH 4.5 more Asp and Glu
+carry their proton and fewer are negative than at pH 7.
+
+\textbf{Why this matters for a simulation.} A standard molecular-dynamics
+simulation cannot add or remove protons while it runs. You fix every residue's
+state at the start, and it stays that way. If you get an important one wrong,
+for example in an active site, the simulation models a different chemistry.
+
+\textbf{The protein changes the pKa.} The textbook values hold for a residue
+in open water. Inside a protein, a residue may be buried away from water
+(\term{desolvation}, which favors the uncharged form), or sit next to other
+charges and hydrogen bonds. These can shift its pKa by several units.
+\term{PROPKA} is a program that estimates these shifts from the structure. A
+famous example is HIV protease: its two catalytic aspartates face each other,
+and PROPKA predicts that one of them keeps its proton at pH 7 even though
+aspartate normally loses it.
+
+\textbf{Histidine has three forms.} Neutral histidine can carry its single
+proton on either of two ring nitrogens, called ND1 (delta) and NE2 (epsilon).
+These two forms are \term{tautomers}. With both nitrogens protonated, histidine
+is positive. Amber force fields give each form its own residue name:
+\term{HID} (proton on ND1), \term{HIE} (proton on NE2) and \term{HIP} (both,
+charge $+1$). Which neutral form is right depends on the hydrogen bonds around
+the ring; HIE is the more common.
+
+\textbf{The probability threshold.} PROPKA gives each residue a
+\emph{probability} of being protonated at your pH, between 0 and 1. ProPrep
+must turn that into yes or no. With the default threshold of 0.5 it takes the
+more likely state. A higher threshold (for example 0.7) assigns ``protonated''
+only when it is quite sure; a lower one does so more readily. For residues near
+0.5 neither answer is really right; for them, ProPrep's own advice is to
+consider a constant-pH simulation (Section~\ref{sec:protonation-cph}).
+
+\section{Step by step: predicting protonation states with PROPKA}
+\label{sec:protonation-propka}
+
+The example is the HIV protease dimer of \pdb{1HSG}, filtered to the two
+protein chains as in Section~\ref{sec:cleaning-filter}.
+
+\begin{steps}
+  \item Type \key{4e}, then \key{1} (\prompt{Analyze protonation states
+        (PROPKA)}). The other options stay blocked until this is done.
+  \item Check the first line: \prompt{Using filtered structure:
+        filtered\_structure.pdb}. The analyzer picks the most prepared file by
+        itself (repaired before filtered before the original download).
+  \item Type the pH of your experiment, or press \key{Enter} for 7.0. Then
+        accept the threshold of 0.5 with \key{Enter}, and answer \key{y} to
+        use PROPKA:
+\begin{screen}
+Using filtered structure: filtered_structure.pdb
+No residues excluded from protonation analysis
+Enter pH value for analysis (7.0):
+...
+Enter protonation probability threshold (0-1) (0.5):
+Run PROPKA for improved pKa prediction? [y/n] (y): §ans«y»
+\end{screen}
+        PROPKA runs for a few seconds.
+  \item Read the table. It is shown here with narrower columns and fewer rows:
+\begin{screen}
+          Protonation States at pH 7.0 (PROPKA pKa)
+Index Chain    Residue    pKa   ΔpKa Desolv Protonated Probability Charge
+    1     A   N_TERM 1   7.74  -0.26   0.43       True      0.8460   0.85
+    2     A      ARG 8  14.00  +1.52   0.41       True      1.0000   1.00
+...
+    6     A     ASP 25   5.07  +1.42   2.99      False      0.0116  -0.99
+...
+   20     A     HIS 69   6.65  +0.65   0.36      False      0.3088   0.31
+...
+   23     A     CYS 95  11.51  +3.33   2.61       True      1.0000  -0.00
+...
+   30     B     ASP 25   9.06  +5.41   3.00       True      0.9914  -0.01
+...
+   44     B     HIS 69   6.02  +0.02   0.40      False      0.0948   0.09
+...
+   48     B  C_TERM 99   3.10      —      —      False      0.0001  -1.00
+Net Charge: 5.13
+\end{screen}
+\end{steps}
+
+\subsection{Reading the table}
+
+\begin{description}
+  \item[Index] The row number. You use it to ask for details (next step).
+  \item[Chain, Residue] Which residue. \prompt{N\_TERM} and \prompt{C\_TERM} are
+        the two ends of the chain.
+  \item[pKa] PROPKA's estimate for this residue in this structure.
+  \item[ΔpKa] The shift from the textbook value. A large shift means the
+        surroundings matter a lot. Here ASP B25 is shifted by $+5.41$.
+  \item[Desolv] The part of the shift caused by burial. Large positive values
+        mean the residue is buried and prefers to be uncharged.
+  \item[Protonated] ProPrep's decision at your pH and threshold.
+  \item[Probability] The fraction of the time the residue carries the proton.
+        Values far from 0 and 1 (HIS A69: 0.31) mark residues whose state is
+        uncertain.
+  \item[Charge] The average charge that follows from the probability.
+  \item[Net Charge] The sum for the whole structure, here $+5.13$. The
+        simulation will need counter-ions to balance it
+        (Chapter~\ref{ch:topology}).
+\end{description}
+
+In \pdb{1HSG} the two catalytic aspartates differ: ASP A25 has a pKa of 5.07
+and loses its proton, while ASP B25 has 9.06 and keeps it. This is the
+``one protonated, one not'' pattern expected for this enzyme.
+
+\subsection{Why does a residue have this pKa?}
+
+After the table ProPrep asks
+\prompt{Enter indices to visualize (e.g., 1,3,5-7), or Enter to skip}. Type an
+index to see what drives that residue's pKa:
+\begin{screen}
+Enter indices to visualize (e.g., 1,3,5-7), or Enter to skip (): §ans«6»
+
+ASP A:25  (predicted pKa 5.07, Δ +1.42 vs textbook)
+  Buried 100 %; desolvation +2.99 (raises pKa)
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Contribution ┃ Type      ┃ Partner  ┃ Effect on pKa ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│        -0.89 │ sidechain │ ASP 25 B │ lowers (↓)    │
+│        -0.60 │ backbone  │ GLY 27 A │ lowers (↓)    │
+│        -0.17 │ backbone  │ ALA 28 A │ lowers (↓)    │
+...
+│        +0.03 │ coulombic │ ASP 29 A │ raises (↑)    │
+└──────────────┴───────────┴──────────┴───────────────┘
+✓ Structure viewer launched at http://localhost:8765/viewer (1 structure)
+\end{screen}
+Each row is one influence: a hydrogen bond from a side chain or the backbone,
+or an electrostatic (\prompt{coulombic}) interaction with a charged neighbor.
+Here ASP A25 is completely buried, which raises its pKa, but its hydrogen bond
+to ASP B25 lowers it again. The 3D viewer opens with the residue in magenta,
+partners that lower the pKa in green and those that raise it in orange.
+
+\subsection{The titration curve}
+
+Next, ProPrep offers a pH titration profile
+(\prompt{Would you like to generate a pH titration profile? [y/n] (n)}). With
+\key{y} and the default range (pH 0 to 14 in steps of 0.5) it prints the net
+charge at each pH, a text plot, and the \term{isoelectric point} (pI, the pH at
+which the net charge is zero): 9.37 for the protease dimer. You can then look up
+values: type \typed{5.5} to get the charge at pH 5.5 (7.95), or \typed{0e} to
+get the pH at charge 0. Type \typed{done} to finish. The profile can be saved
+as \file{ph_profile.csv}.
+
+The raw PROPKA output is kept in the folder \file{propka_results/} (files
+ending in \file{.pka} and \file{.pdb}).
+
+\section{Step by step: setting the residue names for the simulation}
+\label{sec:protonation-names}
+
+The force field recognizes each protonation state by a residue name. This step
+writes those names into a new PDB file. Only the names change; no hydrogen
+atoms are added yet (tLEaP adds them in Chapter~\ref{ch:topology}).
+
+\begin{steps}
+  \item In the Protonation State Analyzer menu, type \key{3}
+        (\prompt{Set MD residue names}).
+  \item At \prompt{Is this for constant pH simulation? [y/n] (n)}, press
+        \key{Enter} (no) for a normal simulation.
+  \item At \prompt{Set all residues to standard protonation states \ldots ?
+        [y/n] (n)}, press \key{Enter} (no) to use PROPKA's predictions.
+  \item ProPrep now goes through the residue types one by one: ASP, CYS, GLU,
+        HIS, LYS, TYR. For each, it shows a table with a recommended name per
+        residue and asks whether to use the recommendations:
+\begin{screen}
+                             ASP Residues
+┏━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Chain ┃ ResID ┃ pKa  ┃ State at pH 7.0 ┃ Probability ┃ Recommended ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ A     │ 25    │ 5.07 │ Deprotonated    │ 0.012       │ ASP         │
+...
+│ B     │ 25    │ 9.06 │ Protonated      │ 0.991       │ ASH         │
+...
+└───────┴───────┴──────┴─────────────────┴─────────────┴─────────────┘
+
+Options for ASP residues:
+• ASP - Deprotonated carboxylate (COO⁻, -1 charge)
+• ASH - Protonated carboxylic acid (COOH, neutral)
+Note: ASP is typically deprotonated at physiological pH
+
+Use recommended names for all ASP residues? (y):
+\end{screen}
+        Press \key{Enter} to accept. This is the right answer in most cases.
+  \item At the end, ProPrep sums up and writes the file:
+\begin{screen}
+Set MD names for 44 residues
+
+Summary of assignments:
+  ARG: 8 residues
+  ASH: 1 residues
+  ASP: 7 residues
+...
+Update structure with these residue names? [y/n] (y): §ans«y»
+Using analyzed structure for MD residue name update: filtered_structure.pdb
+Enter output filename for updated structure (structure_with_md_names.pdb):
+
+Modified 44 residue names in PDB file
+...
+Saved updated structure to structure_with_md_names.pdb
+\end{screen}
+\end{steps}
+
+The file \file{structure_with_md_names.pdb} is the input for the next stages.
+Arginine is never asked about; it is always ARG.
+
+\subsection{The residue names}
+
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+\textbf{Residue} & \textbf{Name} & \textbf{Meaning} \\
+\midrule
+Asp & ASP / ASH & charged ($-1$) / with proton, neutral \\
+Glu & GLU / GLH & charged ($-1$) / with proton, neutral \\
+His & HIE / HID / HIP & proton on NE2 / proton on ND1 / both, charged ($+1$) \\
+Cys & CYS / CYM & with proton (SH), neutral / without, charged ($-1$) \\
+Lys & LYS / LYN & charged ($+1$) / without proton, neutral \\
+Tyr & TYR & with proton, neutral \\
+Arg & ARG & always charged ($+1$) \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Appendix~\ref{app:residues} lists all residue names used by Amber.
+
+\subsection{Changing the recommendation for some residues}
+\label{sec:protonation-override}
+
+You may know better than PROPKA, for example from experiments on the active
+site. Answer \key{n} at \prompt{Use recommended names for all \ldots{}
+residues?}. ProPrep then explains the syntax:
+\begin{screen}
+Syntax: Enter a name to apply to all, or specify overrides:
+  • Single name: ASH (applies to all)
+  • Overrides: 94,119:ASP 122:ASH (applies to listed resids in every chain)
+  • Chain-specific: A:94:ASP (restrict to one chain)
+  • Press Enter to use all recommendations
+Customize ASP names (): §ans«A:25:ASH B:25:ASP»
+  A:25 → ASH
+  B:25 → ASP
+\end{screen}
+Residues you do not name keep their recommendation. In this test we swapped the
+protonated aspartate from chain B to chain A. For histidines, the same way, we
+typed \typed{A:69:HIP B:69:HID} to make one histidine charged and the other a
+delta tautomer. The file then contained ASH A25, HIP A69 and HID B69.
+
+\begin{watchout}
+An override that ProPrep cannot read is skipped, and ProPrep moves on to the
+next residue type \emph{without asking again}:
+\begin{screen}
+Customize CYS names (): §ans«XYZ»
+Skipping invalid syntax: XYZ (expected resid:NAME)
+...
+Customize GLU names (): §ans«21:LYS»
+Invalid name 'LYS' - valid choices: GLH, GLU
+\end{screen}
+The recommendations are then used for that type. If this happens, run option
+\key{3} again. Residue numbers are those of the analyzed file; after the
+Structure Fixer they start from 1 (Section~\ref{sec:cleaning-caps}).
+\end{watchout}
+
+\begin{watchout}
+Two more things to know in version 1.23.0:
+\begin{itemize}
+  \item Running option \key{3} again overwrites
+        \file{structure_with_md_names.pdb} without asking. Type a different
+        file name if you want to keep both.
+  \item After overrides, option \key{4} (View) shows the new names, but the
+        Protonated, Probability and Charge columns and the net charge still
+        show PROPKA's values. For example \prompt{ASH 25} appears with
+        \prompt{False} and $-0.99$. The export (option \key{5}) does the same.
+        The file written in this step has the right names.
+\end{itemize}
+\end{watchout}
+
+\section{Constant-pH simulations}
+\label{sec:protonation-cph}
+
+In a \term{constant-pH simulation}, chosen residues are allowed to gain and
+lose protons during the run, so their states follow the pH instead of being
+fixed. This is useful when a residue's probability is near 0.5. Amber marks
+such residues with special names: \term{AS4} for aspartate, \term{GL4} for
+glutamate and HIP for histidine.
+
+Answer \key{y} at \prompt{Is this for constant pH simulation?}. ProPrep leaves
+out residues that cannot titrate in this mode (arginine and the chain ends) and
+then, for each type, asks which residues to titrate:
+\begin{screen}
+Select ASP residues to TITRATE (will use AS4 name):
+Enter indices (e.g., 1,3 or 1-3), 'all', or 'none':
+Indices to titrate (): §ans«1»
+  B:25 → AS4 (titratable)
+
+Setting names for non-titratable ASP residues:
+...
+Use recommended names for all non-titratable ASP residues? (y):
+\end{screen}
+The other residues of that type get fixed names as before. The result goes to
+the same file as before,
+\file{structure_with_md_names.pdb}, and overwrites it. Running the simulation itself is covered in
+Chapter~\ref{ch:runningmd}.
+
+\begin{example}
+Protonation depends on everything you kept. In this test the filter had kept
+only chain B of the protease. Without its partner, ASP B25 got a pKa of 3.8 and
+was \emph{deprotonated}, against 9.06 in the dimer. Filter first, and filter
+carefully, before you protonate.
+\end{example}
+
+\section{Other choices}
+\label{sec:protonation-other}
+
+\paragraph{Textbook values instead of PROPKA.} Answer \key{n} at
+\prompt{Run PROPKA for improved pKa prediction?}. The table then uses the
+textbook pKa values (title \prompt{(Textbook pKa)}, without the ΔpKa and Desolv
+columns). Tried on ubiquitin (\pdb{1UBQ}) at pH 4.5 with a threshold of 0.7.
+
+\paragraph{Standard states for everything.} At \prompt{Set all residues to
+standard protonation states (ASP/GLU deprotonated, CYS/LYS/ARG/TYR protonated,
+HIS->HIE, heme PRN->PRD)?}, answer \key{y}. ProPrep ignores the predictions and
+applies these textbook states. You can then type a file name, for example
+\typed{ubq\_standard.pdb}. This is a quick choice for a protein at neutral pH
+without unusual sites.
+
+\paragraph{Charge capacitance (option 2).} Calculates how strongly the
+protein's charge responds to small pH changes, per residue type and in total.
+It can also draw this as a curve over pH and save it as
+\file{capacitance_profile.csv}. Most users do not need it.
+
+\paragraph{View and export (options 4 and 5).} Option \key{4} shows the table
+again. Option \key{5} asks \prompt{Select output format (text)} but does not
+list the choices. Type \typed{text} (the default) or \typed{csv}. The files are
+called \file{protonation_analysis.text} and
+\file{protonation_analysis.csv}.
+
+\paragraph{Metal and redox sites.} If redox sites were detected earlier
+(Chapter~\ref{ch:redox}), the analysis first lists them and asks which to leave
+out of the analysis. Residues that bind a metal have strongly shifted pKa
+values, so excluding them is often sensible.
+
+\section{Orienting the structure}
+\label{sec:protonation-orient}
+
+The Structure Orientator (\key{4f}) rotates and moves the whole structure. The
+chemistry does not change, only the coordinates. You need it when the direction
+of the protein matters: for example a membrane protein that must stand upright
+along the z axis (Chapter~\ref{ch:membrane}), a simulation with an electric
+field, or pulling along one axis. For an ordinary protein in water you can skip
+it.
+
+\begin{watchout}
+\textbf{Orient last.} The orientator always prefers its own earlier output: the
+first line says \prompt{Using Oriented PDB file: \ldots}. The Protonation State
+Analyzer, on the other hand, ignores oriented files. So if you orient and then
+filter or protonate again, the orientator keeps offering the \emph{old}
+oriented file, with the old chains and names. In our test, after a second
+filter (chain B only) and a new protonation, \key{4f} still used the oriented
+two-chain file. If you change anything earlier, start a new project or orient
+again from the new file.
+\end{watchout}
+
+\begin{steps}
+  \item Type \key{4f}, then \key{1}. Check the input file and choose a method:
+\begin{screen}
+Using Protonation-Updated PDB file: structure_with_md_names.pdb
+
+Input structure: structure_with_md_names.pdb
+Source: protonation_pdb_file
+✓ Structure viewer launched at http://localhost:8765/viewer (1 structure)
+
+Alignment options:
+  1. Align principal axes to Cartesian axes (PCA)
+  2. Align vector between two residues to an axis
+  3. Align vector between two atoms to an axis
+  4. Align plane (from residues) normal to Z
+  5. Center structure at origin
+  6. Apply custom rotation (Euler angles)
+  7. Cancel
+
+Select alignment method (1): §ans«1»
+\end{screen}
+  \item For method \key{1}, answer which axis the long axis of the protein
+        should point along, then the middle axis. The shortest axis takes the
+        remaining direction. Then choose whether to center:
+\begin{screen}
+Principal moments of inertia:
+  Longest axis  (smallest moment): λ = 21322.2
+  Middle axis:                      λ = 42699.6
+  Shortest axis (largest moment):   λ = 50600.1
+
+Map principal axes to Cartesian axes:
+Align LONGEST axis to [X/Y/Z] (Z):
+Align MIDDLE axis to [X/Y] (X): §ans«Y»
+Shortest axis will align to X
+Center structure at origin? [y/n] (y): §ans«y»
+
+Applying transformation...
+✓ Transformed 1,514 atoms
+✓ Saved: structure_with_md_names_oriented.pdb
+Transformation saved: structure_with_md_names_oriented.orientation.json
+\end{screen}
+\end{steps}
+
+The \term{principal axes} are the protein's natural long, middle and short
+directions, worked out from how its mass is spread. Aligning them with the x,
+y and z axes makes the protein lie ``straight'' in the box. The
+\file{.orientation.json} file records exactly what was done (method, rotation,
+shift), so the step can be traced later. The viewer opens before and after,
+with reference axes.
+
+\subsection{The other methods}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Method} & \textbf{What you give, and what it does} \\
+\midrule
+\key{1} Principal axes & Axis for the longest and the middle direction;
+  center or not. \\
+\key{2} Two residues & Chain and number of a first residue (placed at the
+  negative end) and a second (positive end), then the axis. Example: A25 to
+  B25, 6.04~Å apart, along X. \\
+\key{3} Two atoms & As 2, plus an atom name (default CA; the second atom
+  defaults to the first atom's name). Example: CG of A25 to CG of B25,
+  5.17~Å, along Y. \\
+\key{4} Plane to Z & At least three residues as \typed{A:10, A:20, B:10,
+  B:20}; the plane through them is turned to face the z axis. Meant for
+  membrane-facing residues. With fewer than three: \prompt{Need at least 3
+  residues to define a plane.} \\
+\key{5} Center only & Moves the center to the origin, by mass (\key{y}) or
+  by geometry (\key{n}). No rotation. \\
+\key{6} Euler angles & Rotations in degrees around Z, then Y, then X; option to
+  center first. \\
+\key{7} Cancel & Nothing is written. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+A residue or atom that does not exist gives \prompt{Residue B:500 not found.}
+or \prompt{Atom B:25:XX not found.} and returns to the menu.
+
+\begin{watchout}
+Each run takes the previous oriented file as its input and adds another
+\file{_oriented} to the name. After six runs in our test the name contained
+\file{_oriented} six times (\file{structure_with_md_names_oriented_..._oriented.pdb}).
+Rotations add up in the same way. If you want to try several orientations,
+note that each one starts from the last, not from the original.
+\end{watchout}
+
+\section{If something goes wrong}
+\label{sec:protonation-problems}
+
+\begin{description}[style=nextline]
+  \item[``Invalid pH value, using default of 7.0''] Anything that is not a
+        number is replaced by 7.0 without asking again. The same happens to
+        the threshold (\prompt{Invalid threshold, using default of 0.5}), for
+        example if you type \typed{20}. If you meant another value, run option
+        \key{1} again.
+  \item[An override did not take effect] Invalid overrides are skipped without
+        asking again (Section~\ref{sec:protonation-override}). Run option
+        \key{3} again.
+  \item[The View table does not show my override] Known limitation: the
+        names are updated, the charges are not. The written PDB file is
+        correct.
+  \item[Residue numbers do not match the original] The Structure Fixer
+        renumbered the chain from 1 (Section~\ref{sec:cleaning-caps}).
+  \item[The analyzer ignores my latest structure] It uses repaired, then
+        filtered, then downloaded files, and never oriented ones. Read the
+        \prompt{Using \ldots} line.
+  \item[The orientator uses an old file] It prefers any earlier oriented
+        file. Orient last, or use a new project.
+  \item[``Received 'Z', which is not one of the available options''] For the
+        middle axis only the two axes not yet used are allowed.
+\end{description}
+
+See also Chapters~\ref{ch:troubleshooting} and~\ref{ch:knownissues}.

@@ -1,0 +1,38 @@
+# Glossary terms — writer w5 (Chapters 12, 13, 19, Appendix E)
+
+- **AM1-BCC** — A fast way to compute partial charges for a small molecule, built into AmberTools (`antechamber -c bcc`). Less careful than RESP, but needs no quantum-chemistry program.
+- **atom type** — A short code that tells the force field what kind of atom this is (for example `CX` for a protein Cα, `ca` for an aromatic carbon in GAFF2). Bond, angle and other parameters are looked up by atom type.
+- **axial ligand** — A protein side chain that binds the metal of a flat ring (such as a heme) from above or below the ring. In cytochrome c the axial ligands are His18 and Met80.
+- **b-type heme** — A heme that is held in the protein only by its axial ligands, without covalent bonds to the protein (PDB residue name HEM, e.g. hemoglobin).
+- **broken-symmetry** — For iron–sulfur clusters: one of several equivalent ways of pairing the spins of the irons. ProPrep's [4Fe-4S] parameter sets come in several broken-symmetry variants (codes FO1–FO6, FR1–FR3, FD1–FD6, plus averaged sets FO0/FR0/FD0).
+- **c-type heme** — A heme that is covalently bonded to the protein through two thioether bonds to cysteines (PDB residue name HEC, e.g. cytochrome c).
+- **charge (of a QM region)** — The total charge of the atoms treated with quantum mechanics, a whole number (for ferric cytochrome c heme with two charged propionates: −1).
+- **dihedral** — A twist angle around a bond, defined by four atoms in a row; the force field has parameters for how easily each bond twists.
+- **electronic embedding** — In QM/MM, the MM partial charges act on the QM electrons, so the protein polarizes the QM region.
+- **force field** — A set of rules and numbers (parameters) that describes how atoms attract, repel and hold together in a simulation.
+- **formal charge** — The whole-number charge assigned to an atom or ion by chemistry rules (Zn²⁺: +2, Fe³⁺: +3, a thiolate S: −1), as opposed to a partial charge.
+- **GAFF2** — The General Amber Force Field, version 2: Amber's force field for drug-like organic molecules.
+- **large model** — In the MCPB metal-site method, the bigger cut-out of the metal site used for the quantum calculation that gives the charges.
+- **layers (ONIOM)** — The parts into which ONIOM splits the system: HIGH (quantum mechanics), optional MEDIUM (cheaper quantum method) and LOW (force field).
+- **ligands** — Here: the protein residues (or water) whose atoms bind a metal or cofactor and hold it in place.
+- **link atom** — A hydrogen atom added where a bond crosses from the QM region to the MM region, so that the QM region has no dangling bond.
+- **MCPB** — "Metal Center Parameter Builder": the Amber method for making bonded parameters for a metal and its ligands from quantum calculations on a small and a large model.
+- **mechanical embedding** — In QM/MM, the MM charges do not act on the QM electrons; the two regions interact only through the force field.
+- **microstate** — One combination of oxidation states over all redox sites in a protein (for two hemes: reduced/reduced, reduced/oxidized, oxidized/reduced, oxidized/oxidized). ProPrep codes each site with two letters, e.g. RL = reduced, low spin.
+- **MM (molecular mechanics)** — Treating atoms as balls and springs with a force field, as in MD. Fast, but cannot describe electrons.
+- **multiplicity** — The number of unpaired electrons plus one (2S+1): 1 = singlet (all paired), 2 = doublet (one unpaired, e.g. low-spin Fe(III)), 6 for high-spin Fe(III). Gaussian needs it for every QM region.
+- **net charge** — The total charge of a molecule, a whole number (0 for neutral indinavir).
+- **ONIOM** — Gaussian's method for QM/MM calculations, which splits the system into layers treated at different levels.
+- **parameters** — The numbers in a force field: charges, bond lengths and stiffness, angles, twists and van der Waals sizes.
+- **partial charge** — A fraction of an electron's charge placed on each atom by the force field (e.g. −0.38 on a histidine nitrogen).
+- **propionates** — The two acid side groups of a heme. Each can be charged (−1, deprotonated) or neutral (protonated). ProPrep's heme sets make them separate residues (PRD, PRP or PRN).
+- **QM (quantum mechanics)** — Calculating the electrons explicitly. Can describe bond breaking, charge transfer and spin states, but is slow and limited to a few hundred atoms.
+- **QM/MM** — A calculation that treats a small region (such as a redox site) with QM and the rest of the protein with MM.
+- **redox center** — The atom or group in a protein that gains or loses electrons, e.g. the iron of a heme, an iron–sulfur cluster, a flavin or a copper ion.
+- **redox site** — A redox center together with the protein residues that bind it and the bonds between them, as recorded by ProPrep's Redox Site Detector.
+- **residue template** — The description of one residue in a force field: its atoms, their types and charges (stored in `.lib`/`.off` files).
+- **RESP** — "Restrained electrostatic potential" charges: partial charges fitted to a quantum-chemical calculation (in ProPrep, from Gaussian). The standard careful method for Amber.
+- **route line** — The line in a Gaussian input file that starts with `#` and states the method, basis set and options.
+- **small model** — In the MCPB metal-site method, the small cut-out of the metal site used for the quantum calculation that gives bond and angle force constants.
+- **template (redox detection)** — Your own label for a repeatable detection recipe in 2a: set up the first site, and ProPrep applies the same search and bonds to all sites with the same label. If the label is a transformer name, 4d uses that transformer automatically.
+- **transformer** — A recipe in ProPrep that renames and splits the residues of a redox site so that they match a bundled parameter set (for example `heme_his_met_axial_c_type`).

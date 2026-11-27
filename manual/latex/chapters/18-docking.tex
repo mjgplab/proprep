@@ -1,0 +1,559 @@
+\chapter{Docking a ligand}
+\label{ch:docking}
+
+\term{Docking} predicts where a small molecule sits in a protein's pocket, and
+how tightly. ProPrep's docking tool prepares both the protein and the molecule
+for you and runs AutoDock Vina. This chapter follows a complete run on HIV
+protease (\pdb{1HSG}), putting its own drug molecule back where the crystal
+structure found it.
+
+\begin{glance}
+\glanceitem{What it does}{Puts a small molecule into a pocket of your protein
+in many positions, scores each one, and shows you the best few.}
+\glanceitem{You need it when}{You want to know how and how well a molecule
+binds, or to rank many molecules against one protein.}
+\glanceitem{Before you start}{Load a structure with \key{1a}. The tool needs
+\texttt{vina} installed, and \texttt{autogrid4} as well for AD4 scoring.}
+\glanceitem{Where to find it}{\menupath{5d}{Molecular Docking}, then \key{1}
+\textsf{Dock a ligand into the structure}.}
+\glanceitem{You get}{A folder \file{docking/docking_<date>_<time>/} with
+\file{poses.sdf}, one file per pose, and \file{docking.json}.}
+\end{glance}
+
+\section{What docking can and cannot tell you}
+
+Docking searches for positions and shapes of the molecule inside a box you
+choose, and gives each one a score in kcal/mol. The score is a rough estimate
+of binding strength, not a measurement.
+
+\begin{itemize}
+  \item \textbf{It can} suggest how a molecule is likely to sit in a pocket,
+        which parts of the protein it touches, and which of several molecules
+        looks more promising.
+  \item \textbf{It cannot} give a reliable binding energy, nor tell you about
+        anything it does not model: the protein barely moves, water is left
+        out, and the molecule's charges are taken as given.
+\end{itemize}
+
+The honest test is \term{redocking}: take a structure solved with its molecule
+in place, remove the molecule, and dock it back. The \term{RMSD} (root mean
+square deviation, the average distance between matching atoms) then tells you
+how close the prediction came to reality. Under about 2\,\AA{} means the
+method reproduced the known answer. ProPrep shows this column
+automatically when the molecule came from the structure.
+
+\begin{behindscenes}
+ProPrep prepares both sides with Meeko and pdb2pqr and writes them in
+\term{PDBQT} format, the file type AutoDock expects. No force-field parameters
+and no tLEaP are involved, so docking needs far less preparation than a
+simulation.
+\end{behindscenes}
+
+\begin{needsoftware}
+Docking needs AutoDock Vina (the program \texttt{vina}) on your computer, and
+\texttt{autogrid4} as well if you want the \texttt{ad4} scoring function. Both
+were present on our test machine, so all three scoring functions worked. The
+molecules are prepared by parts of ProPrep's own installation (Meeko, RDKit
+and pdb2pqr), so nothing else is needed. See
+Chapter~\ref{ch:requirements} for how to check what you have.
+\end{needsoftware}
+
+\section{Step by step: redocking MK1 into HIV protease}
+\label{sec:docking-steps}
+
+\pdb{1HSG} is HIV protease with the drug indinavir (residue \texttt{MK1}) in
+its active site. Start ProPrep with \texttt{proprep --full-menu} and load the
+structure first: \key{1a}, \key{1}, \key{1}, \key{1}, type \typed{1HSG},
+\key{1}, then \key{m}.
+
+\begin{tip}
+Open \key{5d} with no structure loaded and you only get
+\prompt{Needs a loaded structure} (with a warning sign) and the menu again.
+Load the structure
+first.
+\end{tip}
+
+Type \key{5d}, then \key{1}. The dashboard lists nine setup steps and tells
+you what is still missing:
+
+\begin{screen}
+  Current setup
+  1 Receptor:     not set
+  2 Ligand:       not set
+  3 Kept HETATM:  not set
+  4 Protonation:  not set
+  5 Metals:       0 charge(s) set; cofactor edits for none
+  6 Flexible:     none (rigid receptor)
+  7 Rotatable:    not set
+  8 Search box:   not set
+  9 Settings:     not set
+
+  r Run docking  (needs a receptor structure (1), a ligand (2), a search
+    box (8), docking settings (9))
+  c Docking campaign: run docking for every ligand of a library ...
+  v View results: no run or campaign yet
+  b Back
+
+Enter choice (1):
+\end{screen}
+
+You work down the numbers. The \prompt{r} line always says what is still
+needed, so you cannot forget a step.
+
+\subsection{Step 1: the receptor}
+
+The \term{receptor} is the protein the molecule is docked into.
+
+\begin{steps}
+  \item Type \key{1}. ProPrep names the loaded structure and asks
+        \prompt{Use this structure as the receptor?} Type \key{y}.
+  \item It lists the chains and asks which to include. HIV protease is a pair
+        of identical chains and the pocket lies between them, so keep both:
+        press \key{Enter} for all.
+\begin{screen}
+  Chains: A (99 residues), B (99 residues)
+Chains to include (e.g. A or A,B; Enter for all) (all): §ans«C»
+No chain C.
+Chains to include (e.g. A or A,B; Enter for all) (all):
+\end{screen}
+\end{steps}
+
+A chain letter that is not in the file is refused and the question comes
+again.
+
+\subsection{Step 2: the ligand}
+
+The \term{ligand} is the small molecule to dock. There are three sources:
+\key{s} a molecule already in the structure, \key{m} a \term{SMILES} string (a
+molecule written as a line of text), or \key{f} a record of a molecule file
+you loaded earlier.
+
+\begin{steps}
+  \item Type \key{2}, then \key{s}.
+  \item ProPrep lists the candidates and you pick one:
+\begin{screen}
+Ligand source: [s] residue of the structure, [m] SMILES, [f] file (s): §ans«s»
+┏━━━┳━━━━━━━━━┳━━━━━━┳━━━━━━━┓
+┃ # ┃ residue ┃ name ┃ atoms ┃
+┡━━━╇━━━━━━━━━╇━━━━━━╇━━━━━━━┩
+│ 1 │ B:902   │ MK1  │ 45    │
+└───┴─────────┴──────┴───────┘
+Ligand number (range: 1-1, default: 1) (1): §ans«1»
+\end{screen}
+  \item ProPrep then describes the molecule it built, and where every detail
+        came from:
+\begin{screen}
+  Ligand: 45 heavy atoms, 47 hydrogens, net charge +0; charged atoms: none
+  SMILES: CC(C)(C)NC(=O)C1CN(Cc2cccnc2)CCN1CC(O)CC(Cc1ccccc1)C(=O)...
+  - 45 heavy atoms from MK1 B902 in 1HSG.pdb.
+  - Bond orders, formal charges and hydrogens from CCD MK1 (net charge +0).
+\end{screen}
+  \item Press \key{Enter} at the edit question to accept the molecule as it
+        is.
+\end{steps}
+
+Choosing the ligand this way takes it out of the receptor automatically. The
+dashboard confirms it: \prompt{MK1 B:902 is the ligand (2)}.
+
+\begin{tip}
+The edit question lets you change the chemistry by hand, for example
+\typed{remove H9} to take off a hydrogen or \typed{charge O2 -1} to change a
+charge. \typed{drop} takes back your last edit. You need this only for an
+unusual protonation or redox state.
+\end{tip}
+
+\subsection{Step 4: protonation, and the chain-end question}
+\label{sec:docking-protonation}
+
+Whether a side chain carries a charge affects how the molecule binds. ProPrep
+works this out with pdb2pqr and PROPKA at a pH you choose.
+
+\begin{steps}
+  \item Type \key{4} and press \key{Enter} to accept pH 7.0.
+  \item ProPrep lists only the residues worth a second look, and says why:
+\begin{screen}
+  Running pdb2pqr with PROPKA at pH 7.0 ...
+  pdb2pqr assigned 34 titratable residues.
+
+  Of the 34 titratable residues, 31 are in their usual charged form at
+  pH 7.0 (Asp-, Glu-, Lys+, ...) and 3 are not, or are His (which has no
+  single usual form). Only those 3 are listed ('a' lists all). ...
+┏━━━━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ residue ┃ name ┃ template ┃ from                     ┃
+┡━━━━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ A:69    │ HIS  │ HID      │ pdb2pqr/PROPKA at pH 7.0 │
+│ B:25    │ ASP  │ ASH      │ pdb2pqr/PROPKA at pH 7.0 │
+│ B:69    │ HIS  │ HID      │ pdb2pqr/PROPKA at pH 7.0 │
+└─────────┴──────┴──────────┴──────────────────────────┘
+\end{screen}
+\end{steps}
+
+The three-letter names are AMBER's forms of a residue: \texttt{HID} and
+\texttt{HIE} are the two neutral forms of histidine (the hydrogen sits on one
+ring nitrogen or the other), \texttt{HIP} is the positively charged form, and
+\texttt{ASH} is aspartic acid with its hydrogen still on, so neutral. To
+change one, type its identifier, for example \typed{A:69}, and then the name
+you want.
+
+\textbf{Now read the second table, the chain ends.} This is the one question
+in the tool that a first run is likely to get wrong.
+
+\begin{screen}
+Chain ends: a real terminus is charged; a chain break is left neutral
+┏━━━━━━━━━┳━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ residue ┃ name ┃ end   ┃ treated as                               ┃
+┡━━━━━━━━━╇━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ A:1     │ PRO  │ first │ N-terminus: charged NH3+ ...              │
+│ A:99    │ PHE  │ last  │ C-terminus: charged COO- ...              │
+│ B:1     │ PRO  │ first │ N-terminus: charged NH3+ ...              │
+│ B:99    │ PHE  │ last  │ C-terminus: charged COO- ...              │
+└─────────┴──────┴───────┴──────────────────────────────────────────┘
+Residue or chain end to change (e.g. A:94), 'p' to click one in the
+viewer, 'a' to list every titratable residue, or Enter when done ():
+\end{screen}
+
+A real chain end carries a charge. A \term{chain break} is where the chain
+continues in the real protein but the atoms are missing from the file; such an
+end is left neutral. A charged C-terminus needs an extra oxygen atom called
+\term{OXT}. Many PDB files, \pdb{1HSG} among them, do not have it. If you
+accept the proposal, the run fails.
+
+\begin{watchout}
+In version 1.23.0, ProPrep proposes \prompt{C-terminus: charged COO-} whenever
+the sequence record says no residues are missing, even when the file has no
+OXT atom. Docking then stops with a Meeko error that does not mention OXT:
+\begin{screen}
+No template matched for residue_key='A:99' ... CPHE heavy_miss=1 ...
+Run docking failed:
+Error: Creation of data structure for receptor failed.
+Details:
+- Template matching failed for: ['A:99', 'B:99']
+\end{screen}
+A Python error report is printed above it. The fix takes seconds and stays
+inside ProPrep: open \key{4} again, type the residue named in the message
+(\typed{A:99}), and answer \key{b}:
+\begin{screen}
+A:99 PHE, the last residue of chain A: [c] C-terminus/[b] chain break (c): §ans«b»
+\end{screen}
+Do the same for \typed{B:99}, press \key{Enter}, and run again. The other
+route is to add the missing OXT atoms with the Structure Fixer
+(Chapter~\ref{ch:cleaning}).
+\end{watchout}
+
+\subsection{Steps 3, 5, 6 and 7: what to leave alone}
+
+\begin{itemize}
+  \item \key{3} \textsf{Kept HETATM} decides which non-protein residues stay
+        as part of the receptor. Because you picked MK1 as the ligand, there
+        is nothing left to decide. Waters are left out by default.
+  \item \key{5} \textsf{Metals \& cofactors} prints \prompt{No metals are kept
+        in the receptor} for \pdb{1HSG} and has nothing to ask.
+  \item \key{6} \textsf{Flexible} lets named side chains move while docking.
+        Leave it at \prompt{none (rigid receptor)} for a first run.
+  \item \key{7} \textsf{Rotatable} shows which bonds of the ligand are allowed
+        to twist: 16 bonds for MK1, of which 14 rotate. The two amide bonds
+        are held rigid, which is correct chemistry. Press \key{Enter} to
+        accept; the dashboard then reads \prompt{7 Rotatable: reviewed}.
+\end{itemize}
+
+\subsection{Step 8: the search box}
+
+The \term{search box} is the part of the protein ProPrep searches. A box
+around the known pocket is both faster and more reliable than a box around the
+whole protein. There are three ways to set it.
+
+\begin{steps}
+  \item Type \key{8}, then press \key{Enter} for \key{l} (around the ligand).
+  \item Press \key{Enter} again to accept 8\,\AA{} of padding on every side.
+\begin{screen}
+Search box: [l] around the ligand, [r] around residues, [c] typed centre
+and size (l):
+Padding around them on every side (A) (min: 0.0, default: 8.0) (8.0):
+  Box centre (11.63, 22.47, 5.86), edges 30.9 x 26.2 x 24.6 A (19925 A^3);
+  the ligand as placed, padding 8 A.
+\end{screen}
+\end{steps}
+
+The other two modes:
+
+\begin{itemize}
+  \item \key{r} builds the box around residues you name, which is what you
+        want when the pocket is known but no molecule is in it. Typing
+        \typed{A:25,B:25,A:50} (the two catalytic aspartates and one flap
+        residue) gave a box of
+        26.9\,$\times$\,30.1\,$\times$\,24.3\,\AA. A residue that is not in
+        the structure is refused with \prompt{Not in the structure: A:999.}
+        and the box stays unset.
+  \item \key{c} asks for six numbers: the center and the three edge lengths.
+\end{itemize}
+
+\subsection{Step 9: the settings}
+
+\begin{steps}
+  \item Type \key{9}. ProPrep explains the three \term{scoring functions}
+        (the formulas that turn a pose into a number) before asking:
+\begin{screen}
+  vina     AutoDock Vina's empirical function (Trott & Olson, 2010): steric,
+           hydrophobic and hydrogen-bond terms. No partial charges and no
+           electrostatics. Fast.
+  vinardo  A re-parameterisation of Vina's terms (Quiroga & Villarreal,
+           2016); same speed.
+  ad4      AutoDock 4's force-field function (Huey et al., 2007): van der
+           Waals, hydrogen bonds, desolvation and electrostatics from the
+           Gasteiger charges, so charges and metal ions count. Needs
+           autogrid4 maps, built once per receptor and box, so it is slower.
+  Scores are in kcal/mol for all three but are not comparable between
+  functions.
+Scoring function: vina, vinardo or ad4 (vina): §ans«vina»
+\end{screen}
+  \item Press \key{Enter} through the rest for a first run, or set them as we
+        did for the fast runs: seed \typed{7}, \term{exhaustiveness}
+        \typed{4}, \typed{5} poses.
+\end{steps}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Setting (default)} & \textbf{What it means} \\
+\midrule
+Scoring function (vina) & Which formula scores a pose. Start with
+  \texttt{vina}. \\
+Random seed (42) & Docking uses random numbers; the same seed repeats the
+  same run. Not 0, which Vina reads as ``pick one''. \\
+Exhaustiveness (8) & How hard to search. Higher is slower and more thorough.
+  4--8 was enough here. \\
+Number of poses (9) & How many positions to report. \\
+Energy range (3.0) & Only poses within this many kcal/mol of the best are
+  kept. \\
+Minimum RMSD between poses (1.0) & How different two reported poses must be. \\
+Grid spacing (0.375) & Only used by \texttt{ad4}. \\
+CPU cores (0) & 0 means use all of them. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Run it}
+
+Type \key{r}. ProPrep prepares both sides and runs the docking.
+
+\begin{screen}
+  Building the ligand and receptor and docking; this takes seconds to
+  minutes ...
+  Done in 17.4 s. Output: .../docking/docking_20261121_131645
+  - Vina: WARNING: At low exhaustiveness, it may be impossible to utilize
+    all CPUs.
+  - 5 poses within 3.0 kcal/mol of the best, vina scoring, seed 7,
+    exhaustiveness 4.
+Docked poses (best first)
+┏━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃ pose ┃ total (kcal/mol) ┃ inter  ┃ intra ┃ torsions ┃ RMSD to crystal (A) ┃
+┡━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│ 1    │ -11.56           │ -20.35 │ -1.78 │ 8.79     │ 0.46                │
+│ 2    │ -10.67           │ -18.95 │ -1.60 │ 8.11     │ 11.07               │
+│ 3    │ -10.59           │ -18.44 │ -1.97 │ 8.05     │ 4.16                │
+│ 4    │ -10.49           │ -17.94 │ -2.30 │ 7.97     │ 10.35               │
+│ 5    │ -10.12           │ -17.88 │ -1.71 │ 7.69     │ 10.52               │
+└──────┴──────────────────┴────────┴───────┴──────────┴─────────────────────┘
+  The viewer is not open; 'v' shows any pose in it.
+\end{screen}
+
+\section{Understanding the results}
+\label{sec:docking-results}
+
+\paragraph{The columns.} \textbf{total} is the score, in kcal/mol; more
+negative means a better predicted fit. \textbf{inter} is the part from contact
+between the ligand and the protein, \textbf{intra} the part from the ligand's
+own shape, and \textbf{torsions} a penalty for every bond that had to twist.
+\textbf{RMSD to crystal} appears only when the ligand came from the structure:
+it is how far this pose is from where the crystal structure put it.
+
+\paragraph{The best pose is not always first.} We ran the same system three
+times, changing only the scoring function:
+
+\begin{tabularx}{\linewidth}{@{}llllL@{}}
+\toprule
+\textbf{Scoring} & \textbf{Time} & \textbf{Best score} & \textbf{RMSD} &
+\textbf{What it means} \\
+\midrule
+vinardo & 29.1\,s & $-9.07$ & 0.41\,\AA{} & Top pose is the crystal pose. \\
+vina & 17.4\,s & $-11.56$ & 0.46\,\AA{} & Top pose is the crystal pose. \\
+ad4 & 59.0\,s & $-12.88$ & 4.05\,\AA{} & Top pose is \emph{wrong}; pose 5
+  ($-11.24$) was the right one, at 1.78\,\AA. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Two lessons. First, scores from different functions cannot be compared: $-9.07$
+from vinardo and $-11.56$ from vina describe the same pose. Second, the
+top-ranked pose is not automatically the answer. Look at the first few poses,
+and if you have a crystal pose to compare with, let the RMSD column decide.
+
+\paragraph{The files.} Every run writes its own folder, named with the date and
+time, inside \file{docking/}:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{File} & \textbf{What it holds} \\
+\midrule
+\file{poses.sdf} & Every pose, best first, each carrying its rank, energy and
+  RMSD. \\
+\file{pose_1.sdf} \dots & One file per pose, for a viewer or another program. \\
+\file{docking.json} & The complete setup, including every protonation
+  decision. Your record of what you did. \\
+\file{vina_output.txt} & Vina's own output, as printed. \\
+\file{ligand.pdbqt}, \file{receptor_rigid.pdbqt} & The prepared molecules, for
+  anyone who wants to re-run Vina by hand. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+An \texttt{ad4} run also writes the AutoGrid map files. A run with flexible
+side chains adds a second receptor file,
+\file{receptor_flex.pdbqt}, and one file per pose holding the side chains as
+they were docked.
+
+\paragraph{Looking at a pose.} Type \key{v}, then the pose number, to open it
+in the browser viewer with the box drawn around it. Answer \typed{0} to see
+only the table.
+
+\section{Other choices}
+
+\subsection{Letting side chains move}
+
+Pockets are not rigid. Option \key{6} lets you name side chains that may
+change shape while docking. We tried the catalytic Asp25 and Ile50 of the flap:
+
+\begin{screen}
+Residues whose side chains move during docking (e.g. A:45,A:88; 'none' for
+a rigid receptor; 'keep' to leave as is; ...) (keep): §ans«A:25,A:50»
+\end{screen}
+
+The run took 26.9\,s and gave a best pose of $-11.43$ at 0.50\,\AA{} RMSD:
+about the same as the rigid run here. Flexible side chains cost time and help
+mainly when you expect the pocket to adjust.
+
+\subsection{A ligand from SMILES}
+
+Type \key{2}, then \key{m}, then the SMILES string. ProPrep builds a
+three-dimensional shape with RDKit and tidies it up:
+
+\begin{screen}
+SMILES: §ans«CC(=O)Nc1ccc(O)cc1»
+Seed for the 3D build (RDKit ETKDG) (min: 1, default: 42) (42):
+Minimise the 3D build with MMFF94? [mmff94/none] (mmff94):
+
+  Ligand: 11 heavy atoms, 9 hydrogens, net charge +0; charged atoms: none
+  - 3D coordinates from RDKit ETKDGv3, seed 42.
+  - Atom names generated for all 20 atoms (element + number).
+  - Geometry minimised with MMFF94 (converged).
+\end{screen}
+
+\begin{watchout}
+A molecule built from SMILES has no position in your protein: it sits
+wherever RDKit put it, near the origin of the coordinates. Box mode \key{l}
+(around the ligand) then puts the box in empty space. ProPrep warns you:
+\prompt{A ligand built from SMILES sits wherever RDKit put it, not in the
+receptor; a box around it is rarely what you want.} If you run it anyway, the
+docking \emph{succeeds} with no error, no RMSD column and poses of about
+$-4.15$~kcal/mol. The only hints that nothing was docked are the time
+(0.7~seconds) and the weak scores. For a SMILES ligand always use \key{r}
+(around named residues) or \key{c} (typed numbers).
+\end{watchout}
+
+\begin{watchout}
+Changing the ligand clears two earlier settings: the box (option \key{8}),
+because it belonged to the old ligand, and the keep/leave-out list (option
+\key{3}). Set the box again after every ligand change.
+\end{watchout}
+
+\begin{watchout}
+If you leave the crystal ligand kept in the receptor (option \key{3}) and dock
+something else into the same pocket, the site is already occupied and your
+scores are meaningless. Choosing a ligand with \key{2} \key{s} removes it for
+you; a ligand from SMILES or a file does not.
+\end{watchout}
+
+\subsection{Many ligands at once: a campaign}
+
+A \term{campaign} runs the same receptor, box and settings against every
+molecule in a library file.
+
+\begin{steps}
+  \item Load the library first: \key{1a}, then \key{4} (\textsf{Load a ligand
+        file or library (SDF/mol2/SMILES) for docking}), then type the full
+        path to the file.
+\begin{screen}
+  mini_library.smi: 3 molecule(s)
+    0: paracetamol
+    1: benzoic_acid
+    2: not_a_real_drug
+Stored for Molecular Docking: .../mini_library.smi
+\end{screen}
+  \item Back in \key{5d}, set the receptor, the box and the settings as before
+        (a campaign needs no single ligand), then type \key{c}.
+  \item Answer the questions about the library as a whole: what to do with
+        molecules whose three-dimensional shape is not given, which seed to
+        use, whether to minimize, and whether rings may flex. The defaults
+        were right for our library.
+  \item At \prompt{Start docking? (Ctrl-C stops; finished ligands are kept)}
+        type \key{y}.
+\end{steps}
+
+\begin{screen}
+  3 molecules in mini_library.smi; 0 already done.
+  Prepared 3; skipped 0 (reasons in results.csv).
+  [1/3] paracetamol: -5.34 kcal/mol (1 s)
+  [2/3] benzoic_acid: -5.16 kcal/mol (1 s)
+  [3/3] not_a_real_drug: -4.70 kcal/mol (1 s)
+┏━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ rank ┃ ligand          ┃ score (kcal/mol) ┃ per heavy atom ┃ heavy atoms ┃
+┡━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ 1    │ paracetamol     │ -5.339           │ -0.485         │ 11          │
+│ 2    │ benzoic_acid    │ -5.155           │ -0.573         │ 9           │
+│ 3    │ not_a_real_drug │ -4.696           │ -0.587         │ 8           │
+└──────┴─────────────────┴──────────────────┴────────────────┴─────────────┘
+\end{screen}
+
+The campaign folder holds \file{results.csv} (one row per molecule, with the
+score, the score per heavy atom, the number of poses and the reason for any
+skip), \file{top_poses.sdf} (each molecule's best pose, best first), and a
+folder per molecule with its own poses. \file{manifest.json} records what the
+campaign was made from, so an interrupted campaign can be continued if nothing
+has changed.
+
+\begin{tip}
+The \prompt{per heavy atom} column divides the score by the number of heavy
+atoms. Bigger molecules score better for being bigger alone; this column is a
+fairer comparison between molecules of different sizes.
+\end{tip}
+
+Type \key{v} to see the results again. When both a single run and a campaign
+exist, ProPrep asks which you mean. Choosing a rank from a campaign writes
+\file{best_pose.sdf} next to that molecule's poses.
+
+\section{If something goes wrong}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{What to do} \\
+\midrule
+\prompt{Needs a loaded structure} & Load a structure with \key{1a} first. \\
+\prompt{Template matching failed for: ['A:99', 'B:99']} & The C-terminus has
+  no OXT atom. Set those ends to chain break in option \key{4}
+  (Section~\ref{sec:docking-protonation}). \\
+\prompt{No chain C.} / \prompt{Not in the structure: A:999.} & A chain letter
+  or residue that is not in the file. Check the lists ProPrep printed. \\
+Docking finishes in under a second with weak scores & The box probably does
+  not contain the protein. Set it again with \key{r} or \key{c}. \\
+\prompt{The ligand could not be built: Unsupported ligand file type '.smi'} &
+  A \file{.smi} library works for a campaign but not as a single ligand. Use
+  \file{.sdf}, \file{.mol} or \file{.mol2}, or run a campaign. \\
+Residues reported as missing heavy atoms & Rebuild them with the Structure
+  Fixer first (Chapter~\ref{ch:cleaning}). \\
+\bottomrule
+\end{tabularx}
+
+\begin{watchout}
+In version 1.23.0, a refused ligand leaves its name on the dashboard. After
+the \file{.smi} message above, line \key{2} still read \prompt{Ligand:
+mini\_library.smi record 1} although no ligand had been built. Check the
+dashboard before you run.
+\end{watchout}

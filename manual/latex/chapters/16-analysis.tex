@@ -1,0 +1,550 @@
+\chapter{Analyzing a simulation}
+\label{ch:analysis}
+
+A simulation produces two kinds of result: a record of energies and
+temperature, and a trajectory of snapshots showing where every atom was. The
+analysis tools of the Molecular Dynamics Manager turn these into numbers you
+can interpret: how far the protein moved, which parts are flexible, whether
+it kept its shape, and much more. This chapter shows how to use them and how
+to read the main results.
+
+\begin{glance}
+\glanceitem{What it does}{Checks the energies of each stage and measures the
+  protein's motion and shape across the snapshots (23 kinds of
+  measurement).}
+\glanceitem{You need it when}{A simulation stage has finished (or to look at
+  any Amber trajectory you have).}
+\glanceitem{Before you start}{A finished stage from \key{5b}
+  (Chapter~\ref{ch:runningmd}), or a trajectory (\file{.nc}) with its
+  topology (\file{.prmtop}).}
+\glanceitem{Where to find it}{\key{5b} \key{4} (Analyze completed
+  simulations), \key{4} in the Execute Simulations menu, or the Terminal
+  command \texttt{proprep --analysis}.}
+\glanceitem{You get}{Results and text plots on screen, and on request a
+  \file{.csv} and \file{.json} file of the numbers.}
+\end{glance}
+
+\section{Two ways in}
+
+\begin{itemize}
+  \item \textbf{From the menus:} \key{5b}, then \key{4} (Analyze completed
+        simulations). After a run, the Execute Simulations menu offers the
+        same tool as \key{4}.
+  \item \textbf{Straight from the Terminal:} move into the project folder and
+        type the command below. ProPrep skips the menus and opens the analysis
+        directly.
+\end{itemize}
+
+\begin{terminal}
+cd ~/proprep-tutorial/ubq
+proprep --analysis --full-menu
+\end{terminal}
+
+Without \texttt{--full-menu}, ProPrep first asks \prompt{Select menu mode
+[1/2]} and \prompt{Save this as your default preference? (n)}; answer \key{2}
+and \key{n}. The command cannot be combined with \texttt{--pdbid} or
+\texttt{--pdbfile}.
+
+\section{Step by step: analyzing the ubiquitin run}\label{sec:analysis-steps}
+
+\subsection{Choose the simulation}
+
+ProPrep lists the finished stages in the project, newest first:
+
+\begin{screen}
+===== Simulation Analysis =====
+
+Available simulations for analysis:
+  1. 03_1UBQ_1UBQ_NVT_Production_MD (completed: 2026-11-21 12:58)
+  2. 02_1UBQ_1UBQ_System_Heating (completed: 2026-11-21 12:58)
+  3. 01_1UBQ_1UBQ_Energy_Minimization (completed: 2026-11-21 12:57)
+Select simulation (1-3) or 'browse' (1): §ans«1»
+
+Analyzing Simulation: 03_1UBQ_1UBQ_NVT_Production_MD
+
+Available Analysis Files:
+  • 1 mdout file(s) (energetics)
+  • 1 trajectory file(s) (3.6 MB total)
+  • 1 topology file(s)
+
+Select Analysis Type:
+  1. Energetics analysis (mdout)
+  2. Trajectory analysis (structural)
+  3. Combined analysis (recommended)
+  4. View trajectory in the structure viewer
+Select analysis type (3):
+\end{screen}
+
+\begin{steps}
+  \item Type the number of the stage, or \typed{browse} to pick files
+        anywhere (Section~\ref{sec:analysis-join}).
+  \item Choose the type of analysis: \key{1} energies only, \key{2} the
+        trajectory only, \key{3} both one after the other. A minimization has
+        no trajectory, so ProPrep goes straight to the energies.
+\end{steps}
+
+Option \key{4} opens the trajectory in ProPrep's 3D viewer in your web browser
+(Chapter~\ref{ch:compare}); it was not tried for this manual.
+
+\subsection{Energetics}\label{sec:analysis-energy}
+
+The \term{mdout} file is Amber's running report of energy, temperature and
+pressure. ProPrep first guesses what kind of stage it was and asks you to
+confirm:
+
+\begin{screen}
+Simulation Type Detection
+System size: 15,729 atoms
+
+Detected: NVT Equilibration/Production (confidence: medium)
+Evidence:
+  • ntp=0, ntb=1 (NVT ensemble)
+
+Simulation Types:
+  1. Minimization
+  2. Heating (NVT)
+  3. Heating (NPT)
+  4. NVT Equilibration/Production (detected)
+  5. NPT Equilibration/Production
+Confirm simulation type (4): §ans«»
+\end{screen}
+
+The type decides which checks you get:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Stage} & \textbf{What ProPrep reported for ubiquitin} \\
+\midrule
+Minimization & 300 steps; energy from $-26{,}515$ to $-60{,}537$\,kcal/mol;
+  final RMS gradient 1.12; \prompt{Monotonic Decrease: Yes}. Plots of energy
+  and gradient. \\
+Heating & 2.00\,ps; 0.0\,K to 291.7\,K; average of the last 20\,\%
+  282.7 ± 7.0\,K (target 300\,K). \\
+Production & Temperature 294.50 ± 3.71\,K; total, kinetic and potential
+  energy; plots of temperature and total energy over time and a temperature
+  histogram. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+What to look for: in a minimization the energy should fall and level off; in
+heating the temperature should reach the target; in production the
+temperature should stay near the target and the energy should not drift
+steadily up or down.
+
+\begin{watchout}
+In version 1.23.0 the heating stage was detected as \prompt{NVT
+Equilibration/Production}. Check the detected type and type the right number
+(\key{2} for heating at constant volume) before pressing \key{Enter}.
+\end{watchout}
+
+\subsection{Load the trajectory}
+
+For \key{2} or \key{3}, a small file browser opens in the stage folder:
+
+\begin{screen}
+Select trajectory file(s) to analyze
+...
+  [ 1] .. (parent)
+  [ 2] 1ubq_1ubq_nvt_production_md.nc  (3.6 MB, 11/21/2026 12:58)
+
+Commands:
+  N          - open dir N, or select file N
+  N,M  N-M   - select multiple files (e.g. 1-3,5)
+  ..         - go up one level
+  find      - Recursive search for .nc files
+  q          - cancel
+
+Selection (q): §ans«2»
+\end{screen}
+
+Type the file's number (here \key{2}), or \typed{find} and then its number in
+the search list. ProPrep loads it and summarizes:
+
+\begin{screen}
+        Trajectory Information
+┌────────────┬───────────────────────┐
+│ Frames     │ 20                    │
+│ Atoms      │ 15,729                │
+│ Residues   │ 4,926                 │
+│ Time range │ 2.0 - 3.0 ps (0.0 ns) │
+│ Box type   │ periodic              │
+└────────────┴───────────────────────┘
+\end{screen}
+
+A \term{frame} is one snapshot. The residue count includes every water and
+ion.
+
+\subsection{Choose the analyses}
+
+\begin{screen}
+══ STRUCTURAL ANALYSIS ══
+   1. RMSD - Root mean square deviation
+   2. RMSF - Per-residue fluctuations
+   3. Contacts - Contact maps & native contacts
+   4. Salt bridges - Electrostatic interactions
+   5. SASA - Solvent accessible surface area
+══ SECONDARY STRUCTURE & GEOMETRY ══
+   6. DSSP - Secondary structure (helix, sheet, coil)
+   7. Ramachandran - Backbone dihedral angles (φ, ψ)
+   8. B-factors - Pseudo B-factors from MD
+══ PAIRWISE MEASUREMENTS ══
+   9. Distance - Atom-atom distances
+  10. Angle - Three-atom angles
+  11. Dihedral - Four-atom torsion angles
+  12. Vector - Orientation tracking
+══ DYNAMICS & CORRELATION ══
+  13. PCA - Principal component analysis
+  14. Clustering - Conformational clustering
+  15. Autocorrelation - Temporal correlations
+  16. Pairwise RMSD - All-vs-all RMSD matrix
+══ SOLVATION ANALYSIS ══
+  17. Hydrogen bonds - H-bond network
+  18. Water RDF - Radial distribution function
+  19. Water shells - Hydration layer analysis
+  20. Density maps - Spatial density distributions
+══ GEOMETRIC PROPERTIES ══
+  21. Radius of gyration - Structural compactness
+  22. Contact frequency - Per-residue contact analysis
+  23. Periodic image distance - Solute to its own copies across the box
+
+   0. Exit to MD Manager menu
+
+Select analyses (comma-separated, e.g., 1,2,6):
+\end{screen}
+
+Type one number, or several separated by commas, such as \typed{2,9,21,6}.
+ProPrep runs them in that order (\prompt{Analysis 1/4}, \prompt{Analysis 2/4},
+\ldots), asks a few questions for each, and then offers to save the numbers.
+
+\begin{watchout}
+In version 1.23.0, any answer that contains the digit \texttt{0} is treated
+as \key{0} (Exit). Typing \typed{10}, \typed{20}, or a list such as
+\typed{15,18,19,20,22}, prints \prompt{Returning to MD Manager menu\ldots} at
+once. As a result, \textbf{Angle (10)} and \textbf{Density maps (20)} cannot
+be run at all. Leave them out of your lists.
+\end{watchout}
+
+\subsection{Choosing the atoms: regions}
+
+Most analyses first ask which atoms to use:
+
+\begin{screen}
+Common Selections:
+  1. Backbone atoms (@C,CA,N,O&!:WAT)
+  2. C-alpha atoms (@CA)
+  3. All atoms (*)
+  4. Protein residues 1-76 (no H, excludes solvent)
+  5. Specific residues (custom)
+  6. Custom AMBER mask (advanced)
+Select region (2):
+\end{screen}
+
+The default, \key{2} (C-alpha atoms), is one atom per amino acid and suits
+RMSD, RMSF and PCA. Choose \key{4} (the whole protein without hydrogens) for
+size and shape measures such as radius of gyration, DSSP and surface area.
+\key{5} and \key{6} accept residue ranges or an Amber mask
+(Section~\ref{sec:runningmd-restraints} explains masks).
+
+\subsection{Saving the numbers}\label{sec:analysis-export}
+
+After each batch ProPrep asks:
+
+\begin{screen}
+Export Options:
+  1. CSV format (for Excel, Origin, plotting)
+  2. JSON format (for Python, R)
+  3. Both formats
+  4. Don't export
+Export analysis results? (4): §ans«3»
+✓ Exported to .../ubq/03_1UBQ_1UBQ_NVT_Production_MD_trajectory_analysis.csv
+✓ Exported to .../ubq/03_1UBQ_1UBQ_NVT_Production_MD_trajectory_analysis.json
+\end{screen}
+
+The default is \key{4} (no file). The files go into the project folder and
+are named after the stage. The \file{.csv} file has one row per frame and one
+column per result (for example \texttt{rmsd\_Backbone\_atoms},
+\texttt{rgyr\_\ldots}, \texttt{dssp\_helix\_pct}); open it in Excel or any
+spreadsheet program to make your own graphs. The \file{.json} file holds the
+same data for scripts.
+
+\begin{tip}
+Every export in the same session writes to the \emph{same} file names and
+replaces the previous files. The new file contains everything analyzed so
+far in the session, so the last export is the complete one. Copy or rename
+the files if you want to keep a particular version.
+\end{tip}
+
+The plots appear only on screen, drawn with text characters. ProPrep does not
+save picture files; make publication graphs from the \file{.csv} file.
+
+\section{The analyses}\label{sec:analysis-list}
+
+The table lists all 23. ``Tried'' shows what we found for the 1\,ps
+ubiquitin production run (20 frames). Such a short run is only a test, so the
+numbers show what the output looks like, not real biology.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.31\linewidth}@{}}
+\toprule
+\textbf{Analysis} & \textbf{Tells you} & \textbf{Tried on 1UBQ} \\
+\midrule
+\endhead
+1 RMSD & How far the structure has moved from a reference frame &
+  Backbone, frame 0: final 0.65\,Å \\
+2 RMSF & How much each residue wobbles about its average position &
+  C-alpha: mean 0.28\,Å; residue 76 highest (0.72\,Å) \\
+3 Contacts & Which residue pairs touch; fraction of the starting
+  (``native'') contacts kept & 162 native contacts, 158 persistent \\
+4 Salt bridges & Pairs of opposite charges close together, and how often &
+  8 salt bridges, all persistent \\
+5 SASA & Surface area reachable by water & 2,940\,Å² on C-alpha atoms only, which is not meaningful; use region~4 \\
+6 DSSP & Helix, sheet, turn and coil content over time &
+  19.5\,\% helix, 33.9\,\% sheet, 19.0\,\% turn, 27.6\,\% coil \\
+7 Ramachandran & Backbone angles φ and ψ (or χ1, ω) of each residue &
+  23\,\% of residues in the α region, 31\,\% in β \\
+8 B-factors & Flexibility expressed like crystallographic B-factors &
+  Mean 2.22\,Å² \\
+9 Distance & Distance between two atoms or groups over time &
+  \texttt{:1@CA} to \texttt{:76@CA}: 38.44 ± 0.70\,Å \\
+10 Angle & Angle between three atoms & Cannot be selected (see above) \\
+11 Dihedral & Twist angle defined by four atoms &
+  Phe4 χ1: mean $-51.7$° \\
+12 Vector & Length and direction of a vector between two groups &
+  8.43\,Å, polar angle 134.9° \\
+13 PCA & The main directions of collective motion &
+  PC1 54.7\,\%; first three 83.2\,\% \\
+14 Clustering & Groups of similar structures &
+  5 clusters (K-means) \\
+15 Autocorrelation & How quickly a quantity ``forgets'' its earlier value &
+  Ran on an RMSD series \\
+16 Pairwise RMSD & RMSD between every pair of frames & 190 pairs, mean 0.40\,Å \\
+17 Hydrogen bonds & Which hydrogen bonds exist and how often &
+  36 ± 4 per frame; Asp52--Lys27 present 100\,\% \\
+18 Water RDF & How water is arranged around a chosen group &
+  First peak at 2.75\,Å, but see Section~\ref{sec:analysis-problems} \\
+19 Water shells & Number of waters in layers around the protein &
+  5 shells of 2\,Å \\
+20 Density maps & Where solvent or ions spend time & Cannot be selected \\
+21 Radius of gyration & Overall size and compactness &
+  11.90 ± 0.03\,Å (protein, no H) \\
+22 Contact frequency & How often each residue touches others & Prompts seen \\
+23 Periodic image distance & Closest approach of the protein to its own copy
+  & Same as monitor option 12 (Chapter~\ref{ch:runningmd}) \\
+\bottomrule
+\end{longtable}
+
+Most analyzes ask a few more questions, each with a sensible default:
+
+\begin{itemize}
+  \item \textbf{RMSD:} region and reference frame (frame 0, the average
+        structure, or a frame you name); then \prompt{Analyze additional
+        regions?}.
+  \item \textbf{RMSF:} region, the atoms used to line up the frames (default
+        \texttt{@CA,C,N}) and the reference frame.
+  \item \textbf{Distance:} two masks, such as \typed{:1@CA} and
+        \typed{:76@CA}, and an optional label.
+  \item \textbf{Contacts:} contact type, cutoff (4.5\,Å), how often a contact
+        must be present to count (0.5 = half of the frames), and which frame
+        defines the native contacts.
+  \item \textbf{Salt bridges:} cutoff 4.0\,Å (or relaxed 5.0, strict 3.2).
+  \item \textbf{Hydrogen bonds:} donor and acceptor masks (blank = all),
+        distance 3.0\,Å and angle 135°.
+  \item \textbf{PCA:} region, number of components, and whether to fit
+        frames to the average first.
+  \item \textbf{Clustering:} region, method (K-means or hierarchical), number
+        of clusters, and the similarity measure.
+  \item \textbf{Water shells:} protein or custom mask, shell width (2.0\,Å)
+        and maximum distance (10\,Å).
+\end{itemize}
+
+\section{Reading RMSD, RMSF and radius of gyration}\label{sec:analysis-reading}
+
+\subsection{RMSD: has the structure settled?}
+
+The \term{RMSD} (root mean square deviation) compares each frame with a
+reference frame, atom by atom, after lining the two up. It is an average
+distance in Å. It starts at 0 (the reference compared with itself) and rises
+as the protein moves away from its starting shape.
+
+\begin{screen}
+RMSD Analysis: Backbone atoms
+Mask: @C,CA,N,O&!:WAT
+Reference: Frame 0
+
+     RMSD Statistics
+┌───────┬───────────────┐
+│ Mean  │ 0.50 ± 0.18 Å │
+│ Range │ 0.00 - 0.65 Å │
+│ Final │ 0.65 Å        │
+└───────┴───────────────┘
+\end{screen}
+
+How to read it:
+\begin{itemize}
+  \item For a stable folded protein the backbone RMSD usually rises over the
+        first part of the run and then levels off, often between 1 and 3\,Å.
+        A plateau means the structure has settled.
+  \item An RMSD that keeps climbing means the protein is still changing:
+        the run may be too short, or the protein may be unfolding.
+  \item A sudden jump points to a specific event, such as a loop or domain
+        moving. Look at the trajectory around that time.
+\end{itemize}
+
+\subsection{RMSF: which parts are flexible?}
+
+The \term{RMSF} (root mean square fluctuation) is measured per residue. It
+says how far each residue wanders around its own average position during the
+run.
+
+\begin{screen}
+     RMSF Statistics
+┌────────┬───────────────┐
+│ Mean   │ 0.28 ± 0.08 Å │
+│ Range  │ 0.16 - 0.72 Å │
+│ Median │ 0.27 Å        │
+└────────┴───────────────┘
+
+High Fluctuation Residues (top 10%, n=8):
+  Residue 10: 0.35 Å
+  Residue 15: 0.52 Å
+...
+  Residue 76: 0.72 Å
+\end{screen}
+
+Peaks in the RMSF plot are flexible regions: loops and chain ends. Low values
+mark the rigid core, such as helices and sheets. In ubiquitin the C-terminal
+residue 76 moved most, as expected for a free chain end. Compare RMSF with
+the crystallographic B-factors of the PDB file, or use analysis~\key{8}, which
+converts RMSF to the same scale ($B = 8\pi^2/3 \cdot \mathrm{RMSF}^2$).
+
+\subsection{Radius of gyration: is it still compact?}
+
+The \term{radius of gyration} (Rg) is the average distance of the atoms from
+the protein's center. A compact, folded protein has a small, steady Rg;
+unfolding makes it grow. Ubiquitin's Rg stayed at 11.90 ± 0.03\,Å. A steady
+Rg together with a levelled-off RMSD is good evidence that the fold is
+stable.
+
+\subsection{The other common measures}
+
+\begin{itemize}
+  \item \textbf{DSSP} assigns each residue to helix, sheet, turn or coil in
+        every frame. Steady percentages mean the secondary structure is kept.
+  \item \textbf{Hydrogen bonds} and \textbf{salt bridges} report how often
+        each interaction is present (in \% of frames). Interactions present
+        close to 100\,\% are stable features of the structure.
+  \item \textbf{PCA} (principal component analysis) finds the few directions
+        that describe most of the motion. A large first component (here
+        54.7\,\%) means one motion dominates.
+\end{itemize}
+
+\section{Joining trajectories with \texttt{proprep --analysis}}\label{sec:analysis-join}
+
+To analyze several stages as one continuous run (for example heating
+followed by production), type \typed{browse} at \prompt{Select simulation}.
+We did this after starting with \texttt{proprep --analysis}; the
+\prompt{Select simulation} screen is the same one you reach with \key{5b}
+\key{4}. The file browser that opens lets you pick files from different
+folders:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Command} & \textbf{What it does} \\
+\midrule
+\typed{select 3} or \typed{select 3,5} & Pick files and continue at once \\
+\typed{add 3} & Put a file aside and keep browsing \\
+\typed{done} & Continue with the files put aside \\
+\typed{clear} & Forget the files put aside \\
+\typed{cd 2}, \typed{cd ..}, \typed{cd} \textit{path} & Change folder \\
+\typed{find} & Search all subfolders for analysis files \\
+\typed{q} & Cancel \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+In our test, \typed{find} listed 16 files (energy reports, trajectories and
+topologies); we typed \typed{5,4,14} for the heating trajectory, the
+production trajectory and the topology in \file{shared/}:
+
+\begin{screen}
+Selected 3 file(s)
+
+Using topology: 1UBQ.prmtop
+
+Loading 2 Trajectory Segments
+  1. 1ubq_1ubq_system_heating.nc (3.6 MB)
+  2. 1ubq_1ubq_nvt_production_md.nc (3.6 MB)
+
+Concatenating segments...
+✓ Loaded 40 total frames
+\end{screen}
+
+List the trajectories in time order. The radius of gyration over all 40
+frames was 11.84 ± 0.06\,Å.
+
+\begin{tip}
+The search list may include empty topology files left by failed tLEaP runs
+(shown as \prompt{0.0 KB}). Pick a topology of normal size; the copy in the
+batch's \file{shared/} folder is a safe choice.
+\end{tip}
+
+The simpler browser reached through \key{5b} \key{4} \key{2} has a
+\typed{find} that searches all stage folders, but there it accepts only
+\emph{one} file; \typed{2,1} was rejected. To join files, use \typed{browse}
+as described above.
+
+Typing \key{0} in the analysis menu started from \texttt{proprep --analysis}
+takes you to the ProPrep main menu, not back to the list of simulations.
+
+\section{Other choices}
+
+\subsection{Plugins}
+
+ProPrep can be extended with \term{plugins}: separately installed add-on
+packages that add their own items to ProPrep's menus. ProPrep finds them
+automatically in the environment it runs in. No plugin was installed for this
+manual, and the 23 trajectory analyzes are all built in.
+
+\subsection{PB Titrate}
+
+The Topology Generator's option \key{5} (Refine protonation states via PB)
+calculates pKa values from the structure rather than analyzing a trajectory.
+It is described briefly in Chapter~\ref{ch:topology}; its calculations were
+not run for this manual.
+
+\section{If something goes wrong}\label{sec:analysis-problems}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{Why, and what to do} \\
+\midrule
+\prompt{Returning to MD Manager menu\ldots} right after you list analyses &
+  Your answer contained a 0 (for example 10 or 20). Choose again without
+  them. Angle and Density maps cannot be run in version 1.23.0. \\
+\prompt{Failed to setup action} and a long error report, then the MD Manager
+  menu &
+  A mask did not match any atoms; in our test a dihedral used atom
+  \texttt{CB} of glycine 10, which has none. The loaded trajectory is lost;
+  start the analysis again with valid atoms (for example
+  \typed{:4@N :4@CA :4@CB :4@CG}). \\
+Water RDF with an empty \prompt{Solute:} &
+  The solute mask was left blank and ProPrep accepted it. Type a mask such as
+  \typed{:1-76}. \\
+SASA gives a large, meaningless number &
+  The default region (C-alpha atoms) is a poor choice for surface area. Use
+  region \key{4}. \\
+Heating reported as production &
+  Correct the detected type when asked (Section~\ref{sec:analysis-energy}). \\
+The \file{.csv} lost an earlier result &
+  Later exports overwrite it; the last one holds everything from the
+  session. \\
+\prompt{Select file} refuses \typed{2,1} &
+  That browser takes one file. Type \typed{browse} at \prompt{Select
+  simulation} instead (Section~\ref{sec:analysis-join}). \\
+Lines starting with a date and \texttt{INFO} appear &
+  Internal log messages; they can be ignored. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+See also Chapters~\ref{ch:troubleshooting} and~\ref{ch:knownissues}.

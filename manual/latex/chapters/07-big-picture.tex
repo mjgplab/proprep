@@ -1,0 +1,169 @@
+\chapter{The big picture}
+\label{ch:bigpicture}
+
+A protein structure from the Protein Data Bank is a photograph, not a
+simulation-ready model. It may be missing atoms, contain extra molecules from
+the crystal, carry no hydrogen atoms, and include metal centers or cofactors
+that the simulation software does not recognize. ProPrep takes you from that
+photograph to a set of files that a simulation program can run, one decision at
+a time.
+
+This chapter shows the whole journey on one page, explains what each stage is
+for, and tells you which chapters you need for your project.
+
+\section{The stages of preparation}
+\label{sec:bigpicture-stages}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  node distance=5mm and 4mm,
+  stage/.style={rectangle,rounded corners=3pt,draw=ppblue,fill=ppblue!7,line width=0.7pt,
+    minimum width=37mm,minimum height=11mm,align=center,font=\sffamily\small},
+  opt/.style={rectangle,rounded corners=3pt,draw=ppteal,dashed,fill=ppteal!6,line width=0.6pt,
+    minimum width=31mm,minimum height=9mm,align=center,font=\sffamily\footnotesize},
+  keyl/.style={font=\ttfamily\scriptsize\bfseries,text=ppteal},
+  arr/.style={-{Stealth[length=2.4mm]},line width=0.8pt,color=ppblue},
+  side/.style={-{Stealth[length=2mm]},line width=0.6pt,color=ppteal,dashed}]
+  \node[stage] (load)  {\textbf{1. Get a structure}\\PDB, AlphaFold, own file};
+  \node[stage,below=of load] (clean) {\textbf{2. Clean and repair}\\remove, fix, mutate};
+  \node[stage,below=of clean] (prot) {\textbf{3. Protonation}\\charges at your pH};
+  \node[stage,below=of prot] (special) {\textbf{4. Special parts}\\redox sites, metals, ligands};
+  \node[stage,below=of special] (top) {\textbf{5. Build the system}\\force field, water, ions};
+  \node[stage,below=of top] (md) {\textbf{6. Simulate}\\minimize, heat, run};
+  \node[stage,below=of md] (ana) {\textbf{7. Analyze}\\RMSD, energies, distances};
+  \foreach \a/\b in {load/clean,clean/prot,prot/special,special/top,top/md,md/ana}
+    \draw[arr] (\a) -- (\b);
+  \node[keyl,left=1mm of load]    {1a 1b};
+  \node[keyl,left=1mm of clean]   {4a 4c 4b};
+  \node[keyl,left=1mm of prot]    {4e 4f};
+  \node[keyl,left=1mm of special] {2a 4d 2b 2c};
+  \node[keyl,left=1mm of top]     {5a};
+  \node[keyl,left=1mm of md]      {5b};
+  \node[keyl,left=1mm of ana]     {5b};
+  \node[opt,right=14mm of load]    (cmp)  {Compare structures\\\texttt{3a 3b}};
+  \node[opt,right=14mm of clean]   (view) {3D viewer\\\texttt{ua}};
+  \node[opt,right=14mm of special] (mem)  {Membrane builder\\\texttt{4g}};
+  \node[opt,right=14mm of top]     (dock) {Docking\\\texttt{5d}};
+  \node[opt,right=14mm of md]      (qm)   {QM/MM inputs\\\texttt{5c}};
+  \draw[side] (load) -- (cmp);
+  \draw[side] (clean) -- (view);
+  \draw[side] (mem) -- (top);
+  \draw[side] (prot.east) to[out=0,in=180] (dock.west);
+  \draw[side] (top.east) to[out=0,in=180] (qm.west);
+\end{tikzpicture}
+\caption{The main route through ProPrep (left, solid) and the side tools you
+use only when your project needs them (right, dashed). The codes are the keys
+you type in ProPrep's main menu.}
+\label{fig:route}
+\end{figure}
+
+\begin{description}[style=nextline,leftmargin=0pt,itemsep=1pt,parsep=0pt,font=\sffamily\bfseries\color{ppblue}]
+\item[1. Get a structure (Chapter~\ref{ch:structure})]
+  Download a structure from the Protein Data Bank or AlphaFold, or open a file
+  you already have. Decide whether you want the molecule as it sits in the
+  crystal or as it works in the cell.
+\item[2. Clean and repair (Chapter~\ref{ch:cleaning})]
+  Remove what you do not want to simulate (crystal water, salts, extra copies),
+  find missing pieces, and change amino acids if your experiment needs a mutant.
+\item[3. Protonation (Chapter~\ref{ch:protonation})]
+  Decide which amino acids carry a charge at your pH. This sets the electric
+  charges that drive most of the protein's behavior in a simulation.
+\item[4. Special parts (Chapters~\ref{ch:redox} and~\ref{ch:forcefields})]
+  Hemes, iron--sulfur clusters, metals, drugs and other non-standard molecules
+  need extra parameters before a simulation can handle them.
+\item[5. Build the system (Chapter~\ref{ch:topology})]
+  Choose the force field, surround the protein with water and salt, and let
+  ProPrep write the two files every Amber simulation needs: the
+  \term{topology} (what is connected to what, and how strongly) and the
+  \term{coordinates} (where every atom is).
+\item[6. Simulate (Chapter~\ref{ch:runningmd})]
+  Relax the structure, warm it to body temperature, and run the simulation on
+  your computer or a computing cluster.
+\item[7. Analyze (Chapter~\ref{ch:analysis})]
+  Measure how the protein moved: how far it drifted from the start, which parts
+  are flexible, and how energies changed.
+\end{description}
+
+You do not have to do every stage, and you can stop after any of them. Many
+people use ProPrep only for stages 1 to 5 and run the simulation elsewhere.
+
+\section{Which chapters do I need?}
+\label{sec:bigpicture-which}
+
+Find the row that matches your project. Read the chapters in the order given.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.38\linewidth}L@{}}
+\toprule
+\textbf{Your project} & \textbf{Chapters, in order} \\
+\midrule
+First time with ProPrep & \ref{ch:starting}, \ref{ch:menus}, then the tutorial \ref{ch:tutorial} \\
+An ordinary protein in water & \ref{ch:structure}, \ref{ch:cleaning}, \ref{ch:protonation},
+  \ref{ch:topology}, \ref{ch:runningmd}, \ref{ch:analysis} \\
+A protein with a heme, iron--sulfur cluster, flavin or copper site &
+  \ref{ch:structure}, \ref{ch:cleaning}, \ref{ch:redox}, \ref{ch:protonation},
+  \ref{ch:topology}, \ref{ch:runningmd} \\
+A protein with a bound drug, ligand or unusual residue &
+  \ref{ch:structure}, \ref{ch:cleaning}, \ref{ch:forcefields}, \ref{ch:protonation},
+  \ref{ch:topology} \\
+Finding where a small molecule binds & \ref{ch:structure}, \ref{ch:cleaning}, \ref{ch:docking} \\
+A protein that sits in a cell membrane & \ref{ch:structure}, \ref{ch:cleaning},
+  \ref{ch:protonation}, \ref{ch:membrane}, \ref{ch:topology}, \ref{ch:runningmd} \\
+A QM/MM calculation on an active site & \ref{ch:redox}, \ref{ch:topology}, \ref{ch:qmmm} \\
+Comparing related proteins or models & \ref{ch:structure}, \ref{ch:compare} \\
+The same preparation for many proteins & do one by hand, then \ref{ch:sessions}, \ref{ch:batch} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{What ProPrep needs from you}
+\label{sec:bigpicture-decisions}
+
+ProPrep does the tedious work: downloading, renaming atoms, writing input files,
+running the Amber programs. It does not make the scientific decisions for you.
+At each step it shows you what it found and suggests a default, and you decide.
+The decisions that matter most are:
+
+\begin{itemize}
+  \item \textbf{What to keep.} Which chains, cofactors, metals and water
+        molecules belong in your model (Chapter~\ref{ch:cleaning}).
+  \item \textbf{The pH.} It decides which residues are charged
+        (Chapter~\ref{ch:protonation}).
+  \item \textbf{Oxidation states.} For redox proteins, whether each site is
+        oxidized or reduced (Chapter~\ref{ch:redox}).
+  \item \textbf{The force field and water model.} The physical rules of the
+        simulation (Chapter~\ref{ch:topology}).
+  \item \textbf{How long to simulate.} ProPrep's protocols are starting points;
+        the right length depends on your question (Chapter~\ref{ch:runningmd}).
+\end{itemize}
+
+\begin{tip}
+ProPrep records every answer you give in a \term{session file}. If you change
+your mind about an early decision, you do not have to start again: you can go
+back and change that one answer (Chapter~\ref{ch:sessions}).
+\end{tip}
+
+\section{What works out of the box, and what needs more}
+\label{sec:bigpicture-software}
+
+Most of ProPrep works as soon as it is installed. A few tools call programs that
+you must obtain separately. Appendix~\ref{app:software} lists every tool; in
+short:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Extra program} & \textbf{Needed for} \\
+\midrule
+MODELLER license key (free for academics) & filling in missing residues and atoms,
+  standard mutations, homology models (Chapters~\ref{ch:cleaning}, \ref{ch:compare}) \\
+Gaussian (commercial) & new charges for ligands, modified residues and metal sites;
+  running QM/MM inputs (Chapters~\ref{ch:forcefields}, \ref{ch:qmmm}) \\
+ORCA (free for academics) & ORCA-style QM/MM inputs (Chapter~\ref{ch:qmmm}) \\
+pmemd or a GPU (Amber license) & faster simulations; the free \texttt{sander}
+  program works without them (Chapter~\ref{ch:runningmd}) \\
+Internet connection & downloading structures, BLAST searches \\
+\bottomrule
+\end{tabularx}
+\end{center}

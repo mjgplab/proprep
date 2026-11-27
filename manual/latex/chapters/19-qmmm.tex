@@ -1,0 +1,535 @@
+\chapter{QM/MM input files (advanced)}
+\label{ch:qmmm}
+
+Some questions about a redox site, such as where an electron sits or how the
+site's energy changes, need quantum chemistry. A whole protein is far too big
+for that. In a QM/MM calculation only the site is treated with quantum
+chemistry, and the rest of the protein with the ordinary force field. The
+\menupath{5c}{QM/MM Preparator} writes the input files for such a
+calculation. It does not run the calculation; that needs Gaussian or ORCA,
+which you install and license yourself.
+
+\begin{glance}
+\glanceitem{What it does}{Writes a Gaussian ONIOM input file (\file{.com})
+  for a redox site inside its protein, with layers, link atoms, frozen atoms
+  and all Amber parameters. It can also prepare ORCA inputs if ORCA is
+  installed.}
+\glanceitem{You need it when}{You want to run a QM/MM calculation on a heme,
+  flavin, iron--sulfur cluster or other redox site.}
+\glanceitem{Before you start}{Redox sites from 2a (Chapter~\ref{ch:redox}),
+  usually transformed with 4d, and a topology and coordinates
+  (\file{.prmtop} and \file{.rst7}) from 5a (Chapter~\ref{ch:topology}).
+  Gaussian~16 to run the file. ORCA, including \texttt{orca\_mm}, even to
+  prepare ORCA inputs.}
+\glanceitem{Where to find it}{\key{5c} QM/MM Preparator in the main menu.}
+\glanceitem{You get}{\file{oniom_inputs/oniom_1.com} plus a plain-text
+  summary (\file{oniom_summary_1.txt}).}
+\end{glance}
+
+\section{QM/MM in plain words}
+\label{sec:qmmm-words}
+
+\term{QM} (quantum mechanics) calculates the electrons explicitly. It can
+describe bonds breaking, charges moving and different spin states, but it is
+slow: a few hundred atoms at most. \term{MM} (molecular mechanics) is the
+force field used for MD. It is fast but cannot describe electrons. A
+\term{QM/MM} calculation treats a small region with QM and the rest with MM.
+
+Gaussian's way of doing this is called \term{ONIOM}. It splits the system into
+\term{layers}:
+
+\begin{itemize}
+  \item the \textbf{HIGH} layer: the QM region, for example the heme and the
+        side chains bound to the iron;
+  \item an optional \textbf{MEDIUM} layer, treated with a cheaper QM method
+        (three-layer ONIOM only);
+  \item the \textbf{LOW} layer: everything else, treated with the Amber force
+        field.
+\end{itemize}
+
+Where a bond crosses from the QM region to the MM region, the QM side would
+have a dangling bond. ONIOM caps it with a hydrogen called a
+\term{link atom}. In \term{electronic embedding} the MM partial charges act on
+the QM electrons; in \term{mechanical embedding} they do not. MM charges very
+close to the QM region can pull the electrons too hard, so ProPrep offers ways
+to reduce them (Section~\ref{sec:qmmm-boundary}).
+
+Two numbers must be right for the QM region: its \term{charge} and its
+\term{multiplicity}. The multiplicity is the number of unpaired electrons plus
+one: 1 (singlet) if all electrons are paired, 2 (doublet) for one unpaired
+electron, and so on. Low-spin Fe(III), as in ferric cytochrome~c, has one
+unpaired electron, so its multiplicity is 2.
+
+\section{Step by step: Gaussian ONIOM for cytochrome c}
+\label{sec:qmmm-oniom}
+
+This continues the \pdb{1HRC} example of Chapter~\ref{ch:redox}. The heme site
+was detected in 2a, transformed in 4d (ferric, fixed pH, both propionates
+deprotonated), and built in 5a into a topology and coordinate file
+(\file{.prmtop} and \file{.rst7}; ff14SB, implicit solvent, total charge
+$+7$).
+
+\subsection*{Choose the structure and the program}
+
+\begin{steps}
+  \item Type \key{5c}, then \key{1} (\prompt{Run QM/MM preparation
+        workflow}).
+  \item ProPrep finds the topology and coordinates from 5a:
+\begin{screen}
+  Found topology in workspace: final_transformed_structure.prmtop
+Use this topology? (Enter to accept, or 'b' to browse) ():
+  Prmtop: final_transformed_structure.prmtop
+Coordinate source: [r]st7/inpcrd or [t]rajectory (r): §ans«r»
+  Found coordinates in workspace: final_transformed_structure.rst7
+Use these coordinates? (Enter to accept, or 'b' to browse) ():
+...
+Select QM/MM interface:
+  1. Gaussian (ONIOM)
+  2. ORCA
+Select interface (1): §ans«1»
+\end{screen}
+        Press \key{Enter} twice to accept the files, and choose \key{1}.
+\end{steps}
+
+The ONIOM checklist appears. Its state is saved in
+\file{oniom_inputs/workflow_state.json} after every step.
+
+\begin{screen}
+  SETUP
+  [ ]  1.  Select RedoxSite                     Choose which redox site(s) ...
+  [ ]  2.  Configure ONIOM Layers               Assign residues to HIGH/MED...
+  CONFIGURATION
+  [ ]  3.  Configure MM Settings & Atom Typing  Select force field, run ato...
+  [ ]  4.  Configure QM Settings                Set QM functional, basis se...
+  [ ]  5.  Configure Job Settings (optional)    Set job type, processors, m...
+  GENERATION
+  [ ]  6.  Prepare & Validate ONIOM Setup       Build ONIOM configuration, ...
+  [ ]  7.  Write Gaussian Input File            Write production or diagnos...
+...
+  [n]ext (1. Select RedoxSite)  |  [v]iew structure  |  [s]ave & quit
+  [q]uit  |  [#] to run/re-run step  |  [#s] skip optional step
+\end{screen}
+
+Type \key{n} to go to the next step. A number re-runs a step; re-running a
+step resets the later ones to ``pending''.
+
+\subsection*{Step 1: select the site}
+
+At \prompt{Select RedoxSite(s) for ONIOM calculation (e.g. 1, 1-3, 1,3,5, or
+all) (1)} type \key{1}. Several sites would be merged into one QM region.
+ProPrep confirms \prompt{Selected RedoxSite 1 with 73 atoms}.
+
+\subsection*{Step 2: the layers}
+
+\begin{steps}
+  \item \prompt{Number of ONIOM layers (2 or 3) (2)}: \key{2}.
+  \item ProPrep puts the site's residues into the HIGH layer.
+        \textbf{Read this list carefully}:
+\begin{screen}
+✓ Automatically added 7 residues from RedoxSite to HIGH layer:
+    CYO14 (6 atoms)
+    CYO17 (6 atoms)
+    HIO18 (6 atoms)
+    MEO80 (6 atoms)
+    HMO105 (87 atoms)
+    PRD107 (9 atoms)
+    WAT109 (3 atoms)
+\end{screen}
+        For this site the list should hold the heme (HMO), \emph{both}
+        propionates (two PRD) and the four backbone stubs (CYO, CYO, HIO,
+        MEO), and no water. Here a water (WAT109) was added and one
+        propionate (PRD106) was missing.
+  \item Fix it. Answer \key{y} to \prompt{Add or remove whole residues?},
+        type \typed{-109} to remove the water and \typed{106} to add the
+        propionate, then press \key{Enter} on an empty line:
+\begin{screen}
+  HIGH residue number (or Enter to finish) (): §ans«-109»
+✓ Removed WAT109
+  HIGH residue number (or Enter to finish) (): §ans«106»
+✓ Added PRD106 (9 atoms)
+  HIGH residue number (or Enter to finish) ():
+
+HIGH layer: 7 residues
+\end{screen}
+  \item \prompt{Trim any residues to sidechain only (CA-CB cut)? (n)}: press
+        \key{Enter} (or answer \key{y} and then press \key{Enter} to skip).
+  \item \prompt{Freeze atoms beyond distance from QM region (Å, 0 for none)
+        (0)}: we typed \typed{12}. Atoms more than 12~\AA{} from the QM
+        region will not move in an optimization.
+\end{steps}
+
+\begin{watchout}
+\textbf{Always check the HIGH-layer list by residue name.} In version 1.23.0,
+5c matches site residues to topology residues by number. In 1HRC, 4d had
+written the propionates between crystal waters, so the numbers were shifted:
+ONIOM silently put a water into the QM region and left a propionate out. The
+calculation would run, but on the wrong molecule. The numbers to type are the
+ones shown in this list. In our run the heme was HMO105, so its propionates
+were PRD106 and PRD107.
+\end{watchout}
+
+\begin{watchout}
+The trim question in the same step numbers residues differently: it listed
+the propionates as \texttt{[1] PRD107} and \texttt{[2] PRD108}, one higher than
+the add/remove prompt. It also offers the propionates for trimming because
+their atoms are called CA and CB; trimming them would be chemically wrong.
+Do not trim propionates.
+\end{watchout}
+
+\subsection*{Step 3: MM settings and atom typing}
+
+ProPrep reads atom types and charges from the topology (\prompt{Extracted 2121
+atoms, 39 unique atom types}). It finds the bonds that cross the QM/MM
+boundary (here 6, at the C$\alpha$ atoms next to the four stub residues) and
+adds small caps from the neighboring residues to the HIGH layer
+(\prompt{Expanded HIGH by 12 atom(s)}). It then prints the charge of every
+HIGH residue (total $-1.1126$), a summary of the LOW layer ($+8.1126$), and
+writes \file{debug_atom_charges.txt}.
+
+\label{sec:qmmm-boundary}
+Next it asks how to treat the MM charges right at the boundary:
+
+\begin{screen}
+Boundary charge treatment options:
+  1. No adjustment
+  2. Gaussian ScaleCharge keyword (recommended for electronic embedding)
+  3. Charge-shift redistribution
+  4. Manual per-atom override
+Select boundary charge treatment (1): §ans«2»
+...
+Enter ScaleCharge value (digits only, e.g. 500) (500):
+\end{screen}
+
+For electronic embedding choose \key{2} and press \key{Enter} to accept
+\texttt{500}.
+
+\begin{itemize}
+  \item \textbf{1 No adjustment}: keep all charges. For mechanical embedding.
+  \item \textbf{2 ScaleCharge}: Gaussian scales charges near the QM region
+        while it runs. Each digit, read from the right, is the scale for
+        atoms 1, 2, 3 \ldots{} bonds away, in steps of 0.2 (0 = charge off,
+        5 = full charge). \typed{500} (Gaussian's default) switches off
+        charges within two bonds. The digits must not increase from left to
+        right.
+  \item \textbf{3 Charge shift}: sets the C$\alpha$ charges at the boundary to
+        zero and moves their charge to the neighboring atoms, keeping the
+        total.
+  \item \textbf{4 Manual}: type a new charge for each boundary atom.
+\end{itemize}
+
+\begin{watchout}
+ProPrep does not check the ScaleCharge digits. In our test \typed{135}
+(digits increasing, against the rule printed on screen) was accepted. Also,
+if you re-run step 3 and choose another treatment, the earlier
+\texttt{ScaleCharge=} stays in the route line, so both are applied. Check the
+route line in step 5's preview, and if needed delete the old keyword from the
+first lines of the \file{.com} file with a text editor.
+\end{watchout}
+
+Step 3 ends with a summary that includes
+\prompt{Suggested QM region charge: -1} and \prompt{Total system (real)
+charge: 7}. Answer \key{n} to \prompt{View ONIOM layers in 3D structure
+viewer?} unless you want the browser viewer (not tried for this manual).
+
+\subsection*{Step 4: QM settings}
+
+The first time, we typed \typed{B3LYP} and \typed{def2-SVP} at the first two
+questions (the basis-set default is \texttt{6-31G*}). This screen is from our
+second pass through step 4, where those answers had become the defaults:
+
+\begin{screen}
+QM functional (e.g., B3LYP, M06-2X, wB97X-D) (B3LYP):
+QM basis set (e.g., 6-31G*, 6-311G(d,p), def2-SVP) (def2-SVP):
+QM region charge (HIGH layer total: -1.11) (-1):
+Multiplicity Guide:
+  1 = singlet (paired electrons)
+  2 = doublet (1 unpaired electron)
+  3 = triplet (2 unpaired electrons)
+QM region multiplicity (1): §ans«2»
+\end{screen}
+
+The functional and basis set are passed straight to Gaussian. The QM charge
+of $-1$ comes from Fe(III) heme ($+1$) and two charged propionates ($-2$).
+The multiplicity is \textbf{2} for low-spin Fe(III).
+
+\begin{watchout}
+The multiplicity default is 1, and ProPrep does not check it against the
+number of electrons. In our first run we accepted 1 for the ferric heme.
+ProPrep then wrote the charge/multiplicity line \texttt{7 2 -1 1}: doublet for
+the whole system, singlet for the QM region. Gaussian rejects such a pair,
+because both regions have an odd number of electrons. To fix it, re-run step
+4 (type \key{4}, then \key{y}) with multiplicity 2, then run steps 5--7 again.
+\end{watchout}
+
+A yellow \prompt{Open-shell / BS-DFT advisory} always follows. It reminds you
+that metal clusters with coupled spins (such as [4Fe-4S]) need a special
+multi-step procedure in Gaussian (\url{https://gaussian.com/afc/}), and that
+ProPrep does not set this up.
+
+\subsection*{Step 5: job settings (optional)}
+
+\begin{screen}
+Job type [Opt/SP/Freq/Opt Freq] (Opt): §ans«SP»
+Number of processors (4): §ans«8»
+Memory (GB) (8): §ans«16»
+Route line preview:
+  #P ONIOM(B3LYP/def2-SVP:AMBER=SoftOnly)=(EmbedCharge,ScaleCharge=135) SP ...
+Enter any extra Gaussian keywords to append, or press Enter to skip.
+Extra keywords (): §ans«SCF=XQC»
+\end{screen}
+
+In our run the route shows \texttt{ScaleCharge=135}, the unchecked value
+described in the watch-out box above; with the default you would see
+\texttt{ScaleCharge=500}.
+
+\texttt{SP} is a single-point energy; \texttt{Opt} a geometry optimization;
+\texttt{Freq} vibrational frequencies. Extra keywords are added to the route
+line as typed. Type \typed{5s} instead of \key{n} to skip this step and keep
+the defaults.
+
+\subsection*{Step 6: prepare and validate}
+
+Nothing to answer. ProPrep freezes distant atoms (\prompt{Froze 359 atoms
+beyond 12.0Å from any HIGH atom}), places link atoms (\prompt{Placed 6 link
+atoms}), builds the bond list, copies all force-field parameters from the
+topology into the file, and checks the set-up:
+
+\begin{screen}
+  Total atoms: 2121
+  HIGH: 141, MEDIUM: 0, LOW: 1980
+  Link atoms: 6
+  Frozen: 359, Active: 1762
+  Total system charge: 7.000003 (nearest integer: 7)
+✓ Validation passed
+\end{screen}
+
+\subsection*{Step 7: write the file}
+
+\begin{screen}
+Write Gaussian Input
+1. Write production input file
+2. Write diagnostic file (ONIOM=OnlyInputFiles)
+   Gaussian will write separate .com files for each sub-calculation
+   so you can verify layer assignments. No calculation is run.
+Select option (1): §ans«1»
+Output filename (oniom_1.com):
+...
+  ✓ Successfully wrote ONIOM input file (199.0 KB)
+...
+Summary report filename (oniom_summary_1.txt):
+\end{screen}
+
+ProPrep writes the input file \file{oniom_1.com} and a summary into the
+folder \file{oniom_inputs}. It also writes \file{oniom_1.txt}, which has the same
+content as the summary.
+
+\section{Checking the files before you run Gaussian}
+\label{sec:qmmm-check}
+
+Open both files in a text editor. Start with the summary
+(\file{oniom_summary_1.txt}):
+
+\begin{screen}
+Layer distribution:
+  HIGH:    141 atoms in  13 residues (charge: -1.11)
+  LOW:    1980 atoms in 225 residues
+  LINK:      6 hydrogen link atoms
+...
+QM Method:
+  Functional: B3LYP
+  Basis set:  def2-SVP
+  Charge:     -1
+  Multiplicity: 2
+...
+HIGH layer residues:
+  LYS14
+  CYO15
+...
+  HMO106
+  PRD107
+  PRD108
+\end{screen}
+
+The HIGH residues include the small caps from the neighboring residues (LYS,
+ALA, GLN, THR, ILE). Check by \emph{name} that HMO, both PRD and the four
+stubs are there and no WAT. The numbers here are one higher than at the step-2
+prompt.
+
+Then look at the first lines of the \file{.com} file. This is the file from
+our first pass, which still had both mistakes described above (ScaleCharge
+135 and QM multiplicity 1):
+
+\begin{screen}
+%mem=16GB
+%nprocshared=8
+#P ONIOM(B3LYP/def2-SVP:AMBER=SoftOnly)=(EmbedCharge,ScaleCharge=135) SP ...
+
+ONIOM 2-layer calculation: HIGH=141 atoms, MEDIUM=0 atoms, LOW=1980 atoms, ...
+
+7 2 -1 1
+H-HC-0.112300        -1    49.817000    10.944000    -5.932000 L
+C-CT--0.366200       -1    50.594000    11.606000    -6.314000 L
+...
+C-CX-0.000000         0    47.451000    29.679000    -2.940000 L   H-HX-0.0  222
+\end{screen}
+
+\begin{itemize}
+  \item \texttt{\%mem} and \texttt{\%nprocshared} are the memory and
+        processors from step 5.
+  \item The \texttt{\#P} line is the \term{route line}: the method for each
+        layer and the options. Check that only one boundary treatment is in
+        it.
+  \item The \textbf{charge/multiplicity line}: the first pair is the whole
+        system (charge $+7$, doublet), the second pair is the QM region
+        (charge $-1$). Both multiplicities must fit the electron count; for
+        this ferric heme both must be 2. After we re-ran step 4 with
+        multiplicity 2, the line read \texttt{7 2 -1 2}.
+  \item Each atom line has element--type--charge, a freeze flag (0 = moves,
+        $-1$ = frozen), the coordinates and the layer (H, M or L). A line
+        ending in \texttt{H-HX-0.0 222} is a boundary atom with its link
+        hydrogen.
+  \item After the atoms come the bond list and the Amber parameters
+        (\texttt{AmbTrs}, \texttt{HrmBnd1}, \texttt{VDW}, \texttt{NonBon}).
+\end{itemize}
+
+\begin{tip}
+Write a diagnostic file too: step 7, option \key{2}. It writes
+\file{oniom_1_diagnostic.com} with \texttt{OnlyInputFiles} in the route line.
+Gaussian then only writes out the separate sub-calculations without running
+them, so you can check the layers cheaply. ProPrep's message mentions a
+``Test keyword'', but the file contains \texttt{OnlyInputFiles}, not
+\texttt{Test}.
+\end{tip}
+
+\section{What you do next with Gaussian}
+\label{sec:qmmm-gaussian}
+
+\begin{needsoftware}
+Running the \file{.com} file needs \textbf{Gaussian~16}, which is licensed
+separately. ProPrep does not submit or run it. Gaussian was not available
+while this manual was written, so the files above were not run.
+\end{needsoftware}
+
+On a computer with Gaussian, go to the \file{oniom_inputs} folder and run:
+
+\begin{terminal}
+g16 < oniom_1.com > oniom_1.log
+\end{terminal}
+
+Make sure the computer has at least the memory and processors written at the
+top of the file. On a computing cluster, use the cluster's job system
+instead; ask your system administrator. When the job finishes, the end of
+\file{oniom_1.log} should say ``Normal termination''. You can open the log
+in a viewer such as GaussView. Interpreting QM/MM results is outside the scope
+of this manual.
+
+\section{Other choices}
+\label{sec:qmmm-other}
+
+\subsection{Three-layer ONIOM}
+
+At \prompt{Number of ONIOM layers} type \key{3}. After the HIGH layer
+ProPrep asks for MEDIUM residues (we typed \typed{28} and \typed{58}, two
+threonines). There is no question for the MEDIUM method: it is fixed at
+HF/3-21G, giving the route
+\texttt{ONIOM(B3LYP/def2-SVP:HF/3-21G:AMBER=SoftOnly)}. The charge line has
+four pairs; in our test it read \texttt{7 2 0 1 0 1 0 2}. Have someone
+experienced in ONIOM check these values.
+
+\begin{watchout}
+In our three-layer test we kept the faulty automatic HIGH list (water in,
+PRD106 out). The heme--PRD106 bond then crossed the QM/MM boundary, but
+ProPrep did not detect it: no link atom, no warning. Fix the HIGH list first.
+\end{watchout}
+
+\subsection{Manual boundary charges}
+
+Option \key{4} asks for a new charge for each boundary atom. Typing \typed{x}
+keeps the original. If the total no longer adds up to a whole number, ProPrep
+warns \prompt{Charge may be unbalanced} and later
+\prompt{Total charge (7.2400) deviates from nearest integer (7)}, but still
+passes validation. Keep the total charge whole.
+
+\subsection{Coordinates from an MD trajectory}
+
+At \prompt{Coordinate source} type \key{t} to take frames from a trajectory
+(Chapter~\ref{ch:runningmd}). ProPrep asks for the trajectory file(s),
+\prompt{Center solute in box (autoimage)?}, and a frame range
+\texttt{start:end:increment} (shown on screen with an emoji in place of
+``:end:''). Extracting one frame, e.g. \typed{4:4:1}, worked. Extracting
+several frames failed in version 1.23.0
+(\prompt{cpptraj produced no output frames}), and the single-frame run that
+followed it picked up a left-over PDB from the failed run. Extract one frame
+at a time, in a fresh session.
+
+\subsection{Save, resume and reset}
+
+\key{s} saves and leaves (\prompt{State saved. You can resume later.}). The
+next time you choose Gaussian, a \prompt{Resume Available} panel offers to
+continue (\prompt{Progress: 6/7 steps completed}).
+
+\begin{watchout}
+Answering \key{n} to \prompt{Resume from saved state?} does not fully start
+fresh: in our test the earlier functional, basis set, job type, processors,
+memory, ScaleCharge and extra keywords all reappeared in the next file. Check
+every setting again, or use 5c option \key{3} (\prompt{Reset configuration to
+defaults}) first.
+\end{watchout}
+
+Menu option \key{2} shows the current configuration. Before any run it says
+\prompt{No QM/MM workflow has been run yet.}
+
+\subsection{ORCA}
+\label{sec:qmmm-orca}
+
+\begin{needsoftware}
+The ORCA route needs ORCA's \texttt{orca\_mm} program \emph{while preparing}
+the files, not only to run them: step 2 converts the Amber topology into
+ORCA's force-field format with \texttt{orca\_mm -convff -AMBER}. Without it,
+ProPrep shows \prompt{orca\_mm not found on PATH}, step 2 fails, and the last
+step fails too (\prompt{Step 8 failed: [Errno 2] No such file or directory:
+''}). \textbf{No ORCA files are written.}
+\end{needsoftware}
+
+Without ORCA we could still walk through the questions. The ORCA checklist
+has eight steps: verify topology, convert force field, select QM region,
+active region (atoms within a distance, default 6~\AA, may move), QM settings
+(method, basis, dispersion correction D3BJ, charge, multiplicity), QM/MM
+coupling (electrostatic or mechanical embedding, charge scheme CS, RCD or
+Z0--Z3, link-atom distances), job settings, and preview \& write.
+
+Two things are better than in the ONIOM route. In step 3 ProPrep warns
+\prompt{5 atom(s) could not be mapped} for the misplaced propionate, and for
+the bond between the heme and PRD106 it offers
+\prompt{[1] Include entire PRD106 in QM (9 atoms)}, which fixes the problem.
+On the other hand, typing a non-number at a number question (for example
+\typed{abc} for the active-region distance) makes the step fail with a Python
+error message; run the step again.
+
+According to ProPrep's source, with \texttt{orca\_mm} present it would write
+an ORCA \file{.inp} file, a matching PDB, the converted \file{.prms}
+force-field file and a run script in \file{orca_inputs/}. We could not check
+these files.
+
+\section{If something goes wrong}
+\label{sec:qmmm-problems}
+
+\begin{itemize}\sloppy
+  \item \textbf{\prompt{Frame extraction failed: No prmtop file selected}.}
+    There is no topology yet. Build one with 5a first
+    (Chapter~\ref{ch:topology}). The main menu only says that 5c needs redox
+    sites.
+  \item \textbf{A water is in the HIGH layer, or a propionate is missing.}
+    Remove and add residues in step 2 (Section~\ref{sec:qmmm-oniom}).
+  \item \textbf{The charge/multiplicity line looks inconsistent.} Re-run step
+    4 with the right multiplicity, then steps 5--7.
+  \item \textbf{Two boundary treatments in the route line.} Delete the old
+    \texttt{ScaleCharge=} from the \file{.com} file.
+  \item \textbf{Old settings come back after declining Resume.} Use 5c option
+    3 (reset) before starting again.
+  \item \textbf{ORCA step 2 fails.} Install ORCA and give the folder that
+    contains \texttt{orca\_mm}; there is no way round it.
+  \item \textbf{Several trajectory frames fail.} Extract one frame at a time.
+\end{itemize}
+
+See also Chapter~\ref{ch:troubleshooting} and Chapter~\ref{ch:knownissues}.

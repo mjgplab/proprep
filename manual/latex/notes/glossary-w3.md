@@ -1,0 +1,49 @@
+# Glossary terms introduced by w3 (Ch. 8 Tutorial, 14 Topology, 15 Running MD, 16 Analysis)
+
+- **molecular dynamics (MD)** — A simulation in which the computer moves every atom step by step according to physical rules, producing a film of how a molecule moves.
+- **AmberTools** — The free package of Amber simulation programs (tLEaP, sander, cpptraj, ParmEd and others) that is installed together with ProPrep.
+- **session file** — The file `proprep_session_<date>_<time>.json` in which ProPrep records every answer you give, so the work can be resumed or repeated.
+- **asymmetric unit** — The structure exactly as deposited in the Protein Data Bank; it may contain more or fewer copies of the protein than the biologically active form.
+- **force field** — The set of rules and numbers that tells a simulation how strongly atoms attract, repel and hold on to each other (for example ff19SB for proteins).
+- **tLEaP** — The AmberTools program that builds a simulation system from a PDB file: it adds missing hydrogens, applies the force field, adds water and ions, and writes the topology and coordinates.
+- **water model** — The recipe for a single water molecule in a simulation (where its charges sit and how big it is), for example TIP3P (three-point) or OPC (four-point).
+- **truncated octahedron** — A simulation box with its corners cut off; it fits a roughly round protein with about 29% less water than a rectangular box.
+- **buffer** — The smallest distance between the protein and the edge of the simulation box, usually 10 Å.
+- **periodic boundaries** — The simulation box is repeated in every direction like tiles, so a molecule leaving one side enters from the other; the protein must not come close to its own copy.
+- **counter-ions** — Ions of opposite charge added to make the total charge of the simulation box zero.
+- **SPLIT method** — The rule ProPrep uses to count ions (Machado & Pantano, 2020): the protein's charge is shared between both kinds of ion, so the box is neutral and has the chosen salt concentration in one step.
+- **12-6-4** — A more accurate set of ion parameters (Li/Merz) that includes an extra attraction term; ProPrep adds it to the topology with ParmEd.
+- **template** — The tLEaP input file ProPrep builds from your answers, with placeholder lines that ProPrep fills in (bonds, special parameters); you can edit it.
+- **topology** — The `.prmtop` file listing every atom, its charge and type, and every bond, angle and twist with its force-field numbers. It does not contain positions.
+- **coordinates / coordinate file** — The `.rst7` file giving the position of every atom (and the box size); it belongs to one topology.
+- **TER record** — A line in a PDB file that marks the end of a molecule or chain; tLEaP needs one after each separate molecule, such as each crystal water.
+- **ParmEd** — Amber's topology editor; ProPrep uses it to check each new topology and add the 12-6-4 ion terms.
+- **implicit solvent** — A simulation without water molecules, in which water is replaced by a smooth surrounding medium; cheaper but less realistic than explicit water.
+- **Generalized Born (GB)** — The most common implicit-solvent model in Amber.
+- **disulfide bond** — A covalent bond between the sulfur atoms of two cysteines; in Amber both cysteines must be named CYX and joined by a `bond` line.
+- **microstates** — Versions of the same protein that differ only in the oxidation or protonation state of some sites.
+- **Poisson–Boltzmann (PB)** — A way of calculating electrostatic energies of a molecule in salt water; ProPrep's PB Titrate uses it to predict pKa values.
+- **constant-pH (MD)** — A simulation in which residues such as Asp, Glu, His, Lys and Tyr can gain and lose protons while it runs, at a chosen pH.
+- **cpin** — The Amber input file that lists the titratable residues and their possible states for a constant-pH simulation.
+- **protocol** — The ordered list of simulation stages (minimization, heating, equilibration, production) and their settings.
+- **NPT** — A simulation at constant number of particles, pressure and temperature; the box size can change, so the water reaches its normal density.
+- **NVT** — A simulation at constant number of particles, volume and temperature; the box size is fixed.
+- **trajectory** — The file (`.nc`) of snapshots of all atom positions written during a simulation; the main input for analysis.
+- **restraints** — Extra forces that hold chosen atoms near a position or a distance, used to protect the protein while the system settles.
+- **steps** — The tiny time increments of a simulation, usually 2 femtoseconds each; 500 steps make 1 picosecond.
+- **mdin** — The Amber input file that holds the settings of one simulation stage (number of steps, temperature, restraints, ...).
+- **positional restraint** — A spring-like force that pulls chosen atoms back towards their starting positions; its weight is the spring strength in kcal/mol·Å².
+- **mask** — A short Amber code that selects atoms, for example `:1-76` (residues 1 to 76) or `@CA` (all atoms named CA).
+- **DISANG** — An Amber file of restraints on distances, angles or torsions between specific atoms.
+- **GROUP restraints** — An older Amber format for restraining several groups of atoms, each with its own strength.
+- **MD engine** — The program that actually runs the simulation: `sander`, `sander.MPI` (included with ProPrep), or `pmemd`, `pmemd.MPI`, `pmemd.cuda` (separate Amber package).
+- **MPI** — A system for splitting one calculation between several processor cores (used by `sander.MPI` and `pmemd.MPI`).
+- **SLURM** — The job system used on most computing clusters: you submit a script and it runs when processors are free.
+- **cluster profile** — A saved description of one computing cluster (job system, modules, partitions, engines) that ProPrep uses to write job scripts.
+- **run plan** — A saved assignment of engines and resources to each stage of a protocol, for use with a cluster profile.
+- **mdout** — Amber's text output for a stage: energies, temperature and pressure printed at regular intervals.
+- **frame** — One snapshot in a trajectory.
+- **RMSD** — Root mean square deviation: the average distance (Å) between the atoms of a frame and a reference frame after lining them up; shows how far a structure has moved.
+- **RMSF** — Root mean square fluctuation: how far each residue wanders around its own average position during a run; shows which parts are flexible.
+- **radius of gyration (Rg)** — The average distance of the atoms from the center of the molecule; a measure of compactness.
+- **plugins** — Separately installed add-on packages that add their own items to ProPrep's menus; ProPrep finds them automatically.

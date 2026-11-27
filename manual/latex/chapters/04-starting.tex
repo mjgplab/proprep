@@ -1,0 +1,415 @@
+\chapter{Starting and stopping ProPrep}\label{ch:starting}
+
+This chapter shows you how to open ProPrep, answer the questions it asks the
+first time, close it safely, and come back to a project another day. You can
+run ProPrep in two ways: inside a web browser, or in the Terminal. The screens
+and questions are the same in both.
+
+\section{Two ways to run ProPrep}\label{sec:starting-twoways}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Command} & \textbf{What you get} \\
+\midrule
+\typed{proprep-web} & ProPrep in a browser tab, with the 3D structure viewer
+docked beside it and a \textsf{Download project} button. Recommended for most
+users. \\
+\typed{proprep} & ProPrep directly in the Terminal window. The 3D viewer opens
+in a separate browser tab when you ask for it. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Both commands start the same program. Everything in this manual works the same
+way in either one.
+
+\subsection*{Before you start: choose a work folder}
+
+ProPrep saves its files in the folder you start it from (or in a new folder
+inside it). So decide first where your projects should live. A good choice is a
+folder used only for ProPrep work, for example \file{ProPrep-work} in your home
+folder.
+
+Open the \term{Terminal} (the program where you type commands; Chapter~\ref{ch:installation}
+explains how to open it on your computer). Then make the folder once and move
+into it. The command \typed{cd} (``change directory'') moves you into a folder;
+\typed{mkdir} (``make directory'') creates one.
+
+\begin{terminal}
+mkdir ~/ProPrep-work
+cd ~/ProPrep-work
+\end{terminal}
+
+Here \file{~} is a short way of writing your home folder. Next time you only
+need the \typed{cd} line. If you installed ProPrep with the conda script, also
+type \typed{conda activate ProPrep} first (Chapter~\ref{ch:installation}).
+
+\section{Starting in the browser (\texttt{proprep-web})}\label{sec:starting-web}
+
+\begin{steps}
+  \item In the Terminal, inside your work folder, type:
+\begin{terminal}
+proprep-web
+\end{terminal}
+  \item ProPrep prints a few lines like these, and then opens your web browser:
+\begin{screen}
+ProPrep Web Shell listening on http://127.0.0.1:8000/
+  - Terminal pane runs the unmodified ProPrep CLI
+  - Structure Viewer will dock on the right when launched from the CLI
+  - Session transcript: ~/.proprep/web_sessions/session_<timestamp>.log
+...
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+\end{screen}
+  The address on the first line is where ProPrep is running. \texttt{127.0.0.1}
+  means ``this computer'': nothing is sent over the internet. If the browser
+  does not open by itself, copy the address into your browser.
+  \item \textbf{Leave the Terminal window open.} It is running ProPrep for the
+  browser tab. You can ignore the \texttt{INFO} lines that keep appearing there.
+  \item Work in the browser tab. The left part of the page is the ProPrep
+  terminal, where you type your answers. The right part is kept for the
+  structure viewer, which appears there automatically when ProPrep shows a
+  structure. The top bar has \textsf{Download project}, buttons to make the text
+  bigger or smaller (\textsf{A$-$} and \textsf{A+}), and \textsf{Detach viewer}.
+\end{steps}
+
+\begin{tip}
+If another program is already using port 8000, ProPrep takes the next free
+number and says so, for example \texttt{(port 8420 was busy; using 8421)}.
+Always read the address from the \texttt{listening on} line.
+\end{tip}
+
+The browser page loads part of its terminal display from the internet, so the
+browser needs an internet connection even though ProPrep itself runs on your
+computer.
+
+\subsection*{Downloading your project}
+
+\textsf{Download project} gives you a \file{.zip} file (named like
+\file{proprep_local_20261121_125705.zip}) of your work. It contains
+\emph{everything} in the folder you started \typed{proprep-web} from,
+including all folders inside it. This is another reason to start
+\typed{proprep-web} from a dedicated work folder and not from your home folder.
+The files are also already on your computer, in that folder; the download is a
+convenient copy.
+
+\subsection*{Stopping the browser version}
+
+The browser version stops by itself about two seconds after you close the last
+ProPrep tab. The Terminal then shows
+\texttt{No browser reconnected within 2.0s; shutting down.} and returns to its
+normal prompt. You can also stop it by pressing \key{Ctrl}+\key{C} in the
+Terminal window.
+
+\begin{watchout}
+Closing the tab ends ProPrep at once, without the ``Are you sure?'' question.
+Your files and the session record are kept, but it is tidier to exit ProPrep
+first with \key{x} (Section~\ref{sec:starting-exit}), use
+\textsf{Download project} if you want a copy, and only then close the tab.
+\end{watchout}
+
+\begin{behindscenes}
+Each browser session is also written to a plain-text log in
+\file{~/.proprep/web_sessions/}. Start with \typed{proprep-web --no-transcript}
+if you do not want this log. A few other options (colors, font size, port) are
+listed in Chapter~\ref{ch:cmdline}.
+\end{behindscenes}
+
+A few things differ slightly in the browser. The structure viewer docks in the
+page instead of opening a new tab, and the PDB Filter does not ask whether to
+open the viewer; it shows the structure in the docked viewer instead. A session
+recorded in the browser is marked as such, which matters only for batch
+processing (Chapter~\ref{ch:batch}).
+
+\section{Starting in the Terminal (\texttt{proprep})}\label{sec:starting-terminal}
+
+To follow this manual, start ProPrep in \term{Full Menu} mode (the menu that
+shows every tool at once; Section~\ref{sec:starting-modes}):
+
+\begin{terminal}
+proprep --full-menu
+\end{terminal}
+
+Typing \typed{proprep} on its own also works; ProPrep then asks which menu you
+want (Section~\ref{sec:starting-questions}). The part after the command, such as
+\typed{--full-menu}, is called an \term{option} or flag: an extra instruction
+for this run only. Chapter~\ref{ch:cmdline} lists the useful ones.
+
+\subsection*{The start-up messages}
+
+Every start begins with a few lines like these:
+
+\begin{screen}
+MODELLER not found. Structure repair (missing loops/residues) will be unavailable.
+  To install: conda install -c salilab modeller
+  A free academic license is required: https://salilab.org/modeller/registration.html
+  After registering, set your license key:
+    export KEY_MODELLER='your_license_key_here'
+  Or edit the config.py file shown during conda installation.
+Successfully imported core modules
+\end{screen}
+
+The MODELLER message appears on every start when MODELLER has no license key. It
+affects only the repair of missing loops and residues (Chapter~\ref{ch:cleaning}).
+You can ignore it otherwise. Chapter~\ref{ch:installation} explains how to add
+the key. Then the ProPrep banner appears, with the version number
+(\texttt{v1.23.0}).
+
+\section{The first-launch questions}\label{sec:starting-questions}
+
+\subsection*{Which menu?}
+
+Unless you started with \typed{--full-menu} (or \typed{--workflow}), ProPrep
+shows a box called ``Choose Your Experience'' and asks:
+
+\begin{screen}
+ 1. Workflow Mode (Recommended for new users)
+ ...
+ 2. Full Menu Mode (For experienced users)
+ ...
+Select menu mode  [1/2]: §ans«2»
+
+Save this as your default preference?  [y/n] (n): §ans«n»
+Tip: Use --workflow or --full-menu flags to skip this prompt
+\end{screen}
+
+\begin{steps}
+  \item At \prompt{Select menu mode [1/2]}, type \key{2} for Full Menu, which
+  this manual uses. This question has \emph{no} default: pressing \key{Enter}
+  alone only repeats it.
+  \item At \prompt{Save this as your default preference?}, type \key{n} (or
+  press \key{Enter}). If you answer \key{y}, ProPrep stops asking this question
+  on later starts, and changing your mind means going into Preferences
+  (Section~\ref{sec:menus-prefs}). Answering \key{n} keeps the choice open.
+\end{steps}
+
+\begin{tip}
+Once you know you always want the Full Menu, you can save it as the default
+with one command: \typed{proprep --set-default full-menu}. This is handy for
+the browser version, which cannot be given \typed{--full-menu}.
+\end{tip}
+
+\subsection*{The project name}
+
+Next comes ``Project Setup'':
+
+\begin{screen}
+═══ Project Setup ═══
+
+Enter a name for your project. All structures and outputs
+will be saved in a directory with this name.
+Press Enter to use the current directory.
+
+Project name (.): §ans«myproject»
+✓ Project directory: /Users/.../ProPrep-work/myproject
+\end{screen}
+
+Every file ProPrep makes for this project goes into this folder.
+
+\begin{itemize}
+  \item \textbf{Type a name}, such as \typed{ubiquitin} or \typed{1ubq\_md}.
+  ProPrep creates a folder with that name inside the folder you started from,
+  and works inside it. If the folder already exists, ProPrep uses it and keeps
+  the files already there.
+  \item \textbf{Press \key{Enter}} to use the folder you started from (the
+  \texttt{.} in \prompt{(.)} means ``this folder''). Do this when you started
+  ProPrep from inside an existing project folder.
+\end{itemize}
+
+Rules for a good project name:
+\begin{itemize}
+  \item Use letters, numbers, \texttt{-} and \texttt{\_} only.
+  \item Avoid spaces. ProPrep accepts \typed{my project}, but some Amber
+  programs used later can have trouble with spaces in folder names.
+  \item Never use \texttt{/}. A name such as \typed{sub/deeper} stops ProPrep
+  with \texttt{Error: [Errno 2] No such file or directory: 'sub/deeper'}.
+  ProPrep can create only one new folder level here.
+\end{itemize}
+
+\begin{watchout}
+The menu choice and the project name are given before ProPrep starts recording
+your answers. They are not in the session file, and \key{undo} cannot go back
+to them. If you type \typed{undo} at \prompt{Project name}, ProPrep makes a
+folder called \file{undo}.
+\end{watchout}
+
+\section{What ProPrep prints next}\label{sec:starting-next}
+
+After the project folder is set, ProPrep reports that it is recording:
+
+\begin{screen}
+Session recording to: ./proprep_session_20261121_123119.json
+Tip: Use --no-session to disable automatic session recording
+Tip: Type 'undo' at any prompt to rewind to an earlier answer
+\end{screen}
+
+The \term{session file} (\file{proprep_session_<date>_<time>.json}) is
+ProPrep's record of every answer you type from now on, saved inside the project
+folder. It is the real record of your work: it lets you go back with
+\key{undo}, resume later, and repeat the same preparation on other proteins
+(Chapters~\ref{ch:sessions} and~\ref{ch:batch}). The file is written as you go,
+so it survives even if ProPrep is closed suddenly.
+
+\subsection*{The update check}
+
+On the very first start, under the banner, ProPrep explains:
+
+\begin{screen}
+ProPrep checks GitHub once a day for a newer release. To turn this off:
+Preferences (p) > Check for new ProPrep releases at startup.
+\end{screen}
+
+ProPrep asks the ProPrep download page at most once a day whether a newer
+version exists. Nothing is downloaded or changed, and nothing about you is sent.
+With no internet connection, nothing is printed. When a newer version exists,
+ProPrep prints a bold line such as
+\texttt{ProPrep X.Y.Z is available (you have 1.23.0).} followed by the update
+command (we could not see this, because 1.23.0 was the newest version).
+Chapter~\ref{ch:installation} explains updating. Copies of ProPrep that came
+bundled with AmberTools never check.
+
+Finally, the main menu appears. Chapter~\ref{ch:menus} explains how to read it.
+
+\section{Workflow Mode or Full Menu?}\label{sec:starting-modes}
+
+ProPrep has two kinds of main menu. Both open the same tools.
+
+\begin{tabularx}{\linewidth}{@{}p{0.2\linewidth}LL@{}}
+\toprule
+ & \textbf{Workflow Mode} & \textbf{Full Menu} \\
+\midrule
+Shows & Only the tools of the current stage (Load, Detect, Compare, Fix,
+Simulate), with a suggestion of what to do. & Every tool at once, grouped in
+five sections. \\
+Tool keys & Numbers \key{1}, \key{2}, \ldots{} that restart at every stage,
+so \key{1} means a different tool at each stage. & Fixed codes such as
+\key{1a} or \key{4e} that never change. \\
+Capital letters & Accepted. & Not accepted (type lowercase). \\
+Switch to the other & \key{a} (all tools) & \key{g} \\
+Start directly & \typed{proprep --workflow} & \typed{proprep --full-menu} \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\textbf{This manual uses Full Menu keys}, because a code like \key{4e} always
+means the same tool, whatever you did before. In Workflow Mode, \key{4e}
+(Protonation State Analyzer) is \key{5} on the Fix stage, and you must first
+reach that stage. If you prefer Workflow Mode, Section~\ref{sec:menus-workflow}
+explains it, and Appendix~\ref{app:menumap} lists where each tool sits.
+
+Switching with \key{a} or \key{g} lasts only for the current run. To change the
+mode ProPrep starts in, use Preferences (Section~\ref{sec:menus-prefs}) or
+\typed{proprep --set-default full-menu}.
+
+\section{Exiting ProPrep}\label{sec:starting-exit}
+
+\begin{steps}
+  \item At any menu, type \key{x}.
+  \item At \prompt{Are you sure you want to exit? [y/n] (n)}, type \key{y}.
+  Pressing \key{Enter} means \key{n}: you stay in ProPrep.
+\end{steps}
+
+ProPrep says goodbye, stops recording, and shows a thank-you box:
+
+\begin{screen}
+Are you sure you want to exit? [y/n] (n): §ans«y»
+Goodbye!
+[Session recording stopped]
+...
+╭───────────────────── Thank you for using ProPrep ──────────────────────╮
+│ If you found ProPrep useful, please cite:                              │
+│                                                                        │
+│ Walker, A. & Guberman-Pfeffer, M.J. (2026). ProPrep: An Interactive    │
+│ and Instructional Interface for Proper Protein Preparation with AMBER. │
+│ bioRxiv. https://doi.org/10.64898/2026.02.26.708365                    │
+│                                                                        │
+│ Feedback (positive or negative) is welcome at: mjgp@nmsu.edu           │
+╰────────────────────────────────────────────────────────────────────────╯
+\end{screen}
+
+Your files stay in the project folder. In the browser version, you can now
+close the tab.
+
+\begin{itemize}
+  \item \key{x} works inside a tool's menu too. If you then answer \key{n},
+  ProPrep takes you to the \emph{main} menu, not back to the tool.
+  \item Pressing \key{Ctrl}+\key{C} stops ProPrep at any question. It prints
+  \texttt{Application interrupted by user} and the same thank-you box. The
+  session file keeps everything up to that moment.
+\end{itemize}
+
+\section{Coming back to a project later}\label{sec:starting-resume}
+
+Your files stay in the project folder after you exit. ProPrep's memory of what
+it loaded and made, however, starts empty at every start. There are two ways to
+carry on.
+
+\subsection*{Resume the recorded session}
+
+ProPrep looks for session files only in the folder you start it from. So to be
+offered a resume, first move \emph{into} the project folder:
+
+\begin{terminal}
+cd ~/ProPrep-work/myproject
+proprep --full-menu
+\end{terminal}
+
+(For the browser, type \typed{proprep-web} at this point instead.) Before the
+project question, ProPrep then asks:
+
+\begin{screen}
+Previous session files found!
+
+What would you like to do?
+  1. Start fresh session (record new interactions)
+  2. Resume a previous session from any point
+  3. Continue without session recording
+
+Select option  [1/2/3] (1): §ans«2»
+                          Available Session Files
+┏━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃ #   ┃ Filename                             ┃ Date/Time        ┃ Interactions ┃
+┡━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+│ 1   │ proprep_session_20261121_123119.json │ 2026-11-21 12:32 │ 74           │
+└─────┴──────────────────────────────────────┴──────────────────┴──────────────┘
+
+Select session to resume (0 to cancel)  [1/0] (0): §ans«1»
+\end{screen}
+
+\begin{steps}
+  \item Type \key{2} to resume.
+  \item Type the number of the session you want. \textbf{Do not just press
+  \key{Enter}}: the default here is \key{0}, which cancels and starts a fresh
+  session instead.
+  \item ProPrep then offers \prompt{1. Continue from end}, \prompt{2. Open
+  session editor} and \prompt{3. Cancel}. Chapter~\ref{ch:sessions} explains
+  each one.
+\end{steps}
+
+Resuming replays your recorded answers one by one to rebuild ProPrep's memory.
+It repeats each step (downloads, filtering and so on), so it takes a little
+time.
+
+\begin{watchout}
+In version 1.23.0, \prompt{Continue from end} on a session that you ended with
+\key{x} also replays your exit, so ProPrep quits again straight away. Use the
+session editor first to delete the last two answers (the \key{x} and the
+\key{y}); Chapter~\ref{ch:sessions} shows how. Sessions that ended with a closed
+browser tab or \key{Ctrl}+\key{C} have no recorded exit and continue normally.
+\end{watchout}
+
+\subsection*{Start fresh in the same folder}
+
+Choose \key{1} (Start fresh session) and press \key{Enter} at
+\prompt{Project name (.)} to keep working in the same folder. ProPrep starts a
+new session file next to the old one. Nothing is loaded yet, so load the file
+you want to continue from with the Structure Loader (\key{1a}, from a local
+file; Chapter~\ref{ch:structure}).
+
+\begin{watchout}
+Starting ProPrep from the folder \emph{above} the project and typing the project
+name again does not offer to resume. It opens the folder as a fresh project.
+Always \typed{cd} into the project folder first.
+\end{watchout}
+
+Option \key{3} (Continue without session recording) works like a fresh start
+but records nothing, so \key{undo} is not available.
