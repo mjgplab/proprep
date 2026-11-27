@@ -1,0 +1,137 @@
+\chapter{Requirements}
+\label{ch:requirements}
+
+This chapter tells you what your computer needs before you install ProPrep,
+and which extra programs you need for some of its tools. Most people need
+nothing beyond the ProPrep installer itself. Read the table in
+Section~\ref{sec:requirements-what} to see whether your project needs more.
+
+\section{Your computer}
+\label{sec:requirements-computer}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Computer} & \textbf{What works} \\
+\midrule
+Mac with an Apple chip (M1, M2, \ldots) & Yes. This manual was written on one
+(macOS 27). \\
+Mac with an Intel chip & Yes, with its own installer file. \\
+Linux & Yes, on 64-bit Intel or AMD processors (x86-64). The installer has
+been tested on Rocky Linux. \\
+Windows 10 or 11 & Yes, through the \term{Windows Subsystem for Linux} (WSL),
+a part of Windows that runs a small Linux system. Windows 10 needs version
+2004 or later. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+ProPrep does not need a fast computer to prepare a structure. Simulations are
+different: they use every processor core you give them, and a long simulation
+is best run on a computing cluster or a computer with a suitable graphics card
+(see Section~\ref{sec:requirements-what}). For scale: on our test laptop
+(11 processor cores, no graphics card), a shortened test simulation of
+ubiquitin in water (15,729 atoms) took about one minute. ProPrep describes its
+0.42\,ns Workshop protocol as taking about 41 minutes with \texttt{sander.MPI}
+on 4 cores (Chapter~\ref{ch:runningmd}).
+
+\paragraph{Disk space.} Plan for about 8\,GB of free space for the
+self-contained installer (Option~A in Chapter~\ref{ch:installation}), or
+about 10\,GB in total on Windows, including WSL. The conda installation
+(Option~B) used 4.8\,GB on our test Mac. Your projects need extra space:
+simulation trajectories grow quickly.
+
+\paragraph{The Terminal.} You start ProPrep by typing one command in the
+Terminal, the program where you type commands (on Windows, the Ubuntu
+window of WSL). You do not need to know any other commands. Chapter~\ref{ch:installation}
+shows how to open it.
+
+\paragraph{A web browser.} The recommended way to use ProPrep,
+\texttt{proprep-web}, runs inside your normal web browser (Safari, Chrome,
+Firefox or Edge). The 3D structure viewer also opens in the browser. If you
+prefer, you can use ProPrep entirely in the Terminal instead
+(Chapter~\ref{ch:starting}).
+
+\paragraph{An internet connection.} You need the internet to:
+\begin{itemize}
+  \item download the installer (about 1 to 1.5\,GB), or to install with conda;
+  \item download structures from the PDB, AlphaFold and AlphaFill;
+  \item run a BLAST homology search, which uses the NCBI web service
+        (Chapter~\ref{ch:compare});
+  \item open \texttt{proprep-web}: the browser page loads its terminal
+        display from the internet;
+  \item download some reference files the first time a tool needs them (for
+        example, the chemical component dictionary used by the PDB Filter).
+\end{itemize}
+Without the internet you can still work on structure files you already have.
+ProPrep also checks once a day whether a newer release exists; with no
+connection it skips the check silently.
+
+\section{What you need for what}
+\label{sec:requirements-what}
+
+ProPrep's installer brings ProPrep, \term{AmberTools} (the free Amber
+programs, such as tLEaP, sander, cpptraj and antechamber) and the helper
+programs used for protonation, membranes and docking. The table lists
+everything else.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.18\linewidth}>{\raggedright\arraybackslash}p{0.47\linewidth}@{}}
+\toprule
+\textbf{What} & \textbf{Who needs it} & \textbf{What it is for} \\
+\midrule
+\endhead
+ProPrep with AmberTools & Everyone & Everything in this manual. Comes with
+the installer. \\
+A web browser & Most people & \texttt{proprep-web} and the 3D structure
+viewer. \\
+Internet connection & Most people & Downloading structures, BLAST, the
+\texttt{proprep-web} page. \\
+\midrule
+MODELLER license key & Optional & Filling missing loops and residues,
+rebuilding missing atoms, standard mutations and homology models. MODELLER
+itself is installed for you; it only needs a free academic key
+(Section~\ref{sec:installation-modeller}). \\
+Gaussian 16 & Optional & Making new parameters for ligands, modified amino
+acids and metal sites (\key{2c}), and running Gaussian ONIOM QM/MM inputs
+(\key{5c}). Gaussian is commercial software; you buy and install it
+yourself. \\
+ORCA & Optional & Writing and running ORCA QM/MM inputs (\key{5c}). ProPrep
+needs ORCA's \texttt{orca\_mm} program even to write the files. \\
+\texttt{pmemd} and a graphics card & Optional & Faster simulations.
+\texttt{pmemd} is part of Amber, which is distributed separately from
+AmberTools. \texttt{pmemd.cuda} also needs an NVIDIA graphics card (GPU).
+Without them, use \texttt{sander}, which is included. \\
+CREST and xtb & Optional & One way of refining dihedral parameters in
+\key{2c}. Not needed for the other routes. \\
+A computing cluster with SLURM & Optional & Running long simulations. ProPrep
+can write the job scripts (\key{5b}). \\
+\bottomrule
+\end{longtable}
+
+Appendix~\ref{app:software} lists every menu tool and what happens when the
+extra program is missing.
+
+\begin{needsoftware}
+Without a MODELLER key, ProPrep still starts and every tool opens. Only the
+repair of missing loops, residues and atoms, standard mutations, and homology
+models are switched off. ProPrep prints a reminder each time it starts
+(Section~\ref{sec:installation-modeller}).
+\end{needsoftware}
+
+\section{What you do not need}
+\label{sec:requirements-not}
+
+\begin{itemize}
+  \item You do not need to install Python, conda or AmberTools separately when
+        you use the self-contained installer. It brings its own copies.
+  \item You do not need BLAST installed on your computer. ProPrep sends the
+        search to NCBI's web service.
+  \item You do not need administrator rights on a Mac or on Linux. ProPrep is
+        installed in a folder in your home folder. On Windows you need them
+        once, to switch on WSL.
+\end{itemize}
+
+\begin{watchout}
+If another Amber or AmberTools installation is already set up on your
+computer, ProPrep may use it instead of its own copy, without telling you.
+Section~\ref{sec:installation-amberhome} shows how to check this.
+\end{watchout}

@@ -1,0 +1,723 @@
+\chapter{Force fields and new parameters}
+\label{ch:forcefields}
+
+A simulation program can only move atoms it has numbers for. Those numbers
+come from a force field. Standard amino acids, water and common ions are
+already covered; a drug, a modified amino acid or a metal site may not be.
+This chapter shows how to check what is already covered with the
+\menupath{2b}{Force Field Explorer}, how far the
+\menupath{2c}{Force Field Parameterizer} takes you when something is missing,
+and how to keep finished parameters in your personal library.
+
+\begin{glance}
+\glanceitem{What it does}{2b shows what a force field contains and checks
+  every atom of your structure against it. 2c makes new parameters for a
+  ligand, a modified amino acid or a metal site. 2c option~2 stores
+  parameters in your library.}
+\glanceitem{You need it when}{Your structure contains anything other than
+  standard amino acids, water and simple ions, and no ready-made set
+  covers it.}
+\glanceitem{Before you start}{For 2b, nothing (a loaded structure for the
+  atom check). For 2c, a loaded structure (\key{1a}) and, for every route that
+  makes charges, the Gaussian program.}
+\glanceitem{Where to find it}{\key{2b} Force Field Explorer and \key{2c}
+  Force Field Parameterizer in the main menu.}
+\glanceitem{You get}{An atom-typing report; Gaussian input files (\file{.gjf});
+  after Gaussian, \file{.frcmod} and \file{.lib} files that the Topology
+  Generator (\key{5a}) can use.}
+\end{glance}
+
+\section{Force fields and parameters in plain words}
+\label{sec:forcefields-words}
+
+A \term{force field} is a set of rules and numbers that describes how atoms
+attract, repel and hold together. The numbers are called
+\term{parameters}. In Amber force fields each atom gets an \term{atom type}
+(a short code such as \texttt{CX} for a protein C$\alpha$ or \texttt{ca} for an
+aromatic carbon in GAFF2), a \term{partial charge} (a fraction of an electron
+charge), and bond, angle and twist (\term{dihedral}) parameters that depend on
+the atom types.
+
+Amber keeps these numbers in a few kinds of files:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{File} & \textbf{What it holds} \\
+\midrule
+\file{leaprc.*} & A short script that loads a whole force field, e.g.
+  \file{leaprc.protein.ff19SB}. \\
+\file{.lib} or \file{.off} & A \term{residue template}: the atoms of one
+  residue with their atom types and charges. \\
+\file{.frcmod} & Extra or changed parameters (bonds, angles, dihedrals,
+  van der Waals) that the main force field lacks. \\
+\file{.mol2}, \file{.prep} & Other ways to describe a molecule with types and
+  charges. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+For proteins the usual choice is \textbf{ff19SB} with the \textbf{OPC} water
+model; ProPrep marks both with a star. For drug-like molecules Amber uses the
+general force field \term{GAFF2}. A new molecule needs charges as well as
+types. The careful method is \term{RESP}: charges fitted to a quantum-chemical
+calculation, which needs a program such as Gaussian. A faster method is
+\term{AM1-BCC}, which AmberTools can compute on its own.
+
+\section{The beginner path}
+\label{sec:forcefields-path}
+
+Making parameters is slow and needs outside software. Work in this order and
+stop as soon as everything is covered:
+
+\begin{steps}
+  \item \textbf{Check what is already covered.} Load your structure, open
+        \key{2b}, load ff19SB + OPC (plus a matching add-on, such as
+        \prompt{Phosphorylated AA (ff19SB)}), and run option \key{7}
+        \prompt{Type Structure Atoms}. Every atom that is typed needs no new
+        parameters (Section~\ref{sec:forcefields-check}).
+  \item \textbf{Look for a ready-made set.} Category 12 of the Explorer lists
+        69 built-in sets for hemes, iron--sulfur clusters, flavins, NAD(P),
+        biopterin and Zn(Cys)$_4$ (Section~\ref{sec:forcefields-cofactors}).
+        These are used through the Redox Site Preparer
+        (Chapter~\ref{ch:redox}).
+  \item \textbf{Only then use 2c} for what is left. Expect to stop at the
+        Gaussian step and continue later (Section~\ref{sec:forcefields-2c}).
+        Without Gaussian, use the AM1-BCC route in
+        Section~\ref{sec:forcefields-am1bcc}.
+  \item \textbf{Store finished parameters} in your library with \key{2c}
+        $\to$ \key{2}, so that later projects can reuse them
+        (Section~\ref{sec:forcefields-library}).
+\end{steps}
+
+\begin{watchout}
+ProPrep reads the force-field files of the AmberTools it finds through the
+\texttt{AMBERHOME} setting. In one of our sessions \texttt{AMBERHOME} pointed
+to a different AmberTools installation, and the Explorer and tLEaP used that
+one; the lists of force fields differed slightly. Always start ProPrep from
+the activated ProPrep environment (Chapter~\ref{ch:installation}) and do not
+set \texttt{AMBERHOME} by hand.
+\end{watchout}
+
+\section{Step by step: check what your structure needs (2b)}
+\label{sec:forcefields-check}
+
+The example is \pdb{3AJ4}, a protein with phosphoserine (SEP) and ethylene
+glycol (EDO). It was found with 1a's ligand search for \typed{SEP}.
+
+\begin{steps}
+  \item Load the structure with \key{1a}. For 3AJ4 we answered \key{y} to
+        \prompt{Remove hydrogen atoms?}.
+  \item Type \key{2b}. The first screen lists force-field categories:
+\begin{screen}
+         Step 1: Select Force Field Categories
+┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ Index ┃ Category                   ┃ Available Files ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ 1     │ Protein                    │               9 │
+│ 2     │ Modified Amino Acids       │               8 │
+...
+│ 5     │ Water                      │              12 │
+│ 6     │ GAFF (General)             │               2 │
+...
+│ 12    │ Redox Cofactors (built-in) │              69 │
+│ 13    │ Custom/User-Generated      │      User files │
+└───────┴────────────────────────────┴─────────────────┘
+...
+Select categories (comma-separated) (1,5): §ans«1,2,5»
+\end{screen}
+        Categories 1--11 are Amber's own force fields. 12 holds ProPrep's
+        cofactor sets and your library; 13 loads your own files.
+  \item The second screen lists every force field in those categories. A
+        star marks the recommended one; a warning sign marks an add-on that
+        must be combined with a protein force field:
+\begin{screen}
+Protein
+...
+    9 ★ ff19SB                     Latest AMBER protein FF - use with OPC water
+
+Modified Amino Acids  (add-ons — combine with a base protein FF)
+...
+   14 ⚠ Phosphorylated AA (ff19SB) Phosphorylated Ser/Thr/Tyr/His for ff19SB
+...
+Water
+   21 ★ OPC                        4-point, optimal for ff19SB
+...
+   26   TIP3P                      3-point, traditional (not recommended)
+...
+Select force field(s) (comma-separated) (5,26): §ans«9,14,21»
+
+Loading: leaprc.protein.ff19SB, leaprc.phosaa19SB, leaprc.water.opc
+\end{screen}
+  \item The Explorer menu appears. Type \key{7}
+        (\prompt{Type Structure Atoms (atom typing report)}) and answer
+        \key{y} to \prompt{Use this structure?}.
+\begin{screen}
+=================================================================
+  Atom Typing Report: 3AJ4_noH.pdb
+=================================================================
+  Total atoms             2155
+  Typed                   2142 (99.4%)
+  Untyped                 13 (0.6%)
+  Unique atom types       27
+  Total charge (typed)    -234.2566
+
+Untyped residues:
+  A:EDO112 (4 atoms)
+  A:SEP111 (1 atoms)
+  B:EDO111 (4 atoms)
+  B:EDO112 (4 atoms)
+\end{screen}
+  \item A per-residue table follows; type \key{q} to leave it. Then
+        \prompt{View [a]ll atoms, [t]yped only, [u]ntyped only, [e]xport report,
+        [d]one}. Here \key{u} lists the untyped atoms, \key{e} saves the
+        report as a text file (\file{3AJ4_noH_atom_typing.txt}) and \key{d}
+        finishes.
+\end{steps}
+
+The result is clear: the phosphoserine is already covered by the
+\prompt{Phosphorylated AA (ff19SB)} add-on. Only its OXT atom was untyped,
+because in this crystal SEP is the last residue of the chain. The three EDO
+molecules are not covered. They are crystallisation additives, so the usual
+choice is to remove them in the PDB Filter (Chapter~\ref{ch:cleaning}) rather
+than to parameterize them.
+
+\begin{watchout}
+When you choose categories 1 and 5, the suggested default selection is
+ff14SB + TIP3P, although the same screen calls TIP3P ``not recommended'' and
+stars ff19SB and OPC. Type the numbers you want. Numbers out of range or text
+are silently ignored.
+\end{watchout}
+
+\begin{tip}
+The charge sums in the report are not whole numbers for a structure without
+hydrogens. ProPrep explains this on screen. They only add up to the formal
+residue charge when all atoms, including hydrogens, are present.
+\end{tip}
+
+\section{Exploring a force field}
+\label{sec:forcefields-explore}
+
+The Explorer menu offers:
+
+\begin{screen}
+===== Force Field Explorer =====
+Loaded: leaprc.protein.ff19SB, leaprc.water.opc, leaprc.gaff2
+
+  1. Overview (statistics & loaded files)
+  2. Browse Atom Types
+  3. Browse Residues
+  4. Search Parameters (bond/angle/dihedral/VDW/mass)
+  5. Reverse Lookup (all params for an atom type)
+  6. Load Different Force Field
+  7. Type Structure Atoms (atom typing report)
+  b. Back
+\end{screen}
+
+\begin{itemize}
+  \item \textbf{Overview} counts what was loaded (for ff19SB + OPC + GAFF2:
+        1536 atom definitions, 182 residues) and lists the files.
+  \item \textbf{Browse Atom Types} takes a filter such as \typed{CX}. The
+        filter matches any part of the name and ignores case, so \typed{CX}
+        finds both the protein type \texttt{CX} and the GAFF type
+        \texttt{cx}.
+  \item \textbf{Browse Residues} takes a filter such as \typed{HI}; pick a
+        number to see the template, e.g. \texttt{HID} with 17 atoms, their
+        types and charges.
+  \item \textbf{Search Parameters}: \key{a} bond, \key{b} angle, \key{c}
+        dihedral, \key{d} van der Waals, \key{e} mass. Type the atom types
+        separated by spaces, e.g. \typed{XC N} gives the bond force constant
+        337.0 and length 1.449~\AA{} from \file{parm19.dat}. \texttt{X} is a
+        wildcard in dihedrals. Upper and lower case are different types.
+  \item \textbf{Reverse Lookup} shows every bond, angle and dihedral that
+        uses one atom type.
+\end{itemize}
+
+\begin{watchout}
+In version 1.23.0, browsing all atom types with ff19SB loaded fills the first
+pages with numbers such as \texttt{-0.00006}. These come from the ff19SB
+correction grid (CMAP) and are not atom types. Always type a filter. Also,
+at a filter prompt \typed{q} does not quit: it searches for names containing
+``q''. Type \typed{b} to go back.
+\end{watchout}
+
+\subsection{Ready-made cofactor sets (category 12)}
+\label{sec:forcefields-cofactors}
+
+Choose \key{6} (\prompt{Load Different Force Field}), then category
+\typed{12}. ProPrep lists 69 bundled parameter sets: FAD and FMN (five redox
+states each), hemes (bis-His b- and c-type, Cys-ligated b-type, His/Met
+c-type, with fixed-pH, constant-pH and constant-redox variants), [4Fe-4S]
+clusters (oxidized FO0--FO6, reduced FD0--FD6 and FR0--FR3), NAD and NADP,
+biopterin (six states) and Zn(Cys)$_4$. The table is long, because the Notes
+column wraps over many lines.
+
+At \prompt{Select set(s) (comma/range or 'none') (none)} we typed
+\typed{12,69} (oxidized bis-His b-type heme and Zn(Cys)$_4$). Browse Residues
+then showed the residues \texttt{HBO}, \texttt{CYZ} (zinc-bound cysteine) and
+\texttt{ZNC} (the zinc).
+
+\begin{tip}
+Search by atom \emph{type}, not atom name. In the Zn(Cys)$_4$ set the zinc's
+type is \texttt{ZM} and the sulfur's \texttt{SZ}; searching for \typed{ZN}
+finds nothing because ZN is only the atom name. The bond \typed{ZM SZ} gives
+32.3~kcal/mol/\AA$^2$ and 2.431~\AA.
+\end{tip}
+
+Category 13 opens a file browser to load your own \file{.lib}, \file{.off},
+\file{.frcmod}, \file{.mol2} or \file{.prep} files. This browser moves only by
+numbers and \typed{..}; you cannot type a path. Your library entries
+(Section~\ref{sec:forcefields-library}) appear in category 12, under the
+heading ``Redox Cofactors (built-in)'', even when they are not cofactors.
+
+\section{The Force Field Parameterizer (2c)}
+\label{sec:forcefields-2c}
+
+\begin{screen}
+══ Force Field Parameterizer Menu ══
+  1. ✓ Analyze and configure residue classifications
+  2. ✓ Import existing parameters into your library
+  3. ○ Parameterize residues (new or resume)
+       ⚠ Need to analyze residues first
+  4. ○ View parameterization status
+       ⚠ Need to analyze residues first
+  5. ✓ Display detailed help information
+\end{screen}
+
+\subsection{Finding what needs parameters}
+
+Type \key{1}, then \key{1} again (\prompt{Analyze}). ProPrep scans the
+structure and sorts every non-standard residue into one of three kinds:
+\textbf{small molecule} (an organic ligand, made with GAFF2), \textbf{modified
+amino acid} (has a peptide backbone) or \textbf{metal site}. The first time,
+it downloads the chemical component dictionary from \url{files.wwpdb.org}.
+Examples from our tests:
+
+\begin{itemize}
+  \item \pdb{1HSG}: \prompt{MK1 (B:902) | Small Molecule}, the drug indinavir.
+  \item \pdb{3AJ4}: SEP as modified amino acid, three EDO as small molecules.
+  \item \pdb{1ZNI}: three Zn metal sites; the three chloride ions came out as
+        \prompt{Unknown — Auto-classification could not decide}.
+\end{itemize}
+
+The analysis sub-menu can also change a classification (option 2), change the
+atom-count range for small molecules (option 3, default 2--200 atoms) and edit
+the table that maps modified amino acids to their parent (option 4, e.g.
+\texttt{SEP}$\to$\texttt{SER}; 148 built-in entries).
+
+\subsection{Small molecule: indinavir (MK1, 1HSG)}
+\label{sec:forcefields-small}
+
+\begin{steps}
+  \item In the 2c menu type \key{3}, then \typed{1} for MK1.
+  \item \prompt{Output residue name (MK1)}: press \key{Enter}. The name must
+        be 1--3 letters or digits and start with a letter; \typed{9E2} is
+        refused.
+  \item An 8-step checklist appears:
+\begin{screen}
+  STRUCTURE PREPARATION
+  [ ]  1.  Extract Coordinates              Extract small molecule coordinate...
+  [ ]  2.  Hydrogen Addition                Analyze and optionally add hydrog...
+  [ ]  3.  Gaussian Input                   Generate Gaussian input (optimiza...
+  CHARGE DERIVATION
+  [ ]  4.  RESP Charges                     Process Gaussian output → RESP ch...
+  BONDED PARAMETER GENERATION
+  [ ]  5.  Bonded Parameters                Generate missing bonded parameter...
+  [ ]  6.  AMBER Topology Files             Create AMBER topology files (tLEaP)
+  [ ]  7.  Parameter Refinement (optional)  Seminario / PES scan / CREST refi...
+  [ ]  8.  Force Field Integration          Register lib/frcmod for the Topol...
+...
+  [n]ext (1. Extract Coordinates)  |  [v]iew structure  |  [s]ave & quit
+  [q]uit  |  [#] to run/re-run step  |  [#s] skip optional step
+\end{screen}
+        Type \key{n} to run the next step, a number to run or re-run that
+        step, \typed{7s} to skip the optional step 7, \key{s} to save and
+        leave, \key{q} to leave without saving.
+  \item \key{n}: step 1 writes \file{mk1.pdb} (45 heavy atoms).
+  \item \key{n}: step 2 notices that there are no hydrogens
+        (\prompt{Low hydrogen content detected (0.0\%)}) and offers to add them
+        with the program \texttt{reduce}. Answer \key{y} and press \key{Enter}
+        at the four option questions (NOFLIP mode, add OH/SH hydrogens, no
+        nuclear distances, do not keep bond lengths). ProPrep reports
+        \prompt{Added 47 hydrogen atoms}, which is right for neutral
+        indinavir. Answer \key{n} to the viewer and \typed{done} to
+        \prompt{Edit H atoms?}.
+  \item \key{n}: step 3 writes the Gaussian input.
+\begin{screen}
+Net charge for MK1 (0): §ans«0»
+Spin multiplicity (1): §ans«1»
+Memory allocation (10GB):
+Number of processors (4):
+Customize calculation keywords? [y/n] (n): §ans«n»
+✓ Generated Gaussian input: mk1.gjf
+\end{screen}
+        The \term{net charge} is the molecule's total charge (0 for a neutral
+        molecule). The \term{multiplicity} describes unpaired electrons:
+        1 for an ordinary molecule with all electrons paired, 2 for a
+        radical.
+\end{steps}
+
+The file \file{mk1.gjf} holds two Gaussian jobs: a geometry optimization with
+frequencies (\texttt{opt freq b3lyp/6-31+G(d)}), then an electrostatic
+potential at \texttt{HF/6-31G(d)} for the RESP fit. If the charge is negative,
+ProPrep also offers implicit solvent (\prompt{Add implicit solvation (SCRF) to
+Gaussian keywords? (y)}).
+
+\subsubsection*{The Gaussian checkpoint}
+
+Step 4 needs Gaussian's output, \file{mk1.log}. Without it the step fails:
+
+\begin{screen}
+✗ Step 4 failed: Gaussian output not found: mk1.log
+Run Gaussian first: g16 mk1.gjf
+Traceback (most recent call last):
+...
+\end{screen}
+
+The lines after \texttt{Traceback} look like a crash, but ProPrep is still
+running and the checklist comes back. This is the point where you leave
+ProPrep:
+
+\begin{steps}
+  \item Type \key{s} (save \& quit): \prompt{State saved. You can resume later.}
+  \item Run Gaussian in the folder \file{small_molecule_params_MK1}:
+\begin{terminal}
+g16 mk1.gjf
+\end{terminal}
+        When it finishes you should have \file{mk1.log} and \file{mk1.chk}.
+  \item Back in ProPrep, type \key{2c}, \key{3}, \typed{1}, accept the name,
+        and answer \key{y} to resume:
+\begin{screen}
+╭──────────────────── Resume Available ─────────────────────╮
+│ Found saved workflow state                                │
+│ Workflow: Small Molecule Parameterization                 │
+...
+  Progress: 3/8 steps completed
+
+Resume from saved state? [y/n] (y): §ans«y»
+\end{screen}
+\end{steps}
+
+Answering \key{n} at \prompt{Resume from saved state?} deletes the saved state
+and starts again.
+
+\begin{needsoftware}
+Steps 4--8 were not run for this manual, because Gaussian was not installed.
+According to ProPrep's own description, step 4 turns the Gaussian log into
+RESP charges with \texttt{antechamber}, step 5 finds missing bond parameters
+with \texttt{parmchk2}, step 6 builds \file{.lib} and topology files with
+tLEaP (gas phase, water or both), step 7 optionally refines parameters
+(Seminario method, which also needs \texttt{formchk mk1.chk mk1.fchk}; a
+dihedral scan; or CREST, which was not installed), and step 8 registers the
+files for the Topology Generator and offers to store them in your library.
+\end{needsoftware}
+
+\begin{watchout}
+Do not force a later step with ``Run anyway''. Running step 5 before step 4
+gave the meaningless message
+\texttt{sequence item 2: expected str instance, NoneType found}. Also, 2c
+option~4 (\prompt{View parameterization status}) said
+\prompt{No parameterizations found in workspace} although a half-finished MK1
+job was saved. The saved job is still there; reach it with option~3.
+\end{watchout}
+
+\begin{watchout}
+If a ligand appears several times (three EDO in 3AJ4), each copy is listed
+separately. When we chose two copies, ProPrep ran the second one in the
+\emph{same} folder and offered to resume the first copy's state. Answering
+\key{n} there would have deleted the first copy's work. Parameterize one copy
+only; the parameters apply to all copies with the same residue name.
+\end{watchout}
+
+\subsection{Modified amino acid: phosphoserine (SEP, 3AJ4)}
+\label{sec:forcefields-modaa}
+
+\begin{tip}
+Check the Explorer first. SEP is already in Amber's phosphorylated
+amino-acid library (Section~\ref{sec:forcefields-check}). We ran this route
+only to show how far it goes.
+\end{tip}
+
+\begin{steps}
+  \item \key{2c}, \key{3}, then the SEP entry. ProPrep names the parent
+        residue (SER) and asks \prompt{Use SER as parent residue? (y)}:
+        \key{y}.
+  \item A 10-step checklist appears: Initial Structure, Backbone Angles,
+        Gaussian Input, PES Scan Results, Extract Structures, ESP Generation,
+        AC File, RESP Charges, Bonded Parameters, Force Field Integration.
+  \item \key{n} twice: steps 1 and 2 build a capped peptide ACE--SER--NME and
+        two shapes of it, with $\alpha$-helix and $\beta$-sheet backbone
+        angles.
+  \item \key{n}: step 3 asks for memory, processors, keywords and title
+        (press \key{Enter}), then the charge, \typed{-2} for a phosphate, and
+        multiplicity \typed{1}; answer \key{n} to the side-chain scan.
+        ProPrep writes \file{ser_ahelix.gjf} and \file{ser_bsheet.gjf}.
+  \item \key{n}: step 4 explains which Gaussian outputs it expects
+        (\file{ser_ahelix.log} and \file{ser_bsheet.log}) and asks
+        \prompt{Proceed (y), Pause to run Gaussian (p), or Quit (q)? (p)}.
+        Type \key{p}, then \key{s}.
+\end{steps}
+
+\begin{watchout}
+The two \file{.gjf} files still contain plain \emph{serine}, with no
+phosphate, but carry the charge you typed ($-2$). ProPrep warns that you must
+build the modification yourself. Open each file in a molecule editor such as
+GaussView, add the phosphate to OG, keep the existing atom order (the frozen
+backbone angles refer to atom numbers 5, 7, 9, 16 and 18), and only then run
+Gaussian. Running the files unchanged would compute a serine with two extra
+electrons.
+\end{watchout}
+
+Steps 5--10 (conformer extraction, ESP, multi-conformer RESP with
+\texttt{residuegen}, \texttt{parmchk2}, library files) were not reached.
+
+\begin{needsoftware}
+Every 2c route that makes charges needs \textbf{Gaussian 16} (\texttt{g16}
+and \texttt{formchk}): the small-molecule route, the modified-amino-acid
+route and the metal-site route. ProPrep writes the Gaussian inputs and reads
+the outputs; it does not run Gaussian. There is \textbf{no AM1-BCC option}
+inside the app: step 4 of the small-molecule route only accepts a Gaussian
+log file. Without Gaussian, ProPrep stops at the Gaussian checkpoint. For a
+ligand, the route in the next section is a working alternative.
+\end{needsoftware}
+
+\section{Without Gaussian: AM1-BCC charges for a ligand}
+\label{sec:forcefields-am1bcc}
+
+AM1-BCC charges are quicker and less careful than RESP, but widely used for
+drug-like ligands. The AmberTools installed with ProPrep can make them. We
+did this for MK1 and then put the result into the ProPrep library.
+
+\begin{steps}
+  \item Run 2c steps 1 and 2 for the ligand (Section~\ref{sec:forcefields-small}).
+        You now have \file{mk1_H.pdb}, the ligand with hydrogens, in
+        \file{small_molecule_params_MK1}.
+  \item Make a new empty folder, for example \file{bcc_params}, and copy
+        \file{mk1_H.pdb} into it.
+  \item Open a Terminal, activate the ProPrep environment
+        (Chapter~\ref{ch:installation}) and go into that folder.
+  \item Compute the charges and GAFF2 atom types. \texttt{-nc 0} is the net
+        charge; \texttt{-rn MK1} is the residue name. This took about 4
+        minutes for the 92 atoms of MK1:
+\begin{terminal}
+antechamber -i mk1_H.pdb -fi pdb -o mk1_bcc.mol2 -fo mol2 \
+    -c bcc -nc 0 -at gaff2 -rn MK1 -s 0 -pf y
+\end{terminal}
+  \item Find any missing parameters:
+\begin{terminal}
+parmchk2 -i mk1_bcc.mol2 -f mol2 -o mk1_bcc.frcmod -s 2
+\end{terminal}
+  \item Make the residue template. Create a text file \file{leap.in} with
+        these lines:
+\begin{terminal}
+source leaprc.gaff2
+MK1 = loadmol2 mk1_bcc.mol2
+loadamberparams mk1_bcc.frcmod
+check MK1
+saveoff MK1 mk1_bcc.lib
+quit
+\end{terminal}
+        and run it:
+\begin{terminal}
+tleap -f leap.in
+\end{terminal}
+        The end of the output should read
+        \texttt{Errors = 0; Warnings = 0}.
+  \item Back in ProPrep, type \key{2c}, then \key{2}
+        (\prompt{Import existing parameters into your library}). In the file
+        browser open \file{bcc_params}, pick \file{mk1_bcc.frcmod}, then
+        \file{mk1_bcc.lib}, then type \typed{skip} for the optional
+        \file{.prep} file. This browser also accepts a typed path.
+  \item Answer the questions:
+\begin{screen}
+Category (1): §ans«1»
+
+The library defines unit MK1; the filename says mk1_bcc. tLEaP matches
+the unit name and the match is case-sensitive, so MK1 is recorded as the
+residue name.
+...
+Library entry name (residue name) (MK1):
+One-line description (MK1 (GAFF, AM1-BCC/RESP charges, user-parameterized)):
+§ans«Indinavir (MK1) from 1HSG, GAFF2 + AM1-BCC charges»
+Parameter set name (user_MK1): §ans«MK1_AM1BCC»
+Reference(s) / citation (optional; separate multiple with ' | ') ():
+\end{screen}
+        Category 1 is \prompt{Small molecule / ligand}; 2 is modified amino
+        acid; 3 is metal site.
+  \item ProPrep confirms \prompt{Parameters saved — Saved to your library}
+        and says the set \prompt{will now appear in the Force Field Explorer
+        and Topology Generator in any project}.
+\end{steps}
+
+\begin{tip}
+Write the real charge method in the description. The suggested text says
+``AM1-BCC/RESP charges'', which does not tell you later which one you used.
+\end{tip}
+
+ProPrep then prints \prompt{Imported parameters need a transformer}. A
+transformer (Chapter~\ref{ch:redox}) is what links a library entry to a site
+so that the Topology Generator finds it. ProPrep's advice is: load the
+structure, run the Redox Site Detector, then \key{4d} option~1
+(\prompt{Create transformer}), and type \typed{save} straight away to accept a
+pass-through linked to \texttt{small\_molecules/MK1}. We did not carry out
+this last step or use MK1 in the Topology Generator for this manual.
+
+\section{The parameter library}
+\label{sec:forcefields-library}
+
+The library is a personal shelf of finished parameters, kept in your home
+folder. The full path is
+
+\smallskip
+\centerline{\file{~/.proprep/forcefield_params/specialized_residues/}}
+\smallskip
+
+\noindent with sub-folders \file{small_molecules}, \file{modified_aa} and
+\file{metal_sites}. Each entry
+has a \file{metadata.json} and its \file{.frcmod} and \file{.lib} files.
+
+\begin{itemize}
+  \item \textbf{Deposit} with 2c option~2 (any time, no structure needed), or
+        at the end of a parameterizer (step ``Force Field Integration'', which
+        asks \prompt{Add to your library (n)}; not reached in our tests).
+  \item \textbf{Find} in the Explorer, category 12. After our import the
+        count rose from 69 to 71 and the MK1 sets appeared as rows 69 and
+        70. Selecting one loaded \file{mk1_bcc.frcmod} and \file{mk1_bcc.lib},
+        and Browse Residues showed MK1 with 92 atoms.
+  \item \textbf{Reuse} in the Topology Generator of any project, through a
+        transformer (see above; not tried here).
+\end{itemize}
+
+An entry has two levels of names, which ProPrep explains in a panel
+\prompt{Two names, two levels}: the \textbf{entry name} says which molecule
+(one folder each); the \textbf{set name} says whose numbers. One entry can
+hold several sets, and exactly one is the default.
+
+\subsection*{Versions}
+
+Importing a set with a name that already exists gives three choices:
+
+\begin{screen}
+Set 'MK1_AM1BCC' already exists for small_molecules/MK1 [single_state/default].
+  1. Save as a new version — keep the existing set; write this one as MK1_AM1BCC_v2
+  2. Overwrite the existing set — replace its files and metadata with these
+  3. Cancel — leave the library untouched -- the default
+How would you like to proceed? (3): §ans«1»
+\end{screen}
+
+\begin{watchout}
+In version 1.23.0, ``Save as a new version'' makes the new set the default
+without saying so. Both versions also point to the same file names in the
+same folder, so if the new files differ, the old set's files are replaced.
+Give new files new names (for example \file{mk1_bcc_v2.frcmod}) before you
+import a second version. Note too that row numbers in Explorer category~12
+shift when you add entries.
+\end{watchout}
+
+\section{Advanced: metal sites}
+\label{sec:forcefields-metal}
+
+\begin{watchout}
+This route is for experienced users. In our tests with zinc insulin
+(\pdb{1ZNI}) and rubredoxin (\pdb{1IRO}, Fe(III)Cys$_4$) it never produced
+usable Gaussian inputs. Read the known problems below before you start. If a
+ready-made set exists (Zn(Cys)$_4$, hemes, [4Fe-4S]), use that instead via
+the Redox Site Preparer (Chapter~\ref{ch:redox}).
+\end{watchout}
+
+The metal route follows the \term{MCPB} approach (the ``bonded model''): the
+metal and its ligands get their own bonds, angles and charges, fitted to
+quantum calculations on a \term{small model} (for force constants) and a
+\term{large model} (for charges). Other metals in the structure are treated
+as free ions: removed before tLEaP and put back afterwards.
+
+You start it like the others: \key{2c}, \key{3}, then a metal site. A 15-step
+checklist follows:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Group} & \textbf{Steps} \\
+\midrule
+Structure preparation & 1 Structure Filtering (optional), 2 Structure
+  Completeness (optional), 3 Structure Triage \\
+Component parameterization & 4 Protein: FF + Protonation, 5 Water: Model
+  Selection, 6 Organic Small Molecules, 7 Organometallic Small Molecules,
+  8 Metal Clusters, 9 Isolated Metal Ions \\
+Structure assembly & 10 Structure Recombination (tLEaP), 11 Redox Site
+  Sync \\
+Metal site parameterization & 12 MCPB Atom Typing, 13 Bonded Parameters,
+  14 RESP Charges, 15 Force Field Integration \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Steps 1 and 2 reuse the PDB Filter and Structure Fixer
+(Chapter~\ref{ch:cleaning}); step 4 reuses the protonation tool
+(Chapter~\ref{ch:protonation}). Step 11 runs the Redox Site Detector if you
+have not done so. Step 12 asks for the metal's \term{formal charge} (e.g.
+\typed{+2} for Zn, \typed{+3} for Fe(III)) and its number of unpaired
+electrons (\typed{0} for Zn, \typed{5} for high-spin Fe(III)), and writes
+\file{small_freq.gjf} and \file{large_resp.gjf} in
+\file{site_N/models/}. Step 13 then waits for the Gaussian results (run
+\texttt{g16 small\_freq.gjf}, \texttt{formchk small\_freq.chk
+small\_freq.fchk} and \texttt{g16 large\_resp.gjf} in that folder).
+
+\subsection*{What happened in our tests}
+
+\begin{itemize}
+  \item \textbf{Empty Gaussian inputs.} In both 1ZNI and 1IRO, step 12
+        reported \prompt{Total residues: 0} and
+        \prompt{Wrote PDB file: small.pdb (0 atoms, charge=0.00)}. The
+        \file{.gjf} files contained only the route line and the charge line,
+        with no atoms. They cannot be run.
+  \item \textbf{tLEaP failure when sites with bonds already exist.} Running 2a
+        first, as ProPrep's own tip suggests, made step 10 fail with the tLEaP message
+        \texttt{Fatal Error! bond: Argument \#2 is of type String\ldots} The bond
+        lines lacked chain letters, a disulfide became a bond of a residue to
+        itself, and metal bonds pointed to a metal that had been removed.
+        Re-running 2a without bonds did not clear it. Running 2a only at
+        step 11 got past step 10.
+  \item \textbf{Chloride ions.} 1ZNI's Cl$^-$ ions were classed as
+        ``Unknown'', then as organic molecules. Giving Amber's
+        \file{atomic_ions.lib} made ProPrep take the first ion in that file
+        (Ag$^+$), and tLEaP failed. Discard crystallisation ions in step 1.
+  \item \textbf{Many questions.} Step 12 asks for a formal charge on every
+        atom of ordinary ligand residues (10--24 prompts per site). A whole
+        metal run needed 60--120 typed answers before the Gaussian step.
+  \item \textbf{Suggested charges.} The suggested model charge was always 0.
+        Work it out yourself: metal charge plus charged ligands, e.g.
+        Fe$^{3+}$ + 4 Cys$^-$ = $-1$. The suggested multiplicity from the
+        unpaired electrons was correct (5 $\to$ 6).
+  \item \textbf{Protonation of ligands.} A zinc-bound His (binding through NE2)
+        was suggested as HIE; HID is right. Disulfide cysteines were suggested
+        as CYS. Metal-bound Cys should be CYM (ProPrep says so on screen).
+  \item \textbf{Symmetry.} 1ZNI's Zn B:31 sits on a crystal symmetry axis;
+        its His ligands are in neighboring copies, so 2a found
+        \prompt{No nearby atoms found}. Choose a fully coordinated metal or
+        build the biological assembly first.
+  \item The Help screen (2c option 5) still calls the metal steps
+        ``Coming soon''; the checklist above is the current one.
+\end{itemize}
+
+\section{If something goes wrong}
+\label{sec:forcefields-problems}
+
+\begin{itemize}\sloppy
+  \item \textbf{The atom-type list starts with numbers like
+    \texttt{-0.00006}.} Type a filter (Section~\ref{sec:forcefields-explore}).
+  \item \textbf{Typing \typed{q} at a filter prompt shows odd residues.}
+    Use \typed{b} to go back.
+  \item \textbf{Step 4 fails with \prompt{Gaussian output not found}.} Run
+    Gaussian, then resume. Without Gaussian, use the AM1-BCC route
+    (Section~\ref{sec:forcefields-am1bcc}).
+  \item \textbf{A Python ``Traceback'' appears after a failed step.} ProPrep
+    has not crashed; read the line starting with \texttt{✗ Step} above it.
+  \item \textbf{\prompt{No parameterizations found} although you saved a
+    job.} Use option~3 and answer \key{y} to resume.
+  \item \textbf{The Explorer or tLEaP uses the wrong AmberTools.} Activate the
+    ProPrep environment and do not set \texttt{AMBERHOME} by hand.
+  \item \textbf{Metal-site Gaussian inputs have no atoms.} See
+    Section~\ref{sec:forcefields-metal}; there is no workaround in version
+    1.23.0.
+\end{itemize}
+
+See also Chapter~\ref{ch:troubleshooting} and Chapter~\ref{ch:knownissues}.

@@ -1,0 +1,751 @@
+\chapter{Getting a structure}
+\label{ch:structure}
+
+Every preparation starts with a three-dimensional structure of your protein.
+ProPrep can download one from the Protein Data Bank, fetch a model predicted
+by AlphaFold, or open a file that is already on your computer.
+This chapter shows each route. It also explains the difference between the
+``asymmetric unit'' and the ``biological assembly'', which decides whether you
+get the whole working molecule or only part of it.
+
+\begin{glance}
+\glanceitem{What it does}{Downloads or opens a protein structure, shows its
+  description, and, if needed, rebuilds the complete working molecule from
+  crystal symmetry.}
+\glanceitem{You need it when}{Always. Every other tool works on the structure
+  you load here.}
+\glanceitem{Before you start}{An internet connection for downloads. A new,
+  empty project folder for each protein (Chapter~\ref{ch:projectfolder}).}
+\glanceitem{Where to find it}{\menupath{1a}{Structure Loader} and
+  \menupath{1b}{Biological Assembly Generator}. In Workflow Mode, loading is
+  the first step of every workflow.}
+\glanceitem{You get}{The downloaded file, for example \file{4HHB.pdb}.
+  Sometimes also a copy without hydrogens (\file{9ZZZ_noH.pdb}), a rebuilt
+  assembly from 1b (\file{1HHO_biological_assembly.pdb}) or an AlphaFold model
+  (\file{AF-P69905-F1-model_v6.cif}).}
+\end{glance}
+
+\section{Two things to know first}
+\label{sec:structure-basics}
+
+\subsection{Asymmetric unit or biological assembly?}
+\label{sec:structure-asu}
+
+This is the point that confuses most beginners, so it is worth two minutes.
+
+A protein crystal is a regular, repeating stack of molecules. Crystallographers
+do not deposit the whole crystal. They deposit the smallest piece from which the
+whole crystal can be rebuilt by symmetry. This piece is the
+\term{asymmetric unit}: the set of chains that are actually written in the PDB
+file. The asymmetric unit is a property of the crystal, not of the protein. It
+may contain exactly one working molecule, only part of one, or several copies.
+
+The \term{biological assembly} is the molecule that is believed to exist and
+work in the cell or in solution. For hemoglobin this is the
+$\alpha_2\beta_2$ tetramer: four chains, two alpha and two beta. The PDB file
+contains instructions, in its \term{REMARK 350} lines, for building the
+biological assembly from the asymmetric unit. These instructions are rotations
+and shifts that place copies of the deposited chains.
+
+Two hemoglobin entries show the difference:
+
+\begin{tabularx}{\linewidth}{@{}lLL@{}}
+\toprule
+\textbf{Entry} & \textbf{Asymmetric unit (what the file holds)} & \textbf{Biological assembly} \\
+\midrule
+\pdb{4HHB} & All four chains A, B, C, D. & The same four chains. Nothing to build. \\
+\pdb{1HHO} & One alpha and one beta chain (A, B) only: half the molecule. & Four chains: the deposited pair plus a symmetry copy. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+So for \pdb{1HHO} the downloaded file is \emph{half} a hemoglobin. If you
+simulate it as it is, you simulate something that does not exist in nature. The
+reverse also happens: an asymmetric unit can hold two or more copies of a
+protein that works alone, packed together only by the crystal. Then you keep one
+copy later, in the PDB Filter (Chapter~\ref{ch:cleaning}).
+
+Structures from NMR and from AlphaFold are not crystals. For them the question
+does not arise, but note that an AlphaFold model is always a \emph{single
+chain}: the AlphaFold model of hemoglobin alpha (\pdb{P69905}) is one alpha
+chain, not the tetramer.
+
+\begin{tip}
+How do you know which you need? Read the entry's page on the RCSB website, or
+look at ProPrep's own information: the metadata summary
+(Section~\ref{sec:structure-metadata}) says whether the file contains
+\prompt{biological assembly information (REMARK 350)}, and tool \key{1b} names
+the assembly, for example \prompt{TETRAMERIC (author determined)}. If that
+assembly has more chains than the file, you need the assembly.
+\end{tip}
+
+\subsection{PDB format and mmCIF format}
+
+Structures come in two file formats. The older \term{PDB format} (files ending
+in \file{.pdb}) is what most of ProPrep expects. The newer \term{mmCIF} format
+(files ending in \file{.cif}) is used by the AlphaFold and AlphaFill downloads
+and by very large entries. In version 1.23.0 the file browsers list and accept
+only \file{.pdb} files. Wherever you have a choice, use PDB format.
+
+\section{Step by step: download a structure by its PDB ID}
+\label{sec:structure-pdbid}
+
+This is the route most people use. The example is human deoxyhemoglobin,
+\pdb{4HHB}.
+
+\begin{steps}
+  \item In the main menu, type \key{1a} (Structure Loader). The menu shows four
+        options; only the first is needed now.
+\begin{screen}
+══ Structure Loader Menu ══
+  1. ✓ Load protein structure
+  2. ✓ Load AMBER topology & coordinate files
+  3. ○ View structure metadata
+       ⚠ Load a structure first
+  4. ✓ Load a ligand file or library (SDF/mol2/SMILES) for docking
+...
+Enter your choice (1): §ans«1»
+\end{screen}
+  \item ProPrep asks where the structure should come from. Type \key{1}
+        (Protein Data Bank), then \key{1} again (Enter PDB ID directly).
+\begin{screen}
+═══ Load Structure - Select Source ═══
+
+1. Query Protein Data Bank (RCSB)
+2. Query AlphaFold Database
+3. Query AlphaFill Database (AlphaFold + ligands/cofactors)
+4. Load local PDB file
+5. View local files together (spatial comparison, view-only)
+6. Done (return to the Structure Loader menu)
+
+Select source (1): §ans«1»
+
+═══ Query Protein Data Bank (RCSB) ═══
+
+1. Enter PDB ID directly
+2. Search by entry title keyword
+3. Search by gene/protein (UniProt)
+4. Search by ligand (code or name)
+5. Back to source selection
+
+Select method (1): §ans«1»
+\end{screen}
+  \item Type the four-character code, \typed{4hhb}. Lower case is fine;
+        ProPrep changes it to upper case.
+  \item Choose the structure type. Type \key{1} for the asymmetric unit, as
+        deposited, or \key{2} for the biological assembly
+        (Section~\ref{sec:structure-asu}). For \pdb{4HHB} the two are the same,
+        so take \key{1}.
+\begin{screen}
+Enter PDB ID (e.g., 1ABC, 7XYZ): §ans«4hhb»
+
+Structure type:
+  1. Asymmetric unit (default - as deposited)
+  2. Biological assembly (functional oligomeric form)
+Select structure type (1): §ans«1»
+
+Downloading 4HHB...
+
+✓ Downloaded 4HHB
+
+PDB ID: 4HHB
+Classification: OXYGEN TRANSPORT
+Deposition Date: 07-MAR-84
+
+Title: THE CRYSTAL STRUCTURE OF HUMAN DEOXYHAEMOGLOBIN AT 1.74 ANGSTROMS
+RESOLUTION
+
+Experimental Method: X-RAY DIFFRACTION
+Resolution: 1.74 Å
+
+Publication:
+  THE CRYSTAL STRUCTURE OF HUMAN DEOXYHAEMOGLOBIN AT 1.74 A RESOLUTION
+  G.FERMI,M.F.PERUTZ,B.SHAANAN,R.FOURME
+  J.MOL.BIOL. V. 175 159 1984
+  PubMed: https://pubmed.ncbi.nlm.nih.gov/6726807/
+  DOI: https://doi.org/10.1016/0022-2836(84)90472-8
+  Abstract and free full text, if any: View structure metadata
+\end{screen}
+        The download takes about two seconds. The short summary tells you the
+        method and the \term{resolution} (how fine the detail of an X-ray or
+        cryo-EM structure is; smaller numbers are better, and 2~Å or less is
+        good).
+  \item ProPrep returns to the source menu, so that you can load more. Type
+        \key{6} (Done) to go back to the Structure Loader menu.
+\end{steps}
+
+The file \file{4HHB.pdb} is now in your project folder, exactly as the Protein
+Data Bank provides it. Notice that ProPrep did not ask which chains, ligands or
+waters you want. You choose those later, in the PDB Filter
+(Chapter~\ref{ch:cleaning}).
+
+\subsection{Two automatic checks after a download}
+
+Depending on the entry, ProPrep may stop with one or two extra screens.
+
+\paragraph{Residue numbering warning.} When a chain does not start at residue
+number~1, a box lists those chains, for example
+\prompt{Chain A: First residue is LYS \#13}. This is information, not an error.
+The usual reasons, which the box also names, are missing residues at the start
+of the chain, numbering that counts a signal (leader) sequence, or numbering
+taken from a reference protein. Keep it in mind when you later type residue
+numbers.
+
+\paragraph{Hydrogen removal.} Most crystal structures have no hydrogen atoms.
+NMR structures, very-high-resolution crystal structures and many cryo-EM
+entries do. Hydrogen names in PDB files often do not match what the
+\term{force field} (the set of parameters that describes the atoms in a
+simulation) expects, so ProPrep offers to remove them. The program that builds
+the simulation, \term{tLEaP}, adds them back later with the right names. This
+screen came from the cryo-EM entry \pdb{9ZZZ}:
+\begin{screen}
+Hydrogen Atom Removal
+This structure contains 14334 hydrogen atoms. Hydrogen naming in PDB structures
+is often inconsistent with force field expectations. It is recommended to remove
+them and let tLEaP add them back with correct naming, positions, and protonation
+states.
+
+Remove hydrogen atoms? [y/n] (y): §ans«y»
+H-stripped structure saved to: 9ZZZ_noH.pdb
+Removed 14334 hydrogen atoms
+\end{screen}
+Answer \key{y} in most cases. ProPrep keeps the original file and writes a
+second file, \file{9ZZZ_noH.pdb}, which contains only the coordinates (no
+header lines).
+
+\begin{watchout}
+Three things to know about hydrogen removal in version 1.23.0:
+\begin{itemize}
+  \item Your answer is remembered for the rest of the session. Later downloads
+        with hydrogens are stripped without asking; the screen then says
+        \prompt{(using previous selection)}.
+  \item The \file{_noH} file outranks every structure you load afterwards
+        (Section~\ref{sec:structure-switching}). It also has no REMARK 350 lines,
+        so the Biological Assembly Generator cannot use it.
+  \item On the alternate-location entry \pdb{3NIR}, 18 hydrogen atoms (on one
+        conformation of Pro22) stayed in \file{3NIR_noH.pdb}.
+\end{itemize}
+\end{watchout}
+
+\section{Getting the complete working molecule}
+\label{sec:structure-assembly}
+
+When the asymmetric unit is not the working molecule, you have two ways to get
+the biological assembly. Both were tried with \pdb{1HHO}, whose file holds only
+one alpha and one beta chain.
+
+\subsection{Route 1 (recommended for simulations): the Biological Assembly Generator}
+\label{sec:structure-1b}
+
+Tool \key{1b} reads the REMARK 350 instructions in the downloaded file and
+builds the assembly in one model with distinct chain letters.
+
+\begin{steps}
+  \item Start a new project. Load \pdb{1HHO} with \key{1a} \textrightarrow{}
+        \key{1} \textrightarrow{} \key{1} \textrightarrow{} \key{1}, typing
+        \typed{1HHO} and choosing \key{1} (asymmetric unit). Type \key{6} and
+        then \key{m} to return to the main menu.
+  \item Type \key{1b}, then \key{1}
+        (\prompt{Generate biological assembly from asymmetric unit}).
+  \item Check the first line: it names the file ProPrep is using. It must be
+        your download (here \file{1HHO.pdb}).
+\begin{screen}
+Using RCSB PDB PDB file: .../asm/1HHO.pdb
+
+Input structure: 1HHO.pdb
+Source: rcsb_pdb_file
+
+Found 1 biological assembly definition(s) in REMARK 350
+
+Available biological assemblies:
+  1. TETRAMERIC (author determined) (software determined) -
+     2 transform(s), chains: A, B
+
+Options:
+  1-N  Select assembly from REMARK 350
+  m    Enter manual transformation matrix
+  c    Cancel
+
+Select option (1): §ans«1»
+Include ligands/cofactors (HETATM)? [y/n] (y):
+Include water molecules? [y/n] (n):
+\end{screen}
+        The line \prompt{TETRAMERIC \ldots{} 2 transform(s), chains: A, B} is
+        the \term{quaternary structure} description: the assembly is a tetramer,
+        built by applying two transformations to chains A and B.
+  \item Type \key{1} to choose that assembly. Press \key{Enter} twice to keep
+        ligands and cofactors (here the four hemes) and to leave out the
+        crystal waters.
+\begin{screen}
+Generating biological assembly...
+
+Assembly generated successfully!
+  Original: 2 chains, 2,287 atoms
+  Assembly: 4 chains (A, B, C, D), 4,574 atoms
+  Transforms applied: 2
+
+Saved: .../asm/1HHO_biological_assembly.pdb
+Registered in workspace as 'biological_assembly_pdb_file'
+\end{screen}
+\end{steps}
+
+It takes less than a second. The new file \file{1HHO_biological_assembly.pdb}
+holds one model with chains A, B, C and D, four hemes, and no water. From now
+on, later tools use this file automatically.
+
+\begin{watchout}
+Run \key{1b} only once per project. When you open it again, it takes the
+assembly it has made as its input and offers the same
+\prompt{TETRAMERIC} assembly. Accepting would apply the symmetry a second time
+to a structure that is already complete. Type \key{c} (Cancel) instead.
+\end{watchout}
+
+If you type a number that does not exist, for example \key{7}, ProPrep prints
+\prompt{Invalid assembly number: 7} and goes back to the menu without asking
+again. If an assembly would need more than 62 chains, ProPrep warns that the PDB
+format has only 62 chain letters and asks whether to continue (this was not
+tried for this manual).
+
+\begin{watchout}
+In version 1.23.0, choosing \key{m} (\prompt{Enter manual transformation
+matrix}) closes ProPrep completely. After you type the chains, the program
+stops with:
+\begin{screen}
+Enter transformation matrix (3x3 rotation matrix):
+Error executing Show Generate biological assembly from asymmetric unit menu:
+name 'self' is not defined
+...
+Error: name 'self' is not defined
+Run with --debug flag for more details
+[Session recording stopped]
+\end{screen}
+Files already written stay on disk. Do not use \key{m}. If \key{1b} offers only
+\key{m} and \key{c} because it says \prompt{No REMARK 350 records found in PDB
+file.}, it is reading a file without header lines, usually a \file{_noH} file
+(Section~\ref{sec:structure-switching}). Start a new project and download the
+assembly directly (Route~2).
+\end{watchout}
+
+\subsection{Route 2: download the assembly directly}
+
+At step~4 of Section~\ref{sec:structure-pdbid}, type \key{2}
+(Biological assembly) instead of \key{1}:
+\begin{screen}
+Select structure type (1): §ans«2»
+
+Checking available biological assemblies for 1HHO...
+Found 1 biological assembly
+
+Downloading biological assembly 1...
+
+✓ Downloaded biological assembly 1 for 1HHO
+...
+Assembly contains 4 chains, 4,792 atoms
+\end{screen}
+If an entry has several assemblies, ProPrep lists them and asks
+\prompt{Select assembly number (1)}. If it has none, it says so and falls back
+to the asymmetric unit. The file is called \file{1HHO_assembly1.pdb}.
+
+This file comes straight from the RCSB, and it is built differently from the
+1b file: it stores the tetramer as \emph{two models}, each with chains A and B,
+and it keeps the crystal waters (221 of them). The summary also shows no
+resolution line. Tools that read only the first model would see only two
+chains. How the later ProPrep tools treat such a two-model file was not tested,
+so for simulations prefer Route~1.
+
+\section{Other ways to find and load a structure}
+\label{sec:structure-other}
+
+\subsection{Searching the Protein Data Bank by name}
+\label{sec:structure-search}
+
+Use this when you do not know the PDB code. At \prompt{Select method}, type
+\key{2} (Search by entry title keyword), type a few words, and optionally an
+organism. The example searched for horse cytochrome~c:
+\begin{screen}
+Enter search keyword (e.g., "carbonic anhydrase", "SOD1", "hemoglobin"):
+§ans«cytochrome c»
+Filter by organism? (optional, press Enter to skip) (): §ans«Equus caballus»
+
+Searching PDB for "cytochrome c" in "Equus caballus"...
+35 structures match
+Maximum number of structures to list, most relevant first (range: 1-10000,
+default: 100) (100):
+
+═══ Search Results (Page 1/2) ═══
+ #   PDB ID  Title                                          Method  Res (Å)  Metals
+ 1   6K9J    0.98 A three-dimensional structure of horse    X-ray   0.98     HEC (Fe)
+...
+ 8   1HRC    HIGH-RESOLUTION THREE-DIMENSIONAL STRUCTURE    X-ray   1.90     HEC (Fe)
+...
+Options:
+  • Select: single (1), multiple (1,3,5), range (1-3), or 'all'
+  • Type 'next' to see next page
+  • Type 'filter' to refine search
+  • Type 'back' to return to the Structure Loader menu
+
+Selection:
+\end{screen}
+(The table is shortened here.) Results are sorted best resolution first, with
+NMR entries (resolution \prompt{N/A}) last. The \prompt{Metals} column lists
+metal-containing groups, for example \prompt{HEC (Fe)} for the iron-containing
+heme of cytochrome~c.
+
+At \prompt{Selection:} you can type:
+\begin{itemize}
+  \item a number such as \typed{8} to download one entry. ProPrep shows the
+        entry and asks \prompt{Download 1HRC? [y/n] (y)}. This route always
+        downloads the asymmetric unit;
+  \item several numbers (\typed{3,9}) or a range (\typed{1-3}) to download them
+        together, after \prompt{Download all 2 structures? [y/n] (y)};
+  \item \typed{next} and \typed{prev} to change page. The numbers start again
+        at 1 on each page and refer to that page only;
+  \item \typed{filter} to narrow the list: \key{1} maximum resolution,
+        \key{2} method (X-ray, NMR, cryo-EM), \key{3} must contain a metal
+        (for example \typed{Zn}). With the zinc filter the 35 horse
+        cytochrome~c entries became 4;
+  \item \typed{back} to return to the source menu.
+\end{itemize}
+
+\begin{tip}
+Always give an organism. Several words without one search very broadly:
+\typed{horse heart cytochrome c} alone matched 10\,104 entries.
+\end{tip}
+
+\begin{watchout}
+Downloading several entries at once skips the summary, the numbering check and
+the hydrogen question. The NMR entry \pdb{1AKK} kept its 878 hydrogens this way.
+Only the \emph{last} entry of the batch becomes the structure that later tools
+use. Download the entry you want to prepare on its own.
+\end{watchout}
+
+Two smaller points: \prompt{4. Clear all filters} only says
+\prompt{To clear filters, start a new search}, and \typed{back} says
+\prompt{Back to the Structure Loader menu} although it returns to the source
+menu.
+
+\subsection{Searching by gene or protein name (UniProt)}
+
+\term{UniProt} is the main database of protein sequences; each protein has an
+\term{accession} code such as \pdb{P00441}. At \prompt{Select method}, type
+\key{3}, then a gene name, protein name or accession, and optionally an
+organism. With \typed{SOD1} and \typed{human}, ProPrep showed the UniProt entry
+(superoxide dismutase [Cu-Zn], 154 residues, cofactors
+\prompt{Cu cation, Zn(2+)}), offered more detail, and then said
+\prompt{This entry has 156 associated PDB structures}. A table of those
+structures follows, 20 per page, with method, resolution and the chains and
+residues each one covers (for example \prompt{A/F=2-154}). Typing a number
+downloads that entry \emph{at once}, with no confirmation and no choice of
+assembly.
+
+\subsection{Searching by ligand}
+
+To find structures that contain a particular small molecule, type \key{4} at
+\prompt{Select method}. Every ligand in the PDB has a short code, for example
+\prompt{HEM} for heme. You can type the code or words from its name. Names
+match whole words only. For example, \typed{biopterin} does not find
+the ligand named \typed{tetrahydrobiopterin}. ProPrep lists matching codes, can show related
+codes (other protonation or oxidation states of the same compound), and then
+asks which codes to search for and how many results to list. The results table
+has two extra columns: \prompt{Ligand}, and \prompt{RSCC}, which tells you how
+well the ligand fits the experimental electron density (1 is a perfect fit).
+
+\subsection{Predicted structures from AlphaFold}
+\label{sec:structure-alphafold}
+
+\term{AlphaFold} predicts a protein's structure from its sequence. Use it when
+there is no experimental structure, or when the experimental one is missing
+large pieces. At \prompt{Select source}, type \key{2}, then \key{1}
+(Retrieve by UniProt ID) and the accession:
+\begin{screen}
+Enter UniProt ID (e.g., P00520, Q5VSL9): §ans«p69905»
+
+Checking AlphaFold Database for P69905...
+
+✓ Retrieved AF-P69905-F1
+  Protein: Hemoglobin subunit alpha
+  Organism: Homo sapiens
+  File: AF-P69905-F1-model_v6.cif
+  Confidence: 98.0 (Very High)
+
+View AlphaFold metadata? [y/n] (y): §ans«y»
+...
+Model Quality:
+  Mean pLDDT: 98.0
+  Quality: Very High
+
+Confidence Distribution:
+  Very High (>90): 1069 residues (99.3%)
+  Confident (70-90): 0 residues (0.0%)
+  Low (50-70): 8 residues (0.7%)
+  Very Low (<50): 0 residues (0.0%)
+\end{screen}
+
+AlphaFold gives every residue a confidence score, the \term{pLDDT}, from 0 to
+100. Above 90 the prediction is usually as reliable as a good experimental
+structure. From 70 to 90 the backbone is generally right. Below 70, and
+especially below 50, the region is uncertain and is often a flexible, disordered
+part of the protein. The metadata screen also shows the sequence colored by
+confidence (the colors appear on screen only). Look at the low-confidence
+regions before you simulate them.
+
+Option \key{2} (Search by gene name) lists matching UniProt entries, for example
+\typed{HBB} gave ten beta-globins from different species, and you pick one by
+number.
+
+\begin{watchout}
+Points to know about AlphaFold downloads in version 1.23.0:
+\begin{itemize}
+  \item The \prompt{Length} line and the confidence distribution count
+        \emph{atoms}, not residues. Hemoglobin alpha has 142 residues, but the
+        screen says \prompt{Length: 1077 residues}. The percentages are
+        therefore per atom. After a gene-name search, the metadata shows
+        \prompt{UniProt ID: N/A} and \prompt{Organism: Unknown}.
+  \item The file is in mmCIF format (\file{.cif}). The file browsers of
+        \key{1a} and \key{3b} do not list it and refuse it if you type its path.
+        If you need the model in a browser (for example to align it,
+        Chapter~\ref{ch:compare}), download the PDB-format file from the
+        protein's page on the AlphaFold Database website and put it in your
+        project folder.
+  \item ProPrep keeps one AlphaFold model at a time; a second AlphaFold
+        download replaces the first.
+  \item An AlphaFold model contains one chain and no ligands, metals or
+        waters.
+  \item Without internet the message is \prompt{No AlphaFold structure found
+        for P69905} and \prompt{Not all proteins have AlphaFold predictions
+        yet}. The real cause may be the connection.
+\end{itemize}
+\end{watchout}
+
+\subsection{AlphaFold models with ligands: AlphaFill}
+
+\term{AlphaFill} takes an AlphaFold model and copies in (``transplants'')
+ligands, cofactors and metal ions from similar experimental structures. At
+\prompt{Select source}, type \key{3}; the questions are the same as for
+AlphaFold. The file is saved as \file{alphafill_P69905.cif}.
+
+\begin{watchout}
+In version 1.23.0 the AlphaFill screen always says \prompt{No transplanted
+ligands/cofactors found} and \prompt{This AlphaFill structure does not have
+enrichment data}. Do not believe it. The file for \pdb{P69905} does contain
+transplanted groups, including heme (HEM), carbon monoxide and oxygen. The
+\prompt{Length: 168 residues} counts the 142 amino acids plus these groups. The
+file itself is fine; look at it in the viewer (Chapter~\ref{ch:compare}).
+\end{watchout}
+
+\subsection{Your own file}
+\label{sec:structure-local}
+
+At \prompt{Select source}, type \key{4}. A simple file browser opens in your
+project folder:
+\begin{screen}
+Load Local PDB File
+
+Current directory: .../s3load
+  [ 1] .. (parent)
+  [ 2] 1AKK.pdb  (160.2 KB)
+  [ 3] 1HHO_assembly1.pdb  (386.7 KB)
+...
+Commands:
+  N          - open dir N, or select file N
+  ..         - go up one level
+  <path>     - jump to a file or directory path
+  q          - cancel
+
+Selection (q):
+\end{screen}
+Type the number of a file, or of a folder to open it, or \typed{..} to go up
+one level. You can also type the full path of a folder or a file, for example
+\typed{/Users/me/structures/1CRN.pdb}. A bare file name such as
+\typed{1CRN.pdb} is not accepted (\prompt{Enter a single number, '..', or
+'q'.}); type the full path or start it with \typed{./}.
+\begin{screen}
+✓ Loaded structure from local file
+  File: 1CRN.pdb
+\end{screen}
+ProPrep \emph{copies} the file into your project folder and works on the copy;
+your original stays untouched. If the file contains hydrogens, you get the
+hydrogen question. If its name contains \file{AF-} or \file{alphafold}, ProPrep
+treats it as an AlphaFold model.
+
+The browser lists only \file{.pdb} files. Typing the path of another file gives
+\prompt{junk.txt is not a PDB file.} or \prompt{1UBQ.cif is not a PDB file.}.
+\key{q} opens a plain question, \prompt{Enter path to PDB file:}. That route
+accepts a \file{.cif} file, but only half-loads it (\prompt{BioPython parsing
+skipped}); it was not checked which later tools then work. Convert your file
+to PDB format first.
+
+\subsection{Looking at several files together}
+
+Source \key{5} (View local files together) opens two or more local PDB files in
+the 3D viewer, in their real coordinates. You choose files in the same browser,
+several at once with \typed{2,5} or \typed{1-5}. This is for looking only:
+nothing is loaded for preparation, and the files are not superimposed, so
+unrelated structures may appear far apart. To superimpose structures, use the
+Structure Aligner (Chapter~\ref{ch:compare}).
+
+\subsection{Starting ProPrep with a structure}
+
+You can download or load a structure when you start ProPrep:
+\begin{terminal}
+proprep --full-menu --pdbid 1CRN
+proprep --full-menu --pdbfile my_protein.pdb
+\end{terminal}
+ProPrep then asks no project name and works in the folder where you started it.
+If the download fails (for example with no internet), the screen says
+\prompt{Failed to download PDB 1CRN}, followed by a misleading log line
+\prompt{Downloaded and loaded PDB: 1CRN}; the main menu then shows nothing
+loaded. Chapter~\ref{ch:cmdline} lists these options.
+
+\subsection{Other Structure Loader options}
+
+Option \key{2} (Load AMBER topology \& coordinate files) loads the files of a
+finished simulation system, for viewing a trajectory
+(Chapters~\ref{ch:analysis} and~\ref{ch:compare}). Option \key{4} loads a ligand
+file for docking (Chapter~\ref{ch:docking}).
+
+\section{Reading the description of a structure}
+\label{sec:structure-metadata}
+
+Before you prepare a structure, check what is in it. In the Structure Loader
+menu, type \key{3} (View structure metadata). If several kinds of structure are
+loaded, ProPrep asks which one (\prompt{1. RCSB PDB structure}, \prompt{2. Local
+PDB structure}, and so on). Opening the metadata also opens the 3D viewer.
+\begin{screen}
+===== PDB METADATA VIEWER =====
+File: .../s3load/1MFM.pdb
+ID: 1MFM
+
+Available Sections:
+ 1. Summary                  - Quick overview of structure and experimental details
+ 2. Safety & Status Records  - Obsolete/superseded status and warnings
+ 3. Header Records           - Classification, deposition date, and keywords
+...
+ 8. Hetero Compounds         - Ligands, cofactors, and non-standard residues
+...
+13. Export Metadata          - Save metadata to JSON or text file
+14. Help                     - Detailed explanations of what each section contains
+15. Exit                     - Return to previous menu
+\end{screen}
+
+The most useful sections are:
+\begin{description}
+  \item[1 Summary] The \term{composition} of the entry in the depositors' words.
+        For the superoxide dismutase \pdb{1MFM} it read
+        \prompt{Compound: MOL\_ID: 1; MOLECULE: PROTEIN (COPPER,ZINC
+        SUPEROXIDE DISMUTASE); CHAIN: A; \ldots{} MUTATION: YES}, followed by the
+        source organism and expression system, the number of chains and
+        residues (\prompt{Chain A: 153 residues}), and which REMARK records
+        exist, including \prompt{biological assembly information (REMARK 350)}.
+        Read the \prompt{MUTATION: YES} and \prompt{ENGINEERED: YES} flags: the
+        deposited protein may differ from the natural one.
+  \item[5 Sequence Information] The sequence of each chain.
+  \item[7 Citations] The publication, with PubMed and DOI links.
+  \item[8 Hetero Compounds] Every non-protein group, by code, with name,
+        formula and location, for example \prompt{CU}, \prompt{ZN}, and
+        \prompt{HOH} (water). Use this list to decide what to keep in the PDB
+        Filter.
+  \item[13 Export Metadata] Saves everything to \file{1MFM_metadata.json} or a
+        text file in your project folder.
+\end{description}
+
+For AlphaFold and AlphaFill structures the metadata screen is the one shown in
+Section~\ref{sec:structure-alphafold}.
+
+\section{Loading several structures and switching between them}
+\label{sec:structure-switching}
+
+ProPrep can hold one structure of each kind at the same time: one from the
+RCSB, one local file, one AlphaFold model and one AlphaFill model. Loading
+another of the same kind replaces the previous one. The Structure Loader menu
+lists what is loaded, for example
+\prompt{[All sources loaded: RCSB, Local, AlphaFold, AlphaFill]}.
+
+Which of these does the next tool use? Not necessarily the one you loaded last.
+Each tool picks its input by a fixed order of preference, and files that
+ProPrep made itself come first: the hydrogen-stripped \file{_noH} file, an
+assembly from \key{1b}, aligned files, and the filtered, repaired and
+protonated files of Chapters~\ref{ch:cleaning} and~\ref{ch:protonation}. A fresh
+download comes after all of them.
+
+\begin{watchout}
+\textbf{Loading a new structure does not make ProPrep use it.} In our tests:
+\begin{itemize}
+  \item After \pdb{9ZZZ} had been loaded with hydrogen removal, we loaded
+        \pdb{4HHB}, \pdb{1HHO} and four more entries. Tool \key{1b} still said
+        \prompt{Using H-Stripped PDB file: .../9ZZZ\_noH.pdb}.
+  \item After building the \pdb{1HHO} assembly, we downloaded \pdb{4HHB}.
+        Tool \key{1b} still used \file{1HHO_biological_assembly.pdb}.
+\end{itemize}
+Every tool prints a \prompt{Using \ldots{} file:} line at the top. Read it each
+time. Some tools (Homology Searcher, Structure Viewer, PDB Filter) show a table
+of the structures in the workspace and let you choose; \key{1b} does not.
+\end{watchout}
+
+The reliable rule is: \textbf{one protein, one project.} Start a new project
+(a new folder) for each structure you prepare (Chapter~\ref{ch:projectfolder}).
+The Workspace Options menu (\key{w}) has a \prompt{Reset workspace} option,
+which should also clear the old files from ProPrep's memory; it was not tried
+for this manual.
+
+\section{Options at a glance}
+
+\begin{longtable}{@{}p{0.33\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Question} & \textbf{Answers} \\
+\midrule
+\endhead
+\prompt{Select source} & \key{1} RCSB, \key{2} AlphaFold, \key{3} AlphaFill,
+  \key{4} local file, \key{5} view local files together, \key{6} done \\
+\prompt{Select method} (RCSB) & \key{1} PDB ID, \key{2} title keyword,
+  \key{3} gene or protein (UniProt), \key{4} ligand, \key{5} back \\
+\prompt{Select structure type} & \key{1} asymmetric unit (default),
+  \key{2} biological assembly from RCSB \\
+\prompt{Remove hydrogen atoms?} & \key{y} (default) writes \file{<name>_noH.pdb};
+  the answer is reused for the session \\
+\prompt{Selection:} (search results) & \typed{3}, \typed{1,3,5}, \typed{1-3},
+  \typed{all}, \typed{next}, \typed{prev}, \typed{filter}, \typed{back} \\
+\prompt{Select filter} & \key{1} maximum resolution, \key{2} method,
+  \key{3} contains metal, \key{4} clear (does not work), \key{5} back \\
+AlphaFold / AlphaFill & \key{1} UniProt ID, \key{2} gene name, \key{3} back \\
+File browser & a number, \typed{..}, a full path, \key{q} (then a path question) \\
+1b \prompt{Select option} & a number from REMARK 350, \key{m} manual matrix
+  (closes ProPrep in 1.23.0), \key{c} cancel \\
+1b \prompt{Include ligands/cofactors (HETATM)?} & \key{y} (default) \\
+1b \prompt{Include water molecules?} & \key{n} (default) \\
+\bottomrule
+\end{longtable}
+
+\section{If something goes wrong}
+\label{sec:structure-problems}
+
+\begin{description}[style=nextline]
+  \item[``not found (404)''] The full message is \prompt{PDB XQ99 not found
+        (404). May be a large structure only available in mmCIF format.}
+        Either the code does not exist (check it on the RCSB website) or the
+        entry is very large (more than 99\,999 atoms, such as ribosomes and
+        viruses), which the RCSB provides only as mmCIF. ProPrep cannot
+        download such entries.
+  \item[``control characters''] \prompt{URL can't contain control characters}
+        means you typed a space or other text that is not a PDB code. Nothing
+        is broken; try again.
+  \item[``No PDB ID entered''] You pressed \key{Enter} without a code.
+  \item[``search service could not be reached''] You have no internet
+        connection. A search needs one.
+  \item[``No AlphaFold structure found''] The accession may be wrong (then
+        the screen also shows \prompt{HTTP Error 400: Bad Request}). Or the
+        protein has no prediction, or you are offline.
+  \item[``is not a PDB file''] The browser accepts only \file{.pdb} files.
+        Convert the file, or download the PDB-format version.
+  \item[A tool works on the wrong structure] See
+        Section~\ref{sec:structure-switching}. Start a new project.
+  \item[``No REMARK 350 records found''] Tool \key{1b} is reading a file
+        that has no header lines. Do not choose \key{m}. Instead, download the assembly with
+        structure type \key{2} in a new project.
+  \item[ProPrep closes in 1b] It closed after \prompt{Enter transformation
+        matrix}: the manual matrix does not work in 1.23.0. Restart ProPrep;
+        your files are kept (Chapter~\ref{ch:sessions} explains how to resume).
+\end{description}
+
+Chapter~\ref{ch:troubleshooting} lists more symptoms, and
+Chapter~\ref{ch:knownissues} lists all known limitations of version 1.23.0.

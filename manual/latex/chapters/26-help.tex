@@ -1,0 +1,220 @@
+\chapter{Getting help and sending feedback}\label{ch:help}
+
+This chapter lists the places to look when you are stuck, explains the help
+built into ProPrep, and shows how to report a problem or send a suggestion to
+the developers. It ends with how to cite ProPrep in your work.
+
+\section{Where to look first}\label{sec:help-first}
+
+\begin{enumerate}
+  \item \textbf{This manual.} Chapter~\ref{ch:troubleshooting} is organized by
+  what you see on the screen. Chapter~\ref{ch:knownissues} lists the known
+  limitations of version 1.23.0, each with a way around it. The Glossary
+  (Appendix~\ref{app:glossary}) explains technical words, and the Menu map
+  (Appendix~\ref{app:menumap}) shows where every tool is.
+  \item \textbf{The screen itself.} ProPrep often tells you what is missing.
+  A \texttt{⚠} line under a tool says what it needs, such as
+  \texttt{⚠ Needs a topology — run Topology Generator first}. Many tool menus
+  also show a \texttt{→ Suggestion:} line with the next step.
+  \item \textbf{The \texttt{Using ...} line} at the top of each tool, which
+  tells you which file the tool is working on
+  (Section~\ref{sec:projectfolder-pickup}). Many surprises come from the wrong
+  file.
+  \item \textbf{The log files} in your project folder. When building a
+  topology fails, the real reason is often only in \file{leap.log}
+  (Chapter~\ref{ch:topology}).
+\end{enumerate}
+
+\section{Help inside ProPrep}\label{sec:help-inside}
+
+\begin{itemize}
+  \item \key{h} in the Full Menu shows a one-page summary of common workflows.
+  In version 1.23.0 its menu codes are out of date; use the corrected list in
+  Section~\ref{sec:menus-help}.
+  \item In Workflow Mode, \key{u} then \key{h} shows a short explanation of the
+  stages (Section~\ref{sec:menus-workflow}).
+  \item Some tools have their own help item, such as \textsf{Display detailed
+  help information} in the Force Field Parameterizer (\key{2c}).
+\end{itemize}
+
+\section{Seeing more detail: \texttt{--debug} and \texttt{--verbose}}\label{sec:help-debug}
+
+When ProPrep stops with an error, it normally prints a short message such as:
+
+\begin{screen}
+Error: [Errno 2] No such file or directory: 'sub/deeper'
+Run with --debug flag for more details
+\end{screen}
+
+To see more, start ProPrep again with one of these options and repeat what you
+did:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Option} & \textbf{What you get} \\
+\midrule
+\typed{--debug} & ProPrep runs normally, but some tools print extra
+diagnostic lines, and an error shows the full technical report (a
+\term{traceback}, the list of program steps that led to the error) instead of
+the short message. You can switch the same mode on and off during a run with
+\key{w} then \textsf{6.~Toggle debug mode}. \\
+\typed{--verbose} or \typed{-v} & The screen fills with time-stamped technical
+lines marked \texttt{DEBUG}, from start-up onwards. This is meant for the
+developers. Use it only when they ask you to. \\
+\bottomrule
+\end{tabularx}
+
+\begin{terminal}
+proprep --full-menu --debug
+\end{terminal}
+
+\begin{tip}
+When you report a problem, copy the error lines from the screen (from a
+\typed{--debug} run if you can) into your report. In the browser version, a
+plain-text copy of the whole session is also kept in
+\file{~/.proprep/web_sessions/}.
+\end{tip}
+
+\section{Feedback \& Support (\texttt{f})}\label{sec:help-feedback}
+
+The \key{f} item in the main menu opens a form that sends a bug report,
+feature request, suggestion or question to the developers as an \term{issue}
+on GitHub (a public web page where software projects collect reports). You can
+send it anonymously.
+
+\subsection*{The form, question by question}
+
+\begin{steps}
+  \item \prompt{Select feedback type (3)}: \key{1} Bug Report, \key{2} Feature
+  Request, \key{3} Suggestion, \key{4} Question, \key{5} Other.
+  \item \prompt{Module number (or type module name) (0)}: which tool it is
+  about, or \key{0} for General. You can also type the tool's name. The list
+  uses some older names (``PDB Loader'' is the Structure Loader) and does not
+  include the newer tools, such as Docking or the Membrane Builder; choose
+  \key{0} for those and name the tool in your text.
+  \item \prompt{Email address ()}: optional. Leave it empty to stay anonymous,
+  or type your email if you would like a reply.
+  \item \prompt{Summary}: one line. Required.
+  \item The detailed description: type one line at each \prompt{()} prompt;
+  an empty line finishes. Required. For a problem, say what you were trying to
+  do, what happened, and any error message.
+  \item ProPrep shows a \textsf{Feedback Preview} and asks whether to submit:
+\begin{screen}
+═══ Feedback Preview ═══
+
+  Type:                   Question
+  Module:                 Structure Viewer
+  Email:                  Anonymous
+  Summary:                Manual test - do not submit
+
+  Description:
+  Testing the form only.
+
+
+Submit this feedback to GitHub Issues? [y/n] (y): §ans«n»
+Feedback not submitted.
+\end{screen}
+\end{steps}
+
+\begin{watchout}
+The default answer to \prompt{Submit this feedback to GitHub Issues? [y/n] (y)}
+is \textbf{yes}. Pressing \key{Enter} sends your feedback. Type \key{n} if you
+are not ready. To leave the form at any earlier point, press \key{Enter} at
+\prompt{Summary}: ProPrep says \texttt{Summary is required.} and
+\texttt{Feedback cancelled.}
+\end{watchout}
+
+\subsection*{Setting up GitHub (once)}
+
+To post an issue, ProPrep needs a GitHub account and a \term{personal access
+token}. This is a long code, like a password, that lets ProPrep post on your
+behalf. The
+form's opening box explains how to make one at
+\url{https://github.com/settings/tokens} (``Generate new token (classic)'', with
+only the \texttt{public\_repo} permission ticked).
+
+Then store it in ProPrep:
+\begin{steps}
+  \item In the main menu, type \key{p} (Preferences), then \key{3}
+  (\textsf{Configure GitHub feedback}). The form's opening box says
+  ``2.~Configure GitHub''; in version 1.23.0 it is option 3.
+  \item At \prompt{GitHub repository (owner/repo)}, press \key{Enter} to accept
+  the suggested repository, or type another in the form \typed{owner/repo}.
+  \item At \prompt{Token:}, paste the token and press \key{Enter}. What you type
+  is hidden.
+\end{steps}
+
+ProPrep replies \texttt{✓ GitHub feedback configuration saved}. It does not
+check the token with GitHub at this point; a wrong token shows up only when you
+submit.
+
+\begin{watchout}
+The opening box says the token is stored securely, but in version 1.23.0 it is
+saved as plain, readable text in \file{~/.proprep/settings.json}. Anyone who can
+read your files can read it. Give the token only the \texttt{public\_repo}
+permission, do not use this on a shared account, and delete the token on GitHub
+when you no longer need it. \textsf{5.~Reset all preferences to defaults} under
+\key{p} removes it from ProPrep.
+\end{watchout}
+
+\begin{behindscenes}
+The repository the form suggests (\texttt{Mag14011/ProPrep}) is not the one
+ProPrep's releases come from (\texttt{mjgplab/proprep}). If you are unsure where
+a report should go, email the developers instead (next section).
+\end{behindscenes}
+
+\subsection*{Without a GitHub token}
+
+If no token is set up and you answer \key{y}, ProPrep cannot post the issue.
+According to its source, it then saves your feedback as a file in
+\file{~/.proprep/feedback/}, which you can email to the developers. We did not
+try this for the manual.
+
+\section{Contacting the developers}\label{sec:help-contact}
+
+ProPrep is developed by the Guberman-Pfeffer Lab at New Mexico State University.
+The thank-you box shown when you exit ProPrep gives the contact address:
+
+\begin{screen}
+│ Feedback (positive or negative) is welcome at: mjgp@nmsu.edu           │
+\end{screen}
+
+A useful report contains:
+\begin{itemize}
+  \item the ProPrep version (\typed{proprep --version});
+  \item your operating system (macOS, Linux or Windows with WSL);
+  \item the command you started ProPrep with;
+  \item what you did, what you expected, and what happened, with the exact
+  error lines copied from the screen;
+  \item if possible, the session file from your project folder
+  (\file{proprep_session_<date>_<time>.json}), which lets the developers repeat
+  your steps exactly.
+\end{itemize}
+
+\begin{tip}
+A session file contains every answer you typed, including file names and
+folder paths on your computer. Look through it before you send it if any of
+that is private.
+\end{tip}
+
+\section{Citing ProPrep}\label{sec:help-cite}
+
+If ProPrep helped your work, please cite it. The exit screen asks you to cite:
+
+\begin{example}
+Walker, A. \& Guberman-Pfeffer, M.J. (2026). ProPrep: An Interactive and
+Instructional Interface for Proper Protein Preparation with AMBER. bioRxiv.
+\url{https://doi.org/10.64898/2026.02.26.708365}
+\end{example}
+
+The ProPrep source code also comes with a citation file
+(\file{CITATION.cff}), which asks you to cite both the software (ProPrep
+version 1.23.0) and the accompanying article. Its entry for the article has a
+newer title, ``ProPrep: (Metallo)protein MD Preparation That Keeps Users
+Informed and in Control'', by Walker, Nielson, Cairns and Guberman-Pfeffer.
+Check the ProPrep download page (\url{https://github.com/mjgplab/proprep}) for
+the current reference before you publish.
+
+ProPrep runs many other programs for you, among them AmberTools (tLEaP, sander,
+ParmEd, cpptraj), PROPKA, packmol-memgen and AutoDock Vina. When your work uses
+their results, cite them too, as their own documentation asks.

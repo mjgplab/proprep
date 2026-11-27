@@ -1,0 +1,101 @@
+\chapter{File types you will meet}
+\label{app:filetypes}
+
+ProPrep writes many files into your project folder. You never need to open most
+of them, but it helps to recognize their names. This table lists the file types
+that appeared in the test projects made for this manual, grouped by what they are
+for. The ending of a file name (after the last dot) is called its
+\term{extension}; it tells you what kind of file it is.
+
+\begin{tip}
+Most of these files are plain text. You can open them with any text editor
+(TextEdit on a Mac, Notepad on Windows) to have a look. Do not change them by
+hand unless a chapter tells you to.
+\end{tip}
+
+\section{Structures}
+
+\begin{longtable}{@{}>{\ttfamily\bfseries}p{0.14\linewidth}>{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+\toprule
+\normalfont\bfseries Extension & \textbf{What it is} \\
+\midrule
+\endhead
+.pdb & A protein structure in the classic Protein Data Bank format: one line per
+  atom, with its name, residue, chain and position. Most ProPrep steps read and
+  write this format. Each stage of preparation leaves its own copy, for example
+  \file{filtered_structure.pdb} or \file{repaired_structure.pdb}
+  (Chapter~\ref{ch:projectfolder}). \\
+.cif & The newer mmCIF structure format. AlphaFold and AlphaFill models arrive
+  as \file{.cif} files. Some ProPrep file browsers list only \file{.pdb} files
+  (Chapter~\ref{ch:structure}). \\
+.pdbqt & A structure prepared for docking with AutoDock Vina: a PDB file with
+  partial charges and atom types added (Chapter~\ref{ch:docking}). \\
+.sdf, .mol2 & Small-molecule files, used for ligands and docking poses.
+  \file{.mol2} files also carry atom types and charges for parameterization
+  (Chapter~\ref{ch:forcefields}). \\
+.smi & A ligand written as a SMILES text string (Chapter~\ref{ch:docking}). \\
+.xyz & A plain list of atom positions. ORCA writes one after a QM/MM run
+  (Chapter~\ref{ch:qmmm}); docking writes a small one that describes the search box. \\
+\bottomrule
+\end{longtable}
+
+\section{Simulation input}
+
+\begin{longtable}{@{}>{\ttfamily\bfseries}p{0.14\linewidth}>{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+\toprule
+\normalfont\bfseries Extension & \textbf{What it is} \\
+\midrule
+\endhead
+.prmtop, .parm7 & The \term{topology}: every atom, its charge and type, and
+  every bond, angle and force constant. Built by the Topology Generator
+  (Chapter~\ref{ch:topology}). A healthy one is usually several megabytes;
+  a file of 0 bytes means the build failed. \\
+.rst7 & The starting \term{coordinates} (and, later, velocities) that go with
+  the topology. Always used as a pair with a \file{.prmtop} file. \\
+.in (tLEaP) & The instructions ProPrep writes for \texttt{tleap}, the Amber
+  program that builds the topology, for example \file{1UBQ_tleap.in}. You can
+  view and edit it inside ProPrep before it runs. \\
+.mdin & Settings for one simulation step (minimization, heating, production):
+  how long, what temperature, which restraints (Chapter~\ref{ch:runningmd}). \\
+.sh & Small scripts that run a simulation, locally or on a computing cluster
+  (SLURM scripts). \\
+.disang & Distance and angle restraints for a simulation (Chapter~\ref{ch:runningmd}). \\
+.cpin & Settings for constant-pH simulations (Chapter~\ref{ch:protonation}). \\
+.frcmod & Extra force-field parameters: bond, angle and twist strengths that the
+  standard force field does not contain (Chapter~\ref{ch:forcefields}). \\
+.lib & A residue library: the atoms, types and charges of a non-standard
+  residue, such as a heme or a ligand. \\
+.gjf, .com & Input files for Gaussian, the quantum-chemistry program used to
+  derive new charges and for QM/MM (Chapters~\ref{ch:forcefields} and~\ref{ch:qmmm}). \\
+.inp & Input files for ORCA, another quantum-chemistry program (Chapter~\ref{ch:qmmm}). \\
+.gpf, .fld, .map & Grid files for AutoDock 4 scoring in docking (Chapter~\ref{ch:docking}). \\
+\bottomrule
+\end{longtable}
+
+\section{Results and records}
+
+\begin{longtable}{@{}>{\ttfamily\bfseries}p{0.14\linewidth}>{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+\toprule
+\normalfont\bfseries Extension & \textbf{What it is} \\
+\midrule
+\endhead
+.nc & A \term{trajectory}: the protein's positions saved at intervals during a
+  simulation, like the frames of a film (Chapter~\ref{ch:analysis}). \\
+.mdout & The running log of a simulation: energies, temperature and pressure
+  at each reporting interval. \\
+.csv, .tsv & Tables you can open in Excel or any spreadsheet program: analysis
+  results, docking scores, batch summaries. \\
+.json & Structured text files ProPrep uses to remember things: the
+  \term{session file} (\file{proprep_session_*.json}), redox-site definitions,
+  workspace state, batch manifests (Chapters~\ref{ch:sessions} and~\ref{ch:redox}). \\
+.log, .out & Logs from ProPrep and the programs it runs. When something fails,
+  the real reason is often in a log, for example \file{leap.log} for topology
+  building (Chapter~\ref{ch:troubleshooting}). \\
+.pka & PROPKA's table of predicted pKa values (Chapter~\ref{ch:protonation}). \\
+.ccp4 & Electron-density maps downloaded for structure validation
+  (Chapter~\ref{ch:structure}). \\
+.xml & BLAST search results exported from the Homology Searcher
+  (Chapter~\ref{ch:compare}). \\
+.txt & Plain-text reports and summaries. \\
+\bottomrule
+\end{longtable}

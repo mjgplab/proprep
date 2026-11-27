@@ -1,0 +1,134 @@
+\chapter{Amber residue names}
+\label{app:residues}
+
+Amber force fields use the three-letter residue name to decide which atoms,
+charges and parameters a residue gets. A histidine, for example, can carry its
+hydrogen on either ring nitrogen, and each form has its own name. ProPrep
+writes these names for you, mainly in the Protonation State Analyzer
+(Chapter~\ref{ch:protonation}), the Structure Fixer
+(Chapter~\ref{ch:cleaning}) and the Redox Site Preparer
+(Chapter~\ref{ch:redox}). This appendix lists the names you are likely to meet
+in ProPrep's screens and files. It includes only names that appeared in the
+tests for this manual.
+
+\section*{Amino acids in different charge states}
+
+\begin{longtable}{@{}p{2.2cm}p{11.5cm}@{}}
+\toprule
+\textbf{Name} & \textbf{Meaning} \\
+\midrule
+\endhead
+\texttt{HID} & Histidine with the hydrogen on ND1 (the $\delta$ nitrogen).
+  Neutral. Also right for a His that binds a metal through NE2. \\
+\texttt{HIE} & Histidine with the hydrogen on NE2 (the $\varepsilon$
+  nitrogen). Neutral. The most common form, and what Amber assumes for a plain
+  \texttt{HIS}. \\
+\texttt{HIP} & Histidine with hydrogens on both nitrogens. Charge $+1$. Also
+  the titratable histidine in constant-pH runs. \\
+\texttt{ASH} & Aspartic acid, protonated (neutral). Normal Asp (\texttt{ASP})
+  has charge $-1$. \\
+\texttt{GLH} & Glutamic acid, protonated (neutral). Normal Glu (\texttt{GLU})
+  has charge $-1$. \\
+\texttt{LYN} & Lysine without its extra proton (neutral). Normal Lys
+  (\texttt{LYS}) has charge $+1$. \\
+\texttt{CYM} & Cysteine with the SH proton removed (thiolate, charge $-1$).
+  Typical for a cysteine bound to a metal ion. \\
+\texttt{CYX} & Cysteine in a disulfide bond (no SH hydrogen). Needs a matching
+  bond line in the tLEaP input as well (Chapter~\ref{ch:topology}). \\
+\texttt{TYM} & Tyrosine with the OH proton removed (tyrosinate, charge $-1$).
+  Mentioned in constant-pH mode. \\
+\texttt{AS4} & Titratable aspartate for constant-pH simulations. \\
+\texttt{GL4} & Titratable glutamate for constant-pH simulations. \\
+\bottomrule
+\end{longtable}
+
+\section*{End caps, water}
+
+\begin{longtable}{@{}p{2.2cm}p{11.5cm}@{}}
+\toprule
+\textbf{Name} & \textbf{Meaning} \\
+\midrule
+\endhead
+\texttt{ACE} & Acetyl cap on the first residue of a chain (N-terminus). Some
+  PDB files contain it already (\pdb{1HRC}); the Structure Fixer can add it.
+  The Redox Site Detector wrongly lists it as a cofactor. \\
+\texttt{NME} & N-methyl amide cap on the last residue of a chain
+  (C-terminus). \\
+\texttt{HOH}, \texttt{WAT} & Water. PDB files call it HOH; Amber topologies
+  call it WAT. \\
+\bottomrule
+\end{longtable}
+
+\section*{Names written by the Redox Site Preparer (4d)}
+
+{\sloppy These names come from ProPrep's bundled cofactor parameter sets. After 4d
+they appear in the renamed structure files
+(\file{final_transformed_structure.pdb} for a single state, or
+\file{transformed_microstate_001.pdb} and so on for batch runs).\par}
+
+\begin{longtable}{@{}p{2.2cm}p{11.5cm}@{}}
+\toprule
+\textbf{Name} & \textbf{Meaning} \\
+\midrule
+\endhead
+\multicolumn{2}{@{}l}{\textit{Hemes}} \\
+\texttt{HMO} & Ferric (oxidized) His/Met c-type heme, as in cytochrome~c.
+  Contains the iron, the porphyrin ring and the side-chain atoms of the two
+  thioether Cys, the axial His and the axial Met. \\
+\texttt{HCO} & Oxidized bis-His c-type heme (multiheme cytochromes such as
+  \pdb{1OFW}). \\
+\texttt{HCR} & Reduced bis-His c-type heme. \\
+\texttt{PRD} & Heme propionate, deprotonated (charge $-1$); fixed-pH
+  treatment. \\
+\texttt{PRP} & Heme propionate, protonated (neutral); fixed-pH treatment. \\
+\texttt{PRN} & Titratable heme propionate for constant-pH runs. \\
+\texttt{CYO} & Backbone of a cysteine whose side chain has moved into the
+  heme residue (thioether Cys). \\
+\texttt{HIO} & Backbone of a histidine whose side chain has moved into the
+  heme residue (axial His). \\
+\texttt{MEO} & Backbone of a methionine whose side chain has moved into the
+  heme residue (axial Met). \\
+\texttt{HBO} & Oxidized bis-His b-type heme (seen in the Force Field
+  Explorer's built-in sets). \\
+\multicolumn{2}{@{}l}{\textit{Iron--sulfur clusters}} \\
+\texttt{FR1} & [4Fe-4S] cluster in the reduced HiPIP state
+  ([Fe$_4$S$_4$]$^{2+}$), broken-symmetry set 1. The name follows the set
+  code (FO\ldots{} oxidized, FR\ldots{} reduced HiPIP, FD\ldots{} reduced
+  ferredoxin). \\
+\texttt{FD0} & [4Fe-4S] cluster in the reduced ferredoxin state
+  ([Fe$_4$S$_4$]$^{1+}$), averaged parameters. \\
+\texttt{C25}--\texttt{C28} & Cysteines bound to the individual irons of an
+  FR1 cluster (one name per iron). \\
+\texttt{CXD} & Cysteine bound to an FD0 cluster. \\
+\multicolumn{2}{@{}l}{\textit{Flavins}} \\
+\texttt{FMS} & FMN in the neutral semiquinone state (FMNH$\cdot$). \\
+\multicolumn{2}{@{}l}{\textit{Zinc}} \\
+\texttt{ZNC} & Zinc ion of a Zn(Cys)$_4$ site (built-in set). \\
+\texttt{CYZ} & Cysteine bound to zinc in a Zn(Cys)$_4$ site. \\
+\bottomrule
+\end{longtable}
+
+\section*{Names in the PDB file before preparation}
+
+You will see these in downloaded structures and in ProPrep's tables. They are
+not Amber names; the tools above turn them into Amber names, or you remove
+them.
+
+\begin{longtable}{@{}p{2.2cm}p{11.5cm}@{}}
+\toprule
+\textbf{Name} & \textbf{Meaning} \\
+\midrule
+\endhead
+\texttt{HEC} & c-type heme (bonded to two cysteines). \\
+\texttt{HEM} & b-type heme (not covalently bonded), e.g. in hemoglobin
+  \pdb{4HHB}. \\
+\texttt{FMN} & Flavin mononucleotide (\pdb{1FLV}). \\
+\texttt{SF4} & [4Fe-4S] iron--sulfur cluster (\pdb{1CLF}). \\
+\texttt{CU}, \texttt{ZN}, \texttt{FE} & Metal ions (copper, zinc, iron). \\
+\texttt{SEP} & Phosphoserine, a modified amino acid (\pdb{3AJ4}). \\
+\texttt{MK1} & Indinavir, the drug bound to HIV protease (\pdb{1HSG}). \\
+\texttt{GOL}, \texttt{EDO}, \texttt{ACT} & Glycerol, ethylene glycol and
+  acetate: additives from crystallisation, usually removed. \\
+\texttt{CL} & Chloride ion. \\
+\bottomrule
+\end{longtable}

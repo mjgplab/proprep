@@ -1,0 +1,758 @@
+\chapter[Redox-active sites (hemes, iron--sulfur, flavins, copper)]{Redox-active sites\\(hemes, iron--sulfur, flavins, copper)}
+\label{ch:redox}
+
+Many proteins carry a group that can take up or give away electrons: a heme,
+an iron--sulfur cluster, a flavin or a copper ion. The standard Amber force
+field does not know these groups, so they need special preparation before
+ProPrep can build a simulation model. This chapter shows how to find such a
+group with the \menupath{2a}{Redox Site Detector} and how to rename it for its
+parameter set with the \menupath{4d}{Redox Site Preparer}. The worked example
+is horse cytochrome~c, \pdb{1HRC}.
+
+\begin{glance}
+\glanceitem{What it does}{2a finds metals, cofactors and their protein
+  ligands, and records the bonds between them. 4d renames and splits these
+  residues so that they match a ready-made parameter set.}
+\glanceitem{You need it when}{Your protein has a heme, an iron--sulfur
+  cluster, a flavin (FMN, FAD), NAD(P), biopterin, a Zn(Cys)$_4$ site or
+  another metal you want to model with bonds. You also need it before QM/MM
+  (Chapter~\ref{ch:qmmm}).}
+\glanceitem{Before you start}{Load a structure with \key{1a}
+  (Chapter~\ref{ch:structure}). Nothing else is needed.}
+\glanceitem{Where to find it}{\key{2a} Redox Site Detector, then \key{4d}
+  Redox Site Preparer in the main menu.}
+\glanceitem{You get}{From 2a, the site file \file{<PDB>_redox_sites.json}.
+  From 4d, a renamed structure \file{final_transformed_structure.pdb} and a
+  matching site file \file{..._redox_sites_updated.json}, ready for the
+  Topology Generator (\key{5a}).}
+\end{glance}
+
+\section{What a redox site is}
+\label{sec:redox-what}
+
+A \term{redox center} is the atom or group that changes its number of
+electrons, for example the iron of a heme. The protein holds it in place with
+a few side chains, called \term{ligands}; a ligand that binds the metal from
+above or below a flat heme ring is an \term{axial ligand}. In cytochrome~c the
+iron has two axial ligands, His18 and Met80. A \term{redox site} is the
+center together with its ligands and the bonds between them.
+
+Hemes come in two kinds that matter here. A \term{c-type heme} (residue name
+HEC) is fixed to the protein by two thioether bonds to cysteines. A
+\term{b-type heme} (residue name HEM) is held only by its axial ligands. A heme
+also has two acid side groups, the \term{propionates}, which can be charged
+($-1$) or neutral.
+
+\begin{behindscenes}
+The Amber force field describes a residue by its name and its atom names.
+A heme that is bonded to Cys14, Cys17, His18 and Met80 is one chemical unit,
+but the PDB file splits it over five residues. ProPrep's parameter sets
+therefore use a different cut: the heme, the bound side chains and the iron
+become one residue (for example \texttt{HMO}), the propionates become separate
+residues, and the four protein residues keep only their backbone. The 4d
+tool does this cutting and renaming for you. The recipe it follows is called a
+\term{transformer}.
+\end{behindscenes}
+
+So redox preparation has two parts:
+\begin{enumerate}
+  \item \textbf{Describe the site} (2a): which residues belong to it and which
+        atoms are bonded. The transformer can only work if the right bonds are
+        recorded.
+  \item \textbf{Transform the site} (4d): choose the transformer and the
+        oxidation state. ProPrep writes a renamed PDB file that the Topology
+        Generator (Chapter~\ref{ch:topology}) can build.
+\end{enumerate}
+
+\section{Step by step: cytochrome c (1HRC)}
+\label{sec:redox-1hrc}
+
+This is the route that worked from start to finish. Start ProPrep with the
+Full Menu (Chapter~\ref{ch:starting}).
+
+\subsection*{Part A: load the protein}
+
+\begin{steps}
+  \item Type \key{1a} and load \typed{1HRC} from the RCSB, choosing the
+        asymmetric unit (Chapter~\ref{ch:structure}).
+  \item ProPrep shows a \prompt{Residue Numbering Warning}:
+        \prompt{Chain A: First residue is ACE \#0}. This is normal for 1HRC.
+        ACE is an acetyl cap on the first residue.
+  \item Return to the main menu with \key{m}.
+\end{steps}
+
+\subsection*{Part B: detect the heme (2a)}
+
+\begin{steps}
+  \item Type \key{2a}, then \key{2} (\prompt{Detect redox-active sites}).
+        A panel lists six phases: Configuration, Inventory Scan, Selection
+        \& Grouping, Templates, Site Refinement, Review \& Export.
+  \item Six configuration questions follow. Press \key{Enter} at each one to
+        accept the defaults:
+\begin{screen}
+Metal elements to scan (comma-separated list, 'none', or 'all') (all):
+Coordinating non-metal elements (comma-separated list, 'none', or 'all')
+  (Type 'back' or 'b' to return to previous question) (all):
+Search radius around each metal (Å) (range: 0.1-20.0, default: 4.0) (4.0):
+Detect CYS SG–SG pairs within this distance as candidate disulfides (Å)
+  (range: 1.0-5.0, default: 2.5) (2.5):
+Non-standard residues (HEM, FAD, etc.)? ... (y):
+Redox-active amino acids (TYR, TRP, PHE, MET)? ... (n):
+\end{screen}
+  \item ProPrep scans the structure and prints an inventory:
+\begin{screen}
+       Redox Center Inventory (2 centers found)
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Center ID  ┃ Center Desc.  ┃ Nearby Atom   ┃ Distance ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ [1]        │ HEC A:105     │ MET A:80 SD   │ 2.3Å     │
+│            │               │ HIS A:18 NE2  │ 2.5Å     │
+...
+│ [2]        │ ACE A:0       │ GLY A:1 N     │ 1.8Å     │
+...
+⚠ No SG–SG pairs were within the 2.50 Å auto-detection cutoff.
+\end{screen}
+        The heme (HEC~105) is found with Met80 and His18 next to the iron.
+        ACE~0 is the acetyl cap, not a cofactor. You will leave it out in the
+        next step.
+  \item At \prompt{Specify disulfide bonds as index pairs \ldots{} or 'none'
+        (none)} press \key{Enter}. Cytochrome~c has no disulfide
+        bonds; its two cysteines are 8.7~\AA{} apart.
+  \item The centers are numbered again for selection. Here ACE is 1 and HEC is
+        2. Select only the heme:
+\begin{screen}
+│ 1      │ ACE A:0       │ —        │ organic cofactor          │
+│ 2      │ HEC A:105     │ —        │ organometallic cofactor   │
+...
+Select additional centers to include (all): §ans«2»
+\end{screen}
+  \item At \prompt{Site assignments} press \key{Enter}. ProPrep makes one
+        site per center (\prompt{Auto-assigning individual sites: 1:1}).
+  \item Now you add the protein residues that hold the heme. At
+        \prompt{Choose search constraint (1)} type \key{1} (distance), then
+        \key{2} (\prompt{Minimum distance from any site atoms}), then \key{1}
+        (fixed radius), then \typed{2.5} as the radius, and press \key{Enter}
+        at \prompt{Use same atom filtering for search?}.
+  \item ProPrep finds the four residues bonded to the heme:
+\begin{screen}
+│ [1]    │ MET A:80 │ 2 atoms within range │ SD S (2.28Å), SD S (2.32Å)   │
+│ [2]    │ HIS A:18 │ 2 atoms within range │ NE2 N (2.47Å), NE2 N (2.04Å) │
+│ [3]    │ CYS A:14 │ 1 atoms within range │ SG S (1.75Å)                 │
+│ [4]    │ CYS A:17 │ 1 atoms within range │ SG S (1.86Å)                 │
+...
+Select residues to add: §ans«all»
+Added 30 atoms from 4 complete residues to site.
+\end{screen}
+        The same atom can appear twice (SD at 2.28 and 2.32~\AA) because it
+        is close to more than one heme atom. That is harmless.
+  \item At \prompt{Define bonds between residues} type \key{1}. Enter the
+        residue pairs by residue number:
+        \typed{105-80 105-18 105-14 105-17}.
+  \item ProPrep lists the heme atoms. For each bond, type the heme atom name,
+        then pick the partner from a list sorted by distance:
+  \begin{steps}
+    \item Source \typed{FE}, targets \typed{1,11} (His18 NE2 at 2.04~\AA{} and
+          Met80 SD at 2.32~\AA).
+    \item Source \typed{CAB}, target \typed{SG}, then pick the SG of
+          \textsf{CYS A:14} (1.75~\AA).
+    \item Source \typed{CAC}, target \typed{SG}, then pick the SG of
+          \textsf{CYS A:17} (1.86~\AA).
+    \item Type \typed{done}.
+  \end{steps}
+\begin{screen}
+│ Site Bonds (4)                                                │
+│   HEC A:105 FE ↔ HIS A:18 NE2 (coordinate, 2.04Å)             │
+│   HEC A:105 FE ↔ MET A:80 SD (coordinate, 2.32Å)              │
+│   HEC A:105 CAB ↔ CYS A:14 SG (covalent, 1.75Å)               │
+│   HEC A:105 CAC ↔ CYS A:17 SG (covalent, 1.86Å)               │
+└───────────────────────────────────────────────────────────────┘
+Site now contains 73 atoms, 4 bonds
+Search for additional residues to add to this site? [y/n] (y): §ans«n»
+\end{screen}
+  \item At \prompt{Site Review Options} type \key{4} (Export sites), then
+        \typed{1,2,3} to write all three file types. Then type \key{5}
+        (Continue). ProPrep reports
+        \prompt{Successfully detected 1 redox-active site(s)}.
+\end{steps}
+
+\begin{watchout}
+When you pick a bond partner, type the atom \emph{name} (such as \typed{SG})
+rather than a number. The target list is sorted again for every source atom,
+so the same number points to a different atom each time. In our test, typing
+\typed{28} for CAB made a ``bond'' to the SG of Cys17 at 8.21~\AA. ProPrep
+accepted it without a warning. If this happens, type the source atom again and
+choose \prompt{2 Replace one existing bond}.
+\end{watchout}
+
+\subsection*{Part C: add the bonds the transformer needs}
+
+For a protein with only one site, 2a never tells you which bonds the
+transformer needs. The four bonds above are \emph{not} enough. If you go
+straight to 4d now, it says that no specific transformer fits
+(\prompt{Compatible Transformers: None}). You can ask why:
+
+\begin{steps}
+  \item Type \key{4d}, then \key{2}.
+  \item At \prompt{Enter transformer assignments} type \typed{why 1}. For the
+        His/Met heme transformer you see:
+\begin{screen}
+  ✗ heme_his_met_axial_c_type: 12/18 requirements met — requirements not met
+      - HEM-variant bonds (inter-residue post-transformation): 2 thioether-Cys
+        + axial-His + axial-Met side-chain splices + 2 propionate carve-outs
+        (total) (expected 6, got 0)
+...
+\end{screen}
+  \item Press \key{Enter} on an empty line to cancel
+        (\prompt{No assignments provided}) and go back with \key{m}.
+\end{steps}
+
+The six missing bonds are bonds \emph{inside} residues: the heme's C2A--CAA
+and C3D--CAD (where the propionates will be cut off) and CA--CB of Cys14,
+Cys17, His18 and Met80 (where the side chains will be cut off). Add them in the
+site editor:
+
+\begin{steps}
+  \item Type \key{2a}, then \key{4} (\prompt{Edit detected sites}).
+  \item Type \typed{edit 1}, then \key{4} (bonds), then \typed{add}.
+  \item Answer the eight short questions one at a time, pressing \key{Enter}
+        after each:
+\begin{screen}
+Atom 1:
+  Chain: §ans«A»
+  Resname: §ans«HEC»
+  ResID: §ans«105»
+  Atom name: §ans«C2A»
+
+Atom 2:
+  Chain: §ans«A»
+  Resname: §ans«HEC»
+  ResID: §ans«105»
+  Atom name: §ans«CAA»
+
+Distance between atoms: 1.56Å
+...
+Choice [1/2/3/4] (1): §ans«1»
+Add covalent bond (1.56Å)? [y/n] (y): §ans«y»
+✓ Bond added: A:HEC:105 C2A ↔ A:HEC:105 CAA
+\end{screen}
+  \item Repeat \typed{add} for \texttt{A HEC 105 C3D} -- \texttt{A HEC 105 CAD},
+        and for CA -- CB of \texttt{A CYS 14}, \texttt{A CYS 17},
+        \texttt{A HIS 18} and \texttt{A MET 80}. Bond type is always \key{1}
+        (covalent).
+  \item Type \typed{list} to check. You should see 2 coordinate bonds and 8
+        covalent bonds; the six new ones are marked \texttt{intraresidue}.
+  \item Type \typed{back}, \typed{back}, then \typed{save}. ProPrep answers
+        \prompt{Changes saved to workspace}.
+\end{steps}
+
+\begin{watchout}
+In version 1.23.0 the editor drops you out, and loses \emph{all} unsaved
+edits, if a ResID answer is not a whole number. In our test we typed a whole
+bond on one line at the \prompt{Chain} prompt. ProPrep accepted the line as a
+chain name, the next answers slid one prompt down, and \typed{y} landed at
+\prompt{ResID}. The screen showed
+\texttt{Error handling menu option 'edit': invalid literal for int()} and
+returned to the 2a menu. Give one answer per prompt, and type \typed{save}
+after every few bonds.
+\end{watchout}
+
+\subsection*{Part D: transform the site (4d)}
+
+\begin{steps}
+  \item Type \key{4d}, then \key{2} (\prompt{Generate single redox
+        microstate}). The table now lists a compatible transformer:
+\begin{screen}
+│ Site # │ Center │ Location         │ Other Residues      │ Compatible ...
+│ 1      │ HEC    │ Chain A, HEC 105 │ 2×CYS, 1×HIS, 1×MET │ heme_his_me...
+...
+Available compatible transformers:
+1. heme_his_met_axial_c_type (compatible with sites: 1)
+2. no_transformation (compatible with sites: 1)
+...
+Enter transformer assignments: §ans«1»
+\end{screen}
+  \item Iron oxidation state: type \typed{oxidized} (ferric, Fe(III)).
+        The spin state is set for you (\prompt{Setting 'low\_spin' for all
+        sites}); ProPrep notes that ferric is a low-spin doublet and ferrous a
+        closed-shell singlet.
+  \item pH treatment: type \typed{1:fixed\_pH}
+        (see Section~\ref{sec:redox-ph}).
+  \item A-ring propionate: \typed{1:deprotonated}. D-ring propionate:
+        \typed{1:deprotonated}. Above pH~5 both propionates are normally
+        charged.
+  \item Check the \prompt{Configuration Summary} and type \key{a} (apply). The
+        prompt reads \prompt{Choice (a)}; the letters a/e/r/c mean apply,
+        edit a step, restart and cancel.
+  \item At \prompt{Review specific sites? (no)} you may type \key{1} to see
+        which residue plays which role (B-ring Cys~14, C-ring Cys~17,
+        His~18, Met~80, propionates A~106 and D~107). Answer \key{y} at
+        \prompt{Is this component matching correct?}.
+  \item ProPrep shows a plan of 12 operations and applies them. The final box
+        shows the split:
+\begin{screen}
+│ A:HEC 105 (43 atoms) -> SPLIT:
+│   ├─ A:HMO 105: FE, CHA, CHB, CHC, CHD, NA, C1A, ...
+│   ├─ A:PRD 106: CAA->CA, CBA->CB, CGA->CG, O1A->O1, O2A->O2
+│   └─ A:PRD 107: CAD->CA, CBD->CB, CGD->CG, O1D->O1, O2D->O2
+│ A:MET 80 (8 atoms) -> SPLIT:
+│   ├─ A:MEO 80: N, CA, C, O
+│   └─ A:HMO 105: CB->CBM, CG->CGM
+...
+✓ Workspace validation passed
+  • 1 centers validated
+  • 73 atoms validated
+  • 10 bonds validated
+\end{screen}
+\end{steps}
+
+The heme is now \texttt{HMO} (ferric His/Met c-type heme), the propionates are
+\texttt{PRD} (deprotonated propionate), and Cys14, Cys17, His18 and Met80 are
+backbone-only residues \texttt{CYO}, \texttt{CYO}, \texttt{HIO} and
+\texttt{MEO}. Appendix~\ref{app:residues} lists all these names.
+
+\subsection*{Part E: build the topology (5a)}
+
+Go on to the Topology Generator, \key{5a} then \key{2}
+(Chapter~\ref{ch:topology}). ProPrep knows which parameter set the heme needs.
+In our run we chose ff14SB, TIP3P and implicit solvent, and then the set
+\prompt{1. Ferric His/Met-axial c-type heme (HMO; cyt c2) — CM5}. Option
+\key{4} then built the topology and coordinate files (\file{.prmtop} and
+\file{.rst7}) with \prompt{Errors = 0} and a total charge of $+7$.
+
+\begin{tip}
+Start ProPrep from the activated ProPrep environment
+(Chapter~\ref{ch:installation}). In one of our sessions another AmberTools
+installation came first on the computer's search path, and tLEaP ran from
+there. The build still worked, but you want the AmberTools that came with
+ProPrep.
+\end{tip}
+
+\section{Understanding the results}
+\label{sec:redox-results}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{File} & \textbf{What it is} \\
+\midrule
+\file{1HRC_redox_sites.json} & The site definitions from 2a (export format 1).
+  You can import it again later with 2a option 1. \\
+\file{1HRC_redox_sites.pdb} & All site atoms in one PDB file (format 2). \\
+\file{1HRC_site_1.pdb} & One PDB file per site (format 3). \\
+\file{transformer_compatibility_report.txt} & Why each transformer did or did
+  not fit (the same text as \typed{why 1}). \\
+\file{final_transformed_structure.pdb} & The renamed structure. Use this for
+  5a. \\
+\file{final_transformed_structure_redox_sites_updated.json} & The site
+  definitions with residue numbers that match the renamed PDB. \\
+\file{enhanced_residue_mapping.txt} & Old $\to$ new residue and atom names. \\
+\bottomrule
+\end{tabularx}
+
+\begin{watchout}
+4d renumbers residues. In \file{final_transformed_structure.pdb} the ACE cap
+became residue~1, so every number moved up by one: the heme is HMO~106, the
+cysteines CYO~15 and 18, His HIO~19 and Met MEO~81. The mapping report and the
+progress lines still use the \emph{old} numbers (HMO~105, PRD~106, PRD~107).
+In multi-heme proteins the progress lines can even name a different heme
+(\texttt{A\_HEC\_1299} for heme 1294). Always trust the final PDB and the
+\file{_redox_sites_updated.json}, not the printed numbers.
+\end{watchout}
+
+\begin{watchout}
+After one generation, all three 4d options are blocked for the rest of the
+session (\prompt{Already generated microstate(s)}). To try other settings,
+start a new session in a new project folder.
+\end{watchout}
+
+The propionates were written between crystal waters in the PDB file (HMO~106,
+HOH~107, PRD~108, HOH~109, PRD~110), even though ProPrep printed
+\prompt{No ID conflicts detected}. tLEaP built the topology without trouble,
+but QM/MM set-up later picked the wrong residues. Chapter~\ref{ch:qmmm} shows
+how to check and fix this.
+
+\section{The Redox Site Detector in detail}
+\label{sec:redox-detector}
+
+The 2a menu has four options:
+
+\begin{screen}
+══ Redox Site Detector Menu ══
+  1. ✓ Import redox sites from JSON file
+  2. ✓ Detect redox-active sites
+  3. ○ View detected site summaries
+       ⚠ Need to detect or import sites first
+  4. ○ Edit detected sites
+       ⚠ Need to detect or import sites first
+\end{screen}
+
+Without a loaded structure, option 2 shows \prompt{Load a structure first};
+option 1 always works.
+
+\subsection{Configuration questions}
+
+\begin{tabularx}{\linewidth}{@{}lp{2.6cm}L@{}}
+\toprule
+\textbf{Question} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+Metal elements & \texttt{all} & Which metals become centers, e.g. \typed{FE,CU}
+  or \typed{none}. Typed symbols are not checked (\typed{XX} is accepted). \\
+Non-metal elements & \texttt{all} & Which atoms count as ligands around a
+  metal. \\
+Search radius & 4.0~\AA{} (0.1--20) & Distance for the ``nearby atoms'' in the
+  inventory. \\
+Disulfide cutoff & 2.5~\AA{} (1--5) & Cys pairs with SG--SG below this become
+  disulfide centers. \\
+Non-standard residues & \texttt{y} & Include cofactors (HEM, HEC, FMN, SF4
+  \ldots). \\
+Redox amino acids & \texttt{n} & Also list Tyr, Trp, Phe and Met. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+On questions 2--6 you can type \typed{back} to return to the previous one.
+Out-of-range numbers are refused with a message such as
+\prompt{Value must be at most 20.0}.
+
+\begin{watchout}
+Detection lists every non-protein group as a possible cofactor. In our tests
+the acetyl cap ACE (\pdb{1HRC}), glycerol GOL and acetate ACT
+(\pdb{1OFW}) were all called \prompt{organic cofactor}. They are left-overs
+from crystallisation or capping and are not redox-active. Leave them out at
+\prompt{Select additional centers to include} by typing only the numbers you
+want, for example \typed{2} or \typed{1-2}.
+\end{watchout}
+
+\subsection{Disulfides, center selection and grouping}
+
+If no Cys pair is within the cutoff, ProPrep shows a table of all SG--SG
+distances and asks \prompt{Specify disulfide bonds as index pairs (e.g. '1-2,
+3-4') or 'none'}. With fewer than two cysteines the question is skipped.
+
+At \prompt{Select additional centers to include} you can type \typed{all},
+\typed{none} (disulfides only), a range \typed{1-10} or a list
+\typed{1,3,5-8}.
+
+At \prompt{Site assignments} you decide which centers form one site:
+\typed{1:1 2:2} (one center each), \typed{1:1,2} (two centers in one site) or
+\typed{1:1-4} (one big site). \key{Enter} gives one site per center. Every
+center must be in a site; otherwise ProPrep says
+\prompt{Centers not assigned to any site}.
+
+\subsection{Templates: the way to see the bond requirements}
+\label{sec:redox-templates}
+
+When there is more than one site, ProPrep offers
+\prompt{Use template-based automation for systematic redox sites? (n)}.
+A \term{template} is your own label for a repeatable recipe: you set up the
+first site, and ProPrep applies the same search and bonds to the others. If
+the label is the name of a transformer, 4d later picks that transformer
+automatically.
+
+\begin{tip}
+With two or more sites, answer \key{y} here and use the transformer name as
+the site type. This is the only place where ProPrep prints the
+\prompt{Bond Requirements} for the transformer, so you know exactly which bonds
+to define. With a single site, use \typed{why 1} in 4d instead
+(Section~\ref{sec:redox-1hrc}, Part~C).
+\end{tip}
+
+\begin{example}
+The nine-heme cytochrome \pdb{1OFW} has 18 bis-His c-type hemes. We selected
+hemes \typed{1-2}, pressed \key{Enter} for grouping, answered \key{y} to
+templates and typed \typed{1-2:"heme\_bis\_his\_c\_type"}. ProPrep then set up
+site~1 and suggested a residue-count search:
+\begin{screen}
+Caution: Distance cutoffs may not be satisfied at every site due to geometric
+variations between sites. Residue count is generally more reliable for templates.
+Choose search constraint (2): §ans«2»
+Enter residue types to find (comma-separated, e.g., HIS,CYS,ASP) (HIS,CYS): §ans«HIS,CYS»
+Enter number of each type to find ... (2): §ans«2,2»
+...
+Bond Requirements for heme_bis_his_c_type:
+(At least one variant must be satisfied)
+...
+• HEC variant bonds (inter-residue post-transformation) (min: 6 bonds):
+  Covalent:
+    - HEC:C2A ↔ HEC:CAA
+    - HEC:C3D ↔ HEC:CAD
+    - CYS:CA ↔ CYS:CB
+    - CYS:CA ↔ CYS:CB
+    - HIS:CA ↔ HIS:CB
+    - HIS:CA ↔ HIS:CB
+\end{screen}
+Same-residue pairs are allowed, so the pairs were
+\typed{1294-1294 37-37 51-51 47-47 50-50}, then \typed{C2A}$\to$\typed{CAA},
+\typed{C3D}$\to$\typed{CAD} and \typed{CA}$\to$\typed{CB} for each protein
+residue. At \prompt{Apply these settings to all other heme\_bis\_his\_c\_type
+sites (1 remaining)? (y)} we pressed \key{Enter}, and site~2 got the same six
+bonds automatically.
+\end{example}
+
+\subsection{Finding the ligands: search options}
+
+For each site ProPrep repeats a search loop until you stop it.
+
+\begin{itemize}
+  \item \textbf{Distance cutoff} (\key{1}). Choose where distances are measured
+        from: \key{1} the geometric center of the site, \key{2} the nearest
+        site atom (best for bonded ligands), or \key{3} atoms you pick.
+        Then a fixed radius (default 5.0~\AA) or an adaptive radius that grows
+        from 3 to 8~\AA{} until a target number of atoms is found.
+  \item \textbf{Residue count} (\key{2}). Finds the $N$ closest residues of
+        each type, e.g. \typed{HIS,CYS} with \typed{2,2}. Add MET for His/Met
+        hemes. This is the most reliable choice for templates.
+  \item \textbf{Finish} (\key{3}) keeps the site as it is.
+\end{itemize}
+
+At \prompt{Select residues to add} you can type numbers, ranges, \typed{all},
+\typed{0} or \typed{none} (change the search and repeat), \typed{finish}, or
+\typed{view} (3D viewer, not tried for this manual). Whole residues are always
+added. Sites with only one residue skip the bond step
+(\prompt{Need at least 2 residues to define inter-residue bonds}).
+
+\subsection{Editing, viewing and exporting sites}
+
+After detection, \prompt{Site Review Options} offers: \key{1} view a site
+summary, \key{2} edit, \key{3} re-run detection on chosen sites, \key{4}
+export, \key{5} continue. The same editor opens later with 2a option~4.
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Editor command} & \textbf{What it does} \\
+\midrule
+\typed{edit 1} & Open site 1. Inside: \key{1} centers, \key{2} residues,
+  \key{3} atoms, \key{4} bonds, \key{5} metadata, plus \typed{summary},
+  \typed{validate}, \typed{back}. \\
+\typed{remove 2} & Delete a site (also \typed{1-5}, \typed{all}). \\
+\typed{validate} & Check all sites
+  (\prompt{Site validation passed - no issues found}). \\
+\typed{save} & Keep the changes and leave. \\
+\typed{cancel} & Leave without saving. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+In the bonds menu, \typed{list} shows coordinate and covalent bonds in
+separate tables; \typed{add}, \typed{remove} and \typed{reclassify} change
+them. \typed{cancel} may warn \prompt{You have unsaved changes} even if you
+only pressed \key{Enter}; answer \key{y} to discard.
+
+Export formats are \key{1} JSON (complete data, can be imported again),
+\key{2} all sites in one PDB and \key{3} one PDB per site. Type a list such
+as \typed{1,2,3}. An invalid number such as \typed{1,5} exports nothing
+(\prompt{Invalid choices: 5}).
+
+\begin{watchout}
+2a option~1 (import) lists every JSON file in the project folder, including
+ProPrep's own \file{proprep_session_*.json} files. Picking a session file
+gives \prompt{Successfully imported 0 redox site(s)} followed by
+\prompt{No sites found in JSON file}. Pick \file{<PDB>_redox_sites.json} or
+\file{_redox_sites_updated.json}. With the right file you see, for example,
+\prompt{Successfully imported 2 redox site(s)} and
+\prompt{Restored transformer mappings for 1 site type(s)}.
+\end{watchout}
+
+\section{The Redox Site Preparer in detail}
+\label{sec:redox-preparer}
+
+The 4d menu has three options: \key{1} \prompt{Create transformer
+(interactive PDB editor)}, \key{2} \prompt{Generate single redox microstate}
+and \key{3} \prompt{Generate all redox microstates (batch processing)}.
+Without sites it shows \prompt{Needs detected redox sites — run Redox Site
+Detector first}.
+
+\subsection{Built-in transformers}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Transformer} & \textbf{For} \\
+\midrule
+\texttt{heme\_his\_met\_axial\_c\_type} & His/Met c-type heme (cytochrome c,
+  c2) \\
+\texttt{heme\_bis\_his\_c\_type} & Bis-His c-type heme (multiheme
+  cytochromes) \\
+\texttt{heme\_bis\_his\_b\_type} & Bis-His b-type heme (HEM, no thioether) \\
+\texttt{heme\_cys\_axial\_b\_type} & Cys-ligated b-type heme (P450, NOS) \\
+\texttt{iron\_sulfur\_4fe4s} & [4Fe-4S] cluster with four Cys \\
+\texttt{flavin\_fmn}, \texttt{flavin\_fad} & FMN and FAD, five states
+  each \\
+\texttt{nicotinamide\_nad}, \texttt{nicotinamide\_nadp} & NAD$^+$/NADH,
+  NADP$^+$/NADPH \\
+\texttt{pterin\_biopterin} & Biopterin family, six states \\
+\texttt{zinc\_cys4} & Structural Zn(Cys)$_4$ site \\
+\texttt{disulfide} & Renames bonded cysteines to CYX \\
+\texttt{no\_transformation} & Leaves the site as it is \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Assigning transformers}
+
+At \prompt{Enter transformer assignments} type \typed{1:"name"} for each site
+(several at once: \typed{1-3:"name", 4:"other"}). With one site the list
+number alone works. \typed{why 2} explains, requirement by requirement, why a
+transformer does not fit site~2. \key{Enter} on an empty line cancels.
+
+\subsection{Oxidation states and spin}
+
+After the assignment ProPrep asks one question per parameter. You can type a
+value for all sites (\typed{oxidized}), per site (\typed{1:oxidized,
+2:reduced}), or press \key{Enter} to be asked option by option
+(\prompt{Sites for 'oxidized' (numbers/ranges, empty=skip)}).
+
+\begin{itemize}\sloppy
+  \item \textbf{Hemes}: \texttt{oxidized} or \texttt{reduced}. Spin is fixed
+        (low spin for the His/Met and bis-His hemes).
+  \item \textbf{Flavins} (\pdb{1FLV}): \texttt{oxidized},
+        \texttt{semiquinone\_neutral} (FMNH$\cdot$),
+        \texttt{semiquinone\_anionic}, \texttt{hydroquinone\_anionic},
+        \texttt{hydroquinone\_neutral}. Spin follows from the state.
+  \item \textbf{[4Fe-4S]} (\pdb{1CLF}): \texttt{oxidized} ([Fe$_4$S$_4$]$^{3+}$),
+        \texttt{reduced\_hipip} ([Fe$_4$S$_4$]$^{2+}$) and
+        \texttt{reduced\_fd} ([Fe$_4$S$_4$]$^{1+}$). Then a
+        \term{broken-symmetry} parameter set: a choice between equivalent
+        ways of pairing the iron spins. Codes are FO1--FO6, FR1--FR3 and
+        FD1--FD6 for the three states; FO0/FR0/FD0 are averages over all of
+        them. A code that does not match the state is refused, e.g.
+        \prompt{'FD1' is not a valid option for site 1}.
+\end{itemize}
+
+\subsection{Fixed pH or constant pH, and the propionates}
+\label{sec:redox-ph}
+
+Heme transformers ask for a \prompt{Propionate/titratable-site pH treatment}:
+
+\begin{itemize}\sloppy
+  \item \typed{fixed\_pH}: each propionate is fixed as charged (PRD) or neutral
+        (PRP). Works with the modern ff14SB and ff19SB force fields. Choose
+        this for ordinary MD. You then answer the A-ring and D-ring questions
+        (\texttt{deprotonated} or \texttt{protonated}).
+  \item \typed{constant\_pH}: titratable propionates (PRN) from Amber's
+        constant-pH and constant-redox libraries. They need the older ff10
+        backbone. Choose this only for constant-pH MD
+        (Chapter~\ref{ch:topology}); the propionate questions are then
+        skipped.
+\end{itemize}
+
+In the batch route (option 3) the default is \texttt{constant\_pH} if you
+press \key{Enter}.
+
+\subsection{Several sites and oxidation states: batch microstates}
+\label{sec:redox-batch}
+
+A \term{microstate} is one combination of oxidation states across all sites.
+For two hemes that can each be reduced or oxidized there are four. Option
+\key{3} writes one PDB file per microstate. This is how we ran \pdb{1OFW}
+(two hemes, after importing the sites JSON):
+
+\begin{steps}\sloppy
+  \item Type \key{4d}, then \key{3}. ProPrep assigned the transformers
+        automatically from the template names given in 2a.
+  \item At \prompt{Enter selection (required)} type \typed{all:1,2} (all sites
+        in states 1 and 2). Other forms are \typed{1:1,2 2:1}, or
+        \typed{single:1} and \typed{pairs:1} for systematic variations when
+        there are many sites.
+\begin{screen}
+Microstate Encoding:
+  Each site is represented by a 2-letter code:
+    First letter: R=Reduced, O=Oxidized
+    Second letter: L=Low spin, H=High spin, I=Intermediate spin
+...
+  1. RLRL
+  2. RLOL
+  3. OLRL
+  4. OLOL
+\end{screen}
+  \item Choose \key{1} (all) or \key{2} (a subset, e.g. \typed{1,4}).
+  \item Answer the pH treatment for each redox state. For the oxidized state
+        we typed \typed{1-2:fixed\_pH}, \typed{1-2:deprotonated} and
+        \typed{1:deprotonated,2:protonated}; for the reduced state we pressed
+        \key{Enter} (constant pH).
+\end{steps}
+
+The result is \file{transformed_microstate_001.pdb}, \file{_002.pdb}, an
+updated sites JSON for each, and \file{microstate_metadata.json}. ProPrep says
+\prompt{Use this file for tLEaP input generation (option 3 in Topology
+Generator menu)}.
+
+\begin{watchout}
+For sites with \texttt{no\_transformation} (for example Tyr or Phe in
+\pdb{1UBQ}), the microstate code reads ``OL'' (oxidized/low spin) although
+nothing was changed. The code is only a label here.
+\end{watchout}
+
+\subsection{Making your own transformer}
+
+{\sloppy Option \key{1} opens a small text editor for a site's residues. Commands
+include \typed{rename\_res}, \typed{rename\_atom}, \typed{movenew} (move atoms
+into a new residue), \typed{param} and \typed{vary} (names that change with
+the oxidation state), \typed{summary}, \typed{drop} (undo the last step),
+\typed{help} and \typed{quit}. We tried the editing commands on \pdb{1OFW}.
+We did not try \typed{save}, which writes the transformer to
+\file{~/.proprep/transformers} and links it to a parameter library; it is not
+described further here. Chapter~\ref{ch:forcefields} explains why a
+transformer is also needed for parameters you import yourself.\par}
+
+\section{Other proteins we tried}
+\label{sec:redox-others}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Protein} & \textbf{What happened} \\
+\midrule
+\pdb{1OFW} nine-heme cytochrome &
+  18 HEC found (plus 4 GOL and 1 ACT, deselected). Two hemes done with a
+  template; JSON export and import worked; batch microstates written as above.
+  The \texttt{heme\_bis\_his\_c\_type} transformer gave HCO (oxidized) and
+  HCR (reduced) hemes. \\
+\pdb{1FLV} flavodoxin &
+  One FMN found. \texttt{flavin\_fmn} with \texttt{semiquinone\_neutral}
+  renamed FMN to FMS. \\
+\pdb{1CLF} 2[4Fe-4S] ferredoxin &
+  Two SF4 clusters, each with four Cys SG nearby. Template
+  \texttt{iron\_sulfur\_4fe4s} with a count search (\typed{CYS}, \typed{4})
+  and four Fe--SG bonds. One cluster became FR1 with Cys named C25--C28, the
+  other FD0 with Cys named CXD. \\
+\pdb{1PLC} plastocyanin (Cu) &
+  The Cu and its four ligands (His37, His87, Cys84, Met92) were found with a
+  3.0~\AA{} search. No transformer exists for copper; only
+  \texttt{no\_transformation} is offered. Copper parameters must come from
+  elsewhere (Chapter~\ref{ch:forcefields}). \\
+\pdb{4HHB} hemoglobin &
+  Four HEM, each with its proximal His. Grouped as one site (\typed{1:1-4}),
+  no transformer fits: \prompt{Required center count (expected 1, got 4)}.
+  Keep one heme per site. \\
+\pdb{1UBQ} ubiquitin &
+  \prompt{Found 0 potential redox centers} with the defaults. With redox
+  amino acids switched on, Met1, Phe4, Phe45 and Tyr59 are listed;
+  \texttt{no\_transformation} is the only choice. \\
+\bottomrule
+\end{tabularx}
+
+\section{If something goes wrong}
+\label{sec:redox-problems}
+
+\begin{itemize}\sloppy
+  \item \textbf{4d says \prompt{Compatible Transformers: None}.} The site lacks
+    residues or bonds. Type \typed{why 1} at the assignment prompt and add
+    what is missing in 2a $\to$ \key{4} $\to$ \typed{edit 1} $\to$ bonds
+    (Section~\ref{sec:redox-1hrc}, Part C). For several sites, use templates
+    (Section~\ref{sec:redox-templates}).
+  \item \textbf{A bond of several \AA{} was created.} You typed a list number that
+    pointed to another atom. Type the source atom again and choose
+    \prompt{Replace one existing bond}.
+  \item \textbf{The editor jumped back to the 2a menu with \texttt{invalid literal for
+    int()}.} A ResID answer was not a number. Your unsaved edits are lost;
+    redo them one answer per prompt.
+  \item \textbf{ACE, GOL, ACT or EDO appear as cofactors.} Deselect them at center
+    selection.
+  \item \textbf{Residue numbers in the messages do not match the PDB.} Use the final
+    PDB and the updated sites JSON file
+    (Section~\ref{sec:redox-results}).
+  \item \textbf{4d options are greyed out with \prompt{Already generated
+    microstate(s)}.} Start a new session in a new project folder.
+  \item \textbf{A menu hint reads \prompt{or press to return to the main menu}.} The
+    key letter is missing from the hint in version 1.23.0. Type \key{m} for
+    the main menu.
+\end{itemize}
+
+See also Chapter~\ref{ch:troubleshooting} and Chapter~\ref{ch:knownissues}.

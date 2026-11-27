@@ -1,0 +1,557 @@
+\chapter{Membrane proteins}
+\label{ch:membrane}
+
+Many proteins live inside a cell membrane rather than in water. Ion channels,
+transporters and receptors are examples. To simulate them, you must place the
+protein in a patch of membrane with water on both sides. ProPrep's Membrane
+Builder does this for you. This chapter shows the route that worked for the
+potassium channel KcsA (\pdb{1BL8}), and how to build a bare membrane or a
+plain water box.
+
+\begin{glance}
+\glanceitem{What it does}{Places your protein in a lipid membrane, adds water
+and salt around it, and writes one packed structure file.}
+\glanceitem{You need it when}{Your protein spans a membrane, or you want a bare
+membrane patch, or a water box built the same way for comparison.}
+\glanceitem{Before you start}{Load the structure with \key{1a}. Remove ions,
+crystal waters and other non-protein parts with \key{4a} (very important; see
+Section~\ref{sec:membrane-filter}).}
+\glanceitem{Where to find it}{\menupath{4g}{Membrane Builder}, then \key{1}
+\textsf{Build membrane-protein system}.}
+\glanceitem{You get}{\file{bilayer.pdb} (the packed system). After
+\key{5a}: \file{bilayer.prmtop} and \file{bilayer.rst7}.}
+\end{glance}
+
+\section{What a membrane system is}
+
+A cell membrane is a \term{lipid bilayer}: two layers of fat-like molecules
+(\term{lipids}) with their oily tails facing each other. Each of the two layers
+is called a \term{leaflet}. A common lipid in simulations is \term{POPC}, a
+neutral lipid found in animal cell membranes. Cholesterol (called
+\texttt{CHL1} in ProPrep) is often mixed in.
+
+A membrane protein has a band of water-repelling surface that sits inside the
+oily core of the bilayer. Before lipids can be packed around it, the protein
+must be turned and shifted so that this band lies in the plane of the
+membrane. This step is called \term{orientation}.
+
+ProPrep does all of this by calling a separate program,
+\term{packmol-memgen}, which comes with AmberTools. It packs lipids, water and
+ions around the protein. The result is one large structure file. Building the
+simulation files from it is a separate step (\key{5a}, see
+Chapter~\ref{ch:topology}).
+
+\begin{behindscenes}
+The Membrane Builder does not minimize or simulate anything. It only places
+molecules. Some atoms are left a little too close to each other; the first
+minimization in the Molecular Dynamics Manager (Chapter~\ref{ch:runningmd})
+relaxes them.
+\end{behindscenes}
+
+\section{Step by step: KcsA in a POPC membrane}
+\label{sec:membrane-steps}
+
+This is the route that worked from start to finish for \pdb{1BL8}, a channel
+made of four identical chains. Start ProPrep with \texttt{proprep --full-menu}
+in a new project folder.
+
+\subsection{Load the protein and remove everything that is not protein}
+\label{sec:membrane-filter}
+
+The raw \pdb{1BL8} file contains three potassium ions and one water molecule
+inside the channel. The Membrane Builder cannot handle these (see
+Section~\ref{sec:membrane-traps}). Remove them first.
+
+\begin{steps}
+  \item Load the structure: \key{1a}, \key{1}, \key{1}, \key{1}, type
+        \typed{1BL8}, then \key{1} for the asymmetric unit. Press \key{m} to
+        return to the main menu.
+  \item Type \key{4a}, then \key{1} (\textsf{Filter PDB structure}).
+  \item At \prompt{Detect redox-active sites before filtering?} type \key{n}.
+        Press \key{Enter} at the viewer question and at
+        \prompt{Do you want to proceed with filtering?}.
+  \item ProPrep asks about each part of the file in turn. Keep every protein
+        chain with \key{r}. Discard the ions and the water with \key{d}:
+\begin{screen}
+Chain A - Protein
+[r] Retain entire component
+[s] Select specific residues
+[d] Discard entire component
+Choose option (r): §ans«r»
+
+Chain A - POTASSIUM ION
+...
+Choose option (r): §ans«d»
+...
+Chain B - Water
+...
+Choose option (r): §ans«d»
+\end{screen}
+  \item The summary should list only \prompt{Amino\_acid: 97 residues} for each
+        of the four chains. Answer \key{y} to
+        \prompt{Do you want to apply these filters?}. ProPrep saves
+        \file{filtered_structure.pdb}.
+\end{steps}
+
+\begin{watchout}
+In version 1.23.0, the \prompt{Select residues} question in the PDB Filter
+(option \key{s}) does not accept a range such as \typed{1-97}. ProPrep shows
+\prompt{invalid literal for int() with base 10: '1-97'} and the filter run is
+abandoned. Type numbers separated by commas, or \typed{all}.
+\end{watchout}
+
+\subsection{Open the Membrane Builder}
+
+\begin{steps}
+  \item From the main menu type \key{4g}, then \key{1}. You see the Membrane
+        Builder's control screen:
+\begin{screen}
+  Current Configuration
+  Protein:       filtered_structure.pdb
+  Lipids:        not set
+  Solvent:       TIP3P
+  Salt:          0.15 M K+/Cl-
+  Orientation:   Auto (memembed)
+  Box padding:   15.0 Å
+
+  SYSTEM
+    1   Protein Selection        filtered_structure.pdb
+    2   Lipid Composition        Required
+    3   Solvent & Ions           TIP3P, 0.15 M K+/Cl-
+
+  GEOMETRY
+    4   Box & Membrane Dims      15.0 Å pad, 17.5 Å water
+    5   Protein Orientation      Auto (memembed)
+    6   Specialized Geometry     Curvature, CompEL...
+
+  PACKING
+    7   PACKMOL Settings         tol=2.0, nloop=20/100
+
+  PARAMETRIZATION
+    8   Force Fields             ff14SB / lipid21 / TIP3P
+    9   Custom Params & Solutes  Solutes: none
+
+    r   Review Full Configuration
+    g   Generate & Run
+    b   Back
+
+Enter choice (2):
+\end{screen}
+  \item Check the \prompt{Protein} line. It should name
+        \file{filtered_structure.pdb}, the file you made in the last step. ProPrep picks
+        up the current structure on its own (option \key{1},
+        \textsf{Use workspace structure}).
+\end{steps}
+
+Each numbered line is a group of settings. You visit only the ones you want to
+change; the rest keep the values shown. \prompt{Required} means you must set
+it before building.
+
+\subsection{Choose the lipids}
+
+For a first system, use a single, common lipid. POPC is a good choice.
+
+\begin{steps}
+  \item Type \key{2} (\textsf{Lipid Composition}), then \key{3}
+        (\textsf{Enter raw lipid string}).
+  \item At \prompt{Lipid string:} type \typed{POPC}.
+  \item At \prompt{Ratio string (or Enter to skip)} press \key{Enter}. (We
+        typed \typed{4}; for a single lipid the ratio makes no difference.)
+\begin{screen}
+Lipid string: §ans«POPC»
+Ratio string (or Enter to skip) (): §ans«4»
+Set: POPC (ratio: 4)
+\end{screen}
+\end{steps}
+
+The lipid names are the ones packmol-memgen knows. An unknown name is refused,
+for example \prompt{Unknown lipid: 'FOO'}, and nothing is set.
+
+\subsection{Set the box size}
+
+The \term{box padding} is the strip of lipid kept between the protein and the
+side of the box. The \term{water layer} is the thickness of water above and
+below the membrane. Bigger values give a safer system but more atoms and a
+longer build.
+
+\begin{steps}
+  \item Type \key{4} (\textsf{Box \& Membrane Dims}).
+  \item Type \key{1}, then the padding. We used \typed{8}. The default is 15.
+  \item Type \key{2}, then the water thickness. We used \typed{10}. The
+        screen notes that \prompt{17.5 Å is typical}.
+  \item Type \key{b} to go back.
+\end{steps}
+
+\begin{screen}
+Select [1/2/3/4/5/6/7/b] (b): §ans«1»
+Box padding (Å) (min: 0.0, default: 15.0) (15.0): §ans«8»
+...
+Select [1/2/3/4/5/6/7/b] (b): §ans«2»
+Water layer thickness (Å) (min: 0.0, default: 17.5) (17.5): §ans«10»
+\end{screen}
+
+\begin{tip}
+Our small values (8 and 10~\AA) kept the build short for this manual. For real
+work, values between 10--15~\AA{} for the padding and 15--17.5~\AA{} for the
+water are a safer start.
+\end{tip}
+
+\subsection{Choose how the protein is oriented}
+
+ProPrep offers two automatic methods. \term{MEMEMBED} is the default and
+worked well for KcsA. \term{PPM3} is the method behind the \term{OPM database}
+(a public collection of membrane proteins already placed in a membrane). With
+PPM3, ProPrep can also compare its result with OPM's.
+
+\begin{steps}
+  \item Type \key{5} (\textsf{Protein Orientation}).
+\begin{screen}
+    1   Automatic (MEMEMBED)
+    2   Automatic (PPM3)              the method behind the OPM database
+    3   Pre-oriented (skip alignment)
+    4   MEMEMBED options
+    5   N-terminus orientation
+    6   Compare with the OPM database   Currently: Yes
+    b   Back
+
+Select [1/2/3/4/5/6/b] (1): §ans«1»
+Set: Automatic orientation via MEMEMBED
+\end{screen}
+  \item Type \key{1} for MEMEMBED (or \key{2} for PPM3), then \key{b}.
+\end{steps}
+
+When we chose PPM3 for the same protein, ProPrep checked its placement against
+OPM and printed this report:
+
+\begin{screen}
+  Asking the OPM database for 1BL8...
+  OPM has 1BL8. Against its placement (2824 atoms paired with OPM's file):
+    same way up as in OPM
+    membrane normal: 0.1° away from OPM's
+    protein centre along the normal: z = +5.2 Å here, +4.9 Å in OPM
+    (difference +0.3 Å)
+    OPM's hydrophobic thickness: 32.4 Å
+\end{screen}
+
+Small differences like these mean the orientation agrees with OPM. The check
+needs an internet connection and only reports; it changes nothing.
+
+\subsection{Choose the force fields}
+\label{sec:membrane-ff}
+
+A \term{force field} is the set of rules and numbers that describes how atoms
+push and pull on each other (Chapter~\ref{ch:forcefields}). Here you choose
+one for each kind of molecule. ProPrep passes your choices on to the Topology
+Generator, which will not ask again.
+
+\begin{steps}
+  \item Type \key{8}, then \key{1} (\textsf{Select all force fields (guided
+        walkthrough)}).
+  \item Answer each question. For KcsA we chose:
+\begin{screen}
+Select protein forcefield (2): §ans«3»
+Select modified amino acids ():
+Select dna forcefield (2): §ans«1»
+Select rna forcefield (2): §ans«1»
+Select carbohydrate forcefield (2): §ans«1»
+Select lipid forcefield (2): §ans«2»
+Select small molecule forcefield (2): §ans«1»
+Select water model (6): §ans«6»
+Select divalent+ ion parameters (6): §ans«1»
+
+Selected Forcefields:
+  protein: ff14SB
+  ...
+  lipids: lipid21
+  ...
+  water: TIP3P
+\end{screen}
+\end{steps}
+
+In plain words: \key{3} is ff14SB for the protein, \key{1} means ``None'' for
+DNA, RNA, sugars and small molecules, \key{2} is lipid21 for the lipids, and
+\key{6} is the TIP3P water model that matches ff14SB. The divalent-ion
+question was answered \key{1} (None) because KcsA has no metal ions after
+filtering. The menu marks the recommended choice with \prompt{(Recommended)};
+the protein default is ff19SB, which goes with OPC water.
+
+\subsection{Review and build}
+
+\begin{steps}
+  \item Type \key{r} to read the full configuration, or \key{g} to build. Both
+        show the review panel; \key{g} then asks for confirmation.
+  \item The panel ends with the \prompt{Equivalent command}: the exact
+        packmol-memgen command ProPrep will run.
+\begin{screen}
+│ MEMBRANE
+│   Lipids (symmetric): POPC
+│   Ratio:              4
+│ BOX
+│   XY padding:         8.0 Å
+│   Water layer:        10.0 Å
+...
+│ Equivalent command:
+│   packmol-memgen -p filtered_structure.pdb --notprotonate --nottrim
+│   -l POPC -r 4 --dist 8.0 --dist_wat 10.0 --salt --salt_override
+│   --ffprot ff14SB --fflip lipid21 --ffwat tip3p -o bilayer.pdb ...
+
+Proceed with build? [y/n] (y): §ans«y»
+\end{screen}
+  \item Type \key{y}. ProPrep first adds hydrogen atoms to the protein, then
+        orients it, then packs the lipids, water and ions.
+\end{steps}
+
+The packing step prints its progress in plain English, one line every few
+\term{loops} (rounds of rearranging molecules):
+
+\begin{screen}
+  Packing: All components together, up to 100 loops
+    packmol-memgen does not wait for a perfect packing: ... "lowest so far"
+    is the number to watch. What overlap is left, the minimization relaxes.
+    loop 83 of 100 | objective 6.87e+03 (lowest so far 6.39e+03) | ...
+    | 4.2 s per loop | at most 1 min 11 s more if every loop is needed
+\end{screen}
+
+The \term{objective} measures how badly molecules still overlap. It goes up
+and down; this is normal. At the end you see:
+
+\begin{screen}
+Build successful!
+  Output PDB: bilayer.pdb
+  Box: 69.9 × 69.9 × 78.5 Å
+  Water molecules: 5,142
+  Ions: 9 K+, 13 Cl-
+
+Workspace updated. Next steps:
+  1. Run Topology Generator to parametrize the system
+  2. Run Molecular Dynamics Manager for minimization/equilibration
+\end{screen}
+
+A message that packmol \prompt{used all its loops and stopped short of a
+perfect packing} is also normal. The remaining close contacts are removed by
+the first minimization.
+
+\subsection{Make the simulation files}
+
+\begin{steps}
+  \item Type \key{m}, then \key{5a}, then \key{2} (\textsf{Generate tLEaP
+        input for single state}).
+  \item ProPrep reuses your Membrane Builder choices and does not ask about
+        force fields or water:
+\begin{screen}
+Membrane system — using forcefields selected in membrane builder:
+  protein: ff14SB
+  lipids: lipid21
+  water: TIP3P
+Solvation skipped — system already solvated by membrane builder
+\end{screen}
+  \item At \prompt{Edit the tLEaP template?} type \key{n}.
+  \item At \prompt{Do you want to continue without bond definitions?} type
+        \key{y}. KcsA has no metal sites or disulfide bonds to define.
+  \item Press \key{Enter} to accept the file name \file{bilayer_tleap.in}, and
+        type \key{n} at \prompt{View the tLEaP input file?}.
+  \item Type \key{4} (\textsf{Generate prmtop/rst7 files}), then \key{1}
+        (\textsf{Generate missing only}).
+\end{steps}
+
+tLEaP finished with \prompt{Errors = 0; Warnings = 820}. Most of the warnings
+were ``close contact'' and ``name change'' messages, which are expected for a
+freshly packed membrane. You now have the two files the Molecular Dynamics
+Manager needs: \file{bilayer.prmtop} and \file{bilayer.rst7}
+(Chapter~\ref{ch:runningmd}).
+
+\begin{watchout}
+Right after the build, the \key{5a} menu may say that topology files have
+already been generated, before you have made any. It is counting a helper
+file from the hydrogen-adding step (\file{pretleap_hydrogen.prmtop}). Run
+option \key{4} anyway; check that \file{bilayer.prmtop} exists afterwards.
+\end{watchout}
+
+\subsection{How long it took}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Stage} & \textbf{Time on our laptop (KcsA, 4 chains, POPC)} \\
+\midrule
+Hydrogens and orientation (MEMEMBED) & about 1 minute \\
+Packing (\textsf{g}) & 8.5 minutes; 4--5.5 s per ``all together'' loop \\
+tLEaP and checks (\textsf{5a}) & about 1.5 minutes \\
+Total & about 11 minutes; 37,282 atoms in \file{bilayer.pdb} \\
+\bottomrule
+\end{tabularx}
+
+\section{Other choices}
+
+\subsection{A membrane with no protein}
+
+You can build a bare membrane, for example to study the lipids themselves. No
+structure needs to be loaded. We built a 40\,\AA{} patch of POPC with
+cholesterol in a 3:1 ratio.
+
+\begin{steps}
+  \item \key{4g}, \key{1}, then \key{1} (\textsf{Protein Selection}) and
+        \key{3} (\textsf{No protein (empty bilayer)}).
+  \item A bare membrane needs a fixed size. Type the side length:
+\begin{screen}
+No protein — building empty bilayer.
+Empty bilayers need an explicit x/y patch size (packmol-memgen --distxy_fix).
+Membrane patch size (Å, x and y) (70.0) (70.0): §ans«40»
+\end{screen}
+  \item \key{2}, \key{1} (\textsf{Build custom composition}), \key{1}
+        (\textsf{Symmetric}). Then add each lipid and its \term{molar ratio}
+        (how many of this lipid for each of the others):
+\begin{screen}
+  Lipid name (or 's' to search, 'd' when done): §ans«POPC»
+  1-palmitoyl-2-oleoyl-sn-glycero-3-phosphocholine (charge: 0)
+  Molar ratio for POPC (min: 1, default: 1) (1): §ans«3»
+...
+  Lipid name (or 's' to search, 'd' when done): §ans«chl1»
+  cholesterol (charge: 0)
+  Molar ratio for CHL1 (min: 1, default: 1) (1): §ans«1»
+...
+  Lipid name (or 's' to search, 'd' when done): §ans«d»
+\end{screen}
+  \item In the force-field walkthrough (\key{8}, \key{1}) answer \key{1}
+        (None) for the protein. Then build with \key{g}.
+\end{steps}
+
+This took about 2 minutes and gave 1,280 water molecules in a box of
+40\,$\times$\,40\,$\times$\,70\,\AA. ProPrep warned that the sterol
+concentration was high for so small a patch; a larger patch avoids this
+warning. In \key{5a}, ProPrep says that an empty bilayer needs no bond
+definitions, and builds the topology in about 40 seconds.
+
+\subsection{A water box with no lipids}
+
+Option \key{4} in \textsf{Lipid Composition} builds the same kind of system
+without a membrane. This is useful as a matched reference for comparison. We
+tried it with ubiquitin (\pdb{1UBQ}).
+
+\begin{screen}
+Select (1): §ans«4»
+╭───────────────────── Solvate Only (no membrane) ─────────────────────╮
+│ Builds a solvated system with no lipid bilayer. packmol-memgen packs │
+│ only water and ions around the solute, using the same engine and box │
+│ conventions as a membrane build. Useful for preparing a matched      │
+│ non-membrane reference of the same system.                           │
+╰──────────────────────────────────────────────────────────────────────╯
+Build a solvent-only system (no lipids)? [y/n] (y): §ans«y»
+Use a cubic box? [y/n] (n): §ans«n»
+Solvate-only mode enabled (no lipids).
+\end{screen}
+
+With a 10\,\AA{} padding the build took about 1 minute and gave 7,884 water
+molecules and 21 K$^+$ / 21 Cl$^-$ ions. The output file is still called
+\file{bilayer.pdb}, and the review still lists \prompt{leaprc.lipid21}, even
+though there are no lipids. You can ignore both.
+
+\subsection{Mixed and asymmetric membranes}
+
+Under \key{2} you can also choose \textsf{Asymmetric} (different lipids in the
+upper and lower leaflet), or type a raw string such as \typed{POPC:CHL1} (a
+mixture) or \typed{POPC//POPE} (upper//lower). Option \key{2}
+(\textsf{Search / browse lipid library}) lists the 4055 lipids packmol-memgen
+knows, by category or by name (searching \typed{cholesterol} finds
+\texttt{CHL1}).
+
+\subsection{Options at a glance}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Setting} & \textbf{What you can change} \\
+\midrule
+\key{1} Protein Selection & Loaded structure, another PDB file, or no protein. \\
+\key{2} Lipid Composition & Custom mix, library search, raw string, or no lipids. \\
+\key{3} Solvent \& Ions & Water model, salt on/off, salt concentration (default
+  0.15\,M), ion types, neutralization. \\
+\key{4} Box \& Membrane Dims & Padding, water layer, leaflet width, fixed
+  sizes. \\
+\key{5} Protein Orientation & MEMEMBED, PPM3, pre-oriented (for a file
+  already placed, such as an OPM download), which way the N-terminus points,
+  OPM cross-check. \\
+\key{6} Specialized Geometry & Curved membranes, channel plug, double
+  membrane with a charge imbalance, and other advanced options. \\
+\key{7} PACKMOL Settings & Packing tolerance, number of loops,
+  troubleshooting options, and a time limit for unattended builds. \\
+\key{8} Force Fields & One guided walkthrough for all molecule types. \\
+\key{9} Custom Params \& Solutes & Extra molecules to add to the box. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Options \key{6}, \key{7} and \key{9} were opened while testing, but no build
+was made with them. Leave them at their defaults unless you know packmol-memgen.
+
+\section{If something goes wrong}
+\label{sec:membrane-traps}
+
+\subsection{The build runs for minutes and is then thrown away}
+
+Our first KcsA build used the raw \pdb{1BL8} file, with its potassium ions and
+water. ProPrep could not add hydrogens to it:
+
+\begin{screen}
+tLEaP could not add the hydrogens. packmol-memgen can add them itself
+(pdb2pqr/reduce), but it then removes residues it does not recognise
+(cofactors such as hemes, metal sites) and assigns protonation states of its
+own, replacing the ones in this structure.
+Build anyway with packmol-memgen's own protonation? [y/n] (n): §ans«y»
+\end{screen}
+
+We answered \key{y}. The orientation and packing then ran for about
+7~minutes, and at the very end ProPrep refused the result:
+
+\begin{screen}
+The protein in bilayer.pdb is not the one packmol-memgen was given: atom 6 is
+ALA HA in residue 1 of the file, where the protein given has LEU N in
+residue 2. The Topology Generator's bond directives would not apply to it.
+The build is not recorded.
+\end{screen}
+
+\begin{watchout}
+If you see \prompt{tLEaP could not add the hydrogens}, answer \key{n}. Go
+back, remove ions, waters and other non-protein parts with \key{4a}
+(Section~\ref{sec:membrane-filter}), and build again. A \file{bilayer.pdb} left
+on disk by a refused build is not used by ProPrep.
+\end{watchout}
+
+\subsection{Your settings have disappeared}
+
+\begin{watchout}
+In version 1.23.0, the Membrane Builder forgets your lipid, box and
+orientation choices, without telling you, when the structure changes. This
+happened after filtering with \key{4a}, and also when we opened \key{4g} again
+after a finished build. Before you press \key{g}, always read the
+\prompt{Current Configuration} block or the review (\key{r}).
+\end{watchout}
+
+\subsection{Going back with \texttt{undo}}
+
+You can type \typed{undo} at any question in the Membrane Builder, as
+everywhere in ProPrep (Chapter~\ref{ch:sessions}). We did this inside the
+force-field walkthrough. ProPrep then replayed the whole session from the
+start, which took only seconds but filled several screens with
+\prompt{[REPLAY: ...]} lines. Answers after the rewind point are set aside.
+
+\begin{watchout}
+After an \texttt{undo}, check the review (\key{r}) before you build. While
+testing for this manual, one earlier setting (a PACKMOL time limit) was later
+found back at \prompt{none}. We could not tell for certain whether the
+\texttt{undo} or the reset described above caused it.
+\end{watchout}
+
+\subsection{Other messages}
+
+\begin{itemize}
+  \item \prompt{Please enter a valid number} or \prompt{Value must be at least
+        0.0}: you typed text or a negative value. Type it again.
+  \item \prompt{Experimental value for POPC volume not available}: a normal
+        note from packmol-memgen. Ignore it.
+  \item Hundreds of tLEaP warnings in \key{5a}: normal for a packed membrane,
+        as long as the summary says \prompt{Errors = 0}.
+  \item In the screens you may see \texttt{packmol-memgen} and
+        \texttt{teLeap} taken from a different conda environment. ProPrep
+        uses the programs in the folder named by \texttt{AMBERHOME} first. If
+        a build fails oddly, check which AmberTools that is
+        (Chapter~\ref{ch:troubleshooting}).
+\end{itemize}

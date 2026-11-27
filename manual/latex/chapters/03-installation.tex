@@ -1,0 +1,505 @@
+\chapter{Installation}
+\label{ch:installation}
+
+This chapter installs ProPrep on your computer. It assumes you have never used
+the Terminal before. Every command is shown exactly; type it, or copy and paste
+it, and press \key{Return} (Mac) or \key{Enter} (Windows and Linux) at the end of
+each line.
+
+There are two ways to install ProPrep:
+\begin{description}
+  \item[Option A, the self-contained installer (recommended).] One file that
+        contains ProPrep, AmberTools, MODELLER and everything else. No other
+        software is needed. Use this if you are not sure.
+  \item[Option B, the conda installer script.] For people who already use
+        \term{conda}, a program that installs scientific software into separate
+        folders called \term{conda environments}. It downloads everything
+        during the installation.
+\end{description}
+
+Both options give you the same ProPrep. After installing, add your MODELLER key
+(Section~\ref{sec:installation-modeller}) and run the check in
+Section~\ref{sec:installation-check}.
+
+\section{Option A: the self-contained installer}
+\label{sec:installation-optiona}
+
+\begin{behindscenes}
+The computer used for this manual already had conda, so it was set up with
+Option~B. The Option~A steps below follow ProPrep's official installation
+guide (\file{INSTALL.md}); the messages quoted are the ones that guide lists.
+\end{behindscenes}
+
+You will download one file of about 1 to 1.5\,GB. You need about 8\,GB of free
+disk space and 10 to 15 minutes. Once the file is downloaded, the installation
+itself needs no internet connection. You end up with a folder called
+\file{ProPrep} in your home folder.
+
+\subsection{Choose and download the installer}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Your computer} & \textbf{Installer file} \\
+\midrule
+Mac with an Apple chip (M1, M2, M3, \ldots) & \file{ProPrep-<version>-MacOSX-arm64.sh} \\
+Mac with an Intel chip & \file{ProPrep-<version>-MacOSX-x86_64.sh} \\
+Windows 10 or 11 (through WSL) & \file{ProPrep-<version>-Linux-x86_64.sh} \\
+Linux & \file{ProPrep-<version>-Linux-x86_64.sh} \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\texttt{<version>} stands for the version number, for example
+\texttt{1.23.0}.
+
+\begin{tip}
+Not sure which Mac you have? Click the Apple menu (top-left corner) and choose
+\textsf{About This Mac}. \textsf{Chip: Apple M\ldots} means an Apple chip;
+\textsf{Processor: Intel\ldots} means an Intel chip.
+\end{tip}
+
+\begin{steps}
+  \item Go to \url{https://github.com/mjgplab/proprep/releases/latest}.
+  \item Scroll down to \textsf{Assets} and click the file name for your
+        computer. Your browser saves it in your \file{Downloads} folder. The
+        file is large, so allow a few minutes.
+\end{steps}
+
+\subsection{On a Mac}
+\label{sec:installation-mac}
+
+\begin{steps}
+  \item Open the Terminal: press \key{Command}+\key{Space}, type
+        \typed{Terminal}, and press \key{Return}. A window with a text prompt
+        appears.
+  \item Type the line for your Mac. Apple chip:
+\begin{terminal}
+bash ~/Downloads/ProPrep-<version>-MacOSX-arm64.sh -b -p ~/ProPrep
+\end{terminal}
+        Intel chip:
+\begin{terminal}
+bash ~/Downloads/ProPrep-<version>-MacOSX-x86_64.sh -b -p ~/ProPrep
+\end{terminal}
+        The sign \texttt{\textasciitilde} means your home folder. The option
+        \texttt{-b} means ``accept the license and ask no questions'';
+        \texttt{-p \textasciitilde/ProPrep} is where ProPrep is installed.
+  \item Wait 2 to 5 minutes. The installer prints \prompt{Unpacking
+        payload...} and a list of packages, then \prompt{ProPrep is
+        installed.}
+  \item If macOS asks whether Terminal may access your Downloads folder,
+        click \textsf{OK}. The installer only reads the file you downloaded.
+\end{steps}
+
+\begin{tip}
+You do not have to type the long file name. Type
+\texttt{bash \textasciitilde/Downloads/ProPrep-} and press the \key{Tab} key;
+the Terminal completes the name for you.
+\end{tip}
+
+\subsection{On Windows (through WSL)}
+\label{sec:installation-windows}
+
+ProPrep runs on Linux and macOS. On Windows it runs inside the Windows
+Subsystem for Linux (WSL), a feature built into Windows that runs a small Linux
+system called \term{Ubuntu} next to Windows. You set up WSL once. After that,
+ProPrep opens in your normal Windows web browser.
+
+\paragraph{Set up WSL (once).}
+\begin{steps}
+  \item Click \textsf{Start}, type \typed{PowerShell}, right-click
+        \textsf{Windows PowerShell} and choose \textsf{Run as administrator}.
+        Click \textsf{Yes} if Windows asks for permission.
+  \item In the blue window, type:
+\begin{terminal}
+wsl --install
+\end{terminal}
+        Windows downloads and installs WSL and Ubuntu. This takes several
+        minutes.
+  \item Restart your computer when Windows asks you to.
+  \item After the restart, an Ubuntu window opens and says
+        \prompt{Installing, this may take a few minutes...}. It then asks you
+        to choose a user name (lowercase, no spaces) and a password. The
+        password does not show while you type; that is normal. Remember it.
+        If no Ubuntu window opens, click \textsf{Start}, type
+        \typed{Ubuntu}, and open it.
+\end{steps}
+
+You now have an Ubuntu window with a prompt ending in \texttt{\$}. This is
+your Terminal on Windows. Type every command below in it.
+
+\paragraph{Install ProPrep.} Your Windows \file{Downloads} folder is visible
+from Ubuntu as\newline \file{/mnt/c/Users/<YourWindowsName>/Downloads}.\newline Type this,
+replacing \texttt{<YourWindowsName>} with your Windows user name and
+\texttt{<version>} with the version number:
+
+\begin{terminal}
+bash /mnt/c/Users/<YourWindowsName>/Downloads/ProPrep-<version>-Linux-x86_64.sh \
+  -b -p ~/ProPrep
+\end{terminal}
+
+The backslash at the end of the first line means ``the command continues on
+the next line''. You can also type it all on one line without the backslash.
+If you do not know your Windows user name, type \texttt{ls /mnt/c/Users} and
+press \key{Enter} to see the list. The installer takes 2 to 5 minutes and ends
+with \prompt{ProPrep is installed.}
+
+\paragraph{Where are my files?} ProPrep saves projects in your Ubuntu home
+folder. To see them in Windows Explorer, type this in the Explorer address bar
+(with your Ubuntu user name): \verb|\\wsl$\Ubuntu\home\<your-ubuntu-username>|
+
+\begin{watchout}
+WSL needs Windows 10 version 2004 or later, or Windows 11, and about 10\,GB of
+free disk space in total. If \texttt{wsl --install} reports an error, the usual
+causes are an old Windows 10 (run Windows Update) or virtualization switched
+off in the computer's firmware; your IT support can switch it on.
+\end{watchout}
+
+\subsection{On Linux}
+\label{sec:installation-linux}
+
+Open a terminal and type:
+
+\begin{terminal}
+bash ~/Downloads/ProPrep-<version>-Linux-x86_64.sh -b -p ~/ProPrep
+\end{terminal}
+
+The installer takes 2 to 5 minutes and puts ProPrep in \file{~/ProPrep}. It is
+built for 64-bit Intel and AMD processors (x86-64) and has been tested on Rocky
+Linux.
+
+\begin{tip}
+On a computer without a screen that you reach over \texttt{ssh} (for example a
+cluster), \texttt{proprep-web} prints the exact \texttt{ssh -L} command to run
+on your own computer. After that, \url{http://localhost:8000/} opens ProPrep in
+your local browser.
+\end{tip}
+
+\subsection{Starting ProPrep after Option A}
+
+\begin{terminal}
+~/ProPrep/bin/proprep-web
+\end{terminal}
+
+Your web browser opens with ProPrep inside it. On Windows, open
+\url{http://127.0.0.1:8000/} in your Windows browser yourself; the Ubuntu
+window prints a line \prompt{ProPrep Web Shell listening on
+http://127.0.0.1:8000/}. Leave the Terminal window open while you work. To use
+ProPrep in the Terminal instead of the browser, type
+\texttt{\textasciitilde/ProPrep/bin/proprep}. Chapter~\ref{ch:starting}
+explains both.
+
+\section{Option B: the conda installer script}
+\label{sec:installation-optionb}
+
+Use this option if you already have conda. If you do not, install Miniforge
+first from\newline \url{https://github.com/conda-forge/miniforge#download},\newline close the
+Terminal and open a new one. Without conda the script stops with
+\prompt{ERROR: conda is not installed or not in your PATH.}
+
+The script creates a conda environment named \texttt{ProPrep} with Python 3.12,
+installs ProPrep 1.23.0 and its dependencies, and checks the result.
+
+\begin{steps}
+  \item Download the script and run it:
+\begin{terminal}
+curl -fsSLO \
+  https://raw.githubusercontent.com/mjgplab/proprep/main/install_proprep.sh
+bash install_proprep.sh
+\end{terminal}
+  \item The script asks for your MODELLER key. The characters you type show
+        as \texttt{*}. If you have no key yet, press \key{Enter}; you can add
+        it later (Section~\ref{sec:installation-modeller}).
+  \item Wait. The script downloads several gigabytes, so it takes several
+        minutes. It prints the package list as it goes.
+  \item At the end it checks the version and prints how to start ProPrep.
+\end{steps}
+
+This is what we saw on our test Mac (long parts left out):
+
+\begin{screen}
+============================================================
+  ProPrep Installer
+============================================================
+
+MODELLER requires a license key (free for academic use).
+Register at: https://salilab.org/modeller/registration.html
+
+Enter your MODELLER license key (or press Enter to skip):
+
+NOTE: Skipping MODELLER key. Homology modeling will not be
+available until you configure the key manually. See the
+install guide for instructions.
+...
+Verifying installation...
+  ProPrep installed successfully: ProPrep v1.23.0 - Proper Protein Preparation...
+
+============================================================
+  Installation complete!
+============================================================
+
+  To use ProPrep:
+
+    conda activate ProPrep
+    source $CONDA_PREFIX/amber.sh
+    proprep              # interactive CLI
+    proprep-web          # browser-based UI
+\end{screen}
+
+``Homology modeling'' in the note means all the tools that need MODELLER,
+including structure repair. The environment took 4.8\,GB on our Mac.
+
+\paragraph{Starting ProPrep after Option B.} Every time you open a new
+Terminal window, type these two lines first, then \texttt{proprep-web} or
+\texttt{proprep}:
+
+\begin{terminal}
+conda activate ProPrep
+source $CONDA_PREFIX/amber.sh
+\end{terminal}
+
+The first line switches to ProPrep's environment. The second makes sure the
+Amber programs come from that environment
+(Section~\ref{sec:installation-amberhome}).
+
+\begin{tip}
+The README also offers a one-line version that downloads and runs the script
+in one go:
+\texttt{curl -fsSL https://raw.githubusercontent.com/mjgplab/proprep/main/install\_proprep.sh | bash}.
+It does the same thing. Downloading first lets you look at the script before you
+run it.
+\end{tip}
+
+\section{Adding your MODELLER license key}
+\label{sec:installation-modeller}
+
+ProPrep uses \term{MODELLER} to build missing parts of a protein, such as
+loops that were not seen in the experiment. MODELLER is installed with ProPrep,
+but it only works with a personal \term{license key}, a code that proves you
+registered. The key is free for academic use.
+
+\begin{steps}
+  \item Register at\newline \url{https://salilab.org/modeller/registration.html}\newline
+        (name, email, institution; choose the academic license). The key
+        arrives by email within a few minutes.
+  \item In the Terminal, type this line, replacing \texttt{YOUR\_KEY} with
+        your key and keeping the quotation marks:
+\begin{terminal}
+mkdir -p ~/.proprep && echo 'YOUR_KEY' > ~/.proprep/modeller_key
+\end{terminal}
+\end{steps}
+
+ProPrep reads the key from the file \file{~/.proprep/modeller_key} every time
+it starts. If you mistype it, run the same line again with the correct key.
+The key stays on your computer. As an alternative, you can set the key in the
+Terminal with \texttt{export KEY\_MODELLER='YOUR\_KEY'} before starting
+ProPrep; this setting wins over the file.
+
+\begin{behindscenes}
+We had no MODELLER key while writing this manual, so the steps above come from
+ProPrep's installation guide and source code. We could not show the screens of
+a working MODELLER repair.
+\end{behindscenes}
+
+\subsection{The ``MODELLER not found'' message}
+\label{sec:installation-modeller-msg}
+
+Without a working key, every start of ProPrep begins with this message:
+
+\begin{screen}
+MODELLER not found. Structure repair (missing loops/residues) will be unavailable.
+  To install: conda install -c salilab modeller
+  A free academic license is required: https://salilab.org/modeller/registration.html
+  After registering, set your license key:
+    export KEY_MODELLER='your_license_key_here'
+  Or edit the config.py file shown during conda installation.
+Successfully imported core modules
+\end{screen}
+
+\begin{watchout}
+In version 1.23.0 this message says ``not found'' and ``To install'' even
+when MODELLER \emph{is} installed and only the key is missing. That was the
+case on our test computer. Do not install MODELLER again. Add the key as shown
+above. Everything else in ProPrep works without it; you can ignore the message
+if you never need to repair loops or missing residues.
+\end{watchout}
+
+\section{Checking that it works}
+\label{sec:installation-check}
+
+With Option A, type:
+
+\begin{terminal}
+~/ProPrep/bin/proprep --version
+\end{terminal}
+
+With Option B, type \texttt{conda activate ProPrep} first, then
+\texttt{proprep --version}. You should see:
+
+\begin{screen}
+ProPrep v1.23.0 - Proper Protein Preparation workflow manager
+\end{screen}
+
+Then start ProPrep (\texttt{proprep-web} or \texttt{proprep}). If the
+``MODELLER not found'' message does not appear at the top, your key was found.
+To stop ProPrep, close the browser tab (ProPrep shuts down by itself a moment
+later) or press \key{Control}+\key{C} in the Terminal.
+
+\section{Making sure ProPrep uses its own Amber}
+\label{sec:installation-amberhome}
+
+ProPrep runs Amber programs such as tLEaP and sander. To find them, it looks at
+a setting called \term{AMBERHOME}, which names the folder of an Amber
+installation. If AMBERHOME is already set when ProPrep starts, ProPrep keeps
+it. So if another Amber or AmberTools installation is active in your Terminal,
+ProPrep uses that one instead of its own copy, and it does not tell you.
+
+This happened on our test computer: an older conda environment with
+AmberTools~25 was active, and tLEaP, sander and the force-field files all came
+from there. You can spot it in tLEaP's messages, which show the program's
+folder:
+
+\begin{screen}
+Warning 1:
+  /opt/homebrew/Caskroom/miniforge/base/envs/etanalyze_env/bin/teLeap: Warning!
+  Close contact of 1.306 angstroms between nonbonded atoms H and H1
+\end{screen}
+
+Here \file{etanalyze_env} is the other environment, not \file{ProPrep}.
+
+\paragraph{Check before you start.} In the Terminal window you will start
+ProPrep from, type:
+
+\begin{terminal}
+echo $AMBERHOME
+\end{terminal}
+
+\begin{itemize}
+  \item An empty line, or a folder inside \file{ProPrep} (for example
+        \file{~/ProPrep} or \file{.../envs/ProPrep}): all is well.
+  \item Any other folder: another Amber is active. Fix it in this window, then
+        start ProPrep from the same window. With Option A, type:
+\begin{terminal}
+unset AMBERHOME
+\end{terminal}
+        With Option B, type:
+\begin{terminal}
+conda activate ProPrep
+source $CONDA_PREFIX/amber.sh
+\end{terminal}
+        Then type \texttt{echo \$AMBERHOME} again to check.
+\end{itemize}
+
+\begin{tip}
+If every new Terminal window shows the other folder, a start-up file (such as
+\file{~/.zshrc} or \file{~/.bashrc}) sets it. You can keep it, and run the fix
+above each time, or ask whoever set up the other Amber to help you change it.
+\end{tip}
+
+\begin{behindscenes}
+To make sure our results did not depend on the other installation, we ran
+ProPrep's ubiquitin tLEaP input again with only ProPrep's own AmberTools~26
+active. tLEaP finished with \prompt{Errors = 0; Warnings = 13} and wrote a
+complete topology, read from ProPrep's own force-field files.
+\end{behindscenes}
+
+\section{Updating ProPrep}
+\label{sec:installation-update}
+
+ProPrep checks GitHub once a day, when it starts, for a newer release. It sends
+nothing about you. If there is one, it prints a line such as
+\prompt{ProPrep X.Y.Z is available (you have 1.23.0).} with the update command
+for your kind of installation. (We did not see this line, because 1.23.0 was
+the newest release.) You can switch the check off in Preferences
+(Chapter~\ref{ch:menus}).
+
+\paragraph{Option A.} Download the new installer and run it as before, with
+\texttt{-u} added. It updates the \file{~/ProPrep} folder in place:
+
+\begin{terminal}
+bash ~/Downloads/ProPrep-<version>-<platform>.sh -b -u -p ~/ProPrep
+\end{terminal}
+
+\paragraph{Option B.} Run \texttt{bash install\_proprep.sh} again (download
+the newest copy first). It finds your environment and asks:
+
+\begin{screen}
+Environment 'ProPrep' already exists.
+
+  1. Update ProPrep (keep existing environment)
+  2. Full reinstall (remove and recreate environment)
+  3. Cancel
+
+Choose [1/2/3] (1):
+\end{screen}
+
+Choose \key{1} to update. Choose \key{2} if the environment seems damaged.
+
+Your projects, your MODELLER key and your settings live outside the
+installation, so updating does not touch them.
+
+\section{Removing ProPrep}
+\label{sec:installation-remove}
+
+\begin{itemize}
+  \item Option A: delete the folder \file{ProPrep} in your home folder, or type
+        \texttt{rm -rf \textasciitilde/ProPrep} in the Terminal.
+  \item Option B: type \texttt{conda env remove -n ProPrep}.
+\end{itemize}
+
+Your projects stay where you saved them. Your MODELLER key, settings and
+personal parameter library stay in the hidden folder \file{~/.proprep}; delete
+it too if you want to remove everything.
+
+\section{If something goes wrong}
+\label{sec:installation-problems}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.36\linewidth}>{\raggedright\arraybackslash}p{0.58\linewidth}@{}}
+\toprule
+\textbf{What you see} & \textbf{What to do} \\
+\midrule
+\endhead
+\leavevmode\prompt{No such file or directory} when running the installer &
+The file name or folder is wrong, or the download did not finish. Use the
+\key{Tab} key to complete the name. The file should be about 1\,GB or more. \\
+\leavevmode\prompt{Permission denied} &
+The line must begin with \texttt{bash}. Retype it. \\
+\leavevmode\prompt{ERROR: File or directory already exists} &
+ProPrep is already installed. To update it, add \texttt{-u}
+(Section~\ref{sec:installation-update}). \\
+\leavevmode\prompt{No space left on device} &
+Free at least 8\,GB and run the installer again. \\
+\texttt{wsl --install} needs a restart, then nothing happens &
+Click \textsf{Start}, type \typed{Ubuntu}, and open it. The set-up continues
+there. \\
+Browser says \prompt{This site can't be reached} at 127.0.0.1:8000 &
+ProPrep is not running. Start \texttt{proprep-web} again. If port 8000 is
+busy, ProPrep picks the next one, for example
+\leavevmode\prompt{(port 8420 was busy; using 8421)}. Use the address it prints. \\
+Antivirus or company software blocks the installer &
+The \file{.sh} file is a plain script that unpacks files into your home
+folder. Ask your IT support to allow it. \\
+\leavevmode\prompt{ERROR: conda is not installed or not in your PATH.} (Option B) &
+Install Miniforge, close the Terminal, open a new one, and run the script
+again. \\
+\leavevmode\prompt{ERROR: expected ProPrep 1.23.0 but conda resolved:} (Option B) &
+Conda chose a different version. Read the conflict messages above it. On a
+Mac, the script suggests running it again as
+\texttt{SYSTEM\_VERSION\_COMPAT=0 bash install\_proprep.sh}. (Not seen in our
+tests.) \\
+\leavevmode\prompt{MODELLER not found} at every start &
+Usually only the license key is missing. Add it
+(Section~\ref{sec:installation-modeller}). \\
+\texttt{proprep: command not found} (Option B) &
+The ProPrep environment is not active. Type \texttt{conda activate ProPrep}
+first. \\
+Results or messages mention a different Amber folder &
+Another Amber installation is active. See
+Section~\ref{sec:installation-amberhome}. \\
+\texttt{proprep-library} stops with \prompt{bad interpreter} (Option B) &
+In version 1.23.0 this helper points to the wrong Python. Use
+\texttt{python -m proprep.utils.user\_library\_snapshots} instead, with the same
+options (Chapter~\ref{ch:forcefields}). \\
+\bottomrule
+\end{longtable}
+
+For other problems, see Chapter~\ref{ch:troubleshooting}.

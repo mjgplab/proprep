@@ -1,0 +1,66 @@
+# Glossary terms — writer w4 (Chapters 9, 10, 11, 20)
+
+- **accession** — The code that identifies a protein in UniProt, for example P69905 (human hemoglobin alpha).
+- **ACE** — An acetyl cap: a small neutral group added before the first residue of a chain so the chain start carries no artificial charge.
+- **alpha carbons (CA)** — The central carbon atom of each amino acid; one point per residue, often used to compare protein shapes.
+- **AlphaFill** — A database that takes AlphaFold models and copies in ("transplants") ligands, cofactors and metal ions from similar experimental structures.
+- **AlphaFold** — A program that predicts a protein's 3D structure from its sequence; its models are available from the AlphaFold Database by UniProt accession.
+- **alternate locations (altlocs)** — Atoms that an experiment saw in two or more positions at once, each with a share of the time (occupancy). A simulation needs exactly one position per atom.
+- **AS4** — Amber residue name for an aspartate that may change its protonation during a constant-pH simulation.
+- **asymmetric unit** — The set of chains actually written in a crystal-structure file: the smallest piece from which the crystal can be rebuilt by symmetry. It may hold part of the working molecule, exactly one, or several copies.
+- **backbone** — The atoms N, CA, C and O that every amino acid has; comparing backbones works even when side chains differ.
+- **biological assembly** — The molecule believed to exist and work in the cell or solution (for example the hemoglobin tetramer), built from the asymmetric unit with the instructions in REMARK 350.
+- **BLAST** — A program that compares a sequence with all sequences in a database and lists the most similar ones. ProPrep uses the NCBI's public BLAST server.
+- **buried surface area (BSA)** — The surface that two chains hide from water by touching each other, in Å². Large values (over about 1000 Å²) suggest a real complex; small ones often only crystal contacts.
+- **C-terminus** — The end of a protein chain, with a carboxyl group that normally carries a negative charge.
+- **cap (terminal cap)** — A small neutral group (ACE or NME) that closes a chain end instead of the charged terminus, used when the real protein continues beyond the structure.
+- **chimera** — An engineered protein made from parts of two proteins, for example the β2-adrenergic receptor with T4 lysozyme inserted (2RH1).
+- **component** — In the PDB Filter, one kind of material in a chain: the protein, the waters, or a particular ligand or ion.
+- **composition** — The description of what an entry contains, in the depositors' words (molecule names, chains, organism, mutations), shown in the metadata summary.
+- **constant-pH simulation** — A simulation in which chosen residues can gain and lose protons during the run, so their states follow the pH instead of being fixed.
+- **desolvation** — The effect of a residue being buried away from water; it favors the uncharged form and so shifts the pKa.
+- **E-value** — In BLAST, the number of hits this good you would expect by chance; the smaller, the more certain the relationship.
+- **electron density** — The experimental map of an X-ray structure into which the atomic model is built.
+- **force field** — The set of parameters that describes how atoms interact in a simulation; it recognizes residues by their names.
+- **GL4** — Amber residue name for a glutamate that may change its protonation during a constant-pH simulation.
+- **HID** — Amber name for neutral histidine with its proton on the delta nitrogen (ND1).
+- **HIE** — Amber name for neutral histidine with its proton on the epsilon nitrogen (NE2); the more common neutral form.
+- **HIP** — Amber name for positively charged histidine, with protons on both ring nitrogens.
+- **homology model** — A model of a protein built from the known structure of a related protein; needs MODELLER in ProPrep.
+- **identity** — In a sequence alignment, the percentage of aligned positions that have the same amino acid.
+- **isoelectric point (pI)** — The pH at which a protein's net charge is zero.
+- **localhost** — The name a computer uses for itself; a localhost web address is reachable only from that computer.
+- **mFo-DFc map** — The difference electron-density map: it shows where the experimental data and the model disagree.
+- **2mFo-DFc map** — The electron-density map into which an X-ray model was built.
+- **missing atoms** — Atoms of a residue (usually side-chain atoms) that the experiment did not see.
+- **missing residues** — Whole residues that were in the sample but not seen in the experiment, typically flexible loops and chain ends.
+- **mmCIF** — The newer file format for structures (files ending in .cif); used by AlphaFold, AlphaFill and very large PDB entries. Most of ProPrep expects PDB format.
+- **MODELLER** — A separate program for building protein models; ProPrep uses it to build missing residues, standard mutations and homology models. It needs a free academic license key.
+- **N-terminus** — The start of a protein chain, with an amino group that normally carries a positive charge.
+- **NME** — An N-methyl amide cap: a small neutral group added after the last residue of a chain.
+- **occupancy** — The fraction of time an atom spends in a given position, when it was seen in more than one.
+- **OXT** — The second oxygen of the carboxyl group at the end of a chain; it exists only on the last residue.
+- **PDB format** — The older structure file format (files ending in .pdb), which most of ProPrep expects.
+- **pKa** — The pH at which half of the molecules of a group carry their proton; below it the group is mostly protonated, above it mostly not.
+- **pLDDT** — AlphaFold's per-residue confidence score from 0 to 100; above 90 very reliable, below 50 usually disordered.
+- **port** — The number after "localhost:" in a web address; it tells the browser which program on the computer to talk to (ProPrep's viewer uses 8765 or the next free number).
+- **principal axes** — The natural long, middle and short directions of a molecule, worked out from how its mass is spread.
+- **PROPKA** — A program that estimates the pKa of each titratable residue from the protein structure.
+- **protonation state** — Whether a titratable group carries its proton, and so its charge.
+- **quaternary structure** — How several chains assemble into one molecule, for example "TETRAMERIC" for hemoglobin.
+- **reference** — In a superposition, the structure that stays in place while the others are moved onto it.
+- **REMARK 350** — Lines in a PDB file that describe how to build the biological assembly from the asymmetric unit.
+- **REMARK 465** — Lines in a PDB file that list residues that were in the sample but not seen.
+- **REMARK 470** — Lines in a PDB file that list atoms that were not seen.
+- **resolution** — How fine the detail of an X-ray or cryo-EM structure is, in Å; smaller is better, 2 Å or less is good.
+- **RMSD (root-mean-square deviation)** — The typical distance between matching atoms of two superimposed structures, in Å; near 0 means practically identical.
+- **scoring matrix (BLOSUM)** — The table BLAST uses to judge how similar two amino acids are; BLOSUM62 is the general-purpose default.
+- **SEQRES** — Records in a PDB file that give the full sequence of the sample, including parts not seen.
+- **superposition** — Laying one structure on top of another as closely as possible, by rotating and moving it.
+- **targets** — In a superposition, the structures that are moved onto the reference.
+- **tautomers** — Forms of a molecule that differ only in where a proton sits; for histidine, HID and HIE.
+- **titratable** — Able to gain or lose a proton depending on pH (Asp, Glu, His, Cys, Tyr, Lys, Arg and the chain ends).
+- **tLEaP** — The Amber program that builds the simulation system; it adds hydrogens and missing atoms.
+- **TM-align** — A program that superimposes proteins by matching residues by their position in space, so it works for different sequences with the same fold.
+- **TM-score** — A score from 0 to 1 for how similar two folds are; above about 0.5 means the same fold.
+- **UniProt** — The main database of protein sequences and their annotations.

@@ -1,0 +1,144 @@
+\chapter{Which features need extra software}
+\label{app:software}
+
+The ProPrep installer brings ProPrep, AmberTools (tLEaP, sander, cpptraj,
+ParmEd, antechamber, MCPB.py and others) and the helper programs for
+protonation (PROPKA, pdb2pqr), membranes (packmol-memgen with MEMEMBED and
+PPM3), docking (AutoDock Vina, AutoGrid) and structure alignment (tmtools). The
+table below lists, tool by tool, what else is needed and what happens without
+it. ``Nothing extra'' means the installer has everything.
+
+What was tested: our test computer had no MODELLER key, no Gaussian, no ORCA,
+no CREST or xtb, no \texttt{pmemd} and no graphics card. The ``Without it''
+column describes what we saw there, unless it says otherwise.
+
+\section{Tool by tool}
+\label{sec:software-table}
+
+{\small
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.41\linewidth}@{}}
+\toprule
+\textbf{Tool (key)} & \textbf{Needs} & \textbf{Without it} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\multicolumn{3}{@{}l}{\textsf{\bfseries Structure input}} \\
+\key{1a} Structure Loader &
+Internet (PDB, AlphaFold, AlphaFill, UniProt). Nothing for a local file. &
+Downloads and searches fail. A keyword search says it needs an internet
+connection. The AlphaFold message wrongly suggests the protein has no
+prediction. Local files load normally. \\
+\key{1b} Biological Assembly Generator &
+Nothing extra. &
+--- \\
+\midrule
+\multicolumn{3}{@{}l}{\textsf{\bfseries Redox sites and force fields}} \\
+\key{2a} Redox Site Detector & Nothing extra. & --- \\
+\key{2b} Force Field Explorer & Nothing extra. & --- \\
+\key{2c} Force Field Parameterizer &
+Gaussian~16 (\texttt{g16}, \texttt{formchk}) for every route that derives
+charges: small molecules, modified amino acids, metal sites. CREST and xtb
+only for one dihedral-refinement option. Internet the first time (chemical
+component dictionary). &
+ProPrep writes the Gaussian input files (\file{.gjf}) and stops at the
+Gaussian step with \prompt{Gaussian output not found}. You can run Gaussian
+on another computer, copy the results back and resume. There is no AM1-BCC
+route inside \key{2c}; such parameters can be made with antechamber outside
+ProPrep and added to the parameter library (Chapter~\ref{ch:forcefields}). \\
+\midrule
+\multicolumn{3}{@{}l}{\textsf{\bfseries Structure comparison}} \\
+\key{3a} Homology Searcher &
+Internet (NCBI web BLAST). BLAST does not need to be installed. MODELLER key
+for option~5 (homology model). &
+The search cannot run offline. With a key missing, option~5 shows
+\prompt{MODELLER not installed} and cannot be chosen. A BLAST search can take
+more than 10 minutes. \\
+\key{3b} Structure Aligner & Nothing extra (tmtools is installed). & --- \\
+\midrule
+\multicolumn{3}{@{}l}{\textsf{\bfseries Structure preparation}} \\
+\key{4a} PDB Filter &
+Nothing extra. Internet the first time (chemical component dictionary). & --- \\
+\key{4b} Amino Acid Mutator &
+MODELLER key for standard mutations (to one of the 20 amino acids). &
+Mutations can be entered, but standard ones are not applied, with no message. Non-standard
+ones are applied in \key{4c}, in 1.23.0 only when a terminal cap is also
+added (Chapter~\ref{ch:cleaning}). \\
+\key{4c} Structure Fixer &
+MODELLER key for filling gaps and loops, rebuilding missing atoms, standard
+mutations and choosing alternate locations. Internet for the optional
+``template comparison'' check of missing atoms. &
+The menu shows \prompt{MODELLER off: capping only}. ProPrep can still find
+the problems and add ACE/NME caps to chain ends. Missing residues, missing
+side-chain atoms and alternate locations stay as they are. \\
+\key{4d} Redox Site Preparer & Nothing extra. & --- \\
+\key{4e} Protonation State Analyzer & Nothing extra (PROPKA is installed). & --- \\
+\key{4f} Structure Orientator & Nothing extra. & --- \\
+\key{4g} Membrane Builder &
+Nothing extra. Internet only for the optional OPM cross-check. &
+Without internet the OPM comparison cannot be made; the membrane is still
+built. (Not tried offline.) \\
+\midrule
+\multicolumn{3}{@{}l}{\textsf{\bfseries Simulation setup and execution}} \\
+\key{5a} Topology Generator & Nothing extra (tLEaP, ParmEd). & --- \\
+\key{5b} Molecular Dynamics Manager &
+\texttt{sander} and \texttt{sander.MPI} are included. \texttt{pmemd} and
+\texttt{pmemd.MPI} need Amber, which is distributed separately.
+\texttt{pmemd.cuda} also needs an NVIDIA graphics card. Submitting jobs needs
+a cluster with SLURM. &
+The engine is \texttt{pmemd} until you change it, and the run stops with
+\prompt{No such file or directory: 'pmemd'}. Choose \texttt{sander} at the
+hardware step (Chapter~\ref{ch:runningmd}). ProPrep can still write SLURM
+scripts on a computer without SLURM. \\
+\key{5b} analysis & Nothing extra (pytraj, cpptraj). & --- \\
+\key{5c} QM/MM Preparator, Gaussian &
+Gaussian~16 to \emph{run} the ONIOM input. Not needed to write it. &
+ProPrep writes the \file{.com} file; you run it where Gaussian is
+installed. \\
+\key{5c} QM/MM Preparator, ORCA &
+ORCA, including its \texttt{orca\_mm} program, even to \emph{write} the
+input. &
+Step~2 fails with \prompt{orca\_mm not found}, and no ORCA files are
+written. \\
+\key{5d} Molecular Docking &
+Nothing extra (Vina; AutoGrid for AD4 scoring). & --- \\
+\midrule
+\multicolumn{3}{@{}l}{\textsf{\bfseries Utilities and other programs}} \\
+\key{ua} Structure Viewer &
+A web browser on the same computer. &
+The viewer runs a small web server on your computer; without a browser
+there is nothing to see. \\
+\texttt{proprep-web} &
+A web browser, and internet in the browser (the page loads its terminal
+display from the web). &
+Use \texttt{proprep} in the Terminal instead; it has the same menus. \\
+\key{f} Feedback \& Support &
+A GitHub token to send feedback directly. &
+The feedback is saved as a file in \file{~/.proprep/feedback/} that you can
+send by email (Chapter~\ref{ch:help}). (Not tried.) \\
+Update check at start-up &
+Internet. &
+No message; ProPrep starts normally. \\
+\end{longtable}
+}
+
+\section{The extra programs in short}
+\label{sec:software-programs}
+
+\begin{description}
+  \item[MODELLER license key.] Free for academic users from\newline
+        \url{https://salilab.org/modeller/registration.html}.\newline MODELLER itself
+        is installed with ProPrep. Section~\ref{sec:installation-modeller}
+        shows how to add the key.
+  \item[Gaussian 16.] Commercial quantum-chemistry program, licensed by your
+        institution. ProPrep writes its input files; you run them with
+        \texttt{g16}.
+  \item[ORCA.] Quantum-chemistry program from the ORCA developers, with its
+        own license. ProPrep needs \texttt{orca\_mm} from it to prepare ORCA
+        QM/MM inputs.
+  \item[pmemd.] The fast simulation engine of Amber, distributed separately
+        from the free AmberTools. \texttt{pmemd.cuda} runs on NVIDIA graphics
+        cards.
+  \item[CREST and xtb.] Programs for searching molecular conformations, used
+        by one optional refinement in \key{2c}.
+\end{description}

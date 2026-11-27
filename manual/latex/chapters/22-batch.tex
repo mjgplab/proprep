@@ -1,0 +1,434 @@
+\chapter{Templates and batch processing}
+\label{ch:batch}
+
+If you have twenty proteins to prepare the same way, you do not have to answer
+the same questions twenty times. Prepare one protein by hand, mark the answers
+that change from protein to protein, and let ProPrep work through a list.
+
+A recipe with blanks in it is called a \term{template}. Running it over a list
+is called \term{batch processing}. This chapter follows the whole route, using
+the example that worked: download a structure, remove its crystal waters, and
+repeat that for three proteins.
+
+\begin{glance}
+\glanceitem{What it does}{Turns one recorded preparation into a recipe and runs
+it on a list of proteins, unattended.}
+\glanceitem{You need it when}{You have several similar proteins to prepare the
+same way.}
+\glanceitem{Before you start}{One finished preparation, recorded as a session
+(Chapter~\ref{ch:sessions}). Choose proteins that will be asked the same
+questions.}
+\glanceitem{Where to find it}{Only from the Terminal:
+\texttt{--create-template}, \texttt{--validate-template},
+\texttt{--batch-replay}.}
+\glanceitem{You get}{A template file, a list file, one folder per protein, and
+a report naming every success and failure.}
+\end{glance}
+
+\section{Step by step}
+
+\subsection{Step 1: prepare one protein by hand}
+
+Work through your preparation once, normally. ProPrep records it without being
+asked (Chapter~\ref{ch:sessions}). Note the line it prints at the start:
+
+\begin{screen}
+Session recording to: ./proprep_session_20261121_122825.json
+\end{screen}
+
+Our example session had 19 answers: load \pdb{1UBQ} from the PDB, run the PDB
+Filter, keep the protein, discard the water, exit.
+
+\begin{tip}
+Keep this first preparation as short and plain as possible. Every extra
+question is one more thing that can differ for the next protein.
+\end{tip}
+
+\subsection{Step 2: make the template}
+
+Copy the session file somewhere tidy if you like, then:
+
+\begin{terminal}
+proprep --create-template proprep_session_20261121_122825.json
+\end{terminal}
+
+You get the Template Creator, which is the Session Editor
+(Section~\ref{sec:sessions-editor}) with one extra command, \typed{v}, for
+marking an answer as a blank.
+
+\begin{screen}
+╭──────────────────── Template Creator ─────────────────────╮
+│ File: ubq_session.json  |  19 interactions  |  no changes │
+╰───────────────────────────────────────────────────────────╯
+┏━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃  # ┃ Status ┃ Module                 ┃ Question              ┃ Answer      ┃
+┡━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│  5 │   ·    │ Structure Loader - RCSB│ Enter PDB ID to ...   │ 1UBQ        │
+│ 16 │   ·    │ PDB Filter             │ Chain A - Water ...   │ Discard ... │
+└────┴────────┴────────────────────────┴───────────────────────┴─────────────┘
+[e]dit #  [d]elete #|#-#|#-end  [u]ndo #  [v]ariable #  [n]ext  [b]ack
+[j]ump #  [p]review  save  quit  help
+\end{screen}
+
+\begin{watchout}
+Nothing is marked for you. In version 1.23.0 the PDB code is not detected
+automatically, so a template with no \typed{v} command in it has no blanks at
+all. Mark them yourself.
+\end{watchout}
+
+Mark the PDB code, which is answer 5 in our session:
+
+\begin{screen}
+> : §ans«v 5»
+Marking #5 as template variable
+Interaction: Enter PDB ID to download
+Original value: 1UBQ (1UBQ)
+Variable name (input_protein):
+Description (Enter PDB ID to download):
+Required? [y/n] (y): §ans«y»
+Marked as variable: {{ input_protein }}
+\end{screen}
+
+Press \key{Enter} to accept the suggested name \typed{input\_protein}; the
+plain-text list format in Section~\ref{sec:batch-list} fills that name
+automatically. \prompt{Required} means every run must supply a value.
+
+You can mark more than one answer. We also marked the water question, naming
+it ourselves:
+
+\begin{screen}
+> : §ans«v 16»
+Marking #16 as template variable
+Interaction: Chain A - Water retention option
+This interaction had these options:
+  r: Retain entire component
+  ...
+  d: Discard entire component <-- original
+Variable name (var_16): §ans«water_option»
+Description (Chain A - Water retention option):
+§ans«Keep (r) or discard (d) crystal waters»
+Required? [y/n] (y): §ans«y»
+\end{screen}
+
+Type \typed{p} to check your marks, then \typed{save}:
+
+\begin{screen}
+Template saved: ubq_session_template.json
+2 variable(s), 0 edit(s), 0 deletion(s)
+
+Template variables:
+  *input_protein: Enter PDB ID to download (example: 1UBQ)
+  *water_option: Keep (r) or discard (d) crystal waters (example: d)
+\end{screen}
+
+\begin{watchout}
+A template needs at least one blank. Typing \typed{save} with none gives
+\prompt{No variables marked. A template needs at least one variable.} and then
+offers to save it as an ordinary edited session instead.
+\end{watchout}
+
+\begin{watchout}
+After \typed{e 5} (edit), the next thing you type is taken as the new answer.
+Typing \typed{quit} there stores the word ``quit'' as the PDB code. Finish the
+edit first, then quit.
+\end{watchout}
+
+\subsection{Step 3: make the list of proteins}
+
+ProPrep offers to build the list for you straight away. Answer \key{y}:
+
+\begin{screen}
+Create a batch input file now? [y/n] (y): §ans«y»
+
+Enter variable values for each run. Press Enter with no input to finish.
+
+Run 1:
+  input_protein (1UBQ):
+  water_option options:
+    r: Retain entire component
+    s: Select specific residues
+    d: Discard entire component
+  water_option (d): §ans«d»
+
+Run 2:
+  input_protein (): §ans«1AKI»
+  water_option (): §ans«r»
+...
+Run 4:
+  input_protein ():
+
+Batch file saved: ubq_session_batch.csv (3 runs)
+Run with: proprep --batch-replay ubq_session_template.json --batch-list
+ubq_session_batch.csv
+\end{screen}
+
+Press \key{Enter} on an empty protein to finish. The file it writes is a plain
+table you can also make yourself in a spreadsheet or a text editor:
+
+\begin{screen}
+input_protein,water_option
+1UBQ,d
+1AKI,r
+1CRN,d
+\end{screen}
+
+If you answer \key{n}, ProPrep tells you the format for later:
+\prompt{CSV with headers matching variable names}.
+
+\begin{tip}
+If your template has only one blank, and it is named
+\typed{input\_protein}, the list can be a plain text file with one PDB code per
+line. Lines starting with \texttt{\#} are ignored.
+\end{tip}
+
+\subsection{Step 4: make the output folder}
+
+\begin{terminal}
+mkdir batch_out
+\end{terminal}
+
+\begin{watchout}
+Do this first. In version 1.23.0, ProPrep does not create the output folder.
+If it does not exist, every run fails at once with
+\prompt{Setup error: [Errno 2] No such file or directory: 'batch\_out/run\_01'}
+and the batch ends with a Python error report instead of a summary.
+\end{watchout}
+
+\subsection{Step 5: check the template against the list}
+
+This takes a second and saves a wasted batch:
+
+\begin{terminal}
+proprep --validate-template ubq_session_template.json \
+        --batch-list ubq_session_batch.csv
+\end{terminal}
+
+\begin{screen}
+✓ Template is valid: ubq_session_template.json
+\end{screen}
+
+If a blank has no value, ProPrep names it and the run it is missing from, and
+stops with an error. A column in your list that matches no blank is only a
+warning: \prompt{! Input column 'extra' matches no template variable and will
+be ignored (check the header for a typo)}.
+
+\begin{watchout}
+Validation checks that every blank has a value. It does \textbf{not} check
+that the values make sense. A water option of \typed{x}, which is not one of
+\texttt{r}, \texttt{s} or \texttt{d}, passes validation, and then during the
+run ProPrep accepts it silently and keeps the waters. Check your list by eye.
+\end{watchout}
+
+\subsection{Step 6: run the batch}
+
+\begin{terminal}
+proprep --batch-replay ubq_session_template.json \
+        --batch-list ubq_session_batch.csv \
+        --output-dir batch_out --batch-continue
+\end{terminal}
+
+\begin{screen}
+═══ Batch Processing Mode ═══
+
+Template: ubq_session_template.json
+Runs to process: 3
+Template variables:
+  - input_protein: Enter PDB ID to download
+  - water_option: Keep (r) or discard (d) crystal waters
+
+Replay mode: plain terminal
+\end{screen}
+
+A progress bar names the protein being worked on. At the end comes the
+summary:
+
+\begin{screen}
+═══ Batch Processing Summary ═══
+
+Planned: 3
+Successful: 2 (66.7%)
+Failed: 1 (33.3%)
+
+┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Protein ┃ Status    ┃ Output Directory                                    ┃
+┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 1CRN    │ ✗ Failed  │ batch_cont/run_01                                   │
+│         │           │ Replay diverged: no recorded answer for prompt      │
+│         │           │ 'Enter your choice'. At this point the recording    │
+│         │           │ expects a prompt here: 'Choose option'.             │
+│ 1UBQ    │ ✓ Success │ batch_cont/run_02                                   │
+│ 1AKI    │ ✓ Success │ batch_cont/run_03                                   │
+└─────────┴───────────┴─────────────────────────────────────────────────────┘
+
+Batch report saved to: batch_cont/batch_report_20261121_125042.json
+Runs still owed (1): batch_cont/batch_retry_20261121_125042.csv
+Re-run them with: proprep --batch-replay ubq_session_template.json
+--batch-list batch_cont/batch_retry_20261121_125042.csv
+\end{screen}
+
+Three proteins took about one second in total, because downloading and
+filtering are quick. The whole batch returns a failure code if any protein
+failed, which matters if you call it from a script.
+
+\subsection{Step 7: read the results}
+
+Each protein gets a numbered folder:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{File} & \textbf{What it holds} \\
+\midrule
+\file{run_01/run.log} & Everything ProPrep printed for that protein, without
+  colors. Read this first. \\
+\file{run_01/error.log} & Only written when the run failed: the reason and a
+  Python error report. \\
+\file{run_01/}\dots & The output files, exactly as a run by hand would have
+  made them (here \file{1UBQ.pdb} and \file{filtered_structure.pdb}). \\
+\file{batch_report_*.json} & The whole batch: the values used for each run and
+  whether it worked. \\
+\file{batch_retry_*.csv} & Only the proteins that failed or were never
+  attempted, ready to use as a new list. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+To retry the failures, pass the retry file as the list. ProPrep prints that
+command for you, as in the summary above.
+
+\section{Choosing proteins that will work}
+\label{sec:batch-choose}
+
+A batch replays your \emph{answers}. It works only when the new protein is
+asked the \emph{same questions} as the recorded one.
+
+This is why \pdb{1CRN} failed above. Crambin has no crystal waters, so the
+PDB Filter never asks about water. The recording has an answer for a question
+that is not asked, and so the answers slip out of step. ProPrep notices and
+stops that run:
+
+\begin{screen}
+Replay diverged: no recorded answer for prompt 'Enter your choice'. At this
+point the recording expects a prompt here: 'Choose option'.
+\end{screen}
+
+\prompt{Replay diverged} always means the same thing: ProPrep was asked
+something the recording did not expect. Read it as ``this protein is not like
+the one I recorded''.
+
+\begin{tip}
+Pick proteins with the same make-up as your recorded one: the same number of
+chains, and the same kinds of extra parts (waters, ions, ligands). \pdb{1UBQ}
+and \pdb{1AKI} both have one chain and crystal waters, and both worked with
+the same template.
+\end{tip}
+
+\subsection{Stopping or carrying on after a failure}
+
+Without \texttt{--batch-continue}, ProPrep stops at the first failure. The
+proteins after it are marked \prompt{Not attempted} and the summary tells you
+what to do:
+
+\begin{screen}
+Batch stopped after run 1 of 3. Pass --batch-continue to work through
+failures instead of stopping at the first one.
+\end{screen}
+
+Use the default when a failure probably means your template is wrong, and
+\texttt{--batch-continue} when you expect a few proteins to be awkward and
+want the rest finished.
+
+\section{Browser-recorded and terminal-recorded templates}
+
+ProPrep's screens are the same in the browser (\texttt{proprep-web}) and in
+the Terminal, but not quite: in the browser the structure viewer is docked
+beside the terminal, so the PDB Filter does not ask whether you want to open
+a viewer. A recording from one mode therefore has one question more or fewer
+than the other.
+
+ProPrep handles this for you. Each recording remembers where it was made, and
+a batch is replayed in the same mode. You see which on the
+\prompt{Replay mode:} line, either \prompt{plain terminal} or
+\prompt{proprep-web (browser)}.
+
+\begin{watchout}
+Do not force the other mode with \texttt{--web} or \texttt{--no-web} unless
+you know the recording suits it. Running a terminal-recorded template with
+\texttt{--web} failed for us at exactly the question that differs:
+\begin{screen}
+Replay diverged: no recorded answer for prompt "Select chains ..."; the
+recording expects a confirm here: 'Would you like to view the structure in
+the interactive 3D viewer?'
+\end{screen}
+With \texttt{--no-web} the same template succeeded.
+\end{watchout}
+
+\section{Options at a glance}
+\label{sec:batch-list}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Option} & \textbf{What it does} \\
+\midrule
+\texttt{--create-template S.json} & Open a recorded session and mark blanks in
+  it. \\
+\texttt{--template-info T.json} & Print what a template contains: when it was
+  made, its blanks and how many answers it holds. \\
+\texttt{--validate-template T.json} & Check a template, and with
+  \texttt{--batch-list} check that the list fills every blank. \\
+\texttt{--batch-replay T.json} & Run a template. Needs
+  \texttt{--batch-list}. \\
+\texttt{--batch-list FILE} & The list: a CSV whose header row names the
+  blanks, or a plain text file with one PDB code per line (which fills
+  \texttt{input\_protein}). \\
+\texttt{--output-dir DIR} & Where \file{run_01}, \file{run_02} and the
+  reports go. Must already exist. \\
+\texttt{--batch-continue} & Carry on after a protein fails. \\
+\texttt{--web} / \texttt{--no-web} & Force browser or terminal mode. The
+  default, taken from the recording, is almost always right. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Each of these options warns you when it has nothing to act on, for example
+\prompt{Warning: --batch-list has no effect without --batch-replay or
+--validate-template}.
+
+\section{If something goes wrong}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{What to do} \\
+\midrule
+\prompt{Setup error: [Errno 2] No such file or directory} for every run &
+  Create the output folder first with \texttt{mkdir}. \\
+\prompt{Error: --batch-replay requires --batch-list} & Add the list. \\
+\prompt{File is not a template: ...} & You passed a plain session file.
+  Make a template from it with \texttt{--create-template}. \\
+\prompt{Variable 'water\_option' ...: no run supplies a value} & Your list
+  has no column for that blank, or a row is empty. Nothing is run. \\
+\prompt{No proteins found in input list: empty.txt} & The list has only
+  comments or nothing at all. \\
+\prompt{Replay diverged ...} for one protein & That protein differs from the
+  recorded one (Section~\ref{sec:batch-choose}). Prepare it by hand, or
+  record a template that fits it. \\
+A run ``succeeded'' but the output is wrong & Check the values in your list; a
+  value that is not a valid menu choice is accepted without a warning. \\
+\bottomrule
+\end{tabularx}
+
+\begin{watchout}
+A plain text list of UniProt or AlphaFold codes is read wrongly in version
+1.23.0. A first line that starts with a letter is taken for a header row, so a
+file beginning with \typed{P69905} gives \prompt{! Input column 'P69905'
+matches no template variable} and then
+\prompt{Variable 'input\_protein' ...: no run supplies a value}. PDB codes
+like \typed{1UBQ} start with a digit and are fine. The workaround is to put
+the line \typed{input\_protein} at the top of the file, which turns it into a
+proper one-column table.
+\end{watchout}
+
+\begin{watchout}
+When a protein fails, its Python error report is printed straight onto the
+progress display, which looks alarming and scrolls the summary away. The same
+text is saved in that run's \file{error.log}; read it there instead.
+\end{watchout}

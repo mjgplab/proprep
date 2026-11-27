@@ -1,0 +1,708 @@
+\chapter{Cleaning and repairing a structure}
+\label{ch:cleaning}
+
+A downloaded PDB file is a record of an experiment, not a ready simulation
+system. It usually contains crystal waters, salts from the crystallization
+buffer, sometimes extra copies of the protein, and pieces that the experiment
+could not see. This chapter shows how to keep only what you want to simulate
+(PDB Filter), how to find and repair missing parts (Structure Fixer), and how to
+change residues (Amino Acid Mutator).
+
+\begin{glance}
+\glanceitem{What it does}{Removes unwanted chains, waters, ions and ligands;
+  reports missing residues, missing atoms and alternate conformations; adds
+  terminal caps; records and applies mutations.}
+\glanceitem{You need it when}{Almost always. Filtering is needed for nearly
+  every crystal structure. Repair matters when the file has gaps.}
+\glanceitem{Before you start}{A loaded structure (Chapter~\ref{ch:structure}).
+  For real repairs and standard mutations: a MODELLER license key.}
+\glanceitem{Where to find it}{\menupath{4a}{PDB Filter},
+  \menupath{4c}{Structure Fixer}, \menupath{4b}{Amino Acid Mutator}. In
+  Workflow Mode they are in the ``fix'' stage.}
+\glanceitem{You get}{\file{filtered_structure.pdb},
+  \file{repaired_structure.pdb}, and optional reports
+  (\file{filter_statistics.json}, \file{completeness_results.json}).}
+\end{glance}
+
+\section{The order of the steps}
+\label{sec:cleaning-order}
+
+Do the steps in this order: filter (\key{4a}), then, if you need them, mutate
+(\key{4b}) and repair (\key{4c}), then protonate (Chapter~\ref{ch:protonation}).
+Each tool finds the result of the previous one by itself. For example, the
+Structure Fixer prints \prompt{Using filtered structure} when a filtered file
+exists, and the Protonation State Analyzer later prints
+\prompt{Using repaired structure: \ldots{}/repaired\_structure.pdb}.
+
+\begin{tip}
+Read the \prompt{Using \ldots} line at the top of every tool. It tells you which
+file the tool is working on. Section~\ref{sec:structure-switching} explains why
+this matters.
+\end{tip}
+
+Inside a tool's own menu, a filled dot \texttt{●} marks a step you have
+already done in this session, a tick \texttt{✓} a step you can do now, and an
+open circle \texttt{○} with a \texttt{⚠} line a step that is blocked. The main
+menu never shows a tool as done: after filtering, \key{4a} still shows a plain
+tick. Main-menu codes such as
+\key{1a} do not work inside a tool's menu; type \key{m} first to return to the
+main menu.
+
+\section{Step by step: keeping what you need with the PDB Filter}
+\label{sec:cleaning-filter}
+
+The example is HIV-1 protease with the inhibitor MK1, \pdb{1HSG}. The file holds
+two protein chains (the protease is a dimer), one inhibitor, and 127 crystal
+waters. The goal here is the protein dimer alone.
+
+\begin{steps}
+  \item Load \pdb{1HSG} (Chapter~\ref{ch:structure}). In the main menu, type
+        \key{4a}, then \key{1} (Filter PDB structure).
+  \item The first time, ProPrep downloads a dictionary of chemical
+        components. Then it measures how the chains touch each
+        other:
+\begin{screen}
+Using RCSB PDB PDB file: .../hsg/1HSG.pdb
+...
+Chain Interface Analysis
+Calculating buried surface area between chains. This may take a moment...
+Chain Interface Map
+  (Buried Surface
+    Area in Å²)
+┏━━━┳━━━━━━┳━━━━━━┓
+┃   ┃  A   ┃  B   ┃
+┡━━━╇━━━━━━╇━━━━━━┩
+│ A │  ■   │ 3610 │
+│ B │ 3610 │  ■   │
+└───┴──────┴──────┘
+...
+Connectivity (chain ↔ neighbor [BSA, Å²]):
+  A ↔ B (3610)
+\end{screen}
+        The \term{buried surface area} (BSA) is the surface that two chains
+        hide from water by touching each other. A large value (over
+        1000~Å²; ProPrep calls over 2000~Å² ``very large'') means the chains
+        form a real complex. A small value often means a contact made only by
+        the crystal. Use it to decide which chains belong together.
+  \item ProPrep asks
+        \prompt{Detect redox-active sites before filtering? [y/n] (y)}. Answer
+        \key{y} if your protein has metal centers or cofactors such as hemes;
+        the filter then protects them from accidental deletion
+        (Section~\ref{sec:cleaning-protect}). For \pdb{1HSG}, type \key{n}.
+  \item ProPrep lists the chains and asks whether to open the 3D viewer
+        (default \key{n}). Then choose the chains, by their numbers in the
+        list or \typed{all}:
+\begin{screen}
+Available Chains
+1. Chain A - 143 residues - Interfaces with: B (3610Å²)
+2. Chain B - 183 residues - Interfaces with: A (3610Å²)
+
+Would you like to view the structure in the interactive 3D viewer? [y/n] (n):
+§ans«n»
+Select chains (comma-separated indices, or 'all') (all): §ans«all»
+\end{screen}
+  \item A \prompt{Chain Composition} table follows for each chain. It lists
+        every \term{component}, that is, every kind of material in the chain:
+        \prompt{Protein}, \prompt{Water}, and each ligand or ion under its
+        chemical name. In \pdb{1HSG}, chain B holds the inhibitor, shown by the
+        start of its long chemical name
+        \prompt{;N-[2(R)-HYDROXY-1(S)-INDANYL]\ldots} and its code
+        \prompt{MK1}. Answer \key{y} at
+        \prompt{Do you want to proceed with filtering?}.
+  \item Now ProPrep asks about each component of each chain in turn. Type
+        \key{r} to keep it, \key{d} to remove it, or \key{s} to keep only some
+        of its residues:
+\begin{screen}
+Chain A - Protein
+[r] Retain entire component
+[s] Select specific residues
+[d] Discard entire component
+Choose option (r): §ans«r»
+
+Chain A - Water
+...
+Choose option (r): §ans«d»
+...
+Chain B - ;N-[2(R)-HYDROXY-1(S)-INDANYL]-5-[(2(S)-TERTIARY
+...
+Choose option (r): §ans«d»
+\end{screen}
+        For \pdb{1HSG}: chain A protein \key{r}, chain A water \key{d}, chain B
+        protein \key{r}, the inhibitor \key{d}, chain B water \key{d}.
+  \item ProPrep summarizes your choices. Check them, then type \key{y}:
+\begin{screen}
+╭───── Filter Selections ─────╮
+│ Model: 0                    │
+│                             │
+│ Chain A:                    │
+│   - Amino_acid: 99 residues │
+│ Chain B:                    │
+│   - Amino_acid: 99 residues │
+│                             │
+╰─────────────────────────────╯
+Do you want to apply these filters? [y/n] (y): §ans«y»
+Filtered structure automatically saved to: filtered_structure.pdb
+Structure filtering completed successfully.
+\end{screen}
+\end{steps}
+
+The new file \file{filtered_structure.pdb} contains the two protein chains
+(1514 atoms) and nothing else. It holds only coordinates: the header lines of
+the original file (title, REMARKs, sequence records) are not copied. ProPrep
+still knows them from the original download.
+
+\begin{tip}
+\textbf{What to keep.} A good default for a first simulation:
+\begin{itemize}
+  \item \textbf{Keep} the protein chains that form the working molecule (see
+        the interface table and Section~\ref{sec:structure-asu}).
+  \item \textbf{Keep} cofactors and metal ions that the protein needs to
+        function or to hold its shape: hemes, iron--sulfur clusters, flavins,
+        structural or catalytic zinc, calcium. They usually need extra
+        parameters (Chapters~\ref{ch:redox} and~\ref{ch:forcefields}).
+  \item \textbf{Usually remove} crystal waters. The simulation surrounds the
+        protein with fresh water anyway. Exception: a few buried waters that
+        are part of the structure (Section~\ref{sec:cleaning-waters}).
+  \item \textbf{Usually remove} ions and small molecules from the
+        crystallization buffer, such as chloride, sulfate or glycerol. The
+        simulation adds its own salt later (Chapter~\ref{ch:topology}).
+  \item \textbf{Keep a ligand} only if you want to study it; it will need
+        parameters (Chapter~\ref{ch:forcefields}).
+\end{itemize}
+\end{tip}
+
+\subsection{Ions: an example with insulin}
+
+In insulin, \pdb{1ZNI}, the ions appear as their own components:
+\begin{screen}
+Chain B Composition
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃                ┃ Residue ┃       ┃ Redox ┃
+┃ Component Type ┃  Name   ┃ Count ┃ Sites ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ Protein        │ [Total] │  30   │       │
+...
+│ Water          │ [Total] │  20   │       │
+│ CHLORIDE ION   │ [Total] │   3   │       │
+│                │   CL    │   3   │       │
+│ ZINC ION       │ [Total] │   2   │       │
+│                │   ZN    │   2   │       │
+└────────────────┴─────────┴───────┴───────┘
+\end{screen}
+We kept chains A and B (\typed{1,2} at \prompt{Select chains}), removed the
+chloride ions with \key{d}, and kept one of the two zinc ions with \key{s}:
+\begin{screen}
+Chain B - ZINC ION
+...
+Choose option (r): §ans«s»
+             Residues in Chain B - ZINC ION
+┏━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
+┃ Select ┃ Record Type ┃ Residue Name ┃ Residue Number ┃
+┡━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
+│ 1      │ HETATM      │ ZN           │ 31             │
+│ 2      │ HETATM      │ ZN           │ 32             │
+└────────┴─────────────┴──────────────┴────────────────┘
+Select residues (comma-separated indices, 'all', or 'none') (all): §ans«1»
+\end{screen}
+At this question you type the numbers in the \prompt{Select} column, not the
+residue numbers.
+
+\begin{watchout}
+At \prompt{Select residues}, type only single numbers separated by commas, such
+as \typed{1,2,3}, or \typed{all} or \typed{none}. In version 1.23.0 a range such
+as \typed{1-50}, or a number larger than the list, stops the filter with an
+error message:
+\begin{screen}
+Error executing PDB Filter.filter_pdb_structure: invalid literal for int()
+with base 10: '1-50'
+\end{screen}
+(or \prompt{list index out of range}). ProPrep returns to the PDB Filter menu,
+and \emph{all} answers given so far in this filter run are lost. Start the
+filter again.
+\end{watchout}
+
+\subsection{Keeping only some waters}
+\label{sec:cleaning-waters}
+
+Some waters sit deep inside a protein and are part of its structure. To keep
+those and drop the rest, answer \key{s} at a \prompt{Water} component. ProPrep
+offers eight ways to analyze the waters:
+\begin{screen}
+Select Analysis Metrics to Display:
+   1. Distance to nearest metal ion
+   2. Hydrogen bond analysis
+   3. B-factor/thermal information
+   4. Water burial: solvent-accessible area and enclosure
+   5. Interface proximity
+   6. Multi-radius atom-count profiling
+   7. Directional atom-count analysis (8 sectors)
+   8. Water network analysis (clusters and chains)
+   9. Return with no waters selected and proceed with component filtering
+Select metrics to display (comma-separated or single choice) (6): §ans«4»
+\end{screen}
+Type \emph{one} number; despite the wording, \typed{2,4} is refused
+(\prompt{Received '2,4', which is not one of the available options}). Choice
+\key{4} (water burial) is the most direct: after an optional change of the
+probe size, it prints a table of all waters, most buried first. For chain A of
+\pdb{1HSG}, one of 44 waters, \prompt{324}, was \prompt{Enclosed} (sealed inside
+the protein, next to Arg87); all others were \prompt{Exposed}. A long
+explanation of each column is printed with the table.
+
+Then type \key{3} (\prompt{Proceed with water selection}) and give the waters
+to keep \emph{by their residue numbers} from the table:
+\begin{screen}
+Available: 305 to 575 (44 waters total)
+
+Select waters by residue numbers (all): §ans«324,305,307»
+
+Keep 3 waters, discard 41 waters.
+Keeping: HOH305, HOH307, HOH324
+Confirm selection? [y/n] (y): §ans«y»
+\end{screen}
+Every number must be a water. A range is refused if any number in it is not a
+water (\prompt{Invalid residue numbers: [306, 308, 310]}); you are then asked
+again. Choice \key{9} at the metrics menu keeps no waters.
+
+\subsection{Protecting cofactors: redox-site detection}
+\label{sec:cleaning-protect}
+
+If you answer \key{y} to \prompt{Detect redox-active sites before filtering?},
+ProPrep first runs the Redox Site Detector (Chapter~\ref{ch:redox}) and marks
+what it finds. A component that holds such a site then gets a different
+question:
+\begin{screen}
+⚠  This component contains redox site residues:
+   • Site site_1 (): MK1902
+[r] Retain entire component
+[c] Keep redox site residues
+[s] Select specific residues
+[o] Override redox protection and discard (⚠ breaks redox sites)
+Choose option (r):
+\end{screen}
+\key{c} keeps only the residues that belong to the site. \key{o} removes them
+anyway. Within one session the question is asked only once; later filter runs
+reuse the sites found.
+
+\subsection{Checking and saving what was removed}
+
+In the PDB Filter menu, \key{2} (Show filtering status) shows the original and
+filtered residue counts and what was removed, for example
+\prompt{Hetero groups: MK1, HOH}. \key{3} (Export filter selection) saves the
+same information as \file{filter_statistics.json}.
+
+\begin{watchout}
+\begin{itemize}
+  \item Answering \key{n} at \prompt{Do you want to apply these filters?}
+        returns to the menu without a message and without saving.
+  \item Filtering again overwrites \file{filtered_structure.pdb} without
+        asking. When the workspace holds several structures, the filter first
+        asks which one to use, in a table (for example Oriented,
+        Protonation-Updated, Filtered, RCSB PDB). Choose the original download
+        if you want to start again.
+  \item The filter does not remove \term{alternate locations} (see
+        Section~\ref{sec:cleaning-fixer}); the filtered \pdb{1ZNI} still had
+        10 atoms with two positions.
+\end{itemize}
+\end{watchout}
+
+\section{Step by step: finding and repairing gaps with the Structure Fixer}
+\label{sec:cleaning-fixer}
+
+Experiments often miss parts of a protein. Flexible loops and chain ends may be
+invisible, so whole residues are absent (\term{missing residues}). Some side
+chains are only partly seen (\term{missing atoms}). And some atoms are seen in
+two or more positions at once, each with a share of the time called its
+\term{occupancy} (\term{alternate locations}, or altlocs). A simulation needs
+exactly one complete position for every atom. The Structure Fixer finds all
+three problems and repairs what it can.
+
+\begin{needsoftware}
+Real repairs need \term{MODELLER}, a separate program for building protein
+models, with a free academic license key. Without a valid key, ProPrep prints
+this message at every start:
+\begin{screen}
+MODELLER not found. Structure repair (missing loops/residues) will be
+unavailable.
+  To install: conda install -c salilab modeller
+  A free academic license is required:
+https://salilab.org/modeller/registration.html
+  After registering, set your license key:
+    export KEY_MODELLER='your_license_key_here'
+\end{screen}
+The message appears also when MODELLER is installed and only the key is missing
+or wrong, as on our test computer.
+
+\textbf{Works without the key:} all the detection and reports; adding
+\term{terminal caps} (ACE and NME); applying non-standard mutations from
+\key{4b}, but only when you also add at least one cap.
+
+\textbf{Does not work without the key:} building missing residues and loops;
+rebuilding missing side-chain atoms; standard mutations (for example Lys to
+Arg); and choosing one alternate location. The menu says so with
+\prompt{MODELLER off: capping only}.
+
+To add a key, ProPrep reads the environment variable \texttt{KEY\_MODELLER}, or
+the first line of the file \file{~/.proprep/modeller_key} (not tried for this
+manual). Appendix~\ref{app:software} and Chapter~\ref{ch:installation} have
+the details.
+\end{needsoftware}
+
+The example is \pdb{2RH1}, the $\beta_2$-adrenergic receptor. It is a
+\term{chimera}: part of the receptor was replaced by the protein T4 lysozyme to
+help it crystallize. Its file lists missing residues in REMARK 465 lines.
+
+\begin{steps}
+  \item Filter the structure first (Section~\ref{sec:cleaning-filter}). Then
+        type \key{4c}. Options \key{2}--\key{4} stay blocked until you have
+        analyzed the structure. Type \key{1}
+        (\prompt{Analyze structure completeness}).
+  \item ProPrep asks three questions, one per kind of problem. Press
+        \key{Enter} three times to accept the defaults, which read the
+        experimenters' own records in the file:
+\begin{screen}
+Missing Residues Detection:
+1. REMARK 465 records
+2. SEQRES comparison
+3. FASTA comparison
+4. Sequence gaps
+5. Skip
+Choose (1): §ans«1»
+
+Missing Atoms Detection:
+1. REMARK 470 records
+2. Template comparison
+3. Skip
+Choose (1): §ans«1»
+
+Alternate Locations Detection:
+1. AltLoc identifiers
+2. Occupancy values
+3. Skip
+Choose (1): §ans«1»
+\end{screen}
+        \term{REMARK 465} lists residues that were in the sample but not seen;
+        \term{REMARK 470} lists side-chain atoms that were not seen. Option
+        \key{2} for missing residues compares the atoms with the
+        \term{SEQRES} records, the full sequence of the sample written in the
+        file; for \pdb{2RH1} it found the same 58 residues.
+  \item Read the summary. For \pdb{2RH1}:
+\begin{screen}
+┃ Issue Type                     ┃ Method            ┃ Count ┃ Chains ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━┩
+│ Missing Residues               │ remark_465        │ 58    │ A      │
+│ Missing Atoms                  │ remark_470        │ 1     │ A      │
+│ Alternate Locations            │ altloc_identifier │ 0     │ -      │
+│ Pending Standard Mutations     │ user_specified    │ 0     │ -      │
+│ Pending Non-Standard Mutations │ user_specified    │ 0     │ -      │
+\end{screen}
+        Below it, the sequence of each chain is printed with colors: green
+        for missing residues, cyan for residues with missing atoms, yellow for
+        alternate locations, magenta and orange for pending mutations, and
+        \prompt{-} for numbers that are not in the sequence at all.
+  \item Answer \key{y} at \prompt{Show detailed reports?} to see each missing
+        residue and atom. For \pdb{2RH1}, the 58 missing residues are at the
+        two ends of the chain (positions $-6$ to 28 and 343 to 365). The one
+        residue with missing atoms is Asp29.
+\end{steps}
+
+\begin{watchout}
+Points that can mislead you when reading the results in version 1.23.0:
+\begin{itemize}
+  \item In a chimera or engineered construct, the sequence view shows long
+        runs of \prompt{-} where the numbering jumps (in \pdb{2RH1}, between
+        230 and 263, and up to 1002 where the T4 lysozyme numbering starts).
+        These are \emph{not} missing residues.
+  \item The REMARK 470 detail table shows the chain letter in the
+        \prompt{Atom} column (\prompt{ASP 29 | A}). The file itself says the
+        missing atoms of Asp29 are CG, OD1 and OD2.
+  \item \prompt{Template comparison} (option \key{2} for missing atoms) reports
+        a missing \prompt{OXT} atom on \emph{every} residue: 75 for ubiquitin,
+        about 440 for \pdb{2RH1}. The \term{OXT} atom (the second oxygen of the
+        last residue's carboxyl group) exists only at the end of a chain, so
+        these reports are false. Use REMARK 470 for files from the RCSB.
+        Template comparison also downloads templates first, which took 1--2
+        minutes.
+  \item \prompt{FASTA comparison} returned 0 missing residues for \pdb{2RH1}
+        and then said \prompt{No structural issues found!}, although REMARK 465
+        lists 58. Do not use it for entries with one chain.
+  \item \prompt{Sequence gaps} counts every jump in numbering as missing
+        residues: 691 for \pdb{2RH1}. It is not useful for constructs with
+        non-continuous numbering.
+\end{itemize}
+\end{watchout}
+
+\subsection{Applying repairs and caps}
+\label{sec:cleaning-caps}
+
+The two ends of a protein chain carry charges: a positive amino group at the
+start (the \term{N-terminus}) and a negative carboxyl group at the end (the
+\term{C-terminus}). When your structure starts or ends where the real protein
+continues (because residues are missing, or because you cut out a domain),
+these artificial charges can distort the simulation. A \term{cap} is a small
+neutral group that closes the chain end instead: \term{ACE} (an acetyl group)
+before the first residue, and \term{NME} (an N-methyl amide) after the last.
+
+\begin{steps}
+  \item In the Structure Fixer menu, type \key{2}
+        (\prompt{Apply repairs/mutations/caps to structure}). Without MODELLER
+        you go straight to capping:
+\begin{screen}
+MODELLER not available — gap filling and mutations are disabled.
+Terminal capping (ACE/NME) is still available; install MODELLER for full
+repairs.
+...
+═══ Terminal Capping (ACE/NME) ═══
+ACE caps the N-terminus, NME caps the C-terminus. Cap atoms get placeholder
+geometry that tLEaP finalizes during topology generation.
+
+Chain A — N-term: ASP29, C-term: TYR1161
+     n  N-terminus only — ACE before ASP29
+     c  C-terminus only — NME after TYR1161
+  both  Both termini
+     s  Skip this chain (default)
+Cap which terminus of chain A? (s): §ans«n»
+\end{screen}
+  \item Type \key{n}, \key{c} or \typed{both} for each chain. Pressing
+        \key{Enter} (\key{s}) adds no cap; if no chain gets a cap, ProPrep says
+        \prompt{No terminal caps selected.} and writes nothing.
+\begin{screen}
+Adding ACE/NME caps...
+  Plan: ACE before A:29 (MODELLER numbering, capping N-terminal gap 29-29)
+  Inserted ACE at A:28 (before 29)
+✓ Caps added successfully
+
+✓ Structure repair completed!
+Output: repaired_structure.pdb
+\end{screen}
+\end{steps}
+
+The file \file{repaired_structure.pdb} keeps all ligands and waters that were in
+the input. Without MODELLER, the missing loops and termini are \emph{not} built:
+they remain as breaks in the chain. The missing side-chain atoms of Asp29 are
+not rebuilt either; tLEaP normally adds missing side-chain atoms when it builds
+the system (Chapter~\ref{ch:topology}).
+
+\begin{watchout}
+\textbf{The repaired file is renumbered from 1.} In the repaired \pdb{2RH1},
+the cap is residue 1, Asp29 became residue 2, and the last residue, Tyr1161,
+became 506. In ubiquitin with an ACE cap, every number moves up by one (Lys48
+becomes 49). All later steps use the new numbers: the protonation tables
+(Chapter~\ref{ch:protonation}), residue overrides, and orientation by residue.
+Keep a note of the shift when you compare with the literature.
+\end{watchout}
+
+\begin{watchout}
+Without MODELLER, alternate locations are not resolved. On \pdb{3NIR}
+(crambin at 0.48~Å), the analysis found 32 residues with alternates, for
+example \prompt{TYR 29 \quad A, B, C \quad A:0.42 B:0.30 C:0.28}. ProPrep has a
+screen for choosing one conformation, but in version 1.23.0 it is reached only
+when MODELLER works. The repaired file still contained 313 atoms with A and B
+positions. Most crystal structures at ordinary resolution have few or no
+altlocs; check the summary line \prompt{Alternate Locations}.
+\end{watchout}
+
+\subsection{Reports}
+
+\key{3} (View structural issues report) prints the detailed tables again.
+\key{4} (Export results to JSON) saves them as \file{completeness_results.json}
+(including any false OXT reports).
+
+\section{Changing residues with the Amino Acid Mutator}
+\label{sec:cleaning-mutator}
+
+Use the mutator to simulate a mutant, for example ubiquitin with Lys48 changed
+to arginine. You can also put in a modified residue, for example a
+phosphoserine or the infrared probe cyanophenylalanine. The mutator only
+\emph{records} the changes. The Structure Fixer applies them later.
+
+There are two kinds of mutation:
+\begin{itemize}
+  \item A \textbf{standard mutation} changes one of the 20 natural amino acids
+        into another. MODELLER builds the new side chain.
+  \item A \textbf{non-standard mutation} changes a residue into anything else,
+        named by its three-letter code (for example \prompt{SEP}
+        phosphoserine, \prompt{TPO} phosphothreonine, \prompt{PTR}
+        phosphotyrosine, \prompt{MLY} dimethyllysine, \prompt{CNF}
+        cyanophenylalanine). You choose which atoms of the old residue to keep;
+        tLEaP builds the rest later. The new residue must exist in your force
+        field (Chapter~\ref{ch:forcefields}).
+\end{itemize}
+
+\begin{needsoftware}
+Standard mutations need MODELLER with a valid license key. Without it, ProPrep
+records them but never applies them, and the Structure Fixer does not tell you
+so when it writes the repaired file. The suggestion line in the Structure Fixer
+menu warns beforehand: \prompt{Found 2 pending mutations, but MODELLER is
+required to apply them}. Non-standard mutations work without MODELLER, but only
+if you add at least one terminal cap at the same time.
+\end{needsoftware}
+
+\begin{steps}
+  \item Type \key{4b}. First type \key{1}
+        (\prompt{Display protein sequences with numbering}). The mutator does
+        not let you enter mutations before you have seen the sequence.
+\begin{screen}
+Chain A:
+                 10        20        30        40        50        60
+   1-60  MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYN
+
+                 10
+  61-76  IQKESTLHLVLRLRGG
+
+Found 1 protein chain(s) with 76 total residues
+\end{screen}
+        The ruler above each line counts from that line's first residue: the
+        \prompt{10} above line 61--76 marks residue 70.
+  \item Type \key{2} (\prompt{Specify amino acid mutations}). Enter each
+        mutation as \textsf{CHAIN:POSITION:FROM->TO}, one per line:
+\begin{screen}
+Enter mutation: §ans«A:48:LYS->ARG»
+✓ Added standard mutation: Chain A, Position 48, LYS->ARG
+
+Enter mutation: §ans«A:63:LYS->ALA»
+✓ Added standard mutation: Chain A, Position 63, LYS->ALA
+
+Enter mutation: §ans«A:4:PHE->CNF»
+
+⚠ Detected non-standard residue target: CNF
+Non-standard mutations require atom selection (atoms to keep from original
+residue)
+...
+Preset Options:
+  backbone  - Keep backbone atoms only (N, CA, C, O)
+  bb+cb     - Keep backbone + CB (beta carbon)
+  all       - Keep all atoms (for testing)
+  custom    - Manually select specific atoms
+  cancel    - Cancel this mutation
+
+Select preset or 'custom': §ans«backbone»
+✓ Added non-standard mutation: Chain A, Position 4, PHE->CNF
+  Keeping 4 atoms: N, CA, C, O
+\end{screen}
+        For a non-standard residue, ProPrep lists the atoms of the old residue.
+        \typed{bb+cb} is a good choice when the new residue keeps the beta
+        carbon (as in phosphoserine). With \typed{custom} you type atom names,
+        for example \typed{N,CA,C,O,CB,OG}.
+  \item Type \typed{done}. ProPrep shows two tables, standard and
+        non-standard, and says
+        \prompt{Automatically stored mutations in workspace!}.
+  \item Go to \key{4c}, analyze (\key{1}), then apply (\key{2}). The pending
+        mutations appear in the summary. Add at least one cap:
+\begin{screen}
+Cap which terminus of chain A? (s): §ans«both»
+...
+═══ Non-Standard Mutations ═══
+
+Applying 1 non-standard mutation(s)...
+
+→ Mutating A:4 PHE → CNF
+  Mapped residue: A:4 → A:5
+    Removed 7 atoms
+    Renamed residue to CNF
+  ✓ Mutation applied successfully
+    Kept 4 atoms: N, CA, C, O
+...
+Output: repaired_structure.pdb
+\end{screen}
+        Note the renumbering: with the ACE cap, Phe4 became CNF~5.
+\end{steps}
+
+Without MODELLER, the two standard mutations (K48R and K63A) were \emph{not}
+applied: the repaired file still has lysine at those positions, and \key{4b}
+option \key{3} still lists them as waiting.
+
+The mutator checks what you type and asks again after a mistake:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{You type} & \textbf{ProPrep says} \\
+\midrule
+\typed{K48R} & \prompt{Invalid format. Use CHAIN:POSITION:FROM->TO} \\
+\typed{A:48:ALA->GLY} & \prompt{Position 48 is LYS, not ALA} \\
+\typed{A:200:ALA->GLY} & \prompt{Position 200 not found in chain A} \\
+\typed{B:48:LYS->ARG} & \prompt{Chain B not found in structure} \\
+\typed{A:48:LYS->GLU} (again) & \prompt{Mutation already specified for chain A position 48} \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Other commands at \prompt{Enter mutation}: \typed{help} shows more examples and
+common non-standard codes; \typed{clear} deletes \emph{all} pending mutations at
+once, without asking for confirmation.
+
+\begin{watchout}
+\begin{itemize}
+  \item If you add no cap, a pending non-standard mutation is silently not
+        applied: ProPrep says \prompt{No terminal caps selected.} and writes
+        nothing, and the summary even says \prompt{No pending mutations}.
+  \item After a non-standard mutation, \key{4b} option \key{1} leaves the new
+        residue out of the one-letter sequence (75 letters instead of 76).
+\end{itemize}
+\end{watchout}
+
+\section{Options at a glance}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.57\linewidth}@{}}
+\toprule
+\textbf{Question} & \textbf{Answers} \\
+\midrule
+\endhead
+\multicolumn{2}{@{}l}{\textsf{\bfseries 4a PDB Filter}} \\
+Detect redox-active sites? & \key{y} (default)
+  protects metal sites and cofactors; \key{n} skips \\
+\prompt{Select chains} & \typed{1,2} or \typed{all} (default) \\
+Each component & \key{r} keep (default), \key{s} choose residues,
+  \key{d} remove; for a redox site also \key{c} keep site residues,
+  \key{o} remove anyway \\
+\prompt{Select residues} & \typed{1,3,5} (table numbers), \typed{all},
+  \typed{none}; no ranges \\
+Water metrics & one number 1--8; \key{9} keeps no waters \\
+\prompt{Select waters by residue numbers} & residue numbers and ranges,
+  \typed{all}, \typed{none} \\
+Apply these filters? & \key{y} (default); \key{n}
+  discards silently \\
+\midrule
+\multicolumn{2}{@{}l}{\textsf{\bfseries 4c Structure Fixer}} \\
+Missing residues & \key{1} REMARK 465 (default, recommended), \key{2} SEQRES,
+  \key{3} FASTA, \key{4} numbering gaps, \key{5} skip \\
+Missing atoms & \key{1} REMARK 470 (default, recommended), \key{2} template
+  comparison (false OXT reports), \key{3} skip \\
+Alternate locations & \key{1} altloc letters (default), \key{2} occupancy
+  values, \key{3} skip \\
+\prompt{Cap which terminus} & \key{n}, \key{c}, \typed{both}, \key{s} (default,
+  none) \\
+\midrule
+\multicolumn{2}{@{}l}{\textsf{\bfseries 4b Amino Acid Mutator}} \\
+\prompt{Enter mutation} & \textsf{A:48:LYS->ARG}, \typed{done}, \typed{clear},
+  \typed{help} \\
+\prompt{Select preset or 'custom'} & \typed{backbone}, \typed{bb+cb},
+  \typed{all}, \typed{custom}, \typed{cancel} \\
+\bottomrule
+\end{longtable}
+
+\section{If something goes wrong}
+\label{sec:cleaning-problems}
+
+\begin{description}[style=nextline]
+  \item[The filter stops with ``invalid literal for int()''] You typed a range
+        at \prompt{Select residues}. Start again and type single numbers
+        separated by commas.
+  \item[``list index out of range'' in the filter] A number was larger than
+        the list. Start again.
+  \item[``Received '2,4', which is not one of the available options''] The
+        water-metrics question accepts one number only.
+  \item[``Received '1a', which is not one of the available options''] You
+        typed a main-menu code inside a tool. Type \key{m} first.
+  \item[The fixer says ``capping only''] MODELLER or its license key is
+        missing. See the box in Section~\ref{sec:cleaning-fixer}.
+  \item[The repaired file has no mutation] Standard mutations need MODELLER.
+        Non-standard ones need at least one cap.
+  \item[Residue numbers do not match the paper] The repaired file was
+        renumbered from 1 (Section~\ref{sec:cleaning-caps}).
+  \item[Hundreds of ``OXT'' atoms reported missing] These are false reports
+        of the template comparison. Use REMARK 470.
+  \item[The repaired file still has A and B positions] Alternate locations
+        are not resolved without MODELLER.
+\end{description}
+
+See also Chapters~\ref{ch:troubleshooting} and~\ref{ch:knownissues}.

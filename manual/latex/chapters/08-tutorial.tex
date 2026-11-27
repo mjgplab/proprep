@@ -1,0 +1,1110 @@
+\chapter{Tutorial: ubiquitin from download to analyzed simulation}
+\label{ch:tutorial}
+
+This chapter walks you through one complete project, from downloading a
+protein to looking at the results of a short simulation. You will use
+ubiquitin (\pdb{1UBQ}), a small, well-behaved protein of 76 amino acids. Every
+answer shown here is the answer that was typed during a real run of ProPrep
+1.23.0, and every screen is the screen it printed.
+
+Plan on about 30~minutes of your own time. The computer work itself is short:
+building the system takes a few seconds and the shortened simulation about one
+minute on a laptop.
+
+\begin{glance}
+\glanceitem{What you do}{Download \pdb{1UBQ}, surround it with water and salt,
+  run a short simulation, and measure how the protein moved.}
+\glanceitem{Tools used}{\key{1a} Structure Loader, \key{5a} Topology Generator,
+  \key{5b} Molecular Dynamics Manager.}
+\glanceitem{Before you start}{ProPrep installed (Chapter~\ref{ch:installation})
+  and an Internet connection.}
+\glanceitem{Time}{About 30~minutes of reading and typing; about one minute of
+  simulation.}
+\glanceitem{You get}{\file{1UBQ.prmtop}, \file{1UBQ.rst7}, a folder of
+  simulation results, and a table of measurements (\file{.csv}).}
+\end{glance}
+
+\section{The plan}
+
+A \term{molecular dynamics} simulation (MD for short) lets the computer move
+every atom of a protein, step by tiny step, according to physical rules. You
+will go through four stages:
+
+\begin{enumerate}
+  \item \textbf{Get the structure.} Download the atom positions of ubiquitin
+        from the Protein Data Bank.
+  \item \textbf{Build the system.} Choose the physical rules (the force
+        field), put the protein in a box of water, and add salt.
+  \item \textbf{Simulate.} Relax the system, warm it up, then let it move
+        freely while ProPrep records snapshots.
+  \item \textbf{Analyze.} Measure how much the protein moved and changed shape.
+\end{enumerate}
+
+Some optional steps, such as removing crystal waters or checking protonation
+states, are left out here because ubiquitin does not need them. They are
+covered in Chapters~\ref{ch:cleaning} and~\ref{ch:protonation}.
+
+\section{Before you begin}\label{sec:tutorial-before}
+
+ProPrep uses the simulation programs of \term{AmberTools} (a free package of
+simulation programs that is installed together with ProPrep). If another copy
+of Amber is also installed on your computer, ProPrep may quietly use that copy
+instead of its own.
+
+\begin{watchout}
+In version 1.23.0, ProPrep keeps whatever Amber installation the setting
+\texttt{AMBERHOME} already points to. On our test computer it pointed to a
+different Amber installation, and every program came from there without any
+message. If you have ever installed Amber separately, open a new Terminal
+window, start the ProPrep environment as described in
+Chapter~\ref{ch:installation}, and check:
+\begin{terminal}
+echo $AMBERHOME
+\end{terminal}
+If this prints a folder that does not belong to ProPrep, clear it before
+starting ProPrep:
+\begin{terminal}
+unset AMBERHOME
+\end{terminal}
+\end{watchout}
+
+Make an empty folder for your projects, move into it, and start ProPrep in Full
+Menu mode. In the Terminal:
+
+\begin{terminal}
+mkdir ~/proprep-tutorial
+cd ~/proprep-tutorial
+proprep --full-menu
+\end{terminal}
+
+If you prefer the browser version, start \texttt{proprep-web} instead
+(Chapter~\ref{ch:starting}). The screens are the same. If ProPrep asks
+\prompt{Select menu mode [1/2]}, type \key{2} (Full Menu), and answer \key{n}
+when it asks whether to save this as your default.
+
+\section{Step 1: Name the project}
+
+ProPrep first asks for a project name. It makes a folder with that name and
+saves every file of the project there.
+
+\begin{screen}
+═══ Project Setup ═══
+
+Enter a name for your project. All structures and outputs
+will be saved in a directory with this name.
+Press Enter to use the current directory.
+
+Project name (.): §ans«ubq»
+✓ Project directory: /Users/you/proprep-tutorial/ubq
+
+Session recording to: ./proprep_session_20261121_122842.json
+\end{screen}
+
+Type \typed{ubq} and press \key{Enter}. ProPrep also starts a
+\term{session file}, a record of every answer you give. It is called
+\file{proprep_session_<date>_<time>.json}. You can ignore it for now; Chapter~\ref{ch:sessions}
+explains how to reuse it.
+
+The main menu appears next. At this point most tools show a grey circle
+(\texttt{○}) and a yellow warning such as \texttt{⚠}\,\prompt{Needs a loaded
+structure}.
+They become available once a structure is loaded.
+
+\section{Step 2: Download ubiquitin}
+
+\begin{steps}
+  \item At \prompt{Enter your choice (1a)}, type \key{1a} (Structure Loader).
+  \item Type \key{1} (Load protein structure).
+  \item At \prompt{Select source}, type \key{1} (Query Protein Data Bank (RCSB)).
+  \item At \prompt{Select method}, type \key{1} (Enter PDB ID directly).
+  \item Type \typed{1UBQ}.
+  \item At \prompt{Select structure type}, type \key{1} (Asymmetric unit).
+\end{steps}
+
+The \term{asymmetric unit} is the structure exactly as it was deposited.
+\pdb{1UBQ} contains a single ubiquitin chain, so this is what you want.
+
+\begin{screen}
+Enter PDB ID (e.g., 1ABC, 7XYZ): §ans«1UBQ»
+
+Structure type:
+  1. Asymmetric unit (default - as deposited)
+  2. Biological assembly (functional oligomeric form)
+Select structure type (1): §ans«1»
+
+Downloading 1UBQ...
+
+✓ Downloaded 1UBQ
+
+PDB ID: 1UBQ
+Classification: CHROMOSOMAL PROTEIN
+Title: STRUCTURE OF UBIQUITIN REFINED AT 1.8 ANGSTROMS RESOLUTION
+Experimental Method: X-RAY DIFFRACTION
+Resolution: 1.8 Å
+...
+═══ Load Structure - Select Source ═══
+...
+6. Done (return to the Structure Loader menu)
+
+Select source (1): §ans«6»
+\end{screen}
+
+\begin{steps}[resume]
+  \item Type \key{6} (Done), then \key{m} to go back to the main menu.
+\end{steps}
+
+\textbf{New file:} \file{ubq/1UBQ.pdb}, the downloaded structure. It still
+contains the 58 water molecules seen in the crystal. They are kept in this
+tutorial; tLEaP treats them like the other water it adds.
+
+\section{Step 3: Choose the force field, water and salt}\label{sec:tutorial-leapin}
+
+Next you describe the simulation system. A \term{force field} is the set of
+rules and numbers that says how atoms attract and repel each other. ProPrep
+writes your choices into an input file for \term{tLEaP}, the AmberTools
+program that builds the system.
+
+\begin{steps}
+  \item In the main menu, type \key{5a} (Topology Generator).
+  \item In the Topology Generator menu, type \key{2} (Generate tLEaP input for
+        single state).
+\end{steps}
+
+\begin{screen}
+══ Topology Generator Menu ══
+  1. ✓ Edit redox site bond definitions
+  2. ✓ Generate tLEaP input for single state
+  3. ○ Generate tLEaP inputs for all redox microstates
+       ⚠ Need batch microstate metadata from Redox Site Prep
+  4. ○ Generate prmtop/rst7 files from tLEaP input files
+       ⚠ Need to generate tLEaP input first
+...
+Enter your choice (1): §ans«2»
+\end{screen}
+
+ProPrep shows a short panel that explains what tLEaP does, then asks about
+force fields one at a time.
+
+\subsection{The protein force field}
+
+\begin{screen}
+━━━ PROTEIN FORCEFIELD ━━━
+  1     None                          No protein in system
+  2     ff19SB (Recommended)          Latest AMBER protein FF - use with OPC water
+  3     ff14SB                        Widely validated, good for most applications
+...
+Select protein forcefield (2): §ans«»
+\end{screen}
+
+Press \key{Enter} to accept \textbf{ff19SB}, Amber's current force field for
+proteins. At \prompt{Select modified amino acids ()} press \key{Enter} as well:
+ubiquitin has no unusual amino acids.
+
+\subsection{Force fields you do not need}
+
+ProPrep then asks for DNA, RNA, carbohydrate, lipid and small-molecule force
+fields. Ubiquitin contains none of these, so type \key{1} (None) at each of the
+five questions:
+
+\begin{screen}
+━━━ DNA FORCEFIELD ━━━
+NOTE: For protein+DNA, only OL24 or OL21 are compatible with ff19SB!
+  1    None                  No DNA in system
+  2    OL24 (Recommended)    Latest with sugar pucker refinements (2024)
+...
+Select dna forcefield (2): §ans«1»
+\end{screen}
+
+\begin{tip}
+The default for each of these questions is a real force field, not
+\prompt{None}. Pressing \key{Enter} does no harm for a protein (in our recorded
+run we pressed \key{Enter} for DNA, RNA, carbohydrates and small molecules), but
+the extra files are then loaded for nothing and the input file is longer.
+\end{tip}
+
+\subsection{The water model}
+
+The \term{water model} is the recipe used for each water molecule. In the
+recorded run we chose \textbf{TIP3P} (\key{6}), the traditional three-point
+model, which is fast and widely used.
+
+\begin{screen}
+━━━ WATER MODEL ━━━
+Must be compatible with protein forcefield!
+  1     None                                  Implicit solvent (no water in system)
+  2     OPC (Recommended — matches ff19SB)    4-point, optimal for ff19SB
+  3     OPC3                                  3-point OPC (faster, good accuracy)
+...
+  6     TIP3P                                 3-point, traditional (not recommended)
+...
+Select water model (2): §ans«6»
+\end{screen}
+
+ProPrep recommends OPC with ff19SB, and pressing \key{Enter} gives you OPC.
+OPC is a four-point model, so each water has one more particle and the
+simulation costs a little more. Chapter~\ref{ch:topology} compares the
+choices. ProPrep does not warn you when you pick a water model other than the
+recommended one.
+
+\subsection{Ion parameters}
+
+\begin{screen}
+━━━ DIVALENT+ ION PARAMETERS ━━━
+For Mg2+, Ca2+, Zn2+, Fe2+/3+, etc. Monovalent ions auto-loaded with water.
+...
+  6     12-6-4 TIP3P (Recommended — matches TIP3P)    Best for divalent+ with TIP3P
+...
+Select divalent+ ion parameters (6): §ans«»
+\end{screen}
+
+Press \key{Enter}. The recommended choice always follows the water model you
+picked. ProPrep then prints a summary of the selected force fields and a note
+that \prompt{No transformer information found}. That note is normal for a
+protein without special groups.
+
+\subsection{Water box and salt}
+
+Now ProPrep asks how to fill the box around the protein. Press \key{Enter} at
+each question to accept the recommended answer:
+
+\begin{screen}
+Solvent Model
+  1. Explicit solvent (solvation box with water molecules)
+  2. Implicit solvent (GB/PB continuum model, no water box)
+Select solvent model [1/2] (1): §ans«»
+
+Box Shape
+  1. Truncated octahedron (Recommended) - ~29% fewer waters than rectangular
+  2. Rectangular box
+Select box shape [1/2] (1): §ans«»
+
+Buffer Distance
+Distance from solute to box edge. 8-10 A typical, 12-15 A for large
+conformational changes.
+Buffer distance (Angstroms) (10.0): §ans«»
+\end{screen}
+
+\begin{itemize}
+  \item \textbf{Explicit solvent} means real water molecules surround the
+        protein, which is the most realistic choice.
+  \item A \term{truncated octahedron} is a box with the corners cut off. It
+        fits a roughly round protein with less water, so the simulation runs
+        faster.
+  \item The \term{buffer} of 10\,Å is the smallest distance between the
+        protein and the edge of the box. It keeps the protein from feeling its
+        own copy across the box edge.
+\end{itemize}
+
+Then choose the salt. Press \key{Enter} three times for Na\textsuperscript{+},
+Cl\textsuperscript{--} and 150\,mM, the salt level of body fluids. Press
+\key{Enter} once more at \prompt{Add another salt? [y/n] (n)}.
+
+\begin{screen}
+NaCl concentration
+  1. 150 mM NaCl (Recommended) - physiological ionic strength
+  2. 100 mM NaCl
+  3. 50 mM NaCl
+  4. Neutralize only (0 mM)
+  5. Custom concentration
+Select concentration [1/2/3/4/5] (1): §ans«»
+
+Configured salts:
+  1. 150 mM NaCl
+Add another salt? [y/n] (n): §ans«»
+\end{screen}
+
+(In the recorded run we typed \key{5} and then \typed{150}, which gives the
+same 150\,mM.)
+
+ProPrep now runs tLEaP briefly to count the water molecules and the charge of
+the protein, and works out how many ions to add:
+
+\begin{screen}
+Solvation: truncated octahedron, 10.0 A buffer, 150 mM NaCl
+
+Running tLEaP info pass for accurate ion counts...
+  → Net charge: +0.0
+  → Water count: 4792
+  ✓ Got required info, terminating tLEaP early
+...
+│  Result: total charge = system (+0) + ions (+0) = 0  ->  13 Na+ + 13 Cl-
+...
+\end{screen}
+
+Ubiquitin has no net charge, so ProPrep adds 13 sodium and 13 chloride ions,
+which gives 150\,mM in 4,792 waters.
+
+\subsection{The input file}
+
+ProPrep shows the tLEaP input it is about to write (shortened here):
+
+\begin{screen}
+Current tLEaP Template:
+────────────────────────────────────────────────────────────
+   1 # ProPrep-generated tLEaP Input File
+   2
+   3 # === STANDARD FORCEFIELDS ===
+   4 source leaprc.protein.ff19SB
+...
+   9 source leaprc.water.tip3p
+  10 loadamberparams frcmod.ions1lm_1264_tip3p
+...
+  20 mol = loadpdb /Users/you/proprep-tutorial/ubq/1UBQ.pdb
+...
+  26 solvateoct mol TIP3PBOX 10.00
+...
+  30 addionsrand mol Na+ 13 Cl- 13
+...
+  36 saveamberparm mol 1UBQ.prmtop 1UBQ.rst7
+...
+Edit the tLEaP template? [y/n] (y): §ans«n»
+\end{screen}
+
+Type \key{n}. You do not need to change anything.
+
+\subsection{The bond question: answer \texttt{y}}
+
+ProPrep now looks for special bonds, such as bonds to a metal or between two
+cysteines. Ubiquitin has none, and ProPrep asks whether to go on without them.
+
+\begin{screen}
+STEP 3: tLEaP Input File Generation
+
+No bond definitions found. Run comprehensive RedoxSite detection first.
+Do you want to continue without bond definitions? [y/n] (n): §ans«y»
+Continuing with empty bond definitions.
+Enter output filename for tLEaP input (1UBQ_tleap.in): §ans«»
+
+Successfully wrote tLEaP input file to: 1UBQ_tleap.in
+tLEaP template configuration complete!
+View the tLEaP input file? [y/n] (y): §ans«»
+\end{screen}
+
+\begin{watchout}
+Type \key{y} here. In version 1.23.0 the default answer is \key{n}, and
+\key{n} stops the whole step: ProPrep prints \prompt{Please run RedoxSite
+detection and try again.} and returns to the Topology Generator menu without
+writing a file. Your force-field and salt choices are remembered, so if this
+happens, type \key{2} again, press \key{Enter} at \prompt{Reconfigure all
+settings\ldots? (n)}, answer \key{n} to the edit question and \key{y} here.
+\end{watchout}
+
+Press \key{Enter} at the file name and again to view the file.
+
+\textbf{New file:} \file{1UBQ_tleap.in}, the instructions for tLEaP. The
+Topology Generator menu now marks option~2 with a dot (\texttt{●}, done) and option~4 is
+available.
+
+\section{Step 4: Build the topology}\label{sec:tutorial-build}
+
+Now tLEaP builds the system. It writes two files. The \term{topology}
+(\file{.prmtop}) lists every atom, its charge, and every bond and angle with
+its force-field numbers. The \term{coordinates} (\file{.rst7}) give the
+position of every atom.
+
+\begin{steps}
+  \item In the Topology Generator menu, type \key{4} (Generate prmtop/rst7
+        files from tLEaP input files).
+  \item At \prompt{Run 1UBQ\_tleap.in? [y/n] (y)}, press \key{Enter}.
+\end{steps}
+
+\begin{screen}
+Running tLEaP for 1UBQ_tleap.in...
+TER record issues found in 1UBQ.pdb:
+  • Missing TER record between HETATM HOH 77 and HOH 78 in chain A at line 912
+...
+✓ Inserted 57 TER record(s) in 1UBQ.pdb
+Running: tleap -s -f 1UBQ_tleap.in
+✓ tLEaP completed successfully
+
+tLEaP Summary: Exiting LEaP: Errors = 0; Warnings = 13; Notes = 1.
+
+Warnings (13):
+Warning 1:
+  .../bin/teLeap: Warning!
+  Close contact of 1.306 angstroms between nonbonded atoms H and H1
+...
+\end{screen}
+
+Three things happen here:
+
+\begin{itemize}
+  \item ProPrep adds the \term{TER records} (end-of-molecule markers) that the
+        crystal waters were missing. It changes \file{1UBQ.pdb} itself and
+        keeps the original as \file{1UBQ.pdb.ter_backup}.
+  \item tLEaP finishes with \textbf{Errors = 0}. That is the number to check.
+  \item The 13 warnings all say \prompt{Close contact} between two hydrogen
+        atoms. tLEaP has just added the hydrogens, and such small clashes are
+        normal; the minimization step in Step~6 removes them.
+\end{itemize}
+
+ProPrep then runs \term{ParmEd}, an Amber tool that checks the topology and
+adds a small correction for the ions (the 12-6-4 terms you chose with the ion
+parameters):
+
+\begin{screen}
+Running ParmEd validation on 1UBQ.prmtop...
+  ✓ Initial validity check passed
+  ✓ Molecule definitions are correct
+  Applying 12-6-4 LJ potential (water model: TIP3P)...
+  Detected free ions: Cl-, Na+
+  ✓ Added LENNARD_JONES_CCOEF (C4 terms) for 12-6-4 potential
+  ✓ Saved corrected topology and coordinates
+  ✓ Wrote 1UBQ_parmed.pdb (same order as the topology)
+ParmEd validation completed successfully
+
+Results: 1/1 files processed successfully
+...
+│ 1UBQ_tleap.in │ 1UBQ.prmtop     │ ✓ Found       │ 1UBQ.rst7     │ ✓ Found     │
+...
+All expected topology files were generated successfully!
+\end{screen}
+
+The whole step took a few seconds. Your system now has 15,729 atoms: the 76
+amino acids of ubiquitin, about 4,800 water molecules and 26 ions.
+
+\textbf{New files} in \file{ubq/}:
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{File} & \textbf{What it is} \\
+\midrule
+\file{1UBQ.prmtop} & The topology (about 2.9\,MB). \\
+\file{1UBQ.rst7} & The starting coordinates (about 570\,kB). \\
+\file{1UBQ_parmed.pdb} & The whole system as a PDB file, for viewing. \\
+\file{1UBQ_parmed_replay.py} & A script that repeats the ParmEd step by hand. \\
+\file{leap.log} & tLEaP's full report. \\
+\file{1UBQ.pdb.ter_backup} & Your PDB file before the TER records were added. \\
+\bottomrule
+\end{tabularx}
+
+\begin{tip}
+A good topology file is never empty. If something went wrong, ProPrep can
+leave a \file{.prmtop} of 0 bytes and still show a tick. Check the size in your
+file browser, or in the Terminal with \texttt{ls -l ubq/*.prmtop}.
+Chapter~\ref{ch:topology} explains this and other traps.
+\end{tip}
+
+Type \key{m} to return to the main menu. \key{5b} now shows a tick.
+
+\section{Step 5: Set up the simulation}\label{sec:tutorial-setup}
+
+The Molecular Dynamics Manager guides you through six short steps, shown in a
+bar at the top of each screen:
+\prompt{Files → Protocol → Restraints → Queue → Hardware → Review}.
+
+\begin{steps}
+  \item In the main menu type \key{5b}, then \key{1} (Setup and configure
+        simulations).
+\end{steps}
+
+\subsection{Files}
+
+ProPrep finds your topology and coordinates on its own:
+
+\begin{screen}
+╭─────────────────────────────────────────────────────────────╮
+│ Step 1 of 6: Structure Files (Topology + Coordinates)       │
+│ [Files] → Protocol → Restraints → Queue → Hardware → Review │
+╰─────────────────────────────────────────────────────────────╯
+  Structure Pairs: 1 selected
+    1. 1UBQ.prmtop + 1UBQ.rst7
+...
+Navigation:
+   n. Next step (Protocol Selection)
+   h. Help
+   x. Exit setup
+
+Enter choice: §ans«n»
+\end{screen}
+
+Type \key{n} to go on. (This prompt has no default, so \key{Enter} alone gives
+an error message; type the letter.)
+
+\subsection{Protocol: start from the Workshop protocol}
+
+A \term{protocol} is the list of simulation stages and their settings. Type
+\key{1} (Use a predefined protocol), then \key{4} (Workshop Protocol):
+
+\begin{screen}
+Available Protocols:
+
+  1. Membrane Protein Minimization Protocol (2 steps)
+  2. Basic Equilibration Protocol (6 steps)
+  3. Staged Equilibration at Physiological Conditions (310 K) (9 steps)
+  4. Workshop Protocol (CPU, under an hour) (4 steps)
+  5. York Lab Equilibration Tutorial (14 steps)
+...
+Your selection [1/2/3/4/5/b]: §ans«4»
+...
+Protocol Steps:
+  1. Energy Minimization (minimization)
+     1000 cycles with the backbone restrained (10 kcal/mol·Å²).
+  2. System Heating (heating)
+     0 to 300 K over 15 ps, then 5 ps at 300 K, backbone restrained (1.0 ...
+  3. NPT Equilibration (equilibration)
+     100 ps at 1 bar to settle the density, weak backbone restraints (0.1 ...
+  4. NVT Production MD (production)
+     300 ps unrestrained, one frame per ps.
+
+Total simulation time: 420.0 ps
+\end{screen}
+
+The four stages mean:
+\begin{description}
+  \item[Minimization] Moves atoms slightly to remove clashes, without any
+        motion in time.
+  \item[Heating] Warms the system from 0 to 300\,K (room temperature) while
+        the protein backbone is held gently in place.
+  \item[NPT equilibration] Lets the box size settle at normal pressure so the
+        water has the right density.
+  \item[Production] The free simulation whose snapshots you analyze.
+\end{description}
+
+ProPrep's own note says this protocol takes about 75~minutes with
+\texttt{sander} on a laptop. For this tutorial you shorten it to about a
+minute. Type \key{e} (Edit protocol) and press \key{Enter} to accept the
+suggested protocol name. The workflow editor opens:
+
+\begin{screen}
+Editing Workflow: Protocol_1UBQ_1UBQ_20261121_1243
+Based on Workshop Protocol (CPU, under an hour)
+
+Workflow Steps:
+  1. Energy Minimization (minimization)
+  2. System Heating (heating)
+  3. NPT Equilibration (equilibration)
+  4. NVT Production MD (production)
+
+Commands:
+  edit <step>              Edit MDIN parameters (e.g., 'edit 2')
+...
+  remove <step>            Remove step (e.g., 'remove 5')
+...
+  save                     Save and finish
+...
+Your command: §ans«edit 1»
+\end{screen}
+
+The settings of each stage are stored in an Amber input file called an
+\term{mdin} file. You change them in a simple text editor.
+
+\begin{steps}
+  \item \textbf{Shorten the minimization.} Type \typed{edit 1}, then
+        \typed{params}. The step's mdin file opens in the text editor
+        (\texttt{nano}). Change the two lines
+        \texttt{ncyc=500} and \texttt{maxcyc=1000} to
+        \begin{screen}
+  ncyc=100,
+  maxcyc=300,
+\end{screen}
+        Then press \key{Ctrl-X}, \key{y} and \key{Enter} to save and close
+        the editor. ProPrep says \prompt{MDIN parameters updated}. Type
+        \typed{back}.
+  \item \textbf{Shorten the heating.} Type \typed{edit 2}, then
+        \typed{params}. Make the \texttt{\&cntrl} and \texttt{\&wt} sections
+        read as below (1,000 steps of 2\,fs is 2\,ps; the temperature rises
+        over the first 750 steps and then holds), save, and type
+        \typed{back}.
+        \begin{screen}
+&cntrl
+  ntt=3, tempi=0.0, temp0=300.0, gamma_ln=5.0, ig=-1,
+  ntc=2, ntf=2, ntb=1, cut=10.0,
+  dt=0.002, nstlim=1000,
+  ntwr=500, ntwx=50, ntpr=50, ioutfm=1, iwrap=1,
+  ntr=1, restraint_wt=1.0, restraintmask='@CA,C,O,N&!:WAT',
+  nmropt=1,
+/
+&wt TYPE='TEMP0', ISTEP1=0, ISTEP2=750, VALUE1=0.0, VALUE2=300.0, /
+&wt TYPE='TEMP0', ISTEP1=751, ISTEP2=1000, VALUE1=300.0, VALUE2=300.0, /
+&wt TYPE='END' /
+\end{screen}
+  \item \textbf{Drop the NPT step.} Type \typed{remove 3} and answer \key{y}
+        at \prompt{Remove 'NPT Equilibration'? (n)}. The production step
+        becomes step~3.
+  \item \textbf{Shorten the production.} Type \typed{edit 3}, then
+        \typed{params}. Set \texttt{nstlim=500} (500 steps, 1\,ps),
+        \texttt{ntwr=250}, \texttt{ntwx=25} and \texttt{ntpr=25} (save a
+        snapshot and an energy line every 25 steps). Save and type
+        \typed{back}.
+  \item Type \typed{save}.
+\end{steps}
+
+\begin{watchout}
+ProPrep does not check what you type in the editor. During our run a
+careless edit deleted the \texttt{imin=1} line of the minimization step and
+ProPrep accepted the file without a word. After each edit, read the
+\prompt{MDIN Parameters} list that ProPrep prints and check that the lines you
+did not mean to change are still there.
+\end{watchout}
+
+\begin{tip}
+Dropping the NPT step and running only 1\,ps of production is fine for
+learning the program. It is far too short for research. For real work keep
+all four stages and use the times the protocol suggests
+(Chapter~\ref{ch:runningmd}).
+\end{tip}
+
+After \typed{save}, ProPrep confirms:
+
+\begin{screen}
+Step 2 Complete - 1 protocol(s) configured
+...
+✓ Added 3 simulations to queue
+\end{screen}
+
+\subsection{Restraints and queue}
+
+The next two screens can be left as they are.
+
+\begin{steps}
+  \item At \prompt{Step 3 of 6: Restraint Integration}, type \key{s} (Continue
+        with current restraints). The minimization and heating steps keep the
+        protein backbone gently restrained, as the protocol intends.
+  \item At \prompt{Step 4 of 6: Queue Management}, type \key{k} (Keep current
+        order and continue).
+\end{steps}
+
+\subsection{Hardware: choose sander}\label{sec:tutorial-engine}
+
+The \term{MD engine} is the program that actually runs the simulation.
+AmberTools includes \texttt{sander}, which runs on one processor, and
+\texttt{sander.MPI}, which can share the work between several processors.
+The faster engines \texttt{pmemd} and \texttt{pmemd.cuda} belong to the
+separate Amber package, which you obtain and install on your own; they are not
+installed with ProPrep.
+
+\begin{screen}
+╭─────────────────────────────────────────────────────────────────────╮
+│ Step 5 of 6: Hardware Config                                        │
+│ Files ✓ → Protocol ✓ → Restraints ✓ → Queue ✓ → [Hardware] → Review │
+╰─────────────────────────────────────────────────────────────────────╯
+...
+  Available: 11 CPUs, 0 GPUs
+
+  Simulations: 3 configured
+    3x pmemd
+
+What would you like to do?
+   1. Apply recommended assignments (CPU for min/NPT, GPU for rest)
+   2. Configure individual simulation engines
+   3. Set all simulations to same engine
+...
+Enter choice (1): §ans«3»
+
+Available engines:
+  1. sander
+  2. sander.MPI
+  3. pmemd
+  4. pmemd.MPI
+  5. pmemd.cuda
+Select engine for all simulations (cancel): §ans«1»
+✓ 3 simulations configured with sander
+\end{screen}
+
+\begin{steps}
+  \item Type \key{3} (Set all simulations to same engine), then \key{1}
+        (sander).
+\end{steps}
+
+\begin{watchout}
+Every step starts out set to \texttt{pmemd}, and the default answer
+\key{1} (recommended assignments) picks \texttt{pmemd.cuda} for a graphics
+card, even when ProPrep has just reported \prompt{0 GPUs}. Neither program is
+installed with ProPrep, and the run then fails with \prompt{No such file or
+directory: 'pmemd'}. Always set the engine to \texttt{sander} or
+\texttt{sander.MPI} unless you have installed the full Amber package.
+\end{watchout}
+
+To make the first two steps faster, we then gave them four processors each.
+This is optional:
+
+\begin{steps}[resume]
+  \item Type \key{2} to set the engine for each step separately.
+  \item For the minimization, type \key{2} (sander.MPI). When ProPrep asks
+        for the number of MPI processes, type \typed{4}.
+  \item Do the same for the heating.
+  \item For the production, press \key{Enter} to keep \texttt{sander}.
+\end{steps}
+
+\begin{screen}
+Simulation 1: 1UBQ_1UBQ_Energy Minimization
+Template: builtin/workshop_cpu/00_minimization.mdin
+
+Current engine: sander
+
+Available engines:
+  1. sander (current)
+  2. sander.MPI
+  3. pmemd (not installed)
+  4. pmemd.MPI (not installed)
+  5. pmemd.cuda (not installed)
+Select engine (skip): §ans«2»
+✓ Updated to sander.MPI
+
+MPI Configuration:
+Number of MPI processes (1-11) (5): §ans«4»
+\end{screen}
+
+This list, unlike the one in option~\key{3}, marks the programs that are not
+installed. Type \key{n} to go to the last step.
+
+\subsection{Review and run}
+
+\begin{screen}
+                      Simulation Configuration Summary
+┏━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ # ┃ System    ┃ Simulation          ┃ Ensemble ┃ Sim Time    ┃ Engine     ┃
+┡━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ 1 │ 1UBQ_1UBQ │ Energy Minimization │ —        │ 1000 cycles │ sander.MPI │
+│ 2 │           │ System Heating      │ NVT      │ 20 ps       │ sander.MPI │
+│ 3 │           │ NVT Production MD   │ NVT      │ 300 ps      │ sander     │
+└───┴───────────┴─────────────────────┴──────────┴─────────────┴────────────┘
+
+What would you like to do?
+   1. Save setup to workspace (execute later with 'run' command)
+   2. Write MDIN only (no SLURM, no launch)
+   3. Write files and run locally now
+...
+Enter choice (1): §ans«3»
+\end{screen}
+
+\begin{watchout}
+The \prompt{Sim Time} column still shows the protocol's original lengths
+(1000 cycles, 20\,ps, 300\,ps). In version 1.23.0 this table does not show
+your edits, but the files that are written do contain them.
+\end{watchout}
+
+\begin{steps}
+  \item Type \key{3} (Write files and run locally now). ProPrep says
+        \prompt{Configuration saved, switching to execution\ldots} and opens
+        the Execute Simulations menu.
+\end{steps}
+
+(In the recorded run we typed \key{2} here, which only writes the files, and
+then started the run from \key{5b} \textrightarrow{} \key{2}; the result is
+the same.)
+
+\section{Step 6: Run and watch}\label{sec:tutorial-run}
+
+\begin{screen}
+===== Execute Simulations =====
+
+Execute Options:
+  1. Execute simulation queue (3 simulations)
+  2. Manage queue (reorder, hold, remove)
+
+Other Options:
+  3. Monitor running simulation
+  4. Analyze completed simulations
+...
+Select option (b): §ans«1»
+...
+Proceed with execution of 3 active simulations? (y): §ans«y»
+
+Created run directory: .../ubq/simulations/batch_20261121_125742
+...
+Executing simulation 1/3: 1UBQ_1UBQ_Energy Minimization
+Starting simulation in background:
+mpirun -np 4 sander.MPI -O -i simulation.mdin -p 1UBQ.prmtop -c 1UBQ.rst7 ...
+✓ Simulation '1UBQ_1UBQ_Energy Minimization' started in background (PID: 4080)
+...
+Executing simulation 2/3: 1UBQ_1UBQ_System Heating
+  Queued (depends on: 1UBQ_1UBQ_Energy Minimization)
+Will auto-start when dependency completes
+...
+\end{screen}
+
+\begin{steps}
+  \item Type \key{1} (Execute simulation queue) and \key{y}.
+\end{steps}
+
+The simulation runs in the background. ProPrep starts each stage as soon as
+the previous one has finished, so you can keep using the menus.
+
+\subsection{Watching the progress}
+
+\begin{steps}[resume]
+  \item In the Execute Simulations menu, type \key{3} (Monitor running
+        simulation), then \key{1} to pick the running step.
+  \item Type \key{1} (Show current status) or \key{7} (Plot temperature).
+\end{steps}
+
+\begin{screen}
+Currently tracked simulations:
+  • 1UBQ_1UBQ_System Heating
+    (running, runtime: 0:00:10, batch: batch_20261121_125742)
+...
+Select option (1): §ans«7»
+
+Temperature (K)
+============================================================
+Max:   291.68                                                ┤
+                                               ●  ●  ●  ●    ┤
+                                   ●                         ┤
+                       ●  ●                                  ┤   145.84
+        ●  ●                                                 ┤
+●                                                            ┤
+Min:     0.00                                                ┤
+────────────────────────────────────────────────────────────┘
+     0.0                                                 2.0 (ps)
+
+Latest: 291.68 (K) | Average: 161.47 (K) | Points: 21
+\end{screen}
+
+The plot (shortened here) shows the temperature climbing from 0 towards
+300\,K during heating, exactly as intended. Type \key{b} to leave the monitor.
+When all three steps are done, the Execute Simulations menu shows:
+
+\begin{screen}
+✓ Finished: Energy Minimization
+✓ Finished: System Heating
+✓ Finished: NVT Production MD
+\end{screen}
+
+These were the times on our test laptop (a Mac with 11 processor cores) for
+the 15,729-atom system:
+
+\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+\textbf{Stage} & \textbf{Engine} & \textbf{Length} & \textbf{Time} \\
+\midrule
+Minimization & sander.MPI, 4 processes & 300 cycles & 6\,s \\
+Heating & sander.MPI, 4 processes & 1,000 steps (2\,ps) & 22\,s \\
+Production & sander & 500 steps (1\,ps) & 33\,s \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+The minimization brought the energy down from $-26{,}515$ to
+$-60{,}537$\,kcal/mol. Heating ended at 291.7\,K, and the production run
+averaged 294.5\,K, close to the 300\,K target.
+
+\textbf{New folder:} \file{ubq/simulations/batch_<date>_<time>/}, with one
+subfolder per stage and a \file{shared/} folder holding the topology and
+starting coordinates:
+
+\begin{screen}
+batch_20261121_125742/
+  01_1UBQ_1UBQ_Energy_Minimization/
+  02_1UBQ_1UBQ_System_Heating/
+  03_1UBQ_1UBQ_NVT_Production_MD/
+  shared/
+\end{screen}
+
+Each stage folder contains:
+\begin{itemize}
+  \item \file{simulation.mdin}, the settings for the stage;
+  \item \file{run_simulation.sh}, the command that was run;
+  \item a \file{.mdout} file, the energy report;
+  \item a \file{.rst7} file, the final coordinates;
+  \item for heating and production, a \file{.nc} file: the
+        \term{trajectory}, the file of snapshots that you analyze next.
+\end{itemize}
+
+\section{Step 7: Analyze the result}\label{sec:tutorial-analysis}
+
+\begin{steps}
+  \item In the Execute Simulations menu, type \key{4} (Analyze completed
+        simulations). From the main menu the same tool is \key{5b}, then
+        \key{4}.
+  \item Press \key{Enter} to choose the newest simulation, the production run.
+\end{steps}
+
+\begin{screen}
+Available simulations for analysis:
+  1. 03_1UBQ_1UBQ_NVT_Production_MD (completed: 2026-11-21 12:58)
+  2. 02_1UBQ_1UBQ_System_Heating (completed: 2026-11-21 12:58)
+  3. 01_1UBQ_1UBQ_Energy_Minimization (completed: 2026-11-21 12:57)
+Select simulation (1-3) or 'browse' (1): §ans«1»
+...
+Select Analysis Type:
+  1. Energetics analysis (mdout)
+  2. Trajectory analysis (structural)
+  3. Combined analysis (recommended)
+  4. View trajectory in the structure viewer
+Select analysis type (3): §ans«2»
+\end{screen}
+
+\begin{steps}[resume]
+  \item Type \key{2} (Trajectory analysis).
+  \item A small file browser opens in the stage folder. Type \typed{find},
+        then \key{1} to pick the production trajectory,\\
+        \file{1ubq_1ubq_nvt_production_md.nc}.
+\end{steps}
+
+ProPrep loads the 20 snapshots and shows the analysis menu:
+
+\begin{screen}
+        Trajectory Information
+┌────────────┬───────────────────────┐
+│ Frames     │ 20                    │
+│ Atoms      │ 15,729                │
+│ Residues   │ 4,926                 │
+│ Time range │ 2.0 - 3.0 ps (0.0 ns) │
+│ Box type   │ periodic              │
+└────────────┴───────────────────────┘
+...
+══ STRUCTURAL ANALYSIS ══
+   1. RMSD - Root mean square deviation
+   2. RMSF - Per-residue fluctuations
+...
+   6. DSSP - Secondary structure (helix, sheet, coil)
+...
+   9. Distance - Atom-atom distances
+...
+  21. Radius of gyration - Structural compactness
+...
+   0. Exit to MD Manager menu
+
+Select analyses (comma-separated, e.g., 1,2,6): §ans«1»
+\end{screen}
+
+\subsection{How far did the protein move? (RMSD)}
+
+The \term{RMSD} (root mean square deviation) is the average distance, in Å,
+between the atoms in each snapshot and the same atoms in a reference
+snapshot. It tells you how far the protein has drifted from where it started.
+
+\begin{steps}[resume]
+  \item Type \key{1} (RMSD).
+  \item At \prompt{Select region}, type \key{1} (Backbone atoms).
+  \item At \prompt{Select reference frame}, press \key{Enter} (Frame 0).
+\end{steps}
+
+\begin{screen}
+RMSD Analysis: Backbone atoms
+Mask: @C,CA,N,O&!:WAT
+Reference: Frame 0
+
+     RMSD Statistics
+┌───────┬───────────────┐
+│ Mean  │ 0.50 ± 0.18 Å │
+│ Range │ 0.00 - 0.65 Å │
+│ Final │ 0.65 Å        │
+└───────┴───────────────┘
+...
+Analyze additional regions? (y/n) (n): §ans«n»
+...
+Export analysis results? (4): §ans«3»
+✓ Exported to .../ubq/03_1UBQ_1UBQ_NVT_Production_MD_trajectory_analysis.csv
+✓ Exported to .../ubq/03_1UBQ_1UBQ_NVT_Production_MD_trajectory_analysis.json
+\end{screen}
+
+The backbone moved 0.65\,Å from its starting shape. For a stable protein over
+1\,ps that is what you expect: the fold is intact.
+
+\begin{steps}[resume]
+  \item Answer \key{n} to \prompt{Analyze additional regions?}.
+  \item At \prompt{Export analysis results?}, type \key{3} (Both formats).
+\end{steps}
+
+The \file{.csv} file opens in Excel or any spreadsheet program; the
+\file{.json} file is for scripts.
+
+\subsection{More measurements at once}
+
+Back at the analysis menu, type several numbers separated by commas:
+\typed{2,9,21,6}. ProPrep runs them one after the other.
+
+\begin{steps}[resume]
+  \item \textbf{RMSF} (\key{2}): press \key{Enter} three times (C-alpha atoms,
+        default alignment, frame~0).
+  \item \textbf{Distance} (\key{9}): type \typed{:1@CA} and \typed{:76@CA}
+        (the first and last amino acid), and a description such as
+        \typed{N-C terminus}.
+  \item \textbf{Radius of gyration} (\key{21}): type \key{4} (Protein residues
+        1-76, no hydrogens).
+  \item \textbf{DSSP} (\key{6}): type \key{4} as well.
+  \item At \prompt{Export analysis results?}, type \key{1} (CSV).
+\end{steps}
+
+Our results, in plain words:
+
+\begin{tabularx}{\linewidth}{@{}lrL@{}}
+\toprule
+\textbf{Measurement} & \textbf{Result} & \textbf{Meaning} \\
+\midrule
+RMSF & 0.28\,Å mean & How much each amino acid wobbles. The tail
+  (residue~76, 0.72\,Å) moved most. \\
+Distance & 38.4\,Å & The two ends of the chain stayed about 38\,Å apart. \\
+Radius of gyration & 11.9\,Å & The protein stayed equally compact. \\
+DSSP & 20\,\% helix, 34\,\% sheet & The helix and sheets of ubiquitin
+  were kept. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Chapter~\ref{ch:analysis} explains each measurement and how to read it.
+
+\begin{watchout}
+Never type a number containing the digit 0, such as \key{10} or \key{20}, in
+the analysis list. In version 1.23.0 any answer with a 0 in it is read as
+\key{0} (Exit), and ProPrep leaves the analysis menu at once.
+\end{watchout}
+
+\begin{steps}[resume]
+  \item Type \key{0} to leave the analysis menu, then \key{x} to close
+        ProPrep when you are finished.
+\end{steps}
+
+\section{What you just did}
+
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+\textbf{Stage} & \textbf{Keys} & \textbf{Files in \file{ubq/}} \\
+\midrule
+Named the project & --- & \file{proprep_session_<date>.json} \\
+Downloaded the structure & \key{1a} & \file{1UBQ.pdb} \\
+Chose force field, water, box, salt & \key{5a} \key{2} & \file{1UBQ_tleap.in} \\
+Built the system & \key{5a} \key{4} & \file{1UBQ.prmtop}, \file{1UBQ.rst7},
+  \file{leap.log} \\
+Set up and ran the simulation & \key{5b} \key{1} & \file{simulations/batch_<date>/} \\
+Analyzed the trajectory & \key{5b} \key{4} & \file{03_..._trajectory_analysis.csv} \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+You took a protein from the Protein Data Bank, gave it a force field, put it
+in a box of water with physiological salt, relaxed and warmed it, ran it
+freely, and measured how it behaved. Every real simulation project follows
+the same path; it only adds preparation steps and runs much longer.
+
+\section{If something went differently}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{What you see} & \textbf{What to do} \\
+\midrule
+Back at the Topology Generator menu, no \file{.in} file &
+  You answered \key{n} to the bond question. Run \key{2} again and answer
+  \key{y} (Section~\ref{sec:tutorial-leapin}). \\
+\prompt{No such file or directory: 'pmemd'} &
+  The engine was left at \texttt{pmemd}. Go back to \key{5b} \key{1} and set
+  \texttt{sander} at the hardware step (Section~\ref{sec:tutorial-engine}). \\
+\prompt{Returning to MD Manager menu\ldots} right after choosing analyses &
+  Your list contained a 0. Choose again without 10 or 20. \\
+A \file{.prmtop} of 0 bytes &
+  tLEaP failed. See Chapter~\ref{ch:topology}, ``If something goes wrong''. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+More problems and their solutions are in Chapter~\ref{ch:troubleshooting}.
+
+\section{Where to go next}
+
+\begin{itemize}
+  \item \textbf{Your own protein:} Chapter~\ref{ch:structure} shows the other
+        ways to load a structure, and Chapters~\ref{ch:cleaning}
+        and~\ref{ch:protonation} show how to clean it and set protonation
+        states.
+  \item \textbf{More about the system:} Chapter~\ref{ch:topology} explains
+        every choice in the Topology Generator, including disulfide bonds and
+        hemes.
+  \item \textbf{Longer and better simulations:} Chapter~\ref{ch:runningmd}
+        covers protocols, restraints, engines and running on a computing
+        cluster.
+  \item \textbf{More analyses:} Chapter~\ref{ch:analysis} lists all 23
+        measurements.
+\end{itemize}

@@ -1,0 +1,10 @@
+# Build:  latexmk      (from manual/latex)
+# On the machine this was written on, the personal texmf tree has newer LaTeX files than
+# the TeX Live base format, so a private format (.texfmt/ppxelatex.fmt, not in git) is used
+# when present. Rebuild it with:  (cd .texfmt && xelatex -ini -etex -jobname=ppxelatex xelatex.ini)
+# Everywhere else the normal xelatex format is used.
+my $fmt = -e '.texfmt/ppxelatex.fmt' ? '-fmt=.texfmt/ppxelatex ' : '';
+$pdf_mode = 5;
+$xelatex = "xelatex ${fmt}-interaction=nonstopmode -file-line-error -synctex=1 %O %S";
+$makeindex = 'makeindex %O -o %D %S';
+@default_files = ('main.tex');

@@ -1,0 +1,446 @@
+\chapter{Menus and prompts}\label{ch:menus}
+
+ProPrep is driven entirely by menus and questions. This chapter shows you how to
+read the main menu, how to answer the different kinds of questions, how to move
+back and forth, and what the settings screens at the bottom of the menu do. It
+ends with a short guide to Workflow Mode, the guided alternative to the Full
+Menu.
+
+\section{Reading the main menu}\label{sec:menus-main}
+
+The Full Menu lists every tool, grouped in numbered sections that follow the
+order of a typical preparation. Here is the start of it, just after starting a
+new project:
+
+\begin{screen}
+Navigation: Main Menu
+
+
+══ 1. STRUCTURE INPUT ══
+  1a. ✓ Structure Loader
+        Load protein structures from PDB, AlphaFold, AlphaFill, or local files
+  1b. ○ Biological Assembly Generator
+        Generate biological assembly from crystal asymmetric unit
+        ⚠ Needs a loaded structure
+
+══ 2. REDOX SITE DETECTION ══
+  2a. ✓ Redox Site Detector
+        Detect redox-active groups in protein structures
+...
+══ WORKSPACE & SETTINGS ══
+  w. Workspace Options
+  p. Preferences
+  h. Help & Workflows
+  f. Feedback & Support
+  g. Switch to Workflow Mode
+  x. Exit
+
+Enter your choice (1a): §ans«1a»
+\end{screen}
+
+\begin{itemize}
+  \item \textbf{Sections.} \textsf{1.~STRUCTURE INPUT}, \textsf{2.~REDOX SITE
+  DETECTION}, \textsf{3.~STRUCTURE COMPARISON}, \textsf{4.~STRUCTURE
+  PREPARATION}, \textsf{5.~SIMULATION SETUP \& EXECUTION}, \textsf{UTILITIES}
+  and \textsf{WORKSPACE \& SETTINGS}.
+  \item \textbf{Codes.} Each tool has a code made of the section number and a
+  letter, such as \key{1a} or \key{4e}. Type the code and press \key{Enter} to
+  open the tool. The settings at the bottom have one-letter codes. Appendix~\ref{app:menumap}
+  lists them all.
+  \item \textbf{The \textsf{Navigation} line} at the top of each screen is a
+  \term{breadcrumb}: it shows where you are, for example
+  \texttt{Navigation: Main Menu > Structure Loader}.
+  \item \textbf{The default.} \prompt{Enter your choice (1a)} means that
+  pressing \key{Enter} alone opens \key{1a}, the Structure Loader.
+\end{itemize}
+
+\subsection*{What the marks mean}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Mark} & \textbf{Meaning} \\
+\midrule
+\texttt{✓} (green) & In the main menu: the tool \emph{can be used now}. It
+does \emph{not} mean the step is done. \\
+\texttt{○} (yellow) & The tool is not ready yet, because something it needs is
+missing. \\
+\texttt{⚠} & The line under a \texttt{○} tool that says what is missing, for
+example \texttt{⚠ Needs a loaded structure} or
+\texttt{⚠ Needs a topology — run Topology Generator first}. \\
+\texttt{●} & Only \emph{inside} a tool's own menu: this action has been done
+in this session. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+With nothing loaded, only \key{1a}, \key{2a}, \key{2b}, \key{3a} and \key{4g}
+show \texttt{✓}. After you load a structure such as \pdb{1UBQ}, nearly every
+tool turns \texttt{✓}. The tools that stay \texttt{○} wait for an earlier step:
+\key{4d} and \key{5c} need detected redox sites, and \key{5b} needs a topology.
+
+\begin{watchout}
+The main menu never shows what you have already done. After filtering,
+protonating and orienting a structure, \key{4a}, \key{4e} and \key{4f} still
+show a plain \texttt{✓}. To see whether a step is done, open the tool and look
+for \texttt{●} next to the action, as here after filtering:
+\texttt{1.~● Filter PDB structure}.
+\end{watchout}
+
+You can open a \texttt{○} tool anyway. Its menu appears so you can look at its
+options, but each blocked action shows \texttt{⚠} and does nothing when chosen.
+Nothing breaks.
+
+\begin{tip}
+The Full Menu can also be drawn as two columns of panels. Start with
+\typed{proprep --menu-grid}, or change it for good in Preferences
+(Section~\ref{sec:menus-prefs}). It needs a wide window. The codes are the same.
+\end{tip}
+
+\section{Answering questions}\label{sec:menus-prompts}
+
+Every question ends with a colon, and ProPrep waits for you to type an answer
+and press \key{Enter}. Questions come in a few kinds.
+
+\begin{tabularx}{\linewidth}{@{}p{0.34\linewidth}L@{}}
+\toprule
+\textbf{Looks like} & \textbf{What to type} \\
+\midrule
+\prompt{Enter your choice (1)} & A menu number or code. The value in
+parentheses is the \term{default}: \key{Enter} alone accepts it. \\
+\prompt{Remove hydrogen atoms? [y/n] (y)} & \key{y} for yes or \key{n} for no.
+\key{Enter} accepts the default in parentheses. \\
+\prompt{Select menu mode [1/2]} & One of the listed answers. With no
+parentheses there is no default, so you must type an answer. \\
+\prompt{Select chains (comma-separated indices, or 'all') (all)} & Several
+numbers separated by commas, such as \typed{1,2}, or a word the question
+offers. \\
+\prompt{Enter PDB ID (e.g., 1ABC, 7XYZ)} & Free text: a code, a name, a number
+or a file name. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+If you type something ProPrep does not expect, it says so and asks again:
+
+\begin{screen}
+Enter your choice (1a): §ans«9z»
+Invalid choice: 9z. Please try again.
+Hint: Use format like '1a', '3c', 'w', 'h', or 'x'
+\end{screen}
+
+Inside tools, a wrong answer gives a message such as:
+
+\begin{screen}
+Received 'zz', which is not one of the available options
+\end{screen}
+
+A yes/no question answers \texttt{Received '?'; please enter y or n}.
+
+\begin{watchout}
+The Full Menu accepts \textbf{lowercase only}. \typed{W} or \typed{4E} is
+rejected as an invalid choice; type \key{w} or \key{4e}. (Workflow Mode accepts
+both.) Also, a few questions that show no list of answers do not ask again
+after a wrong answer: they leave the tool. If that happens, open the tool again.
+\end{watchout}
+
+\begin{watchout}
+Always read the default before pressing \key{Enter}. Most defaults are the safe
+choice, but not all. For example, pressing \key{Enter} at
+\prompt{Submit this feedback to GitHub Issues? [y/n] (y)} sends your feedback,
+and pressing \key{Enter} when picking a session to resume cancels the resume.
+\end{watchout}
+
+\section{Moving around: \texttt{b}, \texttt{m} and \texttt{x}}\label{sec:menus-nav}
+
+Every tool menu ends with the same line:
+
+\begin{screen}
+[b]ack · [m]main · [x]exit
+\end{screen}
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Key} & \textbf{What it does} \\
+\midrule
+\key{b} & Back one level. From a tool's first screen, this is the main menu. \\
+\key{m} & Straight back to the main menu. \\
+\key{x} & Exit ProPrep. It asks \prompt{Are you sure you want to exit? [y/n] (n)};
+answering \key{n} takes you to the main menu, not back into the tool. \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Main-menu codes do not work inside a tool. Typing \typed{1a} inside the PDB
+Filter gives \texttt{Received '1a', which is not one of the available options}.
+Press \key{m} first, then type the code. Help pages end with
+\prompt{Press Enter to return to main menu}, and the Preferences and Workspace
+Options screens have a numbered ``Back to main menu'' item.
+
+\section{Going back with \texttt{undo}}\label{sec:menus-undo}
+
+If you gave a wrong answer, you do not need to start again. Type \typed{undo} at
+any question. ProPrep lists your recent answers:
+
+\begin{screen}
+Enter your choice (1a): §ans«undo»
+
+Recent answers in this session
+# ┃ module                        ┃ question                     ┃ answer
+━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━
+0 │ Main Menu                     │ Select menu option           │ 1b  Biological ...
+1 │ Biological Assembly Gener...  │ Select Biological Assemb...  │ 1  Generate biol...
+2 │ Biological Assembly Gener...  │ Select Biological Assemb...  │ b  Back
+3 │ Main Menu                     │ Select menu option           │ 9z
+4 │ Main Menu                     │ Select menu option           │ W
+Rewind to which answer? number to rewind to, [m]ore, or [x] cancel (4): §ans«1»
+[r]e-answer it live, or [c]hange it and replay what followed? ([x] cancel) (r): §ans«r»
+\end{screen}
+
+Type the number of the answer you want to change, then press \key{Enter} to
+accept \key{r} (re-answer it live). ProPrep quickly replays everything before
+that answer and then asks that question again. A backup copy of the session
+file is kept. Type \key{x} instead to cancel.
+
+\begin{itemize}
+  \item \key{undo} needs session recording. If you started ProPrep with
+  \typed{--no-session}, ProPrep rejects it as an invalid choice.
+  \item It cannot reach the menu-mode and project-name questions, which come
+  before recording starts.
+  \item Mistyped menu answers (like \texttt{9z} and \texttt{W} above) are recorded too, so
+  they appear in the list.
+\end{itemize}
+
+\begin{watchout}
+In version 1.23.0, the \key{c} choice (change the answer and replay what
+followed) can be ignored for menu-type questions: ProPrep replays the old
+answer. Use \key{r} and type the new answer yourself, or use the session editor.
+Chapter~\ref{ch:sessions} explains \key{undo} and the session editor in full.
+\end{watchout}
+
+\section{Help \& Workflows (\texttt{h})}\label{sec:menus-help}
+
+\key{h} shows one page called ``Common Workflows'': five typical sequences of
+tools and a one-line description of each menu section. \key{Enter} returns to
+the menu.
+
+\begin{screen}
+                    Common Workflows
+...
+  BASIC PROTEIN MD SIMULATION
+   1a.Load → 3a.Filter → 3c.Fix → 3d.Protonate → 5b.tLEaP → 5c.MD
+...
+Press Enter to return to main menu...
+\end{screen}
+
+\begin{watchout}
+In version 1.23.0, the codes on this help page are out of date. Typing them
+opens the wrong tool: \key{3a} opens the Homology Searcher, not the PDB Filter.
+Use the current codes:
+
+\smallskip
+\begin{tabularx}{\linewidth}{@{}lll@{}}
+\toprule
+\textbf{Tool} & \textbf{Help page says} & \textbf{Correct code} \\
+\midrule
+PDB Filter & 3a & \key{4a} \\
+Structure Fixer & 3c & \key{4c} \\
+Protonation State Analyzer & 3d & \key{4e} \\
+Redox Site Preparer & 4a & \key{4d} \\
+Force Field Parameterizer & 5a & \key{2c} \\
+Topology Generator (tLEaP) & 5b & \key{5a} \\
+Molecular Dynamics Manager & 5c & \key{5b} \\
+QM/MM Preparator & 5d & \key{5c} \\
+Structure Aligner & 2b & \key{3b} \\
+\bottomrule
+\end{tabularx}
+\end{watchout}
+
+Chapter~\ref{ch:bigpicture} gives an up-to-date overview of which tools to use
+for which kind of project.
+
+\section{Preferences (\texttt{p})}\label{sec:menus-prefs}
+
+Preferences are settings that ProPrep remembers between runs. They are stored
+in the file \file{~/.proprep/settings.json} in your home folder.
+
+\begin{screen}
+1. Change default menu mode (currently: Workflow Mode (guided))
+2. Change full-menu layout (currently: List (single column))
+3. Configure GitHub feedback (currently: not configured)
+4. Check for new ProPrep releases at startup (currently: on)
+5. Reset all preferences to defaults
+6. Back to main menu
+Enter your choice (1):
+\end{screen}
+
+\begin{tabularx}{\linewidth}{@{}p{0.27\linewidth}L@{}}
+\toprule
+\textbf{Option} & \textbf{What it does} \\
+\midrule
+1 Default menu mode & Choose \key{1} Workflow Mode, \key{2} Full Menu Mode or
+\key{3} Ask each time. The default answer is always \key{1}, so type your
+choice. It takes effect the next time you start ProPrep
+(\texttt{Restart ProPrep for the change to take effect}). \\
+2 Full-menu layout & \key{1} List (one tool per row, the default) or \key{2}
+Grid (two columns of panels). Takes effect at once. \\
+3 GitHub feedback & Stores a GitHub repository and access token so that
+Feedback \& Support can post your reports (Chapter~\ref{ch:help}). \\
+4 Release check & Turn the daily check for a newer ProPrep version
+\key{1} On or \key{2} Off. \\
+5 Reset & Puts every preference back to its default (asks first; the default
+answer is \key{n}). This also removes a stored GitHub token. \\
+6 Back & Returns to the main menu. \\
+\bottomrule
+\end{tabularx}
+
+\section{Workspace Options (\texttt{w})}\label{sec:menus-workspace}
+
+The \term{workspace} is what ProPrep holds in its memory during a run: the
+structures you loaded, the files it made, and the results of each tool. The
+Workspace Options screen lets you look at it and offers some technical tools.
+Most users never need it.
+
+\begin{tabularx}{\linewidth}{@{}p{0.34\linewidth}L@{}}
+\toprule
+\textbf{Option} & \textbf{What it does in 1.23.0} \\
+\midrule
+1 Show workspace status & A table of what is in memory. The names, such as
+\texttt{rcsb\_pdb\_file}, are internal labels. \\
+2 Show detailed workspace & Shows exactly the same table as option 1. \\
+3 Save workspace & Writes \file{workspace.json}, but see the warning below. \\
+4 Load workspace & Reads that file back; it restores almost nothing. \\
+5 Reset workspace & Makes ProPrep forget everything loaded in this run (asks
+first). Files on disk are kept. \\
+6 Toggle debug mode & Shows extra technical messages; the same as starting with
+\typed{--debug} (Chapter~\ref{ch:help}). \\
+7 Show command history & The last ten menu-level actions, with times. \\
+8--11 Command history & Save, load, replay or clear the command history. \\
+12 Back to main menu & \\
+\bottomrule
+\end{tabularx}
+
+\begin{watchout}
+\textsf{Save workspace} does not save your work. In version 1.23.0 the file it
+writes contains only \texttt{\{"pdb\_file": null\}}, even with a structure
+loaded, and \textsf{Load workspace} brings nothing back. Your real record is the
+session file, which ProPrep writes automatically (Chapter~\ref{ch:sessions}),
+together with the files in your project folder (Chapter~\ref{ch:projectfolder}).
+\end{watchout}
+
+\begin{watchout}
+\textsf{Reset workspace} also forgets the menu mode and the project folder. After
+a reset, the breadcrumb shows \texttt{Navigation: Home}, and if you were in
+Workflow Mode you land in the Full Menu. The reset is useful mainly when you want
+ProPrep to stop using a structure from earlier in the run
+(Section~\ref{sec:projectfolder-pickup}); starting a new project is usually
+cleaner.
+\end{watchout}
+
+\section{Feedback \& Support (\texttt{f})}\label{sec:menus-feedback}
+
+\key{f} opens a short form that turns a comment, question or problem report into
+an issue on the developers' GitHub page. Chapter~\ref{ch:help} describes each
+question and the GitHub setup it needs.
+
+\begin{watchout}
+At the end of the form, ProPrep asks
+\prompt{Submit this feedback to GitHub Issues? [y/n] (y)}. The default is
+\textbf{yes}: pressing \key{Enter} sends it. Type \key{n} if you do not want to
+send. To leave the form early, press \key{Enter} at \prompt{Summary}; ProPrep
+answers \texttt{Summary is required.} and \texttt{Feedback cancelled.}
+\end{watchout}
+
+\section{Workflow Mode}\label{sec:menus-workflow}
+
+Workflow Mode is the guided version of the main menu. It shows only the tools
+for one stage at a time, with a short suggestion, and you step from stage to
+stage. You get it by choosing \key{1} at start-up, starting with
+\typed{proprep --workflow}, or pressing \key{g} in the Full Menu.
+
+\begin{screen}
+╭───────────────────────────── WORKFLOW GUIDE ─────────────────────────────╮
+│ Load:▶ → Detect:○ → Compare:○ → Fix:○ → Simulate:○                       │
+│                                                                          │
+│ Start by loading a structure from databases or local files and then      │
+│ optionally applying symmetry transformations to generate a biological    │
+│ assembly.                                                                │
+╰──────────────────────────────────────────────────────────────────────────╯
+
+══ 1. STRUCTURE INPUT ══
+  1. ✓ Structure Loader
+       Load protein structures from PDB, AlphaFold, AlphaFill, or local files
+  2. ○ Biological Assembly Generator
+       Generate biological assembly from crystal asymmetric unit
+       ⚠ Needs a loaded structure
+
+  v. Structure Viewer  |  u. Utilities...
+
+[n]ext | [l]oad [d]etect [c]ompare [f]ix [s]imulate | [a]ll tools | e[x]it
+
+Enter your choice (1):
+\end{screen}
+
+The guide bar at the top shows the five stages. \texttt{▶} marks the current
+stage, \texttt{✓} a stage you have finished, \texttt{⊘} a stage you jumped over
+and \texttt{○} a stage not reached yet.
+
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Stage} & \textbf{Tools (numbered within the stage)} \\
+\midrule
+Load & 1 Structure Loader, 2 Biological Assembly Generator \\
+Detect & 1 Redox Site Detector, 2 Force Field Explorer, 3 Force Field
+Parameterizer \\
+Compare & 1 Homology Searcher, 2 Structure Aligner \\
+Fix & 1 PDB Filter, 2 Amino Acid Mutator, 3 Structure Fixer, 4 Redox Site
+Preparer, 5 Protonation State Analyzer, 6 Structure Orientator, 7 Membrane
+Builder \\
+Simulate & 1 Topology Generator, 2 Molecular Dynamics Manager, 3 QM/MM
+Preparator, 4 Molecular Docking \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+\textbf{Key} & \textbf{What it does} \\
+\midrule
+\key{1}, \key{2}, \ldots & Open a tool of the current stage. \\
+\key{n} & Mark this stage done and go to the next one (not on Simulate). \\
+\key{b} & Go back one stage (not on Load). \\
+\key{l} \key{d} \key{c} \key{f} \key{s} & Jump to Load, Detect, Compare, Fix
+or Simulate. \\
+\key{v} & Structure Viewer (the Full Menu's \key{ua}). \\
+\key{u} & Utilities: \key{w} Workspace Options, \key{p} Preferences, \key{h}
+Help, \key{f} Feedback, \key{c} Cancel. \key{Enter} means Cancel here. \\
+\key{a} & Switch to the Full Menu. \\
+\key{x} & Exit (asks to confirm). \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+After you load a structure and leave the Structure Loader with \key{b}, ProPrep
+says \texttt{✓ Structure loaded! Advanced to Detect stage} and moves on by
+itself.
+
+\subsection*{Things to know about Workflow Mode}
+
+\begin{itemize}
+  \item The numbers restart at every stage: \key{1} is the Structure Loader on
+  Load, but the PDB Filter on Fix and the Topology Generator on Simulate.
+  \item \key{n} marks the stage you leave as done (\texttt{✓}) even if you did
+  nothing there. Jumping forward with \key{s} marks the stages in between as
+  skipped (\texttt{⊘}).
+  \item Leaving the Structure Loader with \key{m} instead of \key{b} does not
+  move you on to Detect. Press \key{n} yourself.
+  \item After \key{b}, the stage you return to can show \texttt{✓} instead of
+  \texttt{▶}. You are still on it.
+  \item Switching to the Full Menu (\key{a}) and back (\key{g}) loses the stage
+  you had reached.
+  \item The Workflow help page (\key{u} then \key{h}) says that \key{s}
+  ``skips'' a stage; in fact it jumps to Simulate. It also lists a ``Setup''
+  stage that does not appear in the guide bar; topology building is on the
+  Simulate stage.
+\end{itemize}
+
+None of these affect your files; they only affect the marks in the guide bar.
